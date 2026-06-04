@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Anyone can upload bid PDFs" ON storage.objects;
