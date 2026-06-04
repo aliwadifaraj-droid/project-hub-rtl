@@ -249,3 +249,36 @@ export const adminListMessages = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return data ?? [];
   });
+
+// ---------- Public: signup (first admin only) ----------
+const FIRST_ADMIN_EMAIL = "zydalwadii@gmail.com";
+
+export const signupFirstAdmin = createServerFn({ method: "POST" })
+  .inputValidator((d: { email: string; password: string }) =>
+    z.object({
+      email: z.string().email().max(255),
+      password: z.string().min(6).max(72),
+    }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    if (data.email.toLowerCase() !== FIRST_ADMIN_EMAIL) {
+      throw new Error("التسجيل مسموح فقط للحساب المخصص");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // check if any admin already exists
+    const { data: existingAdmins } = await supabaseAdmin
+      .from("user_roles").select("user_id").eq("role", "admin").limit(1);
+    if (existingAdmins && existingAdmins.length > 0) {
+      throw new Error("يوجد أدمن مسجل بالفعل");
+    }
+    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+      email: data.email,
+      password: data.password,
+      email_confirm: true,
+    });
+    if (error || !created.user) throw new Error(error?.message ?? "فشل إنشاء الحساب");
+    const { error: roleErr } = await supabaseAdmin
+      .from("user_roles").insert({ user_id: created.user.id, role: "admin" });
+    if (roleErr) throw new Error(roleErr.message);
+    return { ok: true };
+  });
