@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getProject } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -9,29 +10,20 @@ import { ArrowRight, MapPin, Clock, Upload, CheckCircle2, Loader2 } from "lucide
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
-type Project = {
-  id: string;
-  name: string;
-  description: string;
-  location: string;
-  duration: string;
-  cover_image: string;
-};
-
 const projectQuery = (id: string) =>
   queryOptions({
     queryKey: ["project", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("id,name,description,location,duration,cover_image")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
+      const data = await getProject({ data: { id } });
       if (!data) throw notFound();
-      return data as Project;
+      return data;
     },
   });
+
+function pickImage(p: { cover_url?: string; cover_image: string }) {
+  if (p.cover_url && (p.cover_url.startsWith("http") || p.cover_url.startsWith("/"))) return p.cover_url;
+  return resolveImage(p.cover_image);
+}
 
 export const Route = createFileRoute("/projects/$projectId")({
   loader: ({ context, params }) =>
@@ -101,7 +93,7 @@ function ProjectDetail() {
 
         <div className="overflow-hidden rounded-2xl shadow-[var(--shadow-elegant)]">
           <img
-            src={resolveImage(project.cover_image)}
+            src={pickImage(project)}
             alt={project.name}
             width={1600}
             height={900}

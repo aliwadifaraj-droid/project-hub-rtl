@@ -1,36 +1,28 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listProjects } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ArrowLeft, MapPin, Clock } from "lucide-react";
 
-type Project = {
-  id: string;
-  name: string;
-  description: string;
-  location: string;
-  duration: string;
-  cover_image: string;
-};
-
 const projectsQuery = queryOptions({
   queryKey: ["projects"],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("projects")
-      .select("id,name,description,location,duration,cover_image")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return data as Project[];
-  },
+  queryFn: () => listProjects(),
 });
 
 export const Route = createFileRoute("/")({
   loader: ({ context }) => context.queryClient.ensureQueryData(projectsQuery),
   component: Index,
+  errorComponent: ({ error }) => (
+    <div className="p-8 text-center text-destructive">تعذر تحميل المشاريع: {error.message}</div>
+  ),
 });
+
+function pickImage(p: { cover_url?: string; cover_image: string }) {
+  if (p.cover_url && (p.cover_url.startsWith("http") || p.cover_url.startsWith("/"))) return p.cover_url;
+  return resolveImage(p.cover_image);
+}
 
 function Index() {
   const { data: projects } = useSuspenseQuery(projectsQuery);
@@ -74,7 +66,7 @@ function Index() {
             >
               <div className="relative aspect-[4/3] overflow-hidden">
                 <img
-                  src={resolveImage(p.cover_image)}
+                  src={pickImage(p)}
                   alt={p.name}
                   loading="lazy"
                   width={1024}
