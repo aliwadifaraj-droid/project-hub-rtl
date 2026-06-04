@@ -93,7 +93,7 @@ function ProjectDetail() {
 
         <div className="overflow-hidden rounded-2xl shadow-[var(--shadow-elegant)]">
           <img
-            src={resolveImage(project.cover_image)}
+            src={pickImage(project)}
             alt={project.name}
             width={1600}
             height={900}
