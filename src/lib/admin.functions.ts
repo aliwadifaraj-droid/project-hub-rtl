@@ -236,3 +236,16 @@ export const getMyRoles = createServerFn({ method: "GET" })
     const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     return (data ?? []).map((r) => r.role as "admin" | "employee");
   });
+
+// ---------- Admin/Staff: list contact messages ----------
+export const adminListMessages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("contact_messages")
+      .select("id,name,email,message,created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
