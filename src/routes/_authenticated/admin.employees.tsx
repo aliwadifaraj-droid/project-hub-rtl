@@ -82,7 +82,7 @@ function NewEmployeeModal({ onClose, onSave, saving }: { onClose: () => void; on
           <div><label className="mb-1.5 block text-sm font-semibold">البريد</label>
             <input type="email" className="inp" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
           <div><label className="mb-1.5 block text-sm font-semibold">كلمة المرور</label>
-            <input type="text" className="inp" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+            <input type="password" autoComplete="new-password" className="inp" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
           <div><label className="mb-1.5 block text-sm font-semibold">الدور</label>
             <select className="inp" value={role} onChange={(e) => setRole(e.target.value as "admin" | "employee")}>
               <option value="employee">موظف</option>
