@@ -25,6 +25,7 @@ function AdminLayout() {
   const items = [
     { to: "/admin/requests", label: "الطلبات", icon: ClipboardList, show: true },
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: true },
+    { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/projects", label: "المشاريع", icon: FolderKanban, show: isAdmin },
     { to: "/admin/employees", label: "الموظفون", icon: Users, show: isAdmin },
   ];
