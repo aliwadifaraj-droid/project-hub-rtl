@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Building2 } from "lucide-react";
+import { Building2, ClipboardList } from "lucide-react";
 
 export function SiteHeader() {
   return (
@@ -11,17 +11,23 @@ export function SiteHeader() {
           </span>
           <span>إنشاء</span>
         </Link>
-        <nav className="flex items-center gap-2">
+        <nav className="flex items-center gap-1 sm:gap-2">
           <Link
             to="/"
             activeOptions={{ exact: true }}
-            className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
+            className="rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
           >
             المشاريع
           </Link>
           <Link
+            to="/my-requests"
+            className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
+          >
+            <ClipboardList className="h-4 w-4" /> طلباتي
+          </Link>
+          <Link
             to="/contact"
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
+            className="rounded-md bg-foreground px-3 sm:px-4 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
           >
             تواصل بنا
           </Link>
