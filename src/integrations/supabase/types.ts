@@ -14,7 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          message: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      project_requests: {
+        Row: {
+          company_name: string
+          created_at: string
+          facility_location: string
+          id: string
+          pdf_url: string
+          project_id: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          facility_location: string
+          id?: string
+          pdf_url: string
+          project_id: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          facility_location?: string
+          id?: string
+          pdf_url?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          cover_image: string
+          created_at: string
+          description: string
+          duration: string
+          id: string
+          images: string[]
+          location: string
+          name: string
+        }
+        Insert: {
+          cover_image: string
+          created_at?: string
+          description: string
+          duration: string
+          id?: string
+          images?: string[]
+          location: string
+          name: string
+        }
+        Update: {
+          cover_image?: string
+          created_at?: string
+          description?: string
+          duration?: string
+          id?: string
+          images?: string[]
+          location?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
