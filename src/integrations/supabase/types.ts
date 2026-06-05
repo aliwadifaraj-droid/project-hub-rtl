@@ -79,6 +79,53 @@ export type Database = {
           },
         ]
       }
+      project_submissions: {
+        Row: {
+          approved_project_id: string | null
+          contact_phone: string
+          created_at: string
+          description: string
+          id: string
+          images: string[]
+          location: string
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_project_id?: string | null
+          contact_phone: string
+          created_at?: string
+          description: string
+          id?: string
+          images?: string[]
+          location: string
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_project_id?: string | null
+          contact_phone?: string
+          created_at?: string
+          description?: string
+          id?: string
+          images?: string[]
+          location?: string
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_submissions_approved_project_id_fkey"
+            columns: ["approved_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           cover_image: string
