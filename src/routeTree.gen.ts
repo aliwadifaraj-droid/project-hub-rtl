@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SubmitProjectRouteImport } from './routes/submit-project'
 import { Route as MyRequestsRouteImport } from './routes/my-requests'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -18,11 +19,17 @@ import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projec
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
+import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authenticated/admin.requests'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin.projects'
 import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
 
+const SubmitProjectRoute = SubmitProjectRouteImport.update({
+  id: '/submit-project',
+  path: '/submit-project',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MyRequestsRoute = MyRequestsRouteImport.update({
   id: '/my-requests',
   path: '/my-requests',
@@ -67,6 +74,12 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminSubmissionsRoute =
+  AuthenticatedAdminSubmissionsRouteImport.update({
+    id: '/submissions',
+    path: '/submissions',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminRequestsRoute =
   AuthenticatedAdminRequestsRouteImport.update({
     id: '/requests',
@@ -97,12 +110,14 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
+  '/submit-project': typeof SubmitProjectRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
+  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -111,11 +126,13 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
+  '/submit-project': typeof SubmitProjectRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
+  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
@@ -126,12 +143,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
+  '/submit-project': typeof SubmitProjectRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/_authenticated/admin/requests': typeof AuthenticatedAdminRequestsRoute
+  '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -142,12 +161,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/my-requests'
+    | '/submit-project'
     | '/admin'
     | '/projects/$projectId'
     | '/admin/employees'
     | '/admin/messages'
     | '/admin/projects'
     | '/admin/requests'
+    | '/admin/submissions'
     | '/admin/users'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
@@ -156,11 +177,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/my-requests'
+    | '/submit-project'
     | '/projects/$projectId'
     | '/admin/employees'
     | '/admin/messages'
     | '/admin/projects'
     | '/admin/requests'
+    | '/admin/submissions'
     | '/admin/users'
     | '/admin'
   id:
@@ -170,12 +193,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/my-requests'
+    | '/submit-project'
     | '/_authenticated/admin'
     | '/projects/$projectId'
     | '/_authenticated/admin/employees'
     | '/_authenticated/admin/messages'
     | '/_authenticated/admin/projects'
     | '/_authenticated/admin/requests'
+    | '/_authenticated/admin/submissions'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
@@ -186,11 +211,19 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
   MyRequestsRoute: typeof MyRequestsRoute
+  SubmitProjectRoute: typeof SubmitProjectRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/submit-project': {
+      id: '/submit-project'
+      path: '/submit-project'
+      fullPath: '/submit-project'
+      preLoaderRoute: typeof SubmitProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/my-requests': {
       id: '/my-requests'
       path: '/my-requests'
@@ -254,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/submissions': {
+      id: '/_authenticated/admin/submissions'
+      path: '/submissions'
+      fullPath: '/admin/submissions'
+      preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/requests': {
       id: '/_authenticated/admin/requests'
       path: '/requests'
@@ -290,6 +330,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
   AuthenticatedAdminRequestsRoute: typeof AuthenticatedAdminRequestsRoute
+  AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -299,6 +340,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
   AuthenticatedAdminRequestsRoute: AuthenticatedAdminRequestsRoute,
+  AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
@@ -323,6 +365,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
   MyRequestsRoute: MyRequestsRoute,
+  SubmitProjectRoute: SubmitProjectRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
 }
 export const routeTree = rootRouteImport

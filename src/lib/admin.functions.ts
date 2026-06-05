@@ -336,3 +336,134 @@ export const submitBidRequest = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+// ---------- Public: submit a new project suggestion ----------
+const imageItemSchema = z.object({
+  file_name: z.string().trim().min(1).max(200),
+  file_base64: z.string().min(8).max(8_000_000),
+  content_type: z.string().regex(/^image\/(png|jpe?g|webp|gif)$/),
+});
+
+export const submitProjectSuggestion = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      name: z.string().trim().min(1).max(200),
+      description: z.string().trim().min(1).max(5000),
+      location: z.string().trim().min(1).max(300),
+      contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/),
+      images: z.array(imageItemSchema).max(8).default([]),
+    }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const uploadedPaths: string[] = [];
+    for (const img of data.images) {
+      const bytes = Buffer.from(img.file_base64, "base64");
+      if (bytes.length === 0) continue;
+      if (bytes.length > 5 * 1024 * 1024) throw new Error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
+      const safeName = img.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
+      const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+      const { error: upErr } = await supabaseAdmin.storage
+        .from("project-images")
+        .upload(path, bytes, { contentType: img.content_type, upsert: false });
+      if (upErr) throw new Error(upErr.message);
+      uploadedPaths.push(path);
+    }
+
+    const { error } = await supabaseAdmin.from("project_submissions").insert({
+      name: data.name,
+      description: data.description,
+      location: data.location,
+      contact_phone: data.contact_phone,
+      images: uploadedPaths,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---------- Admin only: list project submissions ----------
+async function assertAdmin(supabase: any, userId: string) {
+  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  if (!data?.some((r: { role: string }) => r.role === "admin")) throw new Error("Forbidden");
+}
+
+export const adminListSubmissions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    await assertAdmin(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("project_submissions")
+      .select("id,name,description,location,contact_phone,images,status,created_at,approved_project_id")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const rows = await Promise.all(
+      (data ?? []).map(async (s) => ({
+        ...s,
+        image_urls: await Promise.all((s.images ?? []).map(resolveStoragePath)),
+      }))
+    );
+    return rows;
+  });
+
+export const approveSubmission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertAdmin(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: sub, error: sErr } = await supabaseAdmin
+      .from("project_submissions")
+      .select("*")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (sErr) throw new Error(sErr.message);
+    if (!sub) throw new Error("الطلب غير موجود");
+    if (sub.status === "approved" && sub.approved_project_id) {
+      return { id: sub.approved_project_id };
+    }
+
+    const images: string[] = sub.images ?? [];
+    const cover = images[0] ?? "placeholder.jpg";
+
+    const { data: created, error: insErr } = await supabaseAdmin
+      .from("projects")
+      .insert({
+        name: sub.name,
+        description: sub.description,
+        location: sub.location,
+        duration: "غير محدد",
+        cover_image: cover,
+        images,
+      })
+      .select("id")
+      .single();
+    if (insErr) throw new Error(insErr.message);
+
+    await supabaseAdmin
+      .from("project_submissions")
+      .update({ status: "approved", approved_project_id: created.id })
+      .eq("id", data.id);
+
+    return { id: created.id };
+  });
+
+export const deleteSubmission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertAdmin(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("project_submissions")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

@@ -42,6 +42,14 @@ function HomePage() {
             <p className="mt-3 max-w-2xl text-muted-foreground">
               تصفح أحدث الفرص وقدّم عرضك مباشرة من خلال المنصة.
             </p>
+            <div className="mt-6">
+              <Link
+                to="/submit-project"
+                className="inline-flex items-center gap-2 rounded-lg bg-[image:var(--gradient-accent)] px-6 py-3 text-base font-bold text-accent-foreground shadow hover:opacity-90 transition"
+              >
+                أضف مشروعك
+              </Link>
+            </div>
           </div>
         </section>
 
