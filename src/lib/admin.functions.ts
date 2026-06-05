@@ -282,3 +282,57 @@ export const signupFirstAdmin = createServerFn({ method: "POST" })
     if (roleErr) throw new Error(roleErr.message);
     return { ok: true };
   });
+
+// ---------- Public: submit a bid (server-validated PDF upload) ----------
+export const submitBidRequest = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    project_id: string;
+    company_name: string;
+    facility_location: string;
+    file_name: string;
+    file_base64: string;
+  }) =>
+    z.object({
+      project_id: z.string().uuid(),
+      company_name: z.string().trim().min(1).max(200),
+      facility_location: z.string().trim().min(1).max(300),
+      file_name: z.string().trim().min(1).max(200),
+      file_base64: z.string().min(8).max(15_000_000), // ~10MB base64
+    }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    const bytes = Buffer.from(data.file_base64, "base64");
+    if (bytes.length === 0) throw new Error("الملف فارغ");
+    if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
+    // PDF magic bytes: %PDF-
+    if (
+      bytes[0] !== 0x25 || bytes[1] !== 0x50 ||
+      bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d
+    ) {
+      throw new Error("الملف ليس PDF صالحاً");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // verify project exists
+    const { data: proj } = await supabaseAdmin
+      .from("projects").select("id").eq("id", data.project_id).maybeSingle();
+    if (!proj) throw new Error("المشروع غير موجود");
+
+    const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
+    const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
+    const { error: upErr } = await supabaseAdmin.storage
+      .from("bid-pdfs")
+      .upload(path, bytes, { contentType: "application/pdf", upsert: false });
+    if (upErr) throw new Error(upErr.message);
+
+    const { error: insErr } = await supabaseAdmin.from("project_requests").insert({
+      project_id: data.project_id,
+      company_name: data.company_name,
+      facility_location: data.facility_location,
+      pdf_url: path,
+    });
+    if (insErr) throw new Error(insErr.message);
+
+    return { ok: true };
+  });
