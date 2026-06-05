@@ -383,9 +383,9 @@ export const submitProjectSuggestion = createServerFn({ method: "POST" })
   });
 
 // ---------- Admin only: list project submissions ----------
-async function assertAdmin(supabase: { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: { role: string }[] | null }> } } }, userId: string) {
+async function assertAdmin(supabase: any, userId: string) {
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  if (!data?.some((r) => r.role === "admin")) throw new Error("Forbidden");
+  if (!data?.some((r: { role: string }) => r.role === "admin")) throw new Error("Forbidden");
 }
 
 export const adminListSubmissions = createServerFn({ method: "GET" })
