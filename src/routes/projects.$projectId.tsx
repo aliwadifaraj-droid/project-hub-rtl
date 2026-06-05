@@ -1,8 +1,8 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { getProject } from "@/lib/admin.functions";
+import { getProject, submitBidRequest } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
