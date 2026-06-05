@@ -34,6 +34,7 @@ export const Route = createFileRoute("/projects/$projectId")({
 function ProjectDetail() {
   const { projectId } = Route.useParams();
   const { data: project } = useSuspenseQuery(projectQuery(projectId));
+  const submit = useServerFn(submitBidRequest);
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -47,10 +48,6 @@ function ProjectDetail() {
       toast.error("جميع الحقول إجبارية");
       return;
     }
-    if (pdfFile.type !== "application/pdf") {
-      toast.error("الرجاء رفع ملف PDF فقط");
-      return;
-    }
     if (pdfFile.size > 10 * 1024 * 1024) {
       toast.error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
       return;
@@ -58,24 +55,30 @@ function ProjectDetail() {
 
     setSubmitting(true);
     try {
-      const path = `${project.id}/${Date.now()}-${pdfFile.name.replace(/[^\w.\-]/g, "_")}`;
-      const { error: upErr } = await supabase.storage
-        .from("bid-pdfs")
-        .upload(path, pdfFile, { contentType: "application/pdf" });
-      if (upErr) throw upErr;
+      const buf = await pdfFile.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(buf);
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      const file_base64 = btoa(binary);
 
-      const { error: insErr } = await supabase.from("project_requests").insert({
-        project_id: project.id,
-        company_name: companyName.trim().slice(0, 200),
-        facility_location: facilityLocation.trim().slice(0, 300),
-        pdf_url: path,
+      await submit({
+        data: {
+          project_id: project.id,
+          company_name: companyName.trim().slice(0, 200),
+          facility_location: facilityLocation.trim().slice(0, 300),
+          file_name: pdfFile.name,
+          file_base64,
+        },
       });
-      if (insErr) throw insErr;
 
       setDone(true);
     } catch (err) {
       console.error(err);
-      toast.error("حدث خطأ أثناء إرسال الطلب، حاول مرة أخرى");
+      const msg = err instanceof Error ? err.message : "حدث خطأ أثناء إرسال الطلب";
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
