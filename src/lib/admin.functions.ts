@@ -30,17 +30,25 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
 export const getProject = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: p, error } = await supabaseAdmin
-      .from("projects")
-      .select("id,name,description,location,duration,cover_image,images")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!p) return null;
-    const cover_url = await resolveStoragePath(p.cover_image);
-    const image_urls = await Promise.all((p.images ?? []).map(resolveStoragePath));
-    return { ...p, cover_url, image_urls };
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: p, error } = await supabaseAdmin
+        .from("projects")
+        .select("id,name,description,location,duration,cover_image,images")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (error) {
+        console.error("[getProject] supabase error:", error.message);
+        return null;
+      }
+      if (!p) return null;
+      const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
+      const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
+      return { ...p, cover_url, image_urls };
+    } catch (e) {
+      console.error("[getProject] unexpected error:", e);
+      return null;
+    }
   });
 
 async function resolveStoragePath(path: string | null): Promise<string> {
