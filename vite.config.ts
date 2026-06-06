@@ -1,6 +1,8 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 const isVercel = process.env.VERCEL === "1";
+const isNetlify = process.env.NETLIFY === "true";
+const nitroPreset = isVercel ? "vercel" : isNetlify ? "netlify" : undefined;
 
 export default defineConfig({
   tanstackStart: {
@@ -8,10 +10,10 @@ export default defineConfig({
       entry: "server",
     },
   },
-  ...(isVercel
+  ...(nitroPreset
     ? {
         nitro: {
-          preset: "vercel",
+          preset: nitroPreset,
         },
       }
     : {}),
