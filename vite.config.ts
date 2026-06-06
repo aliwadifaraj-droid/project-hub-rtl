@@ -7,17 +7,10 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
-    server: { entry: "server" },
-  },
+  // Use TanStack Start's built-in server entry so Nitro adapts the handler
+  // to the target preset (Vercel Node serverless), instead of the
+  // Cloudflare Workers-style `fetch(request, env, ctx)` wrapper in src/server.ts.
   nitro: {
     preset: "vercel",
-    output: {
-      dir: ".vercel/output",
-      serverDir: ".vercel/output/functions/__server.func",
-      publicDir: ".vercel/output/static",
-    },
   },
 });
