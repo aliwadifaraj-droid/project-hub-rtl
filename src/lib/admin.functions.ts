@@ -4,20 +4,27 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // ---------- Public: list projects with resolved cover URLs ----------
 export const listProjects = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("projects")
-    .select("id,name,description,location,duration,cover_image,images")
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-
-  const resolved = await Promise.all(
-    (data ?? []).map(async (p) => ({
-      ...p,
-      cover_url: await resolveStoragePath(p.cover_image),
-    }))
-  );
-  return resolved;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("projects")
+      .select("id,name,description,location,duration,cover_image,images")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("[listProjects] supabase error:", error.message);
+      return [];
+    }
+    const resolved = await Promise.all(
+      (data ?? []).map(async (p) => ({
+        ...p,
+        cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
+      }))
+    );
+    return resolved;
+  } catch (e) {
+    console.error("[listProjects] unexpected error:", e);
+    return [];
+  }
 });
 
 export const getProject = createServerFn({ method: "GET" })
