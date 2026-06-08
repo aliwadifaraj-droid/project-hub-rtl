@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRoles } from "@/lib/admin.functions";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox, MessagesSquare } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -26,6 +26,7 @@ function AdminLayout() {
     { to: "/admin/requests", label: "الطلبات", icon: ClipboardList, show: true },
     { to: "/admin/submissions", label: "طلبات إضافة المشاريع", icon: Inbox, show: isAdmin },
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: true },
+    { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/projects", label: "المشاريع", icon: FolderKanban, show: isAdmin },
     { to: "/admin/employees", label: "الموظفون", icon: Users, show: isAdmin },
