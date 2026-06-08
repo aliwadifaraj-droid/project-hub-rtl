@@ -24,6 +24,7 @@ import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin.projects'
 import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
+import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authenticated/admin.chat'
 
 const SubmitProjectRoute = SubmitProjectRouteImport.update({
   id: '/submit-project',
@@ -104,6 +105,11 @@ const AuthenticatedAdminEmployeesRoute =
     path: '/employees',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminChatRoute = AuthenticatedAdminChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/submit-project': typeof SubmitProjectRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/my-requests': typeof MyRequestsRoute
   '/submit-project': typeof SubmitProjectRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/submit-project': typeof SubmitProjectRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/submit-project'
     | '/admin'
     | '/projects/$projectId'
+    | '/admin/chat'
     | '/admin/employees'
     | '/admin/messages'
     | '/admin/projects'
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/my-requests'
     | '/submit-project'
     | '/projects/$projectId'
+    | '/admin/chat'
     | '/admin/employees'
     | '/admin/messages'
     | '/admin/projects'
@@ -196,6 +207,7 @@ export interface FileRouteTypes {
     | '/submit-project'
     | '/_authenticated/admin'
     | '/projects/$projectId'
+    | '/_authenticated/admin/chat'
     | '/_authenticated/admin/employees'
     | '/_authenticated/admin/messages'
     | '/_authenticated/admin/projects'
@@ -322,10 +334,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminEmployeesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/chat': {
+      id: '/_authenticated/admin/chat'
+      path: '/chat'
+      fullPath: '/admin/chat'
+      preLoaderRoute: typeof AuthenticatedAdminChatRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
   }
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminChatRoute: typeof AuthenticatedAdminChatRoute
   AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRoute
   AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
@@ -336,6 +356,7 @@ interface AuthenticatedAdminRouteChildren {
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminChatRoute: AuthenticatedAdminChatRoute,
   AuthenticatedAdminEmployeesRoute: AuthenticatedAdminEmployeesRoute,
   AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
@@ -371,13 +392,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
