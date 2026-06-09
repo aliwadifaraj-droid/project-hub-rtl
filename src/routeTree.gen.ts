@@ -14,9 +14,11 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as MyRequestsRouteImport } from './routes/my-requests'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
+import { Route as AdsAdIdRouteImport } from './routes/ads.$adId'
 import { Route as AuthenticatedEmployeesRouteImport } from './routes/_authenticated/employees'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
@@ -57,6 +59,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdsRoute = AdsRouteImport.update({
+  id: '/ads',
+  path: '/ads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -70,6 +77,11 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   id: '/projects/$projectId',
   path: '/projects/$projectId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdsAdIdRoute = AdsAdIdRouteImport.update({
+  id: '/$adId',
+  path: '/$adId',
+  getParentRoute: () => AdsRoute,
 } as any)
 const AuthenticatedEmployeesRoute = AuthenticatedEmployeesRouteImport.update({
   id: '/employees',
@@ -149,6 +161,7 @@ const AuthenticatedAdminAdsRoute = AuthenticatedAdminAdsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
@@ -158,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
+  '/ads/$adId': typeof AdsAdIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -172,6 +186,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
@@ -180,6 +195,7 @@ export interface FileRoutesByTo {
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
+  '/ads/$adId': typeof AdsAdIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -196,6 +212,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
@@ -205,6 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/employees': typeof AuthenticatedEmployeesRoute
+  '/ads/$adId': typeof AdsAdIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -221,6 +239,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ads'
     | '/auth'
     | '/contact'
     | '/my-requests'
@@ -230,6 +249,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/dashboard'
     | '/employees'
+    | '/ads/$adId'
     | '/projects/$projectId'
     | '/admin/ads'
     | '/admin/chat'
@@ -244,6 +264,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ads'
     | '/auth'
     | '/contact'
     | '/my-requests'
@@ -252,6 +273,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/dashboard'
     | '/employees'
+    | '/ads/$adId'
     | '/projects/$projectId'
     | '/admin/ads'
     | '/admin/chat'
@@ -267,6 +289,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/ads'
     | '/auth'
     | '/contact'
     | '/my-requests'
@@ -276,6 +299,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat'
     | '/_authenticated/dashboard'
     | '/_authenticated/employees'
+    | '/ads/$adId'
     | '/projects/$projectId'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/chat'
@@ -292,6 +316,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AdsRoute: typeof AdsRouteWithChildren
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
   MyRequestsRoute: typeof MyRequestsRoute
@@ -337,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ads': {
+      id: '/ads'
+      path: '/ads'
+      fullPath: '/ads'
+      preLoaderRoute: typeof AdsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
@@ -357,6 +389,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/ads/$adId': {
+      id: '/ads/$adId'
+      path: '/$adId'
+      fullPath: '/ads/$adId'
+      preLoaderRoute: typeof AdsAdIdRouteImport
+      parentRoute: typeof AdsRoute
     }
     '/_authenticated/employees': {
       id: '/_authenticated/employees'
@@ -505,9 +544,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AdsRouteChildren {
+  AdsAdIdRoute: typeof AdsAdIdRoute
+}
+
+const AdsRouteChildren: AdsRouteChildren = {
+  AdsAdIdRoute: AdsAdIdRoute,
+}
+
+const AdsRouteWithChildren = AdsRoute._addFileChildren(AdsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AdsRoute: AdsRouteWithChildren,
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
   MyRequestsRoute: MyRequestsRoute,
