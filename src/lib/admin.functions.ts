@@ -199,13 +199,25 @@ export const listEmployees = createServerFn({ method: "GET" })
     });
   });
 
+export const listRoles = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("roles")
+      .select("id,name,label")
+      .order("name");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
 export const createEmployee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { email: string; password: string; role: string }) =>
+  .inputValidator((d: { email: string; password: string; role_id: string }) =>
     z.object({
       email: z.string().email().max(255),
       password: z.string().min(6).max(72),
-      role: z.enum(["admin", "employee"]),
+      role_id: z.string().uuid(),
     }).parse(d)
   )
   .handler(async ({ data, context }) => {
@@ -214,18 +226,35 @@ export const createEmployee = createServerFn({ method: "POST" })
       .from("user_roles").select("role").eq("user_id", userId);
     if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
 
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: roleRow, error: roleLookupErr } = await supabaseAdmin
+      .from("roles").select("id,name").eq("id", data.role_id).maybeSingle();
+    if (roleLookupErr || !roleRow) throw new Error("الدور غير موجود");
+    if (roleRow.name !== "admin" && roleRow.name !== "employee") {
+      throw new Error("نوع الدور غير مدعوم");
+    }
+
     const { createAdminAuthClient } = await import("@/lib/admin-auth.server");
-    const supabaseAdmin = createAdminAuthClient();
-    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+    const authAdmin = createAdminAuthClient();
+    const { data: created, error: createErr } = await authAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
       email_confirm: true,
     });
     if (createErr || !created.user) throw new Error(createErr?.message ?? "Failed to create user");
+
+    // Keep legacy user_roles in sync so existing has_role gates keep working
     const { error: roleErr } = await supabaseAdmin
       .from("user_roles")
-      .insert({ user_id: created.user.id, role: data.role });
+      .insert({ user_id: created.user.id, role: roleRow.name as "admin" | "employee" });
     if (roleErr) throw new Error(roleErr.message);
+
+    // New profiles table (with role_id)
+    const { error: profErr } = await supabaseAdmin
+      .from("profiles")
+      .insert({ id: created.user.id, email: data.email, role_id: data.role_id });
+    if (profErr) throw new Error(profErr.message);
+
     return { id: created.user.id };
   });
 

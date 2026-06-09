@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { listEmployees, createEmployee, deleteEmployee } from "@/lib/admin.functions";
+import { useEffect, useState } from "react";
+import { listEmployees, createEmployee, deleteEmployee, listRoles } from "@/lib/admin.functions";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,12 +14,14 @@ function EmployeesPage() {
   const list = useServerFn(listEmployees);
   const create = useServerFn(createEmployee);
   const del = useServerFn(deleteEmployee);
+  const rolesFn = useServerFn(listRoles);
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({ queryKey: ["employees"], queryFn: () => list() });
+  const { data: roles } = useQuery({ queryKey: ["roles"], queryFn: () => rolesFn() });
   const [open, setOpen] = useState(false);
 
   const createMut = useMutation({
-    mutationFn: (v: { email: string; password: string; role: "admin" | "employee" }) => create({ data: v }),
+    mutationFn: (v: { email: string; password: string; role_id: string }) => create({ data: v }),
     onSuccess: () => { toast.success("تم الإنشاء"); qc.invalidateQueries({ queryKey: ["employees"] }); setOpen(false); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -37,7 +39,7 @@ function EmployeesPage() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">الموظفون ({data?.length ?? 0})</h1>
         <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90">
-          <Plus className="h-4 w-4" /> موظف جديد
+          <Plus className="h-4 w-4" /> إضافة موظف
         </button>
       </div>
       <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -62,15 +64,36 @@ function EmployeesPage() {
           </tbody>
         </table>
       </div>
-      {open ? <NewEmployeeModal onClose={() => setOpen(false)} onSave={(v) => createMut.mutate(v)} saving={createMut.isPending} /> : null}
+      {open ? (
+        <NewEmployeeModal
+          roles={roles ?? []}
+          onClose={() => setOpen(false)}
+          onSave={(v) => createMut.mutate(v)}
+          saving={createMut.isPending}
+        />
+      ) : null}
     </div>
   );
 }
 
-function NewEmployeeModal({ onClose, onSave, saving }: { onClose: () => void; onSave: (v: { email: string; password: string; role: "admin" | "employee" }) => void; saving: boolean }) {
+function NewEmployeeModal({
+  onClose, onSave, saving, roles,
+}: {
+  onClose: () => void;
+  onSave: (v: { email: string; password: string; role_id: string }) => void;
+  saving: boolean;
+  roles: { id: string; name: string; label: string }[];
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "employee">("employee");
+  const [roleId, setRoleId] = useState("");
+  useEffect(() => {
+    if (!roleId && roles.length > 0) {
+      const employeeRole = roles.find((r) => r.name === "employee") ?? roles[0];
+      setRoleId(employeeRole.id);
+    }
+  }, [roles, roleId]);
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -84,15 +107,16 @@ function NewEmployeeModal({ onClose, onSave, saving }: { onClose: () => void; on
           <div><label className="mb-1.5 block text-sm font-semibold">كلمة المرور</label>
             <input type="password" autoComplete="new-password" className="inp" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
           <div><label className="mb-1.5 block text-sm font-semibold">الدور</label>
-            <select className="inp" value={role} onChange={(e) => setRole(e.target.value as "admin" | "employee")}>
-              <option value="employee">موظف</option>
-              <option value="admin">أدمن</option>
+            <select className="inp" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>{r.label}</option>
+              ))}
             </select></div>
         </div>
         <div className="mt-5 flex gap-2">
           <button
-            disabled={saving || !email || password.length < 6}
-            onClick={() => onSave({ email, password, role })}
+            disabled={saving || !email || password.length < 6 || !roleId}
+            onClick={() => onSave({ email, password, role_id: roleId })}
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background hover:bg-foreground/90 disabled:opacity-60"
           >{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} إنشاء</button>
           <button onClick={onClose} className="rounded-md border border-border px-4 py-2.5 text-sm">إلغاء</button>
