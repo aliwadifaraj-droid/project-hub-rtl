@@ -214,7 +214,8 @@ export const createEmployee = createServerFn({ method: "POST" })
       .from("user_roles").select("role").eq("user_id", userId);
     if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAdminAuthClient } = await import("@/lib/admin-auth.server");
+    const supabaseAdmin = createAdminAuthClient();
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
@@ -279,7 +280,8 @@ export const signupFirstAdmin = createServerFn({ method: "POST" })
     if (data.email.toLowerCase() !== FIRST_ADMIN_EMAIL) {
       throw new Error("التسجيل مسموح فقط للحساب المخصص");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { createAdminAuthClient } = await import("@/lib/admin-auth.server");
+    const supabaseAdmin = createAdminAuthClient();
     // check if any admin already exists
     const { data: existingAdmins } = await supabaseAdmin
       .from("user_roles").select("user_id").eq("role", "admin").limit(1);
