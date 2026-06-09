@@ -14,8 +14,17 @@ function AdminLayout() {
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const getRoles = useServerFn(getMyRoles);
-  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const { data: roles } = useQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => getRoles(),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
   const isAdmin = roles?.includes("admin");
+  const primaryRole = roles?.[0];
+  const roleLabel =
+    primaryRole === "admin" ? "أدمن" : primaryRole ? "مستخدم" : "—";
 
   async function logout() {
     await supabase.auth.signOut();
