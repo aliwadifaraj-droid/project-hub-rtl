@@ -5,6 +5,7 @@ const isNetlify = process.env.NETLIFY === "true";
 const nitroPreset = isVercel ? "vercel" : isNetlify ? "netlify" : undefined;
 
 export default defineConfig({
+  envPrefix: ["VITE_", "NEXT_PUBLIC_"],
   tanstackStart: {
     server: {
       entry: "server",
