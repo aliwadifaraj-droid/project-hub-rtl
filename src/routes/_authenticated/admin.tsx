@@ -55,7 +55,7 @@ function AdminLayout() {
             لوحة التحكم
           </Link>
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
+            <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
               {roleLabel}
             </span>
             <button onClick={logout} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-secondary">
