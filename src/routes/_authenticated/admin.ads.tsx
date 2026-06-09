@@ -105,8 +105,8 @@ function AdminAdsPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           {rows.map((ad) => (
             <div key={ad.id} className="overflow-hidden rounded-xl border border-border bg-card">
-              {ad.image_url ? (
-                <img src={ad.image_url} alt={ad.title} className="h-44 w-full object-cover" />
+              {ad.image_signed_url ? (
+                <img src={ad.image_signed_url} alt={ad.title} className="h-44 w-full object-cover" />
               ) : null}
               <div className="p-4">
                 <h3 className="mb-1 font-bold">{ad.title}</h3>

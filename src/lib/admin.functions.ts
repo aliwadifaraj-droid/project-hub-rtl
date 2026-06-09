@@ -519,3 +519,28 @@ export const deleteSubmission = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ---------- Public: submit project with already-uploaded image paths ----------
+export const submitProjectWithPaths = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      name: z.string().trim().min(1).max(200),
+      description: z.string().trim().min(1).max(5000),
+      location: z.string().trim().min(1).max(300),
+      contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/),
+      image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+    }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("project_submissions").insert({
+      name: data.name,
+      description: data.description,
+      location: data.location,
+      contact_phone: data.contact_phone,
+      images: safePaths,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

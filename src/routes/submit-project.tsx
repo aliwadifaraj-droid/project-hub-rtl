@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { submitProjectSuggestion } from "@/lib/admin.functions";
+import { submitProjectWithPaths } from "@/lib/admin.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
@@ -18,19 +19,8 @@ export const Route = createFileRoute("/submit-project")({
   component: SubmitProjectPage,
 });
 
-async function fileToBase64(file: File): Promise<string> {
-  const buf = await file.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buf);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
 function SubmitProjectPage() {
-  const submit = useServerFn(submitProjectSuggestion);
+  const submit = useServerFn(submitProjectWithPaths);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -62,20 +52,23 @@ function SubmitProjectPage() {
     }
     setSubmitting(true);
     try {
-      const images = await Promise.all(
-        files.map(async (f) => ({
-          file_name: f.name,
-          file_base64: await fileToBase64(f),
-          content_type: f.type as string,
-        }))
-      );
+      const uploadedPaths: string[] = [];
+      for (const f of files) {
+        const safe = f.name.replace(/[^\w.\-]/g, "_").slice(-80);
+        const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+        const { error: upErr } = await supabase.storage
+          .from("project-images")
+          .upload(path, f, { contentType: f.type, upsert: false });
+        if (upErr) throw new Error(upErr.message);
+        uploadedPaths.push(path);
+      }
       await submit({
         data: {
           name: name.trim(),
           description: description.trim(),
           location: location.trim(),
           contact_phone: phone.trim(),
-          images,
+          image_paths: uploadedPaths,
         },
       });
       setDone(true);
@@ -86,6 +79,7 @@ function SubmitProjectPage() {
       setSubmitting(false);
     }
   }
+
 
   return (
     <div className="min-h-screen flex flex-col bg-background" dir="rtl">
