@@ -91,6 +91,15 @@ function AuthPage() {
                   className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                   minLength={6}
                 />
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={() => { setMode("forgot"); setError(null); setInfo(null); }}
+                    className="mt-2 block text-xs font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    نسيت كلمة السر؟
+                  </button>
+                )}
               </div>
             )}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -102,15 +111,6 @@ function AuthPage() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {isForgot ? "إرسال رابط الاستعادة" : isLogin ? "تسجيل الدخول" : "إنشاء الحساب"}
             </button>
-            {isLogin && (
-              <button
-                type="button"
-                onClick={() => { setMode("forgot"); setError(null); setInfo(null); }}
-                className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
-              >
-                نسيت كلمة السر؟
-              </button>
-            )}
             <button
               type="button"
               onClick={() => {
