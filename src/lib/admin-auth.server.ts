@@ -1,19 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
+import process from "node:process";
 import type { Database } from "@/integrations/supabase/types";
+
+function readServerEnv(name: string) {
+  return process.env[name] || globalThis.process?.env?.[name];
+}
 
 export function createAdminAuthClient() {
   const supabaseUrl =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    readServerEnv("SUPABASE_URL") ||
+    readServerEnv("NEXT_PUBLIC_SUPABASE_URL") ||
+    readServerEnv("VITE_SUPABASE_URL");
+  const serviceRoleKey = readServerEnv("SUPABASE_SERVICE_ROLE_KEY")?.trim();
 
   if (!supabaseUrl || !serviceRoleKey) {
     const missing = [
       ...(!supabaseUrl ? ["SUPABASE_URL أو NEXT_PUBLIC_SUPABASE_URL"] : []),
       ...(!serviceRoleKey ? ["SUPABASE_SERVICE_ROLE_KEY"] : []),
     ];
-    throw new Error(`إعدادات قاعدة البيانات ناقصة في Vercel: ${missing.join(", ")}`);
+    throw new Error(
+      `إعدادات قاعدة البيانات ناقصة في بيئة تشغيل Vercel: ${missing.join(", ")}. تأكد أن المتغير مضاف لنفس البيئة التي نشرت عليها ثم أعد النشر بدون Build Cache.`
+    );
   }
 
   return createClient<Database>(supabaseUrl, serviceRoleKey, {
