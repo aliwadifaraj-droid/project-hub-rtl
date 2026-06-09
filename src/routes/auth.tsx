@@ -91,16 +91,16 @@ function AuthPage() {
                   className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                   minLength={6}
                 />
-                {isLogin && (
-                  <button
-                    type="button"
-                    onClick={() => { setMode("forgot"); setError(null); setInfo(null); }}
-                    className="mt-2 block text-xs font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    نسيت كلمة السر؟
-                  </button>
-                )}
               </div>
+            )}
+            {isLogin && (
+              <button
+                type="button"
+                onClick={() => { setMode("forgot"); setError(null); setInfo(null); }}
+                className="block text-xs font-semibold text-accent-foreground underline-offset-2 hover:underline"
+              >
+                نسيت كلمة السر؟
+              </button>
             )}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
             {info ? <p className="text-sm text-emerald-600">{info}</p> : null}
