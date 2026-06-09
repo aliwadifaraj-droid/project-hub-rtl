@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SubmitProjectRouteImport } from './routes/submit-project'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as MyRequestsRouteImport } from './routes/my-requests'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -32,6 +33,11 @@ import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authentica
 const SubmitProjectRoute = SubmitProjectRouteImport.update({
   id: '/submit-project',
   path: '/submit-project',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MyRequestsRoute = MyRequestsRouteImport.update({
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/chat': typeof AuthenticatedChatRoute
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/my-requests': typeof MyRequestsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/chat': typeof AuthenticatedChatRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/my-requests'
+    | '/reset-password'
     | '/submit-project'
     | '/admin'
     | '/chat'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/my-requests'
+    | '/reset-password'
     | '/submit-project'
     | '/chat'
     | '/dashboard'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/my-requests'
+    | '/reset-password'
     | '/submit-project'
     | '/_authenticated/admin'
     | '/_authenticated/chat'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
   MyRequestsRoute: typeof MyRequestsRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SubmitProjectRoute: typeof SubmitProjectRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
 }
@@ -270,6 +283,13 @@ declare module '@tanstack/react-router' {
       path: '/submit-project'
       fullPath: '/submit-project'
       preLoaderRoute: typeof SubmitProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-requests': {
@@ -449,6 +469,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
   MyRequestsRoute: MyRequestsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SubmitProjectRoute: SubmitProjectRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
 }
