@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      ads: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          image_url: string | null
+          link_url: string | null
+          status: Database["public"]["Enums"]["ad_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          status?: Database["public"]["Enums"]["ad_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          status?: Database["public"]["Enums"]["ad_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contact_messages: {
         Row: {
           created_at: string
@@ -37,6 +73,38 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          role_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id: string
+          role_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          role_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_requests: {
         Row: {
@@ -159,6 +227,27 @@ export type Database = {
         }
         Relationships: []
       }
+      roles: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          name?: string
+        }
+        Relationships: []
+      }
       team_messages: {
         Row: {
           body: string
@@ -215,6 +304,7 @@ export type Database = {
       }
     }
     Enums: {
+      ad_status: "pending" | "approved" | "rejected"
       app_role: "admin" | "employee"
       request_status: "new" | "reviewing" | "accepted" | "rejected"
     }
@@ -344,6 +434,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      ad_status: ["pending", "approved", "rejected"],
       app_role: ["admin", "employee"],
       request_status: ["new", "reviewing", "accepted", "rejected"],
     },
