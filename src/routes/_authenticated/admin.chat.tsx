@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { listTeamMessages, sendTeamMessage, deleteTeamMessage } from "@/lib/chat.functions";
+import { getRoleLabel } from "@/lib/role-label";
 import { Send, Trash2, MessagesSquare } from "lucide-react";
 import { toast } from "sonner";
 
@@ -87,7 +88,7 @@ function TeamChatPage() {
         </span>
         <div>
           <h1 className="text-xl font-bold">غرفة شات الفريق</h1>
-          <p className="text-xs text-muted-foreground">محادثة مشتركة بين الأدمن وجميع الموظفين</p>
+          <p className="text-xs text-muted-foreground">محادثة مشتركة بين الأدمن وجميع المستخدمين</p>
         </div>
       </div>
 
@@ -106,7 +107,7 @@ function TeamChatPage() {
                     <div className="mb-0.5 flex items-center gap-2 text-[11px] opacity-80">
                       <span className="font-medium">{m.sender_email}</span>
                       <span className="rounded-full bg-background/30 px-1.5 py-0.5 text-[10px]">
-                        {m.sender_role === "admin" ? "أدمن" : m.sender_role === "employee" ? "موظف" : "—"}
+                        {getRoleLabel(m.sender_role)}
                       </span>
                       <span>·</span>
                       <span>{new Date(m.created_at).toLocaleString("ar")}</span>

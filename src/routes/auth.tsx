@@ -93,13 +93,13 @@ function AuthPage() {
                 />
               </div>
             )}
-            {isLogin && (
+            {!isForgot && (
               <button
                 type="button"
                 onClick={() => { setMode("forgot"); setError(null); setInfo(null); }}
-                className="block text-xs font-semibold text-accent-foreground underline-offset-2 hover:underline"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-secondary px-4 py-2 text-sm font-bold text-foreground hover:bg-secondary/80"
               >
-                نسيت كلمة السر؟
+                نسيت كلمة المرور؟
               </button>
             )}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRoles } from "@/lib/admin.functions";
+import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
 import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox, MessagesSquare, Megaphone, PlusCircle } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -21,10 +22,9 @@ function AdminLayout() {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
-  const isAdmin = roles?.includes("admin");
-  const primaryRole = roles?.[0];
-  const roleLabel =
-    primaryRole === "admin" ? "أدمن" : primaryRole ? "مستخدم" : "—";
+  const isAdmin = hasAdminRole(roles);
+  const primaryRole = isAdmin ? "admin" : roles?.[0];
+  const roleLabel = getRoleLabel(primaryRole);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -40,7 +40,7 @@ function AdminLayout() {
     { to: "/ads/new", label: "إضافة إعلان", icon: PlusCircle, show: true },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/projects", label: "المشاريع", icon: FolderKanban, show: isAdmin },
-    { to: "/admin/employees", label: "الموظفون", icon: Users, show: isAdmin },
+    { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
   ];
 
   return (
@@ -55,7 +55,7 @@ function AdminLayout() {
             لوحة التحكم
           </Link>
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
+            <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
               {roleLabel}
             </span>
             <button onClick={logout} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-secondary">

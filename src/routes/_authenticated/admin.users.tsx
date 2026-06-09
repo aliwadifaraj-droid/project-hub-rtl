@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { listEmployees } from "@/lib/admin.functions";
+import { getRoleLabel } from "@/lib/role-label";
 import { Loader2, Search } from "lucide-react";
 import { useState } from "react";
 
@@ -60,7 +61,7 @@ function UsersPage() {
                   <td className="p-3 font-medium">{u.email}</td>
                   <td className="p-3">
                     <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs">
-                      {u.role === "admin" ? "أدمن" : "موظف"}
+                      {getRoleLabel(u.role)}
                     </span>
                   </td>
                   <td className="p-3 text-slate-400 text-xs">
@@ -86,7 +87,7 @@ function UsersPage() {
               <div className="font-bold">{u.email}</div>
               <div className="flex items-center gap-2 text-xs">
                 <span className="rounded-full bg-secondary px-2 py-0.5">
-                  {u.role === "admin" ? "أدمن" : "موظف"}
+                  {getRoleLabel(u.role)}
                 </span>
                 <span className="text-slate-500">{new Date(u.created_at).toLocaleDateString("ar")}</span>
               </div>
