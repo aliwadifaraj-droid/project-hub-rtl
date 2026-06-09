@@ -38,9 +38,9 @@ function EmployeesPage() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">الموظفون ({data?.length ?? 0})</h1>
+        <h1 className="text-2xl font-bold">المستخدمون ({data?.length ?? 0})</h1>
         <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90">
-          <Plus className="h-4 w-4" /> إضافة موظف
+          <Plus className="h-4 w-4" /> إضافة مستخدم
         </button>
       </div>
       <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -99,7 +99,7 @@ function NewEmployeeModal({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold">موظف جديد</h2>
+          <h2 className="text-xl font-bold">مستخدم جديد</h2>
           <button onClick={onClose}><X className="h-5 w-5" /></button>
         </div>
         <div className="space-y-3">

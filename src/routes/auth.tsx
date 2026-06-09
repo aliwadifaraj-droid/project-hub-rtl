@@ -97,7 +97,7 @@ function AuthPage() {
               <button
                 type="button"
                 onClick={() => { setMode("forgot"); setError(null); setInfo(null); }}
-                className="inline-flex w-full justify-start text-sm font-bold text-primary underline-offset-2 hover:underline"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-secondary px-4 py-2 text-sm font-bold text-foreground hover:bg-secondary/80"
               >
                 نسيت كلمة المرور؟
               </button>

@@ -40,7 +40,7 @@ function AdminLayout() {
     { to: "/ads/new", label: "إضافة إعلان", icon: PlusCircle, show: true },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/projects", label: "المشاريع", icon: FolderKanban, show: isAdmin },
-    { to: "/admin/employees", label: "الموظفون", icon: Users, show: isAdmin },
+    { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
   ];
 
   return (
