@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Building2, ClipboardList } from "lucide-react";
+import { Building2, ClipboardList, Megaphone } from "lucide-react";
 
 export function SiteHeader() {
   return (
