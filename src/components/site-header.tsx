@@ -20,6 +20,12 @@ export function SiteHeader() {
             المشاريع
           </Link>
           <Link
+            to="/ads"
+            className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
+          >
+            <Megaphone className="h-4 w-4" /> الإعلانات
+          </Link>
+          <Link
             to="/my-requests"
             className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
           >
