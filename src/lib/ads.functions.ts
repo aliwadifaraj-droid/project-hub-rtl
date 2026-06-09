@@ -72,7 +72,27 @@ export const approveAd = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
       .from("ads")
-      .update({ status: "approved" })
+      .update({ status: "approved", rejection_reason: null })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const rejectAd = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      reason: z.string().trim().min(1, "السبب مطلوب").max(500),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertAdmin(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("ads")
+      .update({ status: "rejected", rejection_reason: data.reason })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
