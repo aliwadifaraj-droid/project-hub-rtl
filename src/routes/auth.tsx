@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
 import { signupFirstAdmin } from "@/lib/admin.functions";
-import { Loader2, Lock, UserPlus } from "lucide-react";
+import { Loader2, Lock, UserPlus, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
