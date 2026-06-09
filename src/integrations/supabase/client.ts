@@ -3,21 +3,39 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { normalizeSupabaseUrl } from '@/lib/supabase-url';
 
+function readProcessEnv(name: string) {
+  return typeof process !== 'undefined' ? process.env?.[name] : undefined;
+}
+
+function normalizeSupabaseKey(rawKey: string | null | undefined) {
+  return rawKey
+    ?.trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/^Bearer\s+/i, '')
+    .replace(/\s+/g, '') || '';
+}
+
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
   const SUPABASE_URL =
     normalizeSupabaseUrl(
-      import.meta.env.VITE_SUPABASE_URL ||
       import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
-      process.env.SUPABASE_URL ||
-      process.env.NEXT_PUBLIC_SUPABASE_URL
+      import.meta.env.VITE_SUPABASE_URL ||
+      readProcessEnv('NEXT_PUBLIC_SUPABASE_URL') ||
+      readProcessEnv('SUPABASE_URL')
     );
   const SUPABASE_PUBLISHABLE_KEY =
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    normalizeSupabaseKey(
+      import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      import.meta.env.VITE_SUPABASE_ANON_KEY ||
+      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      readProcessEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY') ||
+      readProcessEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') ||
+      readProcessEnv('SUPABASE_ANON_KEY') ||
+      readProcessEnv('SUPABASE_PUBLISHABLE_KEY')
+    );
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
