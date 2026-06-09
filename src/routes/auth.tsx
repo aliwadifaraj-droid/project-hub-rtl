@@ -13,7 +13,7 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const navigate = useNavigate();
   const signup = useServerFn(signupFirstAdmin);
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,7 +36,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error("بيانات الدخول غير صحيحة");
         navigate({ to: "/admin", replace: true });
-      } else {
+      } else if (mode === "signup") {
         await signup({ data: { email, password } });
         const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
         if (signInErr) {
@@ -45,6 +45,12 @@ function AuthPage() {
         } else {
           navigate({ to: "/admin", replace: true });
         }
+      } else {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (resetError) throw resetError;
+        setInfo("تم إرسال رابط الاستعادة للإيميل");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ");
