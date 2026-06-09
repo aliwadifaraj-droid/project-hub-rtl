@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import process from "node:process";
 import type { Database } from "@/integrations/supabase/types";
+import { normalizeSupabaseUrl } from "@/lib/supabase-url";
 
 function readServerEnv(name: string) {
   return process.env[name] || globalThis.process?.env?.[name];
@@ -8,9 +9,11 @@ function readServerEnv(name: string) {
 
 export function createAdminAuthClient() {
   const supabaseUrl =
-    readServerEnv("SUPABASE_URL") ||
-    readServerEnv("NEXT_PUBLIC_SUPABASE_URL") ||
-    readServerEnv("VITE_SUPABASE_URL");
+    normalizeSupabaseUrl(
+      readServerEnv("SUPABASE_URL") ||
+      readServerEnv("NEXT_PUBLIC_SUPABASE_URL") ||
+      readServerEnv("VITE_SUPABASE_URL")
+    );
   const serviceRoleKey = readServerEnv("SUPABASE_SERVICE_ROLE_KEY")?.trim();
 
   if (!supabaseUrl || !serviceRoleKey) {
