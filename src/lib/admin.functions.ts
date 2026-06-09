@@ -278,8 +278,14 @@ export const getMyRoles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    return (data ?? []).map((r) => r.role as "admin" | "employee");
+    const { data, error } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .order("role", { ascending: true });
+    if (error) throw new Error(error.message);
+    const roles = (data ?? []).map((r) => r.role as "admin" | "employee");
+    return roles.sort((a, b) => (a === "admin" ? -1 : b === "admin" ? 1 : a.localeCompare(b)));
   });
 
 // ---------- Admin/Staff: list contact messages ----------

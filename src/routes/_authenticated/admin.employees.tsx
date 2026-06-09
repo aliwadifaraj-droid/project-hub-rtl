@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { listEmployees, createEmployee, deleteEmployee, listRoles } from "@/lib/admin.functions";
+import { getRoleLabel } from "@/lib/role-label";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -51,7 +52,7 @@ function EmployeesPage() {
             {(data ?? []).map((u) => (
               <tr key={u.user_id + u.role} className="border-t border-border">
                 <td className="p-3 font-medium">{u.email}</td>
-                <td className="p-3"><span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{u.role === "admin" ? "أدمن" : "موظف"}</span></td>
+                <td className="p-3"><span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{getRoleLabel(u.role)}</span></td>
                 <td className="p-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString("ar")}</td>
                 <td className="p-3 text-left">
                   <button

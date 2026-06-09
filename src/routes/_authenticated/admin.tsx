@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRoles } from "@/lib/admin.functions";
+import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
 import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox, MessagesSquare, Megaphone, PlusCircle } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -21,10 +22,9 @@ function AdminLayout() {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
-  const isAdmin = roles?.includes("admin");
-  const primaryRole = roles?.[0];
-  const roleLabel =
-    primaryRole === "admin" ? "أدمن" : primaryRole ? "مستخدم" : "—";
+  const isAdmin = hasAdminRole(roles);
+  const primaryRole = isAdmin ? "admin" : roles?.[0];
+  const roleLabel = getRoleLabel(primaryRole);
 
   async function logout() {
     await supabase.auth.signOut();
