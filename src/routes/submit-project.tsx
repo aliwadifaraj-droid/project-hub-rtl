@@ -73,6 +73,13 @@ function SubmitProjectPage() {
           image_paths: uploadedPaths,
         },
       });
+      await submitAd({
+        data: {
+          title: name.trim(),
+          description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
+          image_path: uploadedPaths[0] ?? "",
+        },
+      });
       setDone(true);
     } catch (err) {
       console.error(err);
