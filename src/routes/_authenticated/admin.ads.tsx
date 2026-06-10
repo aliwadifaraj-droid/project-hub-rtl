@@ -35,13 +35,17 @@ function AdminAdsPage() {
               icon: <Bell className="h-4 w-4" />,
             });
             qc.invalidateQueries({ queryKey: ["pending-ads"] });
+            qc.invalidateQueries({ queryKey: ["pending-ads-count"] });
           }
         },
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "ads" },
-        () => qc.invalidateQueries({ queryKey: ["pending-ads"] }),
+        () => {
+          qc.invalidateQueries({ queryKey: ["pending-ads"] });
+          qc.invalidateQueries({ queryKey: ["pending-ads-count"] });
+        },
       )
       .subscribe();
     return () => {
@@ -54,6 +58,7 @@ function AdminAdsPage() {
     onSuccess: () => {
       toast.success("تمت الموافقة");
       qc.invalidateQueries({ queryKey: ["pending-ads"] });
+      qc.invalidateQueries({ queryKey: ["pending-ads-count"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -63,6 +68,7 @@ function AdminAdsPage() {
     onSuccess: () => {
       toast.success("تم إلغاء الإعلان");
       qc.invalidateQueries({ queryKey: ["pending-ads"] });
+      qc.invalidateQueries({ queryKey: ["pending-ads-count"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -70,13 +76,19 @@ function AdminAdsPage() {
   if (isLoading) return <div className="grid place-items-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   if (error) return <p className="text-destructive">{(error as Error).message}</p>;
 
-  const rows = data ?? [];
+  const rows = data?.rows ?? [];
+  const isAdmin = data?.isAdmin ?? false;
 
   return (
     <div>
       <div className="mb-6 flex items-center gap-2">
         <Megaphone className="h-5 w-5" />
         <h1 className="text-2xl font-bold">الإعلانات المعلقة ({rows.length})</h1>
+        {!isAdmin && (
+          <span className="ms-2 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+            عرض فقط
+          </span>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -109,24 +121,28 @@ function AdminAdsPage() {
                   <span className="text-xs text-muted-foreground">
                     {new Date(ad.created_at).toLocaleDateString("ar")}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        if (confirm("إلغاء هذا الإعلان؟")) cancelMut.mutate(ad.id);
-                      }}
-                      disabled={approveMut.isPending || cancelMut.isPending}
-                      className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-60"
-                    >
-                      <X className="h-3.5 w-3.5" /> إلغاء
-                    </button>
-                    <button
-                      onClick={() => approveMut.mutate(ad.id)}
-                      disabled={approveMut.isPending || cancelMut.isPending}
-                      className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90 disabled:opacity-60"
-                    >
-                      <Check className="h-3.5 w-3.5" /> موافقة
-                    </button>
-                  </div>
+                  {isAdmin ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (confirm("إلغاء هذا الإعلان؟")) cancelMut.mutate(ad.id);
+                        }}
+                        disabled={approveMut.isPending || cancelMut.isPending}
+                        className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-60"
+                      >
+                        <X className="h-3.5 w-3.5" /> إلغاء
+                      </button>
+                      <button
+                        onClick={() => approveMut.mutate(ad.id)}
+                        disabled={approveMut.isPending || cancelMut.isPending}
+                        className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90 disabled:opacity-60"
+                      >
+                        <Check className="h-3.5 w-3.5" /> موافقة
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">بانتظار الأدمن</span>
+                  )}
                 </div>
               </div>
             </div>
