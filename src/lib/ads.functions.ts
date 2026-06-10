@@ -77,6 +77,20 @@ export const listPendingAds = createServerFn({ method: "GET" })
     return { rows, isAdmin: roles.includes("admin") };
   });
 
+export const countPendingAds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    await assertStaff(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { count, error } = await supabaseAdmin
+      .from("ads")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  });
+
 export const approveAd = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
