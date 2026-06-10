@@ -47,17 +47,17 @@ export const createAd = createServerFn({ method: "POST" })
         title: data.title,
         description: data.description || null,
         image_url: data.image_url || null,
-        status: "pending",
+        status: "approved",
         created_by: userId,
       })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    // Auto-generate the public ad link
     const linkUrl = `/ads/${row.id}`;
     await supabaseAdmin.from("ads").update({ link_url: linkUrl }).eq("id", row.id);
     return { id: row.id, link_url: linkUrl };
   });
+
 
 export const listPendingAds = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
