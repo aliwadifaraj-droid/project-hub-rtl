@@ -64,22 +64,16 @@ function SubmitProjectPage() {
         if (upErr) throw new Error(upErr.message);
         uploadedPaths.push(path);
       }
-      await submit({
-        data: {
-          name: name.trim(),
-          description: description.trim(),
-          location: location.trim(),
-          contact_phone: phone.trim(),
-          image_paths: uploadedPaths,
-        },
-      });
-      await submitAd({
+      const result = await submitAd({
         data: {
           title: name.trim(),
           description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
           image_path: uploadedPaths[0] ?? "",
         },
       });
+      if (!result?.id) {
+        throw new Error("لم يتم حفظ الإعلان في قاعدة البيانات");
+      }
       setDone(true);
     } catch (err) {
       console.error(err);
