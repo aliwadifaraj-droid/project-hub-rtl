@@ -47,17 +47,17 @@ export const createAd = createServerFn({ method: "POST" })
         title: data.title,
         description: data.description || null,
         image_url: data.image_url || null,
-        status: "pending",
+        status: "approved",
         created_by: userId,
       })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    // Auto-generate the public ad link
     const linkUrl = `/ads/${row.id}`;
     await supabaseAdmin.from("ads").update({ link_url: linkUrl }).eq("id", row.id);
     return { id: row.id, link_url: linkUrl };
   });
+
 
 export const listPendingAds = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -179,4 +179,32 @@ export const getApprovedAd = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     if (!row || row.status !== "approved") return null;
     return { ...row, image_signed_url: await resolveImage(row.image_url) };
+  });
+
+// Public — visitors can submit a pending ad without sign-in
+export const submitVisitorAd = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      title: z.string().trim().min(1).max(200),
+      description: z.string().trim().max(2000).optional().default(""),
+      image_path: z.string().trim().max(500).optional().default(""),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const safePath = data.image_path && data.image_path.startsWith("submissions/") ? data.image_path : "";
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
+      .from("ads")
+      .insert({
+        title: data.title,
+        description: data.description || null,
+        image_url: safePath || null,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    const linkUrl = `/ads/${row.id}`;
+    await supabaseAdmin.from("ads").update({ link_url: linkUrl }).eq("id", row.id);
+    return { id: row.id };
   });

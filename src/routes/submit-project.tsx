@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { submitProjectWithPaths } from "@/lib/admin.functions";
+import { submitVisitorAd } from "@/lib/ads.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/submit-project")({
 
 function SubmitProjectPage() {
   const submit = useServerFn(submitProjectWithPaths);
+  const submitAd = useServerFn(submitVisitorAd);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -69,6 +71,13 @@ function SubmitProjectPage() {
           location: location.trim(),
           contact_phone: phone.trim(),
           image_paths: uploadedPaths,
+        },
+      });
+      await submitAd({
+        data: {
+          title: name.trim(),
+          description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
+          image_path: uploadedPaths[0] ?? "",
         },
       });
       setDone(true);
