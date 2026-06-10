@@ -22,6 +22,7 @@ export const Route = createFileRoute("/submit-project")({
 
 function SubmitProjectPage() {
   const submit = useServerFn(submitProjectWithPaths);
+  const submitAd = useServerFn(submitVisitorAd);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
