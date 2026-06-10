@@ -1,21 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { listPendingAds, approveAd, rejectAd } from "@/lib/ads.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Check, X, Megaphone, ExternalLink, Bell } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/admin/ads")({
   component: AdminAdsPage,
@@ -31,11 +21,6 @@ function AdminAdsPage() {
     queryFn: () => list(),
   });
 
-  const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
-  const [reason, setReason] = useState("");
-  const initialCount = useRef<number | null>(null);
-
-  // Realtime: notify admin when a new pending ad arrives
   useEffect(() => {
     const channel = supabase
       .channel("ads-pending-admin")
@@ -73,12 +58,10 @@ function AdminAdsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const rejectMut = useMutation({
-    mutationFn: (vars: { id: string; reason: string }) => reject({ data: vars }),
+  const cancelMut = useMutation({
+    mutationFn: (id: string) => reject({ data: { id, reason: "تم الإلغاء من قبل الأدمن" } }),
     onSuccess: () => {
-      toast.success("تم رفض الإعلان");
-      setRejectTarget(null);
-      setReason("");
+      toast.success("تم إلغاء الإعلان");
       qc.invalidateQueries({ queryKey: ["pending-ads"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -88,7 +71,6 @@ function AdminAdsPage() {
   if (error) return <p className="text-destructive">{(error as Error).message}</p>;
 
   const rows = data ?? [];
-  if (initialCount.current === null) initialCount.current = rows.length;
 
   return (
     <div>
@@ -129,15 +111,17 @@ function AdminAdsPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setRejectTarget({ id: ad.id, title: ad.title })}
-                      disabled={approveMut.isPending || rejectMut.isPending}
+                      onClick={() => {
+                        if (confirm("إلغاء هذا الإعلان؟")) cancelMut.mutate(ad.id);
+                      }}
+                      disabled={approveMut.isPending || cancelMut.isPending}
                       className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-60"
                     >
-                      <X className="h-3.5 w-3.5" /> رفض
+                      <X className="h-3.5 w-3.5" /> إلغاء
                     </button>
                     <button
                       onClick={() => approveMut.mutate(ad.id)}
-                      disabled={approveMut.isPending || rejectMut.isPending}
+                      disabled={approveMut.isPending || cancelMut.isPending}
                       className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90 disabled:opacity-60"
                     >
                       <Check className="h-3.5 w-3.5" /> موافقة
@@ -149,53 +133,6 @@ function AdminAdsPage() {
           ))}
         </div>
       )}
-
-      <Dialog
-        open={!!rejectTarget}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRejectTarget(null);
-            setReason("");
-          }
-        }}
-      >
-        <DialogContent dir="rtl">
-          <DialogHeader>
-            <DialogTitle>رفض الإعلان</DialogTitle>
-            <DialogDescription>
-              {rejectTarget ? `"${rejectTarget.title}" — اذكر سبب الرفض` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            maxLength={500}
-            rows={4}
-            placeholder="مثال: الصورة غير مناسبة، الرابط معطّل، تكرار..."
-          />
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setRejectTarget(null);
-                setReason("");
-              }}
-            >
-              إلغاء
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={!reason.trim() || rejectMut.isPending}
-              onClick={() =>
-                rejectTarget && rejectMut.mutate({ id: rejectTarget.id, reason: reason.trim() })
-              }
-            >
-              {rejectMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-              تأكيد الرفض
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
