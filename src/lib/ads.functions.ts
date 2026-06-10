@@ -63,7 +63,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    const roles = await assertStaff(supabase, userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
@@ -74,7 +74,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
     const rows = await Promise.all(
       (data ?? []).map(async (a) => ({ ...a, image_signed_url: await resolveImage(a.image_url) })),
     );
-    return rows;
+    return { rows, isAdmin: roles.includes("admin") };
   });
 
 export const approveAd = createServerFn({ method: "POST" })
