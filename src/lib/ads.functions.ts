@@ -234,3 +234,42 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
     await supabaseAdmin.from("ads").update({ link_url: linkUrl }).eq("id", row.id);
     return { id: row.id };
   });
+
+// ---- Ad comments / inquiries ----
+export const listAdComments = createServerFn({ method: "GET" })
+  .inputValidator((d: { adId: string }) => z.object({ adId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("ad_comments")
+      .select("id,author_name,body,created_at")
+      .eq("ad_id", data.adId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
+export const submitAdComment = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      adId: z.string().uuid(),
+      author_name: z.string().trim().min(1).max(80),
+      contact: z.string().trim().max(120).optional().default(""),
+      body: z.string().trim().min(1).max(1000),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ad } = await supabaseAdmin
+      .from("ads").select("status").eq("id", data.adId).maybeSingle();
+    if (!ad || ad.status !== "approved") throw new Error("الإعلان غير متاح");
+    const { error } = await supabaseAdmin.from("ad_comments").insert({
+      ad_id: data.adId,
+      author_name: data.author_name,
+      contact: data.contact || null,
+      body: data.body,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
