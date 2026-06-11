@@ -99,11 +99,15 @@ function AdminLayout() {
             <Link
               to="/admin/ads"
               aria-label="الإعلانات المعلقة"
-              className="relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                pendingCount > 0
+                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
             >
               <Bell className="h-4 w-4" />
               {pendingCount > 0 && (
-                <span className="absolute -top-1 -end-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
                   {pendingCount > 99 ? "99+" : pendingCount}
                 </span>
               )}
