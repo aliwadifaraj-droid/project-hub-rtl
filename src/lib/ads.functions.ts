@@ -47,7 +47,7 @@ export const createAd = createServerFn({ method: "POST" })
         title: data.title,
         description: data.description || null,
         image_url: data.image_url || null,
-        status: "approved",
+        status: "pending",
         created_by: userId,
       })
       .select("id")
