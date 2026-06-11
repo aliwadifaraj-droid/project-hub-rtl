@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "anyone insert comment" ON public.ad_comments;
