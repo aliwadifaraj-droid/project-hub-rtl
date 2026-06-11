@@ -78,7 +78,7 @@ function AdminLayout() {
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: true },
     { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
     { to: "/admin/ads", label: "الإعلانات المعلقة", icon: Megaphone, show: true },
-    { to: "/ads/new", label: "إضافة إعلان", icon: PlusCircle, show: true },
+    { to: "/submit-project", label: "أضف مشروع جديد", icon: PlusCircle, show: true },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/projects", label: "المشاريع", icon: FolderKanban, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
