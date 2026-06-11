@@ -24,7 +24,6 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
-import { Route as AuthenticatedAdsNewRouteImport } from './routes/_authenticated/ads.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authenticated/admin.requests'
@@ -108,11 +107,6 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdsNewRoute = AuthenticatedAdsNewRouteImport.update({
-  id: '/ads/new',
-  path: '/ads/new',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -181,7 +175,6 @@ export interface FileRoutesByFullPath {
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/ads/new': typeof AuthenticatedAdsNewRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -205,7 +198,6 @@ export interface FileRoutesByTo {
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/ads/new': typeof AuthenticatedAdsNewRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -232,7 +224,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/_authenticated/ads/new': typeof AuthenticatedAdsNewRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -259,7 +250,6 @@ export interface FileRouteTypes {
     | '/admin/requests'
     | '/admin/submissions'
     | '/admin/users'
-    | '/ads/new'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -283,7 +273,6 @@ export interface FileRouteTypes {
     | '/admin/requests'
     | '/admin/submissions'
     | '/admin/users'
-    | '/ads/new'
     | '/admin'
   id:
     | '__root__'
@@ -309,7 +298,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/requests'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/admin/users'
-    | '/_authenticated/ads/new'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -432,13 +420,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/ads/new': {
-      id: '/_authenticated/ads/new'
-      path: '/ads/new'
-      fullPath: '/ads/new'
-      preLoaderRoute: typeof AuthenticatedAdsNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
@@ -530,7 +511,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEmployeesRoute: typeof AuthenticatedEmployeesRoute
-  AuthenticatedAdsNewRoute: typeof AuthenticatedAdsNewRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -538,7 +518,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEmployeesRoute: AuthenticatedEmployeesRoute,
-  AuthenticatedAdsNewRoute: AuthenticatedAdsNewRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
