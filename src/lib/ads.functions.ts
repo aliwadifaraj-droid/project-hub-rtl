@@ -29,7 +29,7 @@ async function resolveImage(path: string | null): Promise<string> {
 }
 
 const adSchema = z.object({
-  title: z.string().trim().min(1).max(200),
+  project_name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional().default(""),
   image_url: z.string().trim().max(1000).optional().default(""),
 });
@@ -44,7 +44,7 @@ export const createAd = createServerFn({ method: "POST" })
     const { data: row, error } = await supabaseAdmin
       .from("ads")
       .insert({
-        title: data.title,
+        project_name: data.project_name,
         description: data.description || null,
         image_url: data.image_url || null,
         status: "pending",
@@ -67,7 +67,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
-      .select("id,title,description,image_url,link_url,status,created_by,created_at")
+      .select("id,project_name,description,image_url,link_url,status,created_by,created_at")
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -143,7 +143,7 @@ export const updateAd = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       id: z.string().uuid(),
-      title: z.string().trim().min(1).max(200),
+      project_name: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
       image_url: z.string().trim().max(1000).optional().default(""),
     }).parse(d),
@@ -155,7 +155,7 @@ export const updateAd = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin
       .from("ads")
       .update({
-        title: data.title,
+        project_name: data.project_name,
         description: data.description || null,
         image_url: data.image_url || null,
       })
@@ -182,7 +182,7 @@ export const listApprovedAds = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
-      .select("id,title,description,image_url,link_url,created_at")
+      .select("id,project_name,description,image_url,link_url,created_at")
       .eq("status", "approved")
       .order("created_at", { ascending: false })
       .limit(100);
@@ -199,7 +199,7 @@ export const getApprovedAd = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("ads")
-      .select("id,title,description,image_url,link_url,created_at,status")
+      .select("id,project_name,description,image_url,link_url,created_at,status")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -211,7 +211,7 @@ export const getApprovedAd = createServerFn({ method: "GET" })
 export const submitVisitorAd = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
-      title: z.string().trim().min(1).max(200),
+      project_name: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
       image_path: z.string().trim().max(500).optional().default(""),
     }).parse(d),
@@ -222,7 +222,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
     const { data: row, error } = await supabaseAdmin
       .from("ads")
       .insert({
-        title: data.title,
+        project_name: data.project_name,
         description: data.description || null,
         image_url: safePath || null,
         status: "pending",
