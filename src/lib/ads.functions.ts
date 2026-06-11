@@ -71,8 +71,20 @@ export const listPendingAds = createServerFn({ method: "GET" })
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
+    const ids = Array.from(new Set((data ?? []).map((a) => a.created_by).filter(Boolean) as string[]));
+    const emailById = new Map<string, string>();
+    if (ids.length) {
+      const { data: profs } = await supabaseAdmin.from("profiles").select("id,email").in("id", ids);
+      (profs ?? []).forEach((p: { id: string; email: string | null }) => {
+        if (p.email) emailById.set(p.id, p.email);
+      });
+    }
     const rows = await Promise.all(
-      (data ?? []).map(async (a) => ({ ...a, image_signed_url: await resolveImage(a.image_url) })),
+      (data ?? []).map(async (a) => ({
+        ...a,
+        image_signed_url: await resolveImage(a.image_url),
+        submitter_label: a.created_by ? (emailById.get(a.created_by) ?? "موظف") : "زائر",
+      })),
     );
     return { rows, isAdmin: roles.includes("admin") };
   });

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { listPendingAds, approveAd, rejectAd } from "@/lib/ads.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Check, X, Megaphone, ExternalLink, Bell } from "lucide-react";
+import { Loader2, Check, X, Megaphone, ExternalLink, Bell, User } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/ads")({
@@ -117,6 +117,13 @@ function AdminAdsPage() {
                     <ExternalLink className="h-3 w-3" /> {ad.link_url}
                   </a>
                 ) : null}
+                <div className="mb-3 flex items-center gap-1.5 text-xs">
+                  <User className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">المُرسِل:</span>
+                  <span className={`font-semibold ${ad.created_by ? "text-foreground" : "text-amber-600"}`}>
+                    {(ad as { submitter_label?: string }).submitter_label ?? (ad.created_by ? "موظف" : "زائر")}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
                   <span className="text-xs text-muted-foreground">
                     {new Date(ad.created_at).toLocaleDateString("ar")}
