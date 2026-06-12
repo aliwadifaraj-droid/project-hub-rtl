@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
 
 function pickImage(p: { cover_url?: string; cover_image: string | null }) {
   if (p.cover_url && (p.cover_url.startsWith("http") || p.cover_url.startsWith("/"))) return p.cover_url;
-  return resolveImage(p.cover_image);
+  return resolveImage(p.cover_image ?? "");
 }
 
 function HomePage() {
