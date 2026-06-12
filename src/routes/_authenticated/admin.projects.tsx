@@ -14,13 +14,14 @@ export const Route = createFileRoute("/_authenticated/admin/projects")({
 type ProjectRow = {
   id: string;
   name: string;
-  description: string;
-  location: string;
-  duration: string;
-  cover_image: string;
+  description: string | null;
+  location: string | null;
+  duration: string | null;
+  cover_image: string | null;
   cover_url: string;
   images: string[];
 };
+
 
 function ProjectsAdminPage() {
   const list = useServerFn(listProjects);

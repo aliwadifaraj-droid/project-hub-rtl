@@ -25,6 +25,7 @@ function SubmitProjectPage() {
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
+  const [domain, setDomain] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -50,6 +51,11 @@ function SubmitProjectPage() {
       toast.error("جميع الحقول الأساسية إجبارية");
       return;
     }
+    const cleanDomain = domain.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+    if (cleanDomain && !/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(cleanDomain)) {
+      toast.error("صيغة الدومين غير صحيحة");
+      return;
+    }
     setSubmitting(true);
     try {
       const uploadedPaths: string[] = [];
@@ -67,6 +73,7 @@ function SubmitProjectPage() {
           title: name.trim(),
           description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
           image_path: uploadedPaths[0] ?? "",
+          domain: cleanDomain,
         },
       });
       if (!result?.id) {
@@ -80,6 +87,7 @@ function SubmitProjectPage() {
       setSubmitting(false);
     }
   }
+
 
 
   return (
@@ -143,6 +151,15 @@ function SubmitProjectPage() {
                     className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                   />
                 </Field>
+                <Field label="نطاق (دومين) المشروع (اختياري)">
+                  <input
+                    maxLength={255}
+                    placeholder="example.com"
+                    value={domain} onChange={(e) => setDomain(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </Field>
+
                 <Field label="صور المشروع (اختياري — حتى 8 صور)">
                   <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-4 py-5 text-sm hover:bg-secondary transition">
                     <Upload className="h-5 w-5 text-accent" />
