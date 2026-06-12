@@ -57,6 +57,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          domain: string | null
           id: string
           image_url: string | null
           link_url: string | null
@@ -69,6 +70,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          domain?: string | null
           id?: string
           image_url?: string | null
           link_url?: string | null
@@ -81,6 +83,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          domain?: string | null
           id?: string
           image_url?: string | null
           link_url?: string | null
@@ -237,36 +240,53 @@ export type Database = {
       }
       projects: {
         Row: {
-          cover_image: string
+          ad_id: string | null
+          cover_image: string | null
           created_at: string
-          description: string
-          duration: string
+          description: string | null
+          domain: string | null
+          duration: string | null
           id: string
           images: string[]
-          location: string
+          location: string | null
           name: string
+          owner_id: string | null
         }
         Insert: {
-          cover_image: string
+          ad_id?: string | null
+          cover_image?: string | null
           created_at?: string
-          description: string
-          duration: string
+          description?: string | null
+          domain?: string | null
+          duration?: string | null
           id?: string
           images?: string[]
-          location: string
+          location?: string | null
           name: string
+          owner_id?: string | null
         }
         Update: {
-          cover_image?: string
+          ad_id?: string | null
+          cover_image?: string | null
           created_at?: string
-          description?: string
-          duration?: string
+          description?: string | null
+          domain?: string | null
+          duration?: string | null
           id?: string
           images?: string[]
-          location?: string
+          location?: string | null
           name?: string
+          owner_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       roles: {
         Row: {
