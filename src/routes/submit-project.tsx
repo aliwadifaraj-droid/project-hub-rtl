@@ -25,6 +25,7 @@ function SubmitProjectPage() {
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
+  const [domain, setDomain] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -50,6 +51,11 @@ function SubmitProjectPage() {
       toast.error("جميع الحقول الأساسية إجبارية");
       return;
     }
+    const cleanDomain = domain.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+    if (cleanDomain && !/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(cleanDomain)) {
+      toast.error("صيغة الدومين غير صحيحة");
+      return;
+    }
     setSubmitting(true);
     try {
       const uploadedPaths: string[] = [];
@@ -67,6 +73,7 @@ function SubmitProjectPage() {
           title: name.trim(),
           description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
           image_path: uploadedPaths[0] ?? "",
+          domain: cleanDomain,
         },
       });
       if (!result?.id) {
@@ -80,6 +87,7 @@ function SubmitProjectPage() {
       setSubmitting(false);
     }
   }
+
 
 
   return (
