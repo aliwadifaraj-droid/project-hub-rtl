@@ -28,10 +28,19 @@ async function resolveImage(path: string | null): Promise<string> {
   return data?.signedUrl ?? "";
 }
 
+const domainSchema = z
+  .string()
+  .trim()
+  .max(255)
+  .regex(/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/i, "صيغة الدومين غير صحيحة")
+  .optional()
+  .or(z.literal(""));
+
 const adSchema = z.object({
-  project_name: z.string().trim().min(1).max(200),
+  title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional().default(""),
   image_url: z.string().trim().max(1000).optional().default(""),
+  domain: domainSchema.default(""),
 });
 
 export const createAd = createServerFn({ method: "POST" })
@@ -44,9 +53,10 @@ export const createAd = createServerFn({ method: "POST" })
     const { data: row, error } = await supabaseAdmin
       .from("ads")
       .insert({
-        project_name: data.project_name,
+        title: data.title,
         description: data.description || null,
         image_url: data.image_url || null,
+        domain: data.domain || null,
         status: "pending",
         created_by: userId,
       })
@@ -67,7 +77,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
-      .select("id,project_name,description,image_url,link_url,status,created_by,created_at")
+      .select("id,title,description,image_url,link_url,domain,status,created_by,created_at")
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -110,11 +120,37 @@ export const approveAd = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Load ad first
+    const { data: ad, error: adErr } = await supabaseAdmin
+      .from("ads")
+      .select("id,title,description,image_url,domain,created_by,status")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (adErr) throw new Error(adErr.message);
+    if (!ad) throw new Error("الإعلان غير موجود");
+
     const { error } = await supabaseAdmin
       .from("ads")
       .update({ status: "approved", rejection_reason: null })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    // Auto-create project linked to this ad (if not already)
+    const { data: existing } = await supabaseAdmin
+      .from("projects").select("id").eq("ad_id", ad.id).maybeSingle();
+    if (!existing) {
+      await supabaseAdmin.from("projects").insert({
+        name: ad.title,
+        description: ad.description ?? "",
+        location: "",
+        duration: "",
+        cover_image: ad.image_url ?? "",
+        images: [],
+        owner_id: ad.created_by,
+        domain: ad.domain,
+        ad_id: ad.id,
+      });
+    }
     return { ok: true };
   });
 
@@ -143,9 +179,10 @@ export const updateAd = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       id: z.string().uuid(),
-      project_name: z.string().trim().min(1).max(200),
+      title: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
       image_url: z.string().trim().max(1000).optional().default(""),
+      domain: domainSchema.default(""),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
@@ -155,9 +192,10 @@ export const updateAd = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin
       .from("ads")
       .update({
-        project_name: data.project_name,
+        title: data.title,
         description: data.description || null,
         image_url: data.image_url || null,
+        domain: data.domain || null,
       })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -176,13 +214,28 @@ export const deleteAd = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Owner deletes their own ad (any status)
+export const deleteMyAd = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: ad, error: e1 } = await supabase
+      .from("ads").select("created_by").eq("id", data.id).maybeSingle();
+    if (e1) throw new Error(e1.message);
+    if (!ad || ad.created_by !== userId) throw new Error("غير مصرح");
+    const { error } = await supabase.from("ads").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // Public — anyone can list approved ads
 export const listApprovedAds = createServerFn({ method: "GET" })
   .handler(async () => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
-      .select("id,project_name,description,image_url,link_url,created_at")
+      .select("id,title,description,image_url,link_url,domain,created_at")
       .eq("status", "approved")
       .order("created_at", { ascending: false })
       .limit(100);
@@ -199,7 +252,7 @@ export const getApprovedAd = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("ads")
-      .select("id,project_name,description,image_url,link_url,created_at,status")
+      .select("id,title,description,image_url,link_url,domain,created_at,status")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -211,9 +264,10 @@ export const getApprovedAd = createServerFn({ method: "GET" })
 export const submitVisitorAd = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
-      project_name: z.string().trim().min(1).max(200),
+      title: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
       image_path: z.string().trim().max(500).optional().default(""),
+      domain: domainSchema.default(""),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -222,9 +276,10 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
     const { data: row, error } = await supabaseAdmin
       .from("ads")
       .insert({
-        project_name: data.project_name,
+        title: data.title,
         description: data.description || null,
         image_url: safePath || null,
+        domain: data.domain || null,
         status: "pending",
       })
       .select("id")
