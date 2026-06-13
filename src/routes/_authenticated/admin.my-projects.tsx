@@ -3,6 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listMyProjects, deleteMyProject } from "@/lib/my-projects.functions";
 import { deleteMyAd } from "@/lib/ads.functions";
+import { getMyRoles } from "@/lib/admin.functions";
+import { hasAdminRole } from "@/lib/role-label";
 import { Loader2, Trash2, Globe, FolderKanban, Megaphone } from "lucide-react";
 import { toast } from "sonner";
 
