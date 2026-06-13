@@ -79,24 +79,26 @@ function MyProjectsPage() {
                     <Globe className="h-3 w-3" /> {p.domain}
                   </div>
                 ) : null}
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => { if (confirm("حذف هذا المشروع؟")) delProjectMut.mutate(p.id); }}
-                    disabled={delProjectMut.isPending}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-60"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> حذف المشروع
-                  </button>
-                  {p.ad_id ? (
+                {isAdmin ? (
+                  <div className="mt-3 flex gap-2">
                     <button
-                      onClick={() => { if (confirm("حذف الإعلان المرتبط؟")) delAdMut.mutate(p.ad_id!); }}
-                      disabled={delAdMut.isPending}
-                      className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary disabled:opacity-60"
+                      onClick={() => { if (confirm("حذف هذا المشروع؟")) delProjectMut.mutate(p.id); }}
+                      disabled={delProjectMut.isPending}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-60"
                     >
-                      <Megaphone className="h-3.5 w-3.5" /> حذف الإعلان
+                      <Trash2 className="h-3.5 w-3.5" /> حذف المشروع
                     </button>
-                  ) : null}
-                </div>
+                    {p.ad_id ? (
+                      <button
+                        onClick={() => { if (confirm("حذف الإعلان المرتبط؟")) delAdMut.mutate(p.ad_id!); }}
+                        disabled={delAdMut.isPending}
+                        className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary disabled:opacity-60"
+                      >
+                        <Megaphone className="h-3.5 w-3.5" /> حذف الإعلان
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}
