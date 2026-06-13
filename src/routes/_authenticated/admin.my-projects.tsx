@@ -16,7 +16,10 @@ function MyProjectsPage() {
   const list = useServerFn(listMyProjects);
   const delProject = useServerFn(deleteMyProject);
   const delAd = useServerFn(deleteMyAd);
+  const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
+  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const isAdmin = hasAdminRole(roles);
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-projects"],
