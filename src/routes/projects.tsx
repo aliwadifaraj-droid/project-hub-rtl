@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { upsertProject, deleteProject, listProjects, getMyRoles } from "@/lib/admin.functions";
+import { useState, useEffect } from "react";
+import { upsertProject, deleteProject, listProjects } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
@@ -30,12 +30,20 @@ function ProjectsPage() {
   const list = useServerFn(listProjects);
   const upsert = useServerFn(upsertProject);
   const del = useServerFn(deleteProject);
-  const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => list() });
-  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
-  const isAdmin = hasAdminRole(roles);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(async ({ data: authData }) => {
+      if (!authData.user || cancelled) return;
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", authData.user.id);
+      if (!cancelled) setIsAdmin(hasAdminRole((roles ?? []).map((r) => r.role)));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const saveMut = useMutation({
     mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
@@ -64,12 +72,14 @@ function ProjectsPage() {
       <main className="container mx-auto px-4 py-10">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">المشاريع ({data?.length ?? 0})</h1>
-          <button
-            onClick={() => setEditing({ name: "", description: "", location: "", duration: "", cover_image: "", images: [] })}
-            className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90"
-          >
-            <Plus className="h-4 w-4" /> مشروع جديد
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={() => setEditing({ name: "", description: "", location: "", duration: "", cover_image: "", images: [] })}
+              className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90"
+            >
+              <Plus className="h-4 w-4" /> مشروع جديد
+            </button>
+          ) : null}
         </div>
 
         {isLoading ? (

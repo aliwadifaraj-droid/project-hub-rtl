@@ -13,8 +13,7 @@ export function SiteHeader() {
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
           <Link
-            to="/"
-            activeOptions={{ exact: true }}
+            to="/projects"
             className="rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
           >
             المشاريع
