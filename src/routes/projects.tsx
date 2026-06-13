@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { upsertProject, deleteProject, listProjects } from "@/lib/admin.functions";
+import { upsertProject, deleteProject, listProjects, getMyRoles } from "@/lib/admin.functions";
+import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -29,8 +30,11 @@ function ProjectsPage() {
   const list = useServerFn(listProjects);
   const upsert = useServerFn(upsertProject);
   const del = useServerFn(deleteProject);
+  const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => list() });
+  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const isAdmin = hasAdminRole(roles);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
 
   const saveMut = useMutation({
@@ -80,17 +84,19 @@ function ProjectsPage() {
                 <div className="p-4">
                   <h3 className="font-bold">{p.name}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
-                  <div className="mt-3 flex gap-2">
-                    <button onClick={() => setEditing(p)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
-                      <Pencil className="h-3.5 w-3.5" /> تعديل
-                    </button>
-                    <button
-                      onClick={() => { if (confirm("تأكيد الحذف؟")) delMut.mutate(p.id); }}
-                      className="inline-flex items-center justify-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" /> حذف
-                    </button>
-                  </div>
+                  {isAdmin ? (
+                    <div className="mt-3 flex gap-2">
+                      <button onClick={() => setEditing(p)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
+                        <Pencil className="h-3.5 w-3.5" /> تعديل
+                      </button>
+                      <button
+                        onClick={() => { if (confirm("تأكيد الحذف؟")) delMut.mutate(p.id); }}
+                        className="inline-flex items-center justify-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> حذف
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}
