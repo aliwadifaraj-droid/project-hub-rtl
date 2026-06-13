@@ -30,12 +30,20 @@ function ProjectsPage() {
   const list = useServerFn(listProjects);
   const upsert = useServerFn(upsertProject);
   const del = useServerFn(deleteProject);
-  const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => list() });
-  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
-  const isAdmin = hasAdminRole(roles);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(async ({ data: authData }) => {
+      if (!authData.user || cancelled) return;
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", authData.user.id);
+      if (!cancelled) setIsAdmin(hasAdminRole((roles ?? []).map((r) => r.role)));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const saveMut = useMutation({
     mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
