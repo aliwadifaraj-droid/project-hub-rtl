@@ -40,7 +40,7 @@ function ContactPage() {
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("contact_messages").insert(parsed.data);
+      const { error } = await supabase.from("project_submissions").insert(parsed.data);
       if (error) throw error;
       setDone(true);
     } catch (err) {
