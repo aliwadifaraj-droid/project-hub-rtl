@@ -103,12 +103,21 @@ function AdminLayout() {
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: true },
     { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
     { to: "/admin/ads", label: "الإعلانات المعلقة", icon: Megaphone, show: true },
+    { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
     { to: "/admin/my-projects", label: "مشاريعي", icon: FolderKanban, show: true },
     { to: "/submit-project", label: "أضف مشروع جديد", icon: PlusCircle, show: true },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/projects", label: "كل المشاريع", icon: FolderKanban, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
   ];
+
+  async function openNotif(open: boolean) {
+    setNotifOpen(open);
+    if (open && unreadCount > 0) {
+      await markAllRead();
+      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
+    }
+  }
 
 
   return (
