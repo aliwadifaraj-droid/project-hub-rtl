@@ -33,12 +33,14 @@ function ProjectsPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => list() });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     supabase.auth.getUser().then(async ({ data: authData }) => {
       if (!authData.user || cancelled) return;
+      setSignedIn(true);
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", authData.user.id);
       if (!cancelled) setIsAdmin(hasAdminRole((roles ?? []).map((r) => r.role)));
     });
@@ -47,8 +49,12 @@ function ProjectsPage() {
 
   const saveMut = useMutation({
     mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
-    onSuccess: () => {
-      toast.success("تم الحفظ");
+    onSuccess: (res: any) => {
+      if (res?.admin_approval === "pending") {
+        toast.success("تم إرسال المشروع للمراجعة من الأدمن");
+      } else {
+        toast.success("تم الحفظ");
+      }
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["admin-projects"] });
       setEditing(null);
@@ -72,7 +78,7 @@ function ProjectsPage() {
       <main className="container mx-auto px-4 py-10">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">المشاريع ({data?.length ?? 0})</h1>
-          {isAdmin ? (
+          {signedIn ? (
             <button
               onClick={() => setEditing({ name: "", description: "", location: "", duration: "", cover_image: "", images: [] })}
               className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90"

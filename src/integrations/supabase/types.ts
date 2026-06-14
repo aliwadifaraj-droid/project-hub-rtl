@@ -118,6 +118,36 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          link: string | null
+          read: boolean
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read?: boolean
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read?: boolean
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -241,8 +271,10 @@ export type Database = {
       projects: {
         Row: {
           ad_id: string | null
+          admin_approval: string
           cover_image: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           domain: string | null
           duration: string | null
@@ -254,8 +286,10 @@ export type Database = {
         }
         Insert: {
           ad_id?: string | null
+          admin_approval?: string
           cover_image?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           domain?: string | null
           duration?: string | null
@@ -267,8 +301,10 @@ export type Database = {
         }
         Update: {
           ad_id?: string | null
+          admin_approval?: string
           cover_image?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           domain?: string | null
           duration?: string | null
