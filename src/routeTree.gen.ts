@@ -29,6 +29,7 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authenticated/admin.requests'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin.projects'
+import { Route as AuthenticatedAdminPendingProjectsRouteImport } from './routes/_authenticated/admin.pending-projects'
 import { Route as AuthenticatedAdminMyProjectsRouteImport } from './routes/_authenticated/admin.my-projects'
 import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
@@ -137,6 +138,12 @@ const AuthenticatedAdminProjectsRoute =
     path: '/projects',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPendingProjectsRoute =
+  AuthenticatedAdminPendingProjectsRouteImport.update({
+    id: '/pending-projects',
+    path: '/pending-projects',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminMyProjectsRoute =
   AuthenticatedAdminMyProjectsRouteImport.update({
     id: '/my-projects',
@@ -186,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
+  '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
@@ -211,6 +219,7 @@ export interface FileRoutesByTo {
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
+  '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
@@ -239,6 +248,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
+  '/_authenticated/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/_authenticated/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/admin/employees'
     | '/admin/messages'
     | '/admin/my-projects'
+    | '/admin/pending-projects'
     | '/admin/projects'
     | '/admin/requests'
     | '/admin/submissions'
@@ -292,6 +303,7 @@ export interface FileRouteTypes {
     | '/admin/employees'
     | '/admin/messages'
     | '/admin/my-projects'
+    | '/admin/pending-projects'
     | '/admin/projects'
     | '/admin/requests'
     | '/admin/submissions'
@@ -319,6 +331,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/employees'
     | '/_authenticated/admin/messages'
     | '/_authenticated/admin/my-projects'
+    | '/_authenticated/admin/pending-projects'
     | '/_authenticated/admin/projects'
     | '/_authenticated/admin/requests'
     | '/_authenticated/admin/submissions'
@@ -480,6 +493,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProjectsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/pending-projects': {
+      id: '/_authenticated/admin/pending-projects'
+      path: '/pending-projects'
+      fullPath: '/admin/pending-projects'
+      preLoaderRoute: typeof AuthenticatedAdminPendingProjectsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/my-projects': {
       id: '/_authenticated/admin/my-projects'
       path: '/my-projects'
@@ -524,6 +544,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRoute
   AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminMyProjectsRoute: typeof AuthenticatedAdminMyProjectsRoute
+  AuthenticatedAdminPendingProjectsRoute: typeof AuthenticatedAdminPendingProjectsRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
   AuthenticatedAdminRequestsRoute: typeof AuthenticatedAdminRequestsRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
@@ -537,6 +558,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminEmployeesRoute: AuthenticatedAdminEmployeesRoute,
   AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminMyProjectsRoute: AuthenticatedAdminMyProjectsRoute,
+  AuthenticatedAdminPendingProjectsRoute:
+    AuthenticatedAdminPendingProjectsRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
   AuthenticatedAdminRequestsRoute: AuthenticatedAdminRequestsRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
