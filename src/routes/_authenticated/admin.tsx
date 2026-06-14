@@ -161,7 +161,7 @@ function AdminLayout() {
                         const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                           n.link ? (
                             <Link
-                              to={n.link}
+                              to={n.link as never}
                               onClick={async () => {
                                 await markRead({ data: { id: n.id } });
                                 qc.invalidateQueries({ queryKey: ["my-notifications"] });
