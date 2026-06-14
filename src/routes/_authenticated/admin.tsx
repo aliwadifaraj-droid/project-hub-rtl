@@ -220,6 +220,7 @@ function AdminLayout() {
           {items.filter((i) => i.show).map((i) => {
             const active = path.startsWith(i.to);
             const isAdsItem = i.to === "/admin/ads";
+            const isPendingProjItem = i.to === "/admin/pending-projects";
             return (
               <Link
                 key={i.to} to={i.to}
@@ -229,6 +230,11 @@ function AdminLayout() {
                 {isAdsItem && pendingCount > 0 && (
                   <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
                     {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
+                {isPendingProjItem && pendingProjectsCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {pendingProjectsCount > 99 ? "99+" : pendingProjectsCount}
                   </span>
                 )}
               </Link>
