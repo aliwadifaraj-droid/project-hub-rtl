@@ -132,6 +132,66 @@ function AdminLayout() {
             لوحة التحكم
           </Link>
           <div className="flex items-center gap-2">
+            {/* Notifications bell with dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => openNotif(!notifOpen)}
+                aria-label="إشعاراتي"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  unreadCount > 0
+                    ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <div className="absolute end-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                  <div className="border-b border-border px-3 py-2 text-sm font-semibold">إشعاراتي</div>
+                  <div className="max-h-96 overflow-auto">
+                    {(notifs ?? []).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">لا توجد إشعارات</div>
+                    ) : (
+                      (notifs ?? []).map((n) => {
+                        const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+                          n.link ? (
+                            <Link
+                              to={n.link}
+                              onClick={async () => {
+                                await markRead({ data: { id: n.id } });
+                                qc.invalidateQueries({ queryKey: ["my-notifications"] });
+                                setNotifOpen(false);
+                              }}
+                              className="block"
+                            >
+                              {children}
+                            </Link>
+                          ) : (
+                            <div>{children}</div>
+                          );
+                        return (
+                          <Wrapper key={n.id}>
+                            <div className={`border-b border-border px-3 py-2 text-xs hover:bg-secondary ${n.read ? "" : "bg-primary/5"}`}>
+                              <div className="font-semibold">{n.title}</div>
+                              {n.body ? <div className="mt-0.5 text-muted-foreground">{n.body}</div> : null}
+                              <div className="mt-1 text-[10px] text-muted-foreground">
+                                {new Date(n.created_at).toLocaleString("ar")}
+                              </div>
+                            </div>
+                          </Wrapper>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Link
               to="/admin/ads"
               aria-label="الإعلانات المعلقة"
@@ -141,7 +201,7 @@ function AdminLayout() {
                   : "border-border bg-background hover:bg-secondary"
               }`}
             >
-              <Bell className="h-4 w-4" />
+              <Megaphone className="h-4 w-4" />
               {pendingCount > 0 && (
                 <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
                   {pendingCount > 99 ? "99+" : pendingCount}
