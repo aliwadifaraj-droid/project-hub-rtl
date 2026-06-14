@@ -33,12 +33,14 @@ function ProjectsPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => list() });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     supabase.auth.getUser().then(async ({ data: authData }) => {
       if (!authData.user || cancelled) return;
+      setSignedIn(true);
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", authData.user.id);
       if (!cancelled) setIsAdmin(hasAdminRole((roles ?? []).map((r) => r.role)));
     });
@@ -47,8 +49,12 @@ function ProjectsPage() {
 
   const saveMut = useMutation({
     mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
-    onSuccess: () => {
-      toast.success("تم الحفظ");
+    onSuccess: (res: any) => {
+      if (res?.admin_approval === "pending") {
+        toast.success("تم إرسال المشروع للمراجعة من الأدمن");
+      } else {
+        toast.success("تم الحفظ");
+      }
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["admin-projects"] });
       setEditing(null);
