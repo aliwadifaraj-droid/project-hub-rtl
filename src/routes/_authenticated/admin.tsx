@@ -21,6 +21,11 @@ function AdminLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const getRoles = useServerFn(getMyRoles);
   const countPending = useServerFn(countPendingAds);
+  const countPendingProj = useServerFn(countPendingProjects);
+  const countUnread = useServerFn(countMyUnreadNotifications);
+  const listNotifs = useServerFn(listMyNotifications);
+  const markRead = useServerFn(markNotificationRead);
+  const markAllRead = useServerFn(markAllNotificationsRead);
   const qc = useQueryClient();
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
@@ -32,12 +37,30 @@ function AdminLayout() {
   const isAdmin = hasAdminRole(roles);
   const primaryRole = isAdmin ? "admin" : roles?.[0];
   const roleLabel = getRoleLabel(primaryRole);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const { data: pendingCount = 0 } = useQuery({
     queryKey: ["pending-ads-count"],
     queryFn: () => countPending(),
     enabled: !!roles && roles.length > 0,
     refetchInterval: 30000,
+  });
+  const { data: pendingProjectsCount = 0 } = useQuery({
+    queryKey: ["pending-projects-count"],
+    queryFn: () => countPendingProj(),
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notif-unread-count"],
+    queryFn: () => countUnread(),
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 30000,
+  });
+  const { data: notifs } = useQuery({
+    queryKey: ["my-notifications"],
+    queryFn: () => listNotifs(),
+    enabled: notifOpen,
   });
 
   useEffect(() => {
