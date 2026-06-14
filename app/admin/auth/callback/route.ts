@@ -1,5 +1,1 @@
-import { NextResponse } from 'next/server'
-
-export async function GET(request: Request) {
-  return NextResponse.redirect('/')
-}
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; import { cookies } from 'next/headers'; import { NextResponse } from 'next/server'; export async function GET(request: Request){ const { searchParams } = new URL(request.url); const code = searchParams.get('code'); const supabase = createRouteHandlerClient({ cookies }); if (code) await supabase.auth.exchangeCodeForSession(code); return NextResponse.redirect(new URL('/admin/auth/reset-password', request.url)); }
