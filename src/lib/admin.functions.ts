@@ -9,6 +9,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     const { data, error } = await supabaseAdmin
       .from("projects")
       .select("id,name,description,location,duration,cover_image,images")
+      .eq("admin_approval", "approved")
       .order("created_at", { ascending: false });
     if (error) {
       console.error("[listProjects] supabase error:", error.message);
@@ -145,19 +146,32 @@ export const upsertProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => projectSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    const isAdmin = !!myRoles?.some((r) => r.role === "admin");
+
     if (data.id) {
+      // only admins can edit existing projects
+      if (!isAdmin) throw new Error("غير مصرح بالتعديل");
       const { error } = await supabase.from("projects").update(data).eq("id", data.id);
       if (error) throw new Error(error.message);
       return { id: data.id };
     }
-    const { data: row, error } = await supabase
+
+    const insertRow = {
+      ...data,
+      created_by: userId,
+      admin_approval: isAdmin ? "approved" : "pending",
+    };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
       .from("projects")
-      .insert(data)
+      .insert(insertRow)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    return { id: row.id };
+    return { id: row.id, admin_approval: insertRow.admin_approval };
   });
 
 export const deleteProject = createServerFn({ method: "POST" })
