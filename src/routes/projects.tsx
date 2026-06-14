@@ -78,7 +78,7 @@ function ProjectsPage() {
       <main className="container mx-auto px-4 py-10">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">المشاريع ({data?.length ?? 0})</h1>
-          {isAdmin ? (
+          {signedIn ? (
             <button
               onClick={() => setEditing({ name: "", description: "", location: "", duration: "", cover_image: "", images: [] })}
               className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90"
