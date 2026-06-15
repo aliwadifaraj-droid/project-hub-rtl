@@ -1,7 +1,53 @@
 import { Link } from "@tanstack/react-router";
-import { Building2, ClipboardList, Megaphone } from "lucide-react";
+import { Building2, ClipboardList, Megaphone, Bell } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  listMyNotifications,
+  countMyUnreadNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from "@/lib/notifications.functions";
 
 export function SiteHeader() {
+  const [signedIn, setSignedIn] = useState(false);
+  const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
+  const countUnread = useServerFn(countMyUnreadNotifications);
+  const listNotifs = useServerFn(listMyNotifications);
+  const markRead = useServerFn(markNotificationRead);
+  const markAllRead = useServerFn(markAllNotificationsRead);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setSignedIn(!!data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSignedIn(!!session?.user);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notif-unread-count"],
+    queryFn: () => countUnread(),
+    enabled: signedIn,
+    refetchInterval: 30000,
+  });
+  const { data: notifs } = useQuery({
+    queryKey: ["my-notifications"],
+    queryFn: () => listNotifs(),
+    enabled: signedIn && open,
+  });
+
+  async function toggle(next: boolean) {
+    setOpen(next);
+    if (next && unreadCount > 0) {
+      await markAllRead();
+      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
+    }
+  }
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -30,6 +76,69 @@ export function SiteHeader() {
           >
             <ClipboardList className="h-4 w-4" /> طلباتي
           </Link>
+
+          {signedIn && (
+            <div className="relative">
+              <button
+                onClick={() => toggle(!open)}
+                aria-label="إشعاراتي"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  unreadCount > 0
+                    ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              {open && (
+                <div className="absolute end-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                  <div className="border-b border-border px-3 py-2 text-sm font-semibold">إشعاراتي</div>
+                  <div className="max-h-96 overflow-auto">
+                    {(notifs ?? []).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">لا توجد إشعارات</div>
+                    ) : (
+                      (notifs ?? []).map((n) => {
+                        const content = (
+                          <div className={`border-b border-border px-3 py-2 text-xs hover:bg-secondary ${n.read ? "" : "bg-primary/5"}`}>
+                            <div className="font-semibold">{n.title}</div>
+                            {n.body ? <div className="mt-0.5 text-muted-foreground">{n.body}</div> : null}
+                            {n.link ? (
+                              <div className="mt-1 text-[11px] text-primary underline">عرض المنشور</div>
+                            ) : null}
+                            <div className="mt-1 text-[10px] text-muted-foreground">
+                              {new Date(n.created_at).toLocaleString("ar")}
+                            </div>
+                          </div>
+                        );
+                        return n.link ? (
+                          <a
+                            key={n.id}
+                            href={n.link}
+                            onClick={async () => {
+                              await markRead({ data: { id: n.id } });
+                              qc.invalidateQueries({ queryKey: ["my-notifications"] });
+                              setOpen(false);
+                            }}
+                            className="block"
+                          >
+                            {content}
+                          </a>
+                        ) : (
+                          <div key={n.id}>{content}</div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <Link
             to="/contact"
             className="rounded-md bg-foreground px-3 sm:px-4 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
