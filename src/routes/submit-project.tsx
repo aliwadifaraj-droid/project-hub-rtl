@@ -68,7 +68,7 @@ function SubmitProjectPage() {
           title: name.trim(),
           description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
           image_path: uploadedPaths[0] ?? "",
-          domain: cleanDomain,
+          domain: "",
         },
       });
       if (!result?.id) {
@@ -143,14 +143,6 @@ function SubmitProjectPage() {
                     inputMode="tel"
                     placeholder="مثال: 0501234567"
                     value={phone} onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </Field>
-                <Field label="نطاق (دومين) المشروع (اختياري)">
-                  <input
-                    maxLength={255}
-                    placeholder="example.com"
-                    value={domain} onChange={(e) => setDomain(e.target.value)}
                     className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                   />
                 </Field>
