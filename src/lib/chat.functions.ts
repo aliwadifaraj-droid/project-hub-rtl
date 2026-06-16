@@ -68,8 +68,12 @@ export const deleteTeamMessage = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertStaff(supabase, userId);
-    const { error } = await supabase.from("team_messages").delete().eq("id", data.id);
+    const roles = await assertStaff(supabase, userId);
+    const isAdmin = roles.includes("admin");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const query = supabaseAdmin.from("team_messages").delete().eq("id", data.id);
+    // Admins can delete any message; non-admins only their own
+    const { error } = isAdmin ? await query : await query.eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
