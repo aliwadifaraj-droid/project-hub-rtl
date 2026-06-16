@@ -315,6 +315,19 @@ export const adminListMessages = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
+export const adminDeleteContactMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
+    const { error } = await supabase.from("contact_messages").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // ---------- Public: signup (first admin only) ----------
 const FIRST_ADMIN_EMAIL = "zydalwadii@gmail.com";
 

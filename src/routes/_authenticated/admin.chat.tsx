@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { listTeamMessages, sendTeamMessage, deleteTeamMessage } from "@/lib/chat.functions";
+import { getMyRoles } from "@/lib/admin.functions";
 import { getRoleLabel } from "@/lib/role-label";
 import { Send, Trash2, MessagesSquare } from "lucide-react";
 import { toast } from "sonner";
@@ -18,11 +19,18 @@ function TeamChatPage() {
   const sendFn = useServerFn(sendTeamMessage);
   const delFn = useServerFn(deleteTeamMessage);
 
+  const rolesFn = useServerFn(getMyRoles);
+
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["team-messages"],
     queryFn: () => listFn(),
     refetchOnWindowFocus: false,
   });
+  const { data: myRoles = [] } = useQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => rolesFn(),
+  });
+  const isAdmin = myRoles.includes("admin");
 
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -113,7 +121,7 @@ function TeamChatPage() {
                       <span>{new Date(m.created_at).toLocaleString("ar")}</span>
                     </div>
                     <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                    {mine && (
+                    {(mine || isAdmin) && (
                       <button
                         onClick={() => handleDelete(m.id)}
                         className="mt-1 inline-flex items-center gap-1 text-[11px] opacity-0 transition group-hover:opacity-80"
