@@ -51,11 +51,6 @@ function SubmitProjectPage() {
       toast.error("جميع الحقول الأساسية إجبارية");
       return;
     }
-    const cleanDomain = domain.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
-    if (cleanDomain && !/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(cleanDomain)) {
-      toast.error("صيغة الدومين غير صحيحة");
-      return;
-    }
     setSubmitting(true);
     try {
       const uploadedPaths: string[] = [];
