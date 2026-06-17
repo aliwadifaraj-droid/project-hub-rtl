@@ -100,7 +100,7 @@ function AdminLayout() {
   const items = [
     { to: "/admin/requests", label: "الطلبات", icon: ClipboardList, show: true },
     { to: "/admin/submissions", label: "طلبات إضافة المشاريع", icon: Inbox, show: isAdmin },
-    { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: true },
+    { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: isAdmin },
     { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
     { to: "/admin/ads", label: "الإعلانات المعلقة", icon: Megaphone, show: true },
     { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
