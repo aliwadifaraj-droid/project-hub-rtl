@@ -7,6 +7,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 export const resetPassword = async (email: string) => {
   return supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: 'https://ali-alhaddad.com/auth'
+    redirectTo: 'https://ali-alhaddad.com/auth/reset-password'
   })
 }
