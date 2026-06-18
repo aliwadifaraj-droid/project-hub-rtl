@@ -63,7 +63,7 @@ function SubmitProjectPage() {
         if (upErr) throw new Error(upErr.message);
         uploadedPaths.push(supabase.storage.from("projects").getPublicUrl(path).data.publicUrl);
       }
-      const result = await submitProjectFn({
+      const result = await submitAd({
         data: {
           title: name.trim(),
           description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
