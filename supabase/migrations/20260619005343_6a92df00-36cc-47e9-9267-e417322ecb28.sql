@@ -1,0 +1,1 @@
+ALTER TABLE public.project_requests ADD COLUMN submitter_type text CHECK (submitter_type IN ('guest', 'user'));

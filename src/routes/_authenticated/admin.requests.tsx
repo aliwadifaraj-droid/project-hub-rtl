@@ -77,7 +77,10 @@ function RequestsPage() {
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-slate-800 hover:bg-slate-800/50">
                   <td className="p-3 font-medium">{r.company_name}</td>
-                  <td className="p-3 text-slate-300">{(r.projects as { name: string } | null)?.name ?? "-"}</td>
+                  <td className="p-3 text-slate-300">
+                    <div>{(r.projects as { name: string } | null)?.name ?? "-"}</div>
+                    {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
+                  </td>
                   <td className="p-3 text-slate-300">{r.facility_location}</td>
                   <td className="p-3 text-slate-400 text-xs">{new Date(r.created_at).toLocaleDateString("ar")}</td>
                   <td className="p-3">
@@ -119,6 +122,7 @@ function RequestsPage() {
                 <div>
                   <div className="font-bold">{r.company_name}</div>
                   <div className="text-xs text-slate-400 mt-0.5">{(r.projects as { name: string } | null)?.name ?? "-"}</div>
+                  {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
                 </div>
                 {isAdmin ? (
                   <select
@@ -149,5 +153,20 @@ function RequestsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function SubmitterBadge({ type }: { type: "guest" | "user" }) {
+  const isUser = type === "user";
+  return (
+    <span
+      className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+        isUser
+          ? "bg-emerald-500/15 text-emerald-300"
+          : "bg-amber-500/15 text-amber-300"
+      }`}
+    >
+      {isUser ? "👤 مستخدم" : "🔔 زائر"}
+    </span>
   );
 }

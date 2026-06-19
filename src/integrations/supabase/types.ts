@@ -189,6 +189,7 @@ export type Database = {
           pdf_url: string
           project_id: string
           status: Database["public"]["Enums"]["request_status"]
+          submitter_type: string | null
           updated_at: string
         }
         Insert: {
@@ -199,6 +200,7 @@ export type Database = {
           pdf_url: string
           project_id: string
           status?: Database["public"]["Enums"]["request_status"]
+          submitter_type?: string | null
           updated_at?: string
         }
         Update: {
@@ -209,6 +211,7 @@ export type Database = {
           pdf_url?: string
           project_id?: string
           status?: Database["public"]["Enums"]["request_status"]
+          submitter_type?: string | null
           updated_at?: string
         }
         Relationships: [

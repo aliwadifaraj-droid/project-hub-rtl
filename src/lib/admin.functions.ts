@@ -107,7 +107,7 @@ export const adminListRequests = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("project_requests")
-      .select("id,company_name,facility_location,pdf_url,status,created_at,project_id,projects(name)")
+      .select("id,company_name,facility_location,pdf_url,status,created_at,project_id,submitter_type,projects(name)")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -391,6 +391,26 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       throw new Error("الملف ليس PDF صالحاً");
     }
 
+    // Detect submitter type from Authorization header
+    let submitterType: "guest" | "user" = "guest";
+    try {
+      const { getRequestHeader } = await import("@tanstack/react-start/server");
+      const authHeader = getRequestHeader("authorization");
+      const token = authHeader?.replace(/^Bearer\s+/i, "").trim();
+      if (token) {
+        const { createClient } = await import("@supabase/supabase-js");
+        const sb = createClient(
+          process.env.SUPABASE_URL!,
+          process.env.SUPABASE_PUBLISHABLE_KEY!,
+          { auth: { persistSession: false, autoRefreshToken: false } }
+        );
+        const { data: u } = await sb.auth.getUser(token);
+        if (u?.user) submitterType = "user";
+      }
+    } catch {
+      // ignore — default to guest
+    }
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // verify project exists
@@ -410,6 +430,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       company_name: data.company_name,
       facility_location: data.facility_location,
       pdf_url: path,
+      submitter_type: submitterType,
     });
     if (insErr) throw new Error(insErr.message);
 
