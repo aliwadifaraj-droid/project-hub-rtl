@@ -1,14 +1,20 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { getProject, submitBidRequest } from "@/lib/admin.functions";
+import { getProject } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ArrowRight, MapPin, Clock, Upload, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { createClient } from "@supabase/supabase-js";
+
+// مضبوط برابطك ومفتاحك
+const supabase = createClient(
+  'https://rxlejmnhvomwwbeivtys.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4bGVqbW5odm9td3diZWl2dHlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NjY5NDUsImV4cCI6MjA5NzI0Mjk0NX0.f7gfCbxa2l2Jf4T13_ysIbeZU_0QJwdHb3Na6ooiees'
+)
 
 const projectQuery = (id: string) =>
   queryOptions({
@@ -34,7 +40,6 @@ export const Route = createFileRoute("/projects/$projectId")({
 function ProjectDetail() {
   const { projectId } = Route.useParams();
   const { data: project } = useSuspenseQuery(projectQuery(projectId));
-  const submit = useServerFn(submitBidRequest);
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -64,16 +69,16 @@ function ProjectDetail() {
       }
       const file_base64 = btoa(binary);
 
-      await submit({
-        data: {
-          project_id: project.id,
-          company_name: companyName.trim().slice(0, 200),
-          facility_location: facilityLocation.trim().slice(0, 300),
-          file_name: pdfFile.name,
-          file_base64,
-        },
+      // يخزن مباشرة في جدول bids
+      const { error } = await supabase.from('bids').insert({
+        project_id: project.id,
+        company_name: companyName.trim().slice(0, 200),
+        facility_location: facilityLocation.trim().slice(0, 300),
+        file_name: pdfFile.name,
+        file_base64,
       });
 
+      if (error) throw error;
       setDone(true);
     } catch (err) {
       console.error(err);
@@ -107,7 +112,7 @@ function ProjectDetail() {
         <div className="mt-8 grid lg:grid-cols-3 gap-10">
           <div className="lg:col-span-2">
             <h1 className="text-3xl md:text-4xl font-extrabold">{project.name}</h1>
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 flex-wrap gap-3">
               <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-sm">
                 <MapPin className="h-4 w-4 text-accent" /> {project.location}
               </span>
@@ -119,7 +124,7 @@ function ProjectDetail() {
           </div>
 
           <aside className="lg:col-span-1">
-            <div className="sticky top-24 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+            <div className="sticky top-24 rounded-2xl border-border bg-card p-6 shadow-[var(--shadow-card)]">
               <h2 className="text-xl font-bold">معلومات المشروع</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <div className="flex justify-between border-b border-border/60 pb-2">
@@ -140,7 +145,7 @@ function ProjectDetail() {
         </div>
 
         <section id="apply" className="mt-16 max-w-3xl mx-auto">
-          <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
+          <div className="rounded-2xl border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
             {done ? (
               <div className="text-center py-8">
                 <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-accent/15 text-accent">
@@ -171,7 +176,7 @@ function ProjectDetail() {
                       maxLength={200}
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full rounded-lg border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                       placeholder="مثال: شركة البناء الحديث للمقاولات"
                     />
                   </Field>
@@ -183,7 +188,7 @@ function ProjectDetail() {
                       maxLength={300}
                       value={facilityLocation}
                       onChange={(e) => setFacilityLocation(e.target.value)}
-                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full rounded-lg border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                       placeholder="مثال: الرياض - حي العليا - شارع الملك فهد"
                     />
                   </Field>
