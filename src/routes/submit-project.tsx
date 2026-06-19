@@ -24,7 +24,7 @@ function SubmitProjectPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [phone, setPhone] = useState("");
+  
   
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -47,7 +47,7 @@ function SubmitProjectPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !description.trim() || !location.trim() || !phone.trim()) {
+    if (!name.trim() || !description.trim() || !location.trim()) {
       toast.error("جميع الحقول الأساسية إجبارية");
       return;
     }
@@ -66,7 +66,7 @@ function SubmitProjectPage() {
       const result = await submitAd({
         data: {
           title: name.trim(),
-          description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
+          description: `${description.trim()}\n\n📍 ${location.trim()}`,
           image_path: uploadedPaths[0] ?? "",
           domain: "",
         },
@@ -134,15 +134,6 @@ function SubmitProjectPage() {
                   <input
                     required maxLength={300}
                     value={location} onChange={(e) => setLocation(e.target.value)}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </Field>
-                <Field label="رقم التواصل">
-                  <input
-                    required maxLength={40}
-                    inputMode="tel"
-                    placeholder="مثال: 0501234567"
-                    value={phone} onChange={(e) => setPhone(e.target.value)}
                     className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                   />
                 </Field>
