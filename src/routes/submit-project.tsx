@@ -47,7 +47,7 @@ function SubmitProjectPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !description.trim() || !location.trim() || !phone.trim()) {
+    if (!name.trim() || !description.trim() || !location.trim()) {
       toast.error("جميع الحقول الأساسية إجبارية");
       return;
     }
