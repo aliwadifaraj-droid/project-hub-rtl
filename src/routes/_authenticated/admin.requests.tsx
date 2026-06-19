@@ -122,6 +122,7 @@ function RequestsPage() {
                 <div>
                   <div className="font-bold">{r.company_name}</div>
                   <div className="text-xs text-slate-400 mt-0.5">{(r.projects as { name: string } | null)?.name ?? "-"}</div>
+                  {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
                 </div>
                 {isAdmin ? (
                   <select
