@@ -66,7 +66,7 @@ function SubmitProjectPage() {
       const result = await submitAd({
         data: {
           title: name.trim(),
-          description: `${description.trim()}\n\n📍 ${location.trim()}\n📞 ${phone.trim()}`,
+          description: `${description.trim()}\n\n📍 ${location.trim()}`,
           image_path: uploadedPaths[0] ?? "",
           domain: "",
         },
