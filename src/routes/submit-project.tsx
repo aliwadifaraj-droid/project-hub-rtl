@@ -24,7 +24,7 @@ function SubmitProjectPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [phone, setPhone] = useState("");
+  
   
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
