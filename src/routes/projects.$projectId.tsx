@@ -40,7 +40,6 @@ function ProjectDetail() {
   const [facilityLocation, setFacilityLocation] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,6 +63,8 @@ function ProjectDetail() {
       }
       const file_base64 = btoa(binary);
 
+      alert(project.id);
+
       await submit({
         data: {
           project_id: project.id,
@@ -74,7 +75,7 @@ function ProjectDetail() {
         },
       });
 
-      setDone(true);
+      toast.success("تم إرسال الطلب بنجاح");
     } catch (err) {
       console.error(err);
       const msg = err instanceof Error ? err.message : "حدث خطأ أثناء إرسال الطلب";
@@ -141,24 +142,6 @@ function ProjectDetail() {
 
         <section id="apply" className="mt-16 max-w-3xl mx-auto">
           <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
-            {done ? (
-              <div className="text-center py-8">
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-accent/15 text-accent">
-                  <CheckCircle2 className="h-9 w-9" />
-                </div>
-                <h2 className="mt-4 text-2xl font-bold">شكرًا لكم</h2>
-                <p className="mt-2 text-muted-foreground">
-                  لقد تم إرسال طلبكم بنجاح وسيتم التواصل معكم لاحقًا.
-                </p>
-                <Link
-                  to="/"
-                  className="mt-6 inline-flex rounded-md bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:bg-foreground/90"
-                >
-                  استعراض المزيد من المشاريع
-                </Link>
-              </div>
-            ) : (
-              <>
                 <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   املأ النموذج التالي وأرفق ملف PDF لعرض السعر الخاص بك.
@@ -213,8 +196,6 @@ function ProjectDetail() {
                     تقديم الطلب
                   </button>
                 </form>
-              </>
-            )}
           </div>
         </section>
       </article>
