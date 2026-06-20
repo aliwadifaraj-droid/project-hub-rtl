@@ -76,7 +76,8 @@ function SubmitProjectPage() {
       }
       setDone(true);
     } catch (err) {
-      console.error(err);
+      const formData = { name, description, location, files: files.map(f => f.name) };
+      alert(JSON.stringify(formData));
       toast.error(err instanceof Error ? err.message : "تعذر إرسال الطلب");
     } finally {
       setSubmitting(false);
