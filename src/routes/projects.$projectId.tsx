@@ -40,7 +40,6 @@ function ProjectDetail() {
   const [facilityLocation, setFacilityLocation] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
