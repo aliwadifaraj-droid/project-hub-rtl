@@ -73,7 +73,7 @@ function ProjectDetail() {
         },
       });
 
-      setDone(true);
+      toast.success("تم إرسال الطلب بنجاح");
     } catch (err) {
       console.error(err);
       const msg = err instanceof Error ? err.message : "حدث خطأ أثناء إرسال الطلب";
