@@ -19,6 +19,7 @@ import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
+import { Route as ProjectIdRouteImport } from './routes/project.$id'
 import { Route as AdsAdIdRouteImport } from './routes/ads.$adId'
 import { Route as AuthenticatedEmployeesRouteImport } from './routes/_authenticated/employees'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -84,6 +85,11 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   id: '/$projectId',
   path: '/$projectId',
   getParentRoute: () => ProjectsRoute,
+} as any)
+const ProjectIdRoute = ProjectIdRouteImport.update({
+  id: '/project/$id',
+  path: '/project/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdsAdIdRoute = AdsAdIdRouteImport.update({
   id: '/$adId',
@@ -187,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
   '/ads/$adId': typeof AdsAdIdRoute
+  '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
   '/ads/$adId': typeof AdsAdIdRoute
+  '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -242,6 +250,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/employees': typeof AuthenticatedEmployeesRoute
   '/ads/$adId': typeof AdsAdIdRoute
+  '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -271,6 +280,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/employees'
     | '/ads/$adId'
+    | '/project/$id'
     | '/projects/$projectId'
     | '/admin/ads'
     | '/admin/chat'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/employees'
     | '/ads/$adId'
+    | '/project/$id'
     | '/projects/$projectId'
     | '/admin/ads'
     | '/admin/chat'
@@ -325,6 +336,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/employees'
     | '/ads/$adId'
+    | '/project/$id'
     | '/projects/$projectId'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/chat'
@@ -349,6 +361,7 @@ export interface RootRouteChildren {
   ProjectsRoute: typeof ProjectsRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
   SubmitProjectRoute: typeof SubmitProjectRoute
+  ProjectIdRoute: typeof ProjectIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -422,6 +435,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof ProjectsRoute
+    }
+    '/project/$id': {
+      id: '/project/$id'
+      path: '/project/$id'
+      fullPath: '/project/$id'
+      preLoaderRoute: typeof ProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/ads/$adId': {
       id: '/ads/$adId'
@@ -619,6 +639,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsRoute: ProjectsRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   SubmitProjectRoute: SubmitProjectRoute,
+  ProjectIdRoute: ProjectIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

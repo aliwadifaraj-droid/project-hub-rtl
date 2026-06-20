@@ -61,8 +61,8 @@ function HomePage() {
               {projects.map((p) => (
                 <Link
                   key={p.id}
-                  to="/projects/$projectId"
-                  params={{ projectId: p.id }}
+                  to="/project/$id"
+                  params={{ id: p.id }}
                   className="group overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm transition hover:shadow-lg"
                 >
                   <div className="aspect-[4/3] overflow-hidden bg-muted">
