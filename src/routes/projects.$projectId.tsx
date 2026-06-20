@@ -63,6 +63,8 @@ function ProjectDetail() {
       }
       const file_base64 = btoa(binary);
 
+      alert(project.id);
+
       await submit({
         data: {
           project_id: project.id,
