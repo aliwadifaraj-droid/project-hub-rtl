@@ -28,8 +28,11 @@ function ProjectsAdminPage() {
   const list = useServerFn(listProjects);
   const upsert = useServerFn(upsertProject);
   const del = useServerFn(deleteProject);
+  const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["admin-projects"], queryFn: () => list() });
+  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const isAdmin = hasAdminRole(roles);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
 
   const saveMut = useMutation({
