@@ -61,7 +61,7 @@ function SubmitProjectPage() {
           .from("project-images")
           .upload(path, f, { contentType: f.type, upsert: false });
         if (upErr) throw new Error(upErr.message);
-        uploadedPaths.push(supabase.storage.from("projects").getPublicUrl(path).data.publicUrl);
+        uploadedPaths.push(supabase.storage.from("projec-images").getPublicUrl(path).data.publicUrl);
       }
       const result = await submitAd({
         data: {
