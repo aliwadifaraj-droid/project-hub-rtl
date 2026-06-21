@@ -98,16 +98,13 @@ function AdminLayout() {
   }
 
   const items = [
+    { to: "/admin/projects", label: "كل المشاريع", icon: FolderKanban, show: true },
     { to: "/admin/requests", label: "الطلبات", icon: ClipboardList, show: true },
     { to: "/admin/submissions", label: "طلبات إضافة المشاريع", icon: Inbox, show: isAdmin },
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: isAdmin },
     { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
-    { to: "/admin/ads", label: "الإعلانات المعلقة", icon: Megaphone, show: true },
     { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
-    { to: "/admin/my-projects", label: "مشاريعي", icon: FolderKanban, show: true },
-    { to: "/submit-project", label: "أضف مشروع جديد", icon: PlusCircle, show: true },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
-    { to: "/admin/projects", label: "كل المشاريع", icon: FolderKanban, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
   ];
 
