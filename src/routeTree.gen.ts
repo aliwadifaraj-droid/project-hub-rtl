@@ -36,6 +36,7 @@ import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
 import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authenticated/admin.chat'
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 
 const SubmitProjectRoute = SubmitProjectRouteImport.update({
   id: '/submit-project',
@@ -178,6 +179,12 @@ const AuthenticatedAdminAdsRoute = AuthenticatedAdminAdsRouteImport.update({
   path: '/ads',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -233,6 +241,7 @@ export interface FileRoutesByTo {
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -263,6 +272,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -293,6 +303,7 @@ export interface FileRouteTypes {
     | '/admin/submissions'
     | '/admin/users'
     | '/admin/'
+    | '/lovable/email/queue/process'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -320,6 +331,7 @@ export interface FileRouteTypes {
     | '/admin/submissions'
     | '/admin/users'
     | '/admin'
+    | '/lovable/email/queue/process'
   id:
     | '__root__'
     | '/'
@@ -349,6 +361,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/submissions'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/'
+    | '/lovable/email/queue/process'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -362,6 +375,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SubmitProjectRoute: typeof SubmitProjectRoute
   ProjectIdRoute: typeof ProjectIdRoute
+  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -555,6 +569,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAdsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -640,17 +661,8 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SubmitProjectRoute: SubmitProjectRoute,
   ProjectIdRoute: ProjectIdRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
