@@ -76,6 +76,7 @@ function ProjectDetail() {
           project_id: project.id,
           company_name: companyName.trim().slice(0, 200),
           facility_location: facilityLocation.trim().slice(0, 300),
+          email: email.trim().slice(0, 255),
           file_name: pdfFile.name,
           file_base64,
         },
