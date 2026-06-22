@@ -184,6 +184,7 @@ export type Database = {
         Row: {
           company_name: string
           created_at: string
+          email: string | null
           facility_location: string
           id: string
           pdf_url: string
@@ -195,6 +196,7 @@ export type Database = {
         Insert: {
           company_name: string
           created_at?: string
+          email?: string | null
           facility_location: string
           id?: string
           pdf_url: string
@@ -206,6 +208,7 @@ export type Database = {
         Update: {
           company_name?: string
           created_at?: string
+          email?: string | null
           facility_location?: string
           id?: string
           pdf_url?: string
