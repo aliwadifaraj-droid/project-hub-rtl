@@ -431,6 +431,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       project_id: data.project_id,
       company_name: data.company_name,
       facility_location: data.facility_location,
+      email: data.email,
       pdf_url: path,
       submitter_type: submitterType,
     });
