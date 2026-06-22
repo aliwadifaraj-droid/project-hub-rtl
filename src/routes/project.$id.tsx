@@ -44,8 +44,13 @@ function ProjectDetail() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!companyName.trim() || !facilityLocation.trim() || !pdfFile) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!companyName.trim() || !facilityLocation.trim() || !email.trim() || !pdfFile) {
       toast.error("جميع الحقول إجبارية");
+      return;
+    }
+    if (!emailRegex.test(email.trim())) {
+      toast.error("يرجى إدخال بريد إلكتروني صحيح");
       return;
     }
     if (pdfFile.size > 10 * 1024 * 1024) {
