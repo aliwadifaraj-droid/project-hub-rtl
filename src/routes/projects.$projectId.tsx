@@ -38,6 +38,7 @@ function ProjectDetail() {
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
+  const [email, setEmail] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
