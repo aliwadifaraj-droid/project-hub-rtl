@@ -177,6 +177,18 @@ function ProjectDetail() {
                 />
               </Field>
 
+              <Field label="البريد الإلكتروني">
+                <input
+                  type="email"
+                  required
+                  maxLength={255}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="example@company.com"
+                />
+              </Field>
+
               <Field label="ملف PDF لعرض السعر">
                 <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-4 py-5 text-sm hover:bg-secondary transition">
                   <Upload className="h-5 w-5 text-accent" />
