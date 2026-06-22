@@ -368,6 +368,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     project_id: string;
     company_name: string;
     facility_location: string;
+    email: string;
     file_name: string;
     file_base64: string;
   }) =>
@@ -375,6 +376,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       project_id: z.string().uuid(),
       company_name: z.string().trim().min(1).max(200),
       facility_location: z.string().trim().min(1).max(300),
+      email: z.string().trim().email().max(255),
       file_name: z.string().trim().min(1).max(200),
       file_base64: z.string().min(8).max(15_000_000), // ~10MB base64
     }).parse(d)
@@ -429,6 +431,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       project_id: data.project_id,
       company_name: data.company_name,
       facility_location: data.facility_location,
+      email: data.email,
       pdf_url: path,
       submitter_type: submitterType,
     });

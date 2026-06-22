@@ -38,13 +38,19 @@ function ProjectDetail() {
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
+  const [email, setEmail] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!companyName.trim() || !facilityLocation.trim() || !pdfFile) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!companyName.trim() || !facilityLocation.trim() || !email.trim() || !pdfFile) {
       toast.error("جميع الحقول إجبارية");
+      return;
+    }
+    if (!emailRegex.test(email.trim())) {
+      toast.error("يرجى إدخال بريد إلكتروني صحيح");
       return;
     }
     if (pdfFile.size > 10 * 1024 * 1024) {
@@ -70,6 +76,7 @@ function ProjectDetail() {
           project_id: project.id,
           company_name: companyName.trim().slice(0, 200),
           facility_location: facilityLocation.trim().slice(0, 300),
+          email: email.trim().slice(0, 255),
           file_name: pdfFile.name,
           file_base64,
         },
@@ -168,6 +175,18 @@ function ProjectDetail() {
                       onChange={(e) => setFacilityLocation(e.target.value)}
                       className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                       placeholder="مثال: الرياض - حي العليا - شارع الملك فهد"
+                    />
+                  </Field>
+
+                  <Field label="البريد الإلكتروني">
+                    <input
+                      type="email"
+                      required
+                      maxLength={255}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      placeholder="example@company.com"
                     />
                   </Field>
 
