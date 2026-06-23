@@ -8,7 +8,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("projects")
-      .select("id,name,description,location,duration,cover_image,images")
+      .select("id,name,description,location,duration,cover_image,images,pdf_file")
       .eq("admin_approval", "approved")
       .order("created_at", { ascending: false });
     if (error) {
@@ -19,6 +19,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
       (data ?? []).map(async (p) => ({
         ...p,
         cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
+        pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
       }))
     );
     return resolved;
@@ -35,7 +36,7 @@ export const getProject = createServerFn({ method: "GET" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: p, error } = await supabaseAdmin
         .from("projects")
-        .select("id,name,description,location,duration,cover_image,images")
+        .select("id,name,description,location,duration,cover_image,images,pdf_file")
         .eq("id", data.id)
         .maybeSingle();
       if (error) {
@@ -45,7 +46,8 @@ export const getProject = createServerFn({ method: "GET" })
       if (!p) return null;
       const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
       const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
-      return { ...p, cover_url, image_urls };
+      const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "";
+      return { ...p, cover_url, image_urls, pdf_url };
     } catch (e) {
       console.error("[getProject] unexpected error:", e);
       return null;
@@ -140,7 +142,9 @@ const projectSchema = z.object({
   duration: z.string().trim().min(1).max(100),
   cover_image: z.string().trim().min(1).max(500),
   images: z.array(z.string().max(500)).max(20).default([]),
+  pdf_file: z.string().trim().max(500).nullable().optional(),
 });
+
 
 export const upsertProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

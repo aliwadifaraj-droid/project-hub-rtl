@@ -21,6 +21,7 @@ type ProjectRow = {
   cover_image: string | null;
   cover_url: string;
   images: string[];
+  pdf_file?: string | null;
 };
 
 
@@ -135,6 +136,18 @@ function ProjectModal({
     } catch { toast.error("فشل رفع الصور"); }
     finally { setUploading(false); }
   }
+  async function onPdf(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return;
+    if (f.type !== "application/pdf") { toast.error("الملف يجب أن يكون PDF"); return; }
+    setUploading(true);
+    try {
+      const path = await uploadFile(f);
+      setForm((s) => ({ ...s, pdf_file: path }));
+      toast.success("تم رفع ملف PDF");
+    } catch (err) { toast.error("فشل رفع PDF"); console.error(err); }
+    finally { setUploading(false); }
+  }
+
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
@@ -172,6 +185,17 @@ function ProjectModal({
               <input type="file" accept="image/*" multiple className="hidden" onChange={onGallery} />
             </label>
           </Field>
+          <Field label="ملف PDF (اختياري)">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
+              <Upload className="h-4 w-4" />
+              <span className="flex-1 text-muted-foreground truncate">{form.pdf_file || "اختر ملف PDF"}</span>
+              <input type="file" accept="application/pdf" className="hidden" onChange={onPdf} />
+            </label>
+            {form.pdf_file ? (
+              <button type="button" onClick={() => setForm((s) => ({ ...s, pdf_file: null }))} className="mt-1 text-xs text-destructive hover:underline">إزالة الملف</button>
+            ) : null}
+          </Field>
+
         </div>
         <div className="mt-6 flex gap-2">
           <button
