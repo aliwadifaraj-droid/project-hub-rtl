@@ -136,6 +136,18 @@ function ProjectModal({
     } catch { toast.error("فشل رفع الصور"); }
     finally { setUploading(false); }
   }
+  async function onPdf(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return;
+    if (f.type !== "application/pdf") { toast.error("الملف يجب أن يكون PDF"); return; }
+    setUploading(true);
+    try {
+      const path = await uploadFile(f);
+      setForm((s) => ({ ...s, pdf_file: path }));
+      toast.success("تم رفع ملف PDF");
+    } catch (err) { toast.error("فشل رفع PDF"); console.error(err); }
+    finally { setUploading(false); }
+  }
+
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
