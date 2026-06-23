@@ -36,7 +36,7 @@ export const getProject = createServerFn({ method: "GET" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: p, error } = await supabaseAdmin
         .from("projects")
-        .select("id,name,description,location,duration,cover_image,images")
+        .select("id,name,description,location,duration,cover_image,images,pdf_file")
         .eq("id", data.id)
         .maybeSingle();
       if (error) {
@@ -46,7 +46,8 @@ export const getProject = createServerFn({ method: "GET" })
       if (!p) return null;
       const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
       const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
-      return { ...p, cover_url, image_urls };
+      const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "";
+      return { ...p, cover_url, image_urls, pdf_url };
     } catch (e) {
       console.error("[getProject] unexpected error:", e);
       return null;
