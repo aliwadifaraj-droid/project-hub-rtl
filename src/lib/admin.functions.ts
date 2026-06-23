@@ -140,7 +140,9 @@ const projectSchema = z.object({
   duration: z.string().trim().min(1).max(100),
   cover_image: z.string().trim().min(1).max(500),
   images: z.array(z.string().max(500)).max(20).default([]),
+  pdf_file: z.string().trim().max(500).nullable().optional(),
 });
+
 
 export const upsertProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
