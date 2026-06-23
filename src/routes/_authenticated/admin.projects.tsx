@@ -21,6 +21,7 @@ type ProjectRow = {
   cover_image: string | null;
   cover_url: string;
   images: string[];
+  pdf_file?: string | null;
 };
 
 
