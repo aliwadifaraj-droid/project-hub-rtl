@@ -6,7 +6,7 @@ import { getProject, submitBidRequest } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { ArrowRight, MapPin, Clock, Upload, Loader2 } from "lucide-react";
+import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
