@@ -8,7 +8,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("projects")
-      .select("id,name,description,location,duration,cover_image,images")
+      .select("id,name,description,location,duration,cover_image,images,pdf_file")
       .eq("admin_approval", "approved")
       .order("created_at", { ascending: false });
     if (error) {
@@ -19,6 +19,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
       (data ?? []).map(async (p) => ({
         ...p,
         cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
+        pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
       }))
     );
     return resolved;
