@@ -6,7 +6,7 @@ import { getProject, submitBidRequest } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { ArrowRight, MapPin, Clock, Upload, Loader2 } from "lucide-react";
+import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -123,6 +123,16 @@ function ProjectDetail() {
               </span>
             </div>
             <p className="mt-6 text-lg leading-loose text-foreground/85">{project.description}</p>
+            {project.pdf_url ? (
+              <a
+                href={project.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background hover:bg-foreground/90"
+              >
+                <FileDown className="h-4 w-4" /> تحميل ملف PDF
+              </a>
+            ) : null}
           </div>
 
           <aside className="lg:col-span-1">
