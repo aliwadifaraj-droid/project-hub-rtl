@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ThankYouRouteImport } from './routes/thank-you'
 import { Route as SubmitProjectRouteImport } from './routes/submit-project'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProjectsRouteImport } from './routes/projects'
@@ -38,6 +39,11 @@ import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 
+const ThankYouRoute = ThankYouRouteImport.update({
+  id: '/thank-you',
+  path: '/thank-you',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SubmitProjectRoute = SubmitProjectRouteImport.update({
   id: '/submit-project',
   path: '/submit-project',
@@ -195,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
+  '/thank-you': typeof ThankYouRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
+  '/thank-you': typeof ThankYouRoute
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
+  '/thank-you': typeof ThankYouRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/reset-password'
     | '/submit-project'
+    | '/thank-you'
     | '/admin'
     | '/chat'
     | '/dashboard'
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/reset-password'
     | '/submit-project'
+    | '/thank-you'
     | '/chat'
     | '/dashboard'
     | '/employees'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/reset-password'
     | '/submit-project'
+    | '/thank-you'
     | '/_authenticated/admin'
     | '/_authenticated/chat'
     | '/_authenticated/dashboard'
@@ -374,12 +386,20 @@ export interface RootRouteChildren {
   ProjectsRoute: typeof ProjectsRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
   SubmitProjectRoute: typeof SubmitProjectRoute
+  ThankYouRoute: typeof ThankYouRoute
   ProjectIdRoute: typeof ProjectIdRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/thank-you': {
+      id: '/thank-you'
+      path: '/thank-you'
+      fullPath: '/thank-you'
+      preLoaderRoute: typeof ThankYouRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/submit-project': {
       id: '/submit-project'
       path: '/submit-project'
@@ -660,6 +680,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsRoute: ProjectsRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   SubmitProjectRoute: SubmitProjectRoute,
+  ThankYouRoute: ThankYouRoute,
   ProjectIdRoute: ProjectIdRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
 }

@@ -35,6 +35,7 @@ function ProjectDetail() {
   const { id } = Route.useParams();
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
+  const navigate = Route.useNavigate();
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -69,8 +70,6 @@ function ProjectDetail() {
       }
       const file_base64 = btoa(binary);
 
-      alert(project.id);
-
       await submit({
         data: {
           project_id: project.id,
@@ -82,7 +81,7 @@ function ProjectDetail() {
         },
       });
 
-      toast.success("تم إرسال الطلب بنجاح");
+      navigate({ to: "/thank-you" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "حدث خطأ أثناء إرسال الطلب";
       toast.error(msg);
