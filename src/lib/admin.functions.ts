@@ -166,7 +166,7 @@ export const upsertProject = createServerFn({ method: "POST" })
     const insertRow = {
       ...data,
       created_by: userId,
-      admin_approval: isAdmin ? "approved" : "pending",
+      admin_approval: "approved",
     };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin

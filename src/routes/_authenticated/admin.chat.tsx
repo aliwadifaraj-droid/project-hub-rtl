@@ -56,7 +56,11 @@ function TeamChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("team_chat_last_seen", new Date().toISOString());
+      qc.setQueryData(["chat-unread-count"], 0);
+    }
+  }, [messages.length, qc]);
 
   useEffect(() => {
     inputRef.current?.focus();

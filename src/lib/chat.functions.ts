@@ -77,3 +77,23 @@ export const deleteTeamMessage = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const countUnreadTeamMessages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { since: string | null }) =>
+    z.object({ since: z.string().nullable() }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertStaff(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let q = supabaseAdmin
+      .from("team_messages")
+      .select("id", { count: "exact", head: true })
+      .neq("user_id", userId);
+    if (data.since) q = q.gt("created_at", data.since);
+    const { count, error } = await q;
+    if (error) throw new Error(error.message);
+    return { count: count ?? 0 };
+  });
+
