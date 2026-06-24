@@ -36,6 +36,7 @@ function ProjectsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
+  const [sharedId, setSharedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +51,7 @@ function ProjectsPage() {
 
   const saveMut = useMutation({
     mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
-    onSuccess: (res: any) => {
+    onSuccess: (res: any, vars) => {
       if (res?.admin_approval === "pending") {
         toast.success("تم إرسال المشروع للمراجعة من الأدمن");
       } else {
@@ -59,6 +60,9 @@ function ProjectsPage() {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["admin-projects"] });
       setEditing(null);
+      if (!vars.id && res?.id && res?.admin_approval !== "pending") {
+        setSharedId(res.id);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
