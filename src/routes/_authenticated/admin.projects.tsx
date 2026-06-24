@@ -35,14 +35,16 @@ function ProjectsAdminPage() {
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = hasAdminRole(roles);
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
+  const [sharedId, setSharedId] = useState<string | null>(null);
 
   const saveMut = useMutation({
     mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
-    onSuccess: () => {
+    onSuccess: (res: any, vars) => {
       toast.success("تم الحفظ");
       qc.invalidateQueries({ queryKey: ["admin-projects"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
       setEditing(null);
+      if (!vars.id && res?.id) setSharedId(res.id);
     },
     onError: (e: Error) => toast.error(e.message),
   });
