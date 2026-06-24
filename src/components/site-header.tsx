@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Building2, ClipboardList, Megaphone, Bell } from "lucide-react";
+import { Building2, ClipboardList, Megaphone, Bell, MessagesSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,10 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
 } from "@/lib/notifications.functions";
+import { countUnreadTeamMessages } from "@/lib/chat.functions";
+import { getMyRoles } from "@/lib/admin.functions";
+
+const CHAT_SEEN_KEY = "team_chat_last_seen";
 
 export function SiteHeader() {
   const [signedIn, setSignedIn] = useState(false);
@@ -19,6 +23,8 @@ export function SiteHeader() {
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
+  const rolesFn = useServerFn(getMyRoles);
+  const countChatFn = useServerFn(countUnreadTeamMessages);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setSignedIn(!!data.user));
@@ -40,12 +46,50 @@ export function SiteHeader() {
     enabled: signedIn && open,
   });
 
+  const { data: myRoles = [] } = useQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => rolesFn(),
+    enabled: signedIn,
+  });
+  const isStaff = myRoles.includes("admin") || myRoles.includes("employee");
+
+  const { data: chatUnread = 0, refetch: refetchChat } = useQuery({
+    queryKey: ["chat-unread-count"],
+    queryFn: async () => {
+      const since = typeof window !== "undefined" ? localStorage.getItem(CHAT_SEEN_KEY) : null;
+      const res = await countChatFn({ data: { since } });
+      return res.count;
+    },
+    enabled: signedIn && isStaff,
+  });
+
+  // realtime: refetch chat unread on new messages
+  useEffect(() => {
+    if (!signedIn || !isStaff) return;
+    const ch = supabase
+      .channel("team_messages_badge")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_messages" }, () => {
+        refetchChat();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [signedIn, isStaff, refetchChat]);
+
   async function toggle(next: boolean) {
     setOpen(next);
     if (next && unreadCount > 0) {
       await markAllRead();
       qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
     }
+  }
+
+  function handleChatClick() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CHAT_SEEN_KEY, new Date().toISOString());
+    }
+    qc.setQueryData(["chat-unread-count"], 0);
   }
 
   return (
@@ -76,6 +120,26 @@ export function SiteHeader() {
           >
             <ClipboardList className="h-4 w-4" /> طلباتي
           </Link>
+
+          {signedIn && isStaff && (
+            <Link
+              to="/admin/chat"
+              onClick={handleChatClick}
+              aria-label="شات الفريق"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                chatUnread > 0
+                  ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
+            >
+              <MessagesSquare className="h-4 w-4" />
+              {chatUnread > 0 && (
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  {chatUnread > 99 ? "99+" : chatUnread}
+                </span>
+              )}
+            </Link>
+          )}
 
           {signedIn && (
             <div className="relative">
