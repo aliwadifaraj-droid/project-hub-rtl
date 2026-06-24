@@ -248,3 +248,72 @@ function ProjectModal({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="mb-1.5 block text-sm font-semibold">{label}</label>{children}</div>;
 }
+
+function buildProjectUrl(id: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/project/${id}`;
+}
+
+async function copyText(text: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); document.body.removeChild(ta);
+    return true;
+  } catch { return false; }
+}
+
+function ShareLinkButton({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={async () => {
+        const ok = await copyText(buildProjectUrl(id));
+        if (ok) { setCopied(true); toast.success("تم نسخ الرابط"); setTimeout(() => setCopied(false), 2000); }
+        else toast.error("تعذر النسخ");
+      }}
+      className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Share2 className="h-3.5 w-3.5" />}
+      {copied ? "تم النسخ" : "نسخ الرابط"}
+    </button>
+  );
+}
+
+function SharedLinkModal({ id, onClose }: { id: string; onClose: () => void }) {
+  const url = buildProjectUrl(id);
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold">تم نشر المشروع 🎉</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-secondary"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">شارك هذا الرابط مع عملائك:</p>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 p-2">
+          <input readOnly value={url} className="flex-1 bg-transparent px-2 py-1 text-sm outline-none" dir="ltr" />
+          <button
+            onClick={async () => {
+              const ok = await copyText(url);
+              if (ok) { setCopied(true); toast.success("تم نسخ الرابط"); setTimeout(() => setCopied(false), 2000); }
+              else toast.error("تعذر النسخ");
+            }}
+            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
+          >
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "تم" : "نسخ"}
+          </button>
+        </div>
+        <button onClick={onClose} className="mt-5 w-full rounded-md border border-border px-4 py-2 text-sm hover:bg-secondary">إغلاق</button>
+      </div>
+    </div>
+  );
+}
