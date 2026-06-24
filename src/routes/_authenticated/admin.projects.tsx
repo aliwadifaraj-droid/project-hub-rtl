@@ -5,7 +5,7 @@ import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Pencil, Trash2, Plus, Upload, X } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/projects")({
