@@ -82,8 +82,9 @@ function ProjectsAdminPage() {
               <h3 className="font-bold">{p.name}</h3>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               {isAdmin && (
-                <div className="mt-3 flex gap-2">
-                  <button onClick={() => setEditing(p)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <ShareLinkButton id={p.id} />
+                  <button onClick={() => setEditing(p)} className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
                     <Pencil className="h-3.5 w-3.5" /> تعديل
                   </button>
                   <button
@@ -100,6 +101,7 @@ function ProjectsAdminPage() {
       </div>
 
       {editing ? <ProjectModal value={editing} onClose={() => setEditing(null)} onSave={(v) => saveMut.mutate(v)} saving={saveMut.isPending} /> : null}
+      {sharedId ? <SharedLinkModal id={sharedId} onClose={() => setSharedId(null)} /> : null}
     </div>
   );
 }
