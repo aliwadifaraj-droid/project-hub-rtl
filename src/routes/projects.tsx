@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
-import { Loader2, Pencil, Trash2, Plus, Upload, X } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/projects")({
