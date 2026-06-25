@@ -67,6 +67,7 @@ function RequestsPage() {
               <tr>
                 <th className="p-3 font-semibold">الشركة</th>
                 <th className="p-3 font-semibold">المشروع</th>
+                <th className="p-3 font-semibold">البريد</th>
                 <th className="p-3 font-semibold">موقع المنشأة</th>
                 <th className="p-3 font-semibold">التاريخ</th>
                 <th className="p-3 font-semibold">الحالة</th>
