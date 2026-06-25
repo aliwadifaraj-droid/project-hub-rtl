@@ -1,6 +1,6 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
-import path from "node:path";
+
 
 const isVercel = process.env.VERCEL === "1";
 const isNetlify = process.env.NETLIFY === "true";
@@ -22,16 +22,6 @@ for (const [k, v] of Object.entries(env)) {
 export default defineConfig({
   vite: {
     envPrefix: ["VITE_", "NEXT_PUBLIC_"],
-    resolve: {
-      alias: {
-        // Pin a single `entities` version so react-email's dependency tree
-        // resolves consistently across nested packages.
-        entities: path.resolve(
-          process.cwd(),
-          "node_modules/entities/lib/index.js",
-        ),
-      },
-    },
   },
   tanstackStart: {
     server: {
