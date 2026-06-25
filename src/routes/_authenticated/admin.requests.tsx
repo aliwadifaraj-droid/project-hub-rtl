@@ -67,6 +67,7 @@ function RequestsPage() {
               <tr>
                 <th className="p-3 font-semibold">الشركة</th>
                 <th className="p-3 font-semibold">المشروع</th>
+                <th className="p-3 font-semibold">البريد</th>
                 <th className="p-3 font-semibold">موقع المنشأة</th>
                 <th className="p-3 font-semibold">التاريخ</th>
                 <th className="p-3 font-semibold">الحالة</th>
@@ -80,6 +81,11 @@ function RequestsPage() {
                   <td className="p-3 text-slate-300">
                     <div>{(r.projects as { name: string } | null)?.name ?? "-"}</div>
                     {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
+                  </td>
+                  <td className="p-3 text-slate-300 ltr text-left" dir="ltr">
+                    {r.email ? (
+                      <a href={`mailto:${r.email}`} className="text-blue-300 hover:underline">{r.email}</a>
+                    ) : "-"}
                   </td>
                   <td className="p-3 text-slate-300">{r.facility_location}</td>
                   <td className="p-3 text-slate-400 text-xs">{new Date(r.created_at).toLocaleDateString("ar")}</td>
@@ -108,7 +114,7 @@ function RequestsPage() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={6} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
               )}
             </tbody>
           </table>
@@ -141,6 +147,11 @@ function RequestsPage() {
                 )}
               </div>
               <div className="text-sm text-slate-300">📍 {r.facility_location}</div>
+              {r.email && (
+                <div className="text-xs text-slate-300 ltr text-left" dir="ltr">
+                  ✉️ <a href={`mailto:${r.email}`} className="text-blue-300 hover:underline">{r.email}</a>
+                </div>
+              )}
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs text-slate-500">{new Date(r.created_at).toLocaleDateString("ar")}</span>
                 <button onClick={() => openPdf(r.pdf_url)} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium hover:bg-slate-600">

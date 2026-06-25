@@ -109,7 +109,7 @@ export const adminListRequests = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("project_requests")
-      .select("id,company_name,facility_location,pdf_url,status,created_at,project_id,submitter_type,projects(name)")
+      .select("id,company_name,facility_location,email,pdf_url,status,created_at,project_id,submitter_type,projects(name)")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
