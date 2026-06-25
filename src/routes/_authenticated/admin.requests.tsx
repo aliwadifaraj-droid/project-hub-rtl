@@ -82,6 +82,11 @@ function RequestsPage() {
                     <div>{(r.projects as { name: string } | null)?.name ?? "-"}</div>
                     {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
                   </td>
+                  <td className="p-3 text-slate-300 ltr text-left" dir="ltr">
+                    {r.email ? (
+                      <a href={`mailto:${r.email}`} className="text-blue-300 hover:underline">{r.email}</a>
+                    ) : "-"}
+                  </td>
                   <td className="p-3 text-slate-300">{r.facility_location}</td>
                   <td className="p-3 text-slate-400 text-xs">{new Date(r.created_at).toLocaleDateString("ar")}</td>
                   <td className="p-3">
