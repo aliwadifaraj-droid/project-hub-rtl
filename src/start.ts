@@ -3,7 +3,16 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
-const errorMiddleware = createMiddleware().server(async ({ next }) => {
+const errorMiddleware = createMiddleware().server(async ({ request, next }) => {
+  // Bypass app-level error wrapping for internal email infrastructure routes
+  // so they can return their own JSON responses unmodified.
+  const url = new URL(request.url);
+  if (
+    url.pathname.startsWith("/lovable/") ||
+    url.pathname === "/email/unsubscribe"
+  ) {
+    return next();
+  }
   try {
     return await next();
   } catch (error) {

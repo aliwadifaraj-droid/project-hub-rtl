@@ -97,7 +97,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
   }),
   beforeLoad: ({ location }) => {
-    if (location.pathname === "/index") {
+    const p = location.pathname;
+    if (p.startsWith("/lovable/") || p === "/email/unsubscribe") return;
+    if (p === "/index") {
       throw redirect({ to: "/" });
     }
   },
