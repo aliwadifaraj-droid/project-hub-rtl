@@ -114,7 +114,7 @@ function RequestsPage() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={6} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
               )}
             </tbody>
           </table>
