@@ -32,6 +32,26 @@ function pickImage(p: { cover_url?: string; cover_image: string | null }) {
 
 function HomePage() {
   const { data: projects } = useSuspenseQuery(projectsQuery);
+  const [vipName, setVipName] = useState("");
+  const [vipEmail, setVipEmail] = useState("");
+  const [vipLoading, setVipLoading] = useState(false);
+
+  async function handleVipSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!vipName.trim() || !vipEmail.trim()) return;
+    setVipLoading(true);
+    const { error } = await supabase
+      .from("vip_subscribers")
+      .insert({ name: vipName.trim(), email: vipEmail.trim() });
+    setVipLoading(false);
+    if (error) {
+      toast.error("حصل خطأ: " + error.message);
+      return;
+    }
+    toast.success("تم استلام طلبك، بانتظار موافقة الادمن");
+    setVipName("");
+    setVipEmail("");
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background" dir="rtl">
@@ -45,13 +65,19 @@ function HomePage() {
             <p className="mt-3 max-w-2xl text-muted-foreground">
               تصفح أحدث الفرص وقدّم عرضك مباشرة من خلال المنصة.
             </p>
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 to="/submit-project"
                 className="inline-flex items-center gap-2 rounded-lg bg-[image:var(--gradient-accent)] px-6 py-3 text-base font-bold text-accent-foreground shadow hover:opacity-90 transition"
               >
                 أضف مشروعك
               </Link>
+              <a
+                href="#vip"
+                className="inline-flex items-center gap-2 rounded-lg border border-foreground/20 bg-background px-6 py-3 text-base font-bold text-foreground shadow-sm hover:bg-secondary transition"
+              >
+                <Star className="h-4 w-4" /> العملاء المميزون
+              </a>
             </div>
           </div>
         </section>
