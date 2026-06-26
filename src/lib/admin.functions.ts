@@ -131,42 +131,6 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
 
-    // Notify the customer via email when their request is accepted ("مقبول").
-    if (data.status === "accepted") {
-      try {
-        const { data: row } = await supabase
-          .from("project_requests")
-          .select("id,email,company_name")
-          .eq("id", data.id)
-          .maybeSingle();
-
-        if (row?.email) {
-          const { getRequest } = await import("@tanstack/react-start/server");
-          const req = getRequest();
-          const authHeader = req?.headers.get("authorization") ?? "";
-          const origin = new URL(req!.url).origin;
-          await fetch(`${origin}/lovable/email/transactional/send`, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              authorization: authHeader,
-            },
-            body: JSON.stringify({
-              templateName: "request-accepted",
-              recipientEmail: row.email,
-              idempotencyKey: `request-accepted:${row.id}`,
-              templateData: {
-                requestId: row.id,
-                companyName: row.company_name ?? "",
-              },
-            }),
-          }).catch((e) => console.error("send email failed", e));
-        }
-      } catch (e) {
-        console.error("accepted email trigger failed", e);
-      }
-    }
-
     return { ok: true };
   });
 
