@@ -1,10 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useState } from "react";
 import { listProjects } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { MapPin, Clock, ArrowLeft } from "lucide-react";
+import { MapPin, Clock, ArrowLeft, Star } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const projectsQuery = queryOptions({
   queryKey: ["projects"],
