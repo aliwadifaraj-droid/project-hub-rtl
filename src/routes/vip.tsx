@@ -26,21 +26,13 @@ function VipPage() {
 
   async function handleVipSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!vipName.trim() || !vipEmail.trim()) {
-      toast.error("الرجاء إدخال الاسم والبريد الإلكتروني");
-      return;
-    }
+    if (!vipName.trim() || !vipEmail.trim()) return;
     setVipLoading(true);
     try {
       const res = await subscribe({ data: { name: vipName.trim(), email: vipEmail.trim() } });
-      
-      // ✅ رسالة تأكيد للمستخدم
-      toast.success("✅ تم الاشتراك بنجاح! يرجى إتمام الدفع.");
-      
-      // ✅ التحويل إلى صفحة الدفع
       navigate({ to: "/vip/payment", search: { id: res.id, email: vipEmail.trim() } as never });
     } catch (err) {
-      toast.error("❌ حصل خطأ: " + (err as Error).message);
+      toast.error("حصل خطأ: " + (err as Error).message);
     } finally {
       setVipLoading(false);
     }
