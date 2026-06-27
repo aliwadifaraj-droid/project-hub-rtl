@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -17,6 +17,7 @@ export const Route = createFileRoute("/vip")({
 });
 
 function VipPage() {
+  const navigate = useNavigate();
   const [vipName, setVipName] = useState("");
   const [vipEmail, setVipEmail] = useState("");
   const [vipLoading, setVipLoading] = useState(false);
@@ -33,9 +34,7 @@ function VipPage() {
       toast.error("حصل خطأ: " + error.message);
       return;
     }
-    toast.success("تم استلام طلبك، بانتظار موافقة الادمن");
-    setVipName("");
-    setVipEmail("");
+    navigate({ to: "/subscribe-success" });
   }
 
   return (
