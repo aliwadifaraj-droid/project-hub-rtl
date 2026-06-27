@@ -22,6 +22,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as VipPaymentRouteImport } from './routes/vip.payment'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
@@ -110,6 +111,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const VipPaymentRoute = VipPaymentRouteImport.update({
+  id: '/payment',
+  path: '/payment',
+  getParentRoute: () => VipRoute,
 } as any)
 const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   id: '/$projectId',
@@ -254,7 +260,7 @@ export interface FileRoutesByFullPath {
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
-  '/vip': typeof VipRoute
+  '/vip': typeof VipRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -263,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/vip/payment': typeof VipPaymentRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -292,7 +299,7 @@ export interface FileRoutesByTo {
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
-  '/vip': typeof VipRoute
+  '/vip': typeof VipRouteWithChildren
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/vip/payment': typeof VipPaymentRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -331,7 +339,7 @@ export interface FileRoutesById {
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
-  '/vip': typeof VipRoute
+  '/vip': typeof VipRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -340,6 +348,7 @@ export interface FileRoutesById {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/vip/payment': typeof VipPaymentRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -380,6 +389,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/project/$id'
     | '/projects/$projectId'
+    | '/vip/payment'
     | '/admin/ads'
     | '/admin/chat'
     | '/admin/employees'
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/project/$id'
     | '/projects/$projectId'
+    | '/vip/payment'
     | '/admin/ads'
     | '/admin/chat'
     | '/admin/employees'
@@ -456,6 +467,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/project/$id'
     | '/projects/$projectId'
+    | '/vip/payment'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/chat'
     | '/_authenticated/admin/employees'
@@ -487,7 +499,7 @@ export interface RootRouteChildren {
   SubscribeSuccessRoute: typeof SubscribeSuccessRoute
   ThankYouRoute: typeof ThankYouRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
-  VipRoute: typeof VipRoute
+  VipRoute: typeof VipRouteWithChildren
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -588,6 +600,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/vip/payment': {
+      id: '/vip/payment'
+      path: '/payment'
+      fullPath: '/vip/payment'
+      preLoaderRoute: typeof VipPaymentRouteImport
+      parentRoute: typeof VipRoute
     }
     '/projects/$projectId': {
       id: '/projects/$projectId'
@@ -833,6 +852,16 @@ const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
   ProjectsRouteChildren,
 )
 
+interface VipRouteChildren {
+  VipPaymentRoute: typeof VipPaymentRoute
+}
+
+const VipRouteChildren: VipRouteChildren = {
+  VipPaymentRoute: VipPaymentRoute,
+}
+
+const VipRouteWithChildren = VipRoute._addFileChildren(VipRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
@@ -846,7 +875,7 @@ const rootRouteChildren: RootRouteChildren = {
   SubscribeSuccessRoute: SubscribeSuccessRoute,
   ThankYouRoute: ThankYouRoute,
   UnsubscribeRoute: UnsubscribeRoute,
-  VipRoute: VipRoute,
+  VipRoute: VipRouteWithChildren,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ProjectIdRoute: ProjectIdRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
