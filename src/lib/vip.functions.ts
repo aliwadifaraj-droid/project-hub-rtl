@@ -14,8 +14,101 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("vip_subscribers")
-      .select("id,name,email,status,created_at")
+      .select("id,name,email,status,receipt_path,notes,created_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+
+    // Generate signed URLs for receipts
+    const rows = await Promise.all(
+      (data ?? []).map(async (r) => {
+        let receipt_url: string | null = null;
+        if (r.receipt_path) {
+          const { data: signed } = await supabaseAdmin.storage
+            .from("vip-receipts")
+            .createSignedUrl(r.receipt_path, 3600);
+          receipt_url = signed?.signedUrl ?? null;
+        }
+        return { ...r, receipt_url };
+      }),
+    );
+    return rows;
+  });
+
+export const submitVipSubscription = createServerFn({ method: "POST" })
+  .inputValidator((data: { name: string; email: string }) => {
+    if (!data?.name?.trim() || !data?.email?.trim()) throw new Error("الاسم والبريد مطلوبان");
+    return { name: data.name.trim(), email: data.email.trim() };
+  })
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: inserted, error } = await supabaseAdmin
+      .from("vip_subscribers")
+      .insert({ name: data.name, email: data.email, status: "pending" })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: inserted.id };
+  });
+
+export const attachVipReceipt = createServerFn({ method: "POST" })
+  .inputValidator((data: { id: string; receipt_path: string }) => {
+    if (!data?.id || !data?.receipt_path) throw new Error("بيانات ناقصة");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("vip_subscribers")
+      .update({ receipt_path: data.receipt_path })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+
+    // Notify all admins
+    const { data: admins } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    if (admins && admins.length > 0) {
+      await supabaseAdmin.from("notifications").insert(
+        admins.map((a) => ({
+          user_id: a.user_id,
+          title: "طلب اشتراك VIP جديد",
+          body: "تم رفع إيصال جديد بانتظار الموافقة",
+          link: "/admin/vip",
+        })),
+      );
+    }
+    return { ok: true };
+  });
+
+export const approveVipSubscriber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => data)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("vip_subscribers")
+      .update({ status: "active" })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const rejectVipSubscriber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => data)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("vip_subscribers")
+      .update({ status: "rejected" })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
