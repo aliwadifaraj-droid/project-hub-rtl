@@ -3,7 +3,6 @@ import { useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Star } from "lucide-react";
-import { toast, Toaster } from "sonner"; // 1. اضفنا هذا
 
 export const Route = createFileRoute("/vip/")({
   head: () => ({
@@ -20,74 +19,49 @@ function VipPage() {
   const [vipName, setVipName] = useState("");
   const [vipEmail, setVipEmail] = useState("");
 
-  const plans = [ // 2. اضفنا الباقات
-    { price: 125, months: "شهر واحد" },
-    { price: 250, months: "شهرين" },
-    { price: 350, months: "3 شهور" },
-  ];
-
-  function goToPay(price: number) { // 3. غيرنا الدالة
-    if (!vipName.trim() || !vipEmail.trim()) {
-      toast.error("أدخل الاسم والايميل أول");
-      return;
-    }
-    navigate({ to: "/vip/payment", search: { name: vipName.trim(), email: vipEmail.trim(), amount: price } });
+  async function handleVipSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!vipName.trim() || !vipEmail.trim()) return;
+    navigate({ to: "/vip/payment", search: { name: vipName.trim(), email: vipEmail.trim() } as never });
   }
 
   return (
-    <div className="min-h-screen flex-col bg-background" dir="rtl">
+    <div className="min-h-screen flex flex-col bg-background" dir="rtl">
       <SiteHeader />
-      <Toaster position="top-center" /> {/* 4. اضفنا التنبيه */}
       <main className="flex-1">
         <section id="vip" className="border-b border-border/60 bg-secondary/30">
           <div className="container mx-auto px-4 py-12 sm:py-16">
-            <div className="mx-auto max-w-xl text-center mb-8">
+            <div className="mx-auto max-w-xl text-center">
               <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground">
                 <Star className="h-6 w-6" />
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">العملاء المميزون</h1>
               <p className="mt-2 text-muted-foreground">اشترك لتصلك عروض وفرص حصرية قبل غيرك.</p>
-            </div>
-
-            {/* الباقات */}
-            <div className="mx-auto max-w-md space-y-4">
-              {plans.map((p) => (
-                <div key={p.price} className="rounded-2xl border-border bg-card p-5 shadow-sm">
-                  <div className="text-right">
-                    <p className="text-muted-foreground">{p.months}</p>
-                    <p className="text-3xl font-bold">{p.price} ريال</p>
-                    <p className="text-sm text-muted-foreground">✓ دعم أولوية</p>
-                    <p className="text-sm text-muted-foreground">✓ مميزات حصرية</p>
-                  </div>
-                  <button
-                    onClick={() => goToPay(p.price)}
-                    className="w-full mt-4 rounded-xl bg-foreground px-6 py-3 text-base font-bold text-background"
-                  >
-                    اشترك الآن
-                  </button>
-                </div>
-              ))}
-
-              {/* بياناتك */}
-              <div className="rounded-2xl border-border bg-card p-5 shadow-sm mt-6">
-                <h2 className="font-bold mb-3 text-right">بياناتك للتواصل</h2>
+              <form onSubmit={handleVipSubmit} className="mt-6 grid gap-3 text-start">
                 <input
                   type="text"
+                  required
                   value={vipName}
                   onChange={(e) => setVipName(e.target.value)}
                   placeholder="الاسم"
-                  className="w-full rounded-lg border-border bg-background px-4 py-3 text-sm mb-3"
+                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                 />
                 <input
                   type="email"
+                  required
                   value={vipEmail}
                   onChange={(e) => setVipEmail(e.target.value)}
                   placeholder="البريد الإلكتروني"
-                  className="w-full rounded-lg border-border bg-background px-4 py-3 text-sm"
+                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                 />
-              </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-foreground px-6 py-3 text-base font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
+                >
+                  اشتراك
+                </button>
+              </form>
             </div>
-
           </div>
         </section>
       </main>
