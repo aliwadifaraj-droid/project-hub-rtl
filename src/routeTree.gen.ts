@@ -22,6 +22,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as VipIndexRouteImport } from './routes/vip.index'
 import { Route as VipPaymentRouteImport } from './routes/vip.payment'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
@@ -111,6 +112,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const VipIndexRoute = VipIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => VipRoute,
 } as any)
 const VipPaymentRoute = VipPaymentRouteImport.update({
   id: '/payment',
@@ -270,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/payment': typeof VipPaymentRoute
+  '/vip/': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -299,7 +306,6 @@ export interface FileRoutesByTo {
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
-  '/vip': typeof VipRouteWithChildren
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
@@ -308,6 +314,7 @@ export interface FileRoutesByTo {
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/payment': typeof VipPaymentRoute
+  '/vip': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -349,6 +356,7 @@ export interface FileRoutesById {
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/payment': typeof VipPaymentRoute
+  '/vip/': typeof VipIndexRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -390,6 +398,7 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/projects/$projectId'
     | '/vip/payment'
+    | '/vip/'
     | '/admin/ads'
     | '/admin/chat'
     | '/admin/employees'
@@ -419,7 +428,6 @@ export interface FileRouteTypes {
     | '/subscribe-success'
     | '/thank-you'
     | '/unsubscribe'
-    | '/vip'
     | '/chat'
     | '/dashboard'
     | '/employees'
@@ -428,6 +436,7 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/projects/$projectId'
     | '/vip/payment'
+    | '/vip'
     | '/admin/ads'
     | '/admin/chat'
     | '/admin/employees'
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/projects/$projectId'
     | '/vip/payment'
+    | '/vip/'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/chat'
     | '/_authenticated/admin/employees'
@@ -600,6 +610,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/vip/': {
+      id: '/vip/'
+      path: '/'
+      fullPath: '/vip/'
+      preLoaderRoute: typeof VipIndexRouteImport
+      parentRoute: typeof VipRoute
     }
     '/vip/payment': {
       id: '/vip/payment'
@@ -854,10 +871,12 @@ const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
 
 interface VipRouteChildren {
   VipPaymentRoute: typeof VipPaymentRoute
+  VipIndexRoute: typeof VipIndexRoute
 }
 
 const VipRouteChildren: VipRouteChildren = {
   VipPaymentRoute: VipPaymentRoute,
+  VipIndexRoute: VipIndexRoute,
 }
 
 const VipRouteWithChildren = VipRoute._addFileChildren(VipRouteChildren)
