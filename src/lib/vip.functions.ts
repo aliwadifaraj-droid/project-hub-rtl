@@ -35,9 +35,10 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
   });
 
 export const submitVipSubscription = createServerFn({ method: "POST" })
-  .inputValidator((data: { name: string; email: string }) => {
+  .inputValidator((data: { name: string; email: string; receipt_path: string }) => {
     if (!data?.name?.trim() || !data?.email?.trim()) throw new Error("الاسم والبريد مطلوبان");
-    return { name: data.name.trim(), email: data.email.trim() };
+    if (!data?.receipt_path?.trim()) throw new Error("إيصال التحويل مطلوب");
+    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim() };
   })
   .handler(async ({ data }) => {
     const { createClient } = await import("@supabase/supabase-js");
@@ -48,10 +49,26 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
     );
     const { data: inserted, error } = await sb
       .from("vip_subscribers")
-      .insert({ name: data.name, email: data.email, status: "pending" })
+      .insert({ name: data.name, email: data.email, status: "pending", receipt_path: data.receipt_path })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: admins } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    if (admins && admins.length > 0) {
+      await supabaseAdmin.from("notifications").insert(
+        admins.map((a) => ({
+          user_id: a.user_id,
+          title: "طلب اشتراك VIP جديد",
+          body: "تم رفع إيصال جديد بانتظار الموافقة",
+          link: "/admin/vip",
+        })),
+      );
+    }
     return { id: inserted.id };
   });
 

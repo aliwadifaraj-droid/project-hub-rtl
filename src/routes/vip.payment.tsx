@@ -5,18 +5,18 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { CreditCard, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { attachVipReceipt } from "@/lib/vip.functions";
+import { submitVipSubscription } from "@/lib/vip.functions";
 import { toast } from "sonner";
 
 const IBAN = "SA3510000065500047110807";
 const BANK_NAME = "البنك الأهلي السعودي";
 const ACCOUNT_NAME = "أحمدسالمي";
 
-type Search = { id?: string; email?: string };
+type Search = { name?: string; email?: string };
 
 export const Route = createFileRoute("/vip/payment")({
   validateSearch: (s: Record<string, unknown>): Search => ({
-    id: typeof s.id === "string" ? s.id : undefined,
+    name: typeof s.name === "string" ? s.name : undefined,
     email: typeof s.email === "string" ? s.email : undefined,
   }),
   head: () => ({ meta: [{ title: "إتمام الدفع — العملاء المميزون" }] }),
@@ -25,8 +25,9 @@ export const Route = createFileRoute("/vip/payment")({
 
 function VipPaymentPage() {
   const navigate = useNavigate();
-  const { id, email: initialEmail } = useSearch({ from: "/vip/payment" });
-  const attach = useServerFn(attachVipReceipt);
+  const { name: initialName, email: initialEmail } = useSearch({ from: "/vip/payment" });
+  const subscribe = useServerFn(submitVipSubscription);
+  const [name, setName] = useState(initialName ?? "");
   const [email, setEmail] = useState(initialEmail ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,12 +41,12 @@ function VipPaymentPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!id) {
-      toast.error("معرف الاشتراك مفقود، ابدأ من جديد.");
-      return;
-    }
     if (!file) {
       toast.error("ارفق صورة/PDF الإيصال");
+      return;
+    }
+    if (!name.trim()) {
+      toast.error("أدخل الاسم");
       return;
     }
     if (!email.trim()) {
@@ -55,12 +56,12 @@ function VipPaymentPage() {
     setLoading(true);
     try {
       const ext = file.name.split(".").pop() ?? "bin";
-      const path = `${id}/${Date.now()}.${ext}`;
+      const path = `pending/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("vip-receipts")
         .upload(path, file, { upsert: false, contentType: file.type });
       if (upErr) throw upErr;
-      await attach({ data: { id, receipt_path: path } });
+      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: path } });
       navigate({ to: "/subscribe-success" });
     } catch (err) {
       toast.error("حصل خطأ: " + (err as Error).message);
@@ -101,6 +102,15 @@ function VipPaymentPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="mt-6 grid gap-3">
+                <label className="text-sm font-medium">الاسم</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="الاسم"
+                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                />
                 <label className="text-sm font-medium">البريد الإلكتروني</label>
                 <input
                   type="email"

@@ -1,11 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Star } from "lucide-react";
-import { submitVipSubscription } from "@/lib/vip.functions";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/vip")({
   head: () => ({
@@ -19,23 +16,13 @@ export const Route = createFileRoute("/vip")({
 
 function VipPage() {
   const navigate = useNavigate();
-  const subscribe = useServerFn(submitVipSubscription);
   const [vipName, setVipName] = useState("");
   const [vipEmail, setVipEmail] = useState("");
-  const [vipLoading, setVipLoading] = useState(false);
 
   async function handleVipSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!vipName.trim() || !vipEmail.trim()) return;
-    setVipLoading(true);
-    try {
-      const res = await subscribe({ data: { name: vipName.trim(), email: vipEmail.trim() } });
-      navigate({ to: "/vip/payment", search: { id: res.id, email: vipEmail.trim() } as never });
-    } catch (err) {
-      toast.error("حصل خطأ: " + (err as Error).message);
-    } finally {
-      setVipLoading(false);
-    }
+    navigate({ to: "/vip/payment", search: { name: vipName.trim(), email: vipEmail.trim() } as never });
   }
 
   return (
@@ -69,10 +56,9 @@ function VipPage() {
                 />
                 <button
                   type="submit"
-                  disabled={vipLoading}
                   className="w-full rounded-lg bg-foreground px-6 py-3 text-base font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
                 >
-                  {vipLoading ? "جارٍ الإرسال..." : "اشتراك"}
+                  اشتراك
                 </button>
               </form>
             </div>
