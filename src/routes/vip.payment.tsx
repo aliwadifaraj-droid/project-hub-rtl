@@ -1,72 +1,69 @@
-import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { CreditCard, Copy, Check } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Star, Check } from "lucide-react";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { toast } from "sonner";
 
-const IBAN = "SA";
-const BANK_NAME = "البنك الأهلي السعودي";
-const ACCOUNT_NAME = "انشاء";
+// تعريف الباقات (للشاشة فقط)
+const PLANS = [
+  { id: "monthly", name: "شهري", price: 125, duration: "شهر واحد" },
+  { id: "two_months", name: "شهرين", price: 250, duration: "شهران" },
+  { id: "three_months", name: "ثلاثة أشهر", price: 350, duration: "3 أشهر" },
+];
 
-type Search = { name?: string; email?: string };
-
-export const Route = createFileRoute("/vip/payment")({
-  validateSearch: (s: Record<string, unknown>): Search => ({
-    name: typeof s.name === "string" ? s.name : undefined,
-    email: typeof s.email === "string" ? s.email : undefined,
+export const Route = createFileRoute("/vip")({
+  head: () => ({
+    meta: [
+      { title: "العملاء المميزون — إنشاء" },
+      { name: "description", content: "اشترك لتصلك عروض وفرص حصرية قبل غيرك." },
+    ],
   }),
-  head: () => ({ meta: [{ title: "إتمام الدفع — العملاء المميزون" }] }),
-  component: VipPaymentPage,
+  component: VipPage,
 });
 
-function VipPaymentPage() {
+function VipPage() {
   const navigate = useNavigate();
-  const { name: initialName, email: initialEmail } = useSearch({ from: "/vip/payment" });
   const subscribe = useServerFn(submitVipSubscription);
-  const [name, setName] = useState(initialName ?? "");
-  const [email, setEmail] = useState(initialEmail ?? "");
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [vipName, setVipName] = useState("");
+  const [vipEmail, setVipEmail] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<string>("monthly");
+  const [vipLoading, setVipLoading] = useState(false);
 
-  async function copyIban() {
-    await navigator.clipboard.writeText(IBAN);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleVipSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file) {
-      toast.error("ارفق صورة/PDF الإيصال");
+    if (!vipName.trim() || !vipEmail.trim()) {
+      toast.error("الرجاء إدخال الاسم والبريد الإلكتروني");
       return;
     }
-    if (!name.trim()) {
-      toast.error("أدخل الاسم");
-      return;
-    }
-    if (!email.trim()) {
-      toast.error("أدخل البريد الإلكتروني");
-      return;
-    }
-    setLoading(true);
+    setVipLoading(true);
     try {
-      const ext = file.name.split(".").pop() ?? "bin";
-      const path = `pending/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("vip-receipts")
-        .upload(path, file, { upsert: false, contentType: file.type });
-      if (upErr) throw upErr;
-      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: path } });
-      navigate({ to: "/subscribe-success" });
+      // ✅ إرسال الخطة فقط (بدون سعر)
+      const res = await subscribe({ 
+        data: { 
+          name: vipName.trim(), 
+          email: vipEmail.trim(),
+          plan: selectedPlan // فقط الخطة
+        } 
+      });
+      
+      toast.success("✅ تم الاشتراك بنجاح! يرجى إتمام الدفع.");
+      
+      // ✅ تمرير الخطة فقط (بدون سعر)
+      navigate({ 
+        to: "/vip/payment", 
+        search: { 
+          name: vipName.trim(), 
+          email: vipEmail.trim(),
+          plan: selectedPlan // فقط الخطة
+        } as never 
+      });
     } catch (err) {
-      toast.error("حصل خطأ: " + (err as Error).message);
+      toast.error("❌ حصل خطأ: " + (err as Error).message);
     } finally {
-      setLoading(false);
+      setVipLoading(false);
     }
   }
 
@@ -74,66 +71,63 @@ function VipPaymentPage() {
     <div className="min-h-screen flex flex-col bg-background" dir="rtl">
       <SiteHeader />
       <main className="flex-1">
-        <section className="border-b border-border/60 bg-secondary/30">
-          <div className="container mx-auto px-4 py-12">
-            <div className="mx-auto max-w-xl">
-              <div className="mb-6 text-center">
-                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground">
-                  <CreditCard className="h-6 w-6" />
-                </div>
-                <h1 className="text-2xl font-extrabold">إتمام الدفع</h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  حوّل قيمة الاشتراك على الحساب التالي ثم ارفع صورة الإيصال.
-                </p>
+        <section id="vip" className="border-b border-border/60 bg-secondary/30">
+          <div className="container mx-auto px-4 py-12 sm:py-16">
+            <div className="mx-auto max-w-2xl text-center">
+              <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground">
+                <Star className="h-6 w-6" />
               </div>
-
-              <div className="rounded-lg border border-border bg-card p-4 text-sm space-y-2">
-                <div className="flex justify-between"><span className="text-muted-foreground">البنك</span><span className="font-medium">{BANK_NAME}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">اسم الحساب</span><span className="font-medium">{ACCOUNT_NAME}</span></div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground">IBAN</span>
-                  <div className="flex items-center gap-2">
-                    <code className="font-mono text-xs">{IBAN}</code>
-                    <button onClick={copyIban} type="button" className="inline-flex h-8 w-8 items-center justify-center rounded border border-border hover:bg-secondary">
-                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <form onSubmit={handleSubmit} className="mt-6 grid gap-3">
-                <label className="text-sm font-medium">الاسم</label>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">العملاء المميزون</h1>
+              <p className="mt-2 text-muted-foreground">اشترك لتصلك عروض وفرص حصرية قبل غيرك.</p>
+              
+              <form onSubmit={handleVipSubmit} className="mt-6 grid gap-4 text-start">
                 <input
                   type="text"
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={vipName}
+                  onChange={(e) => setVipName(e.target.value)}
                   placeholder="الاسم"
                   className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                 />
-                <label className="text-sm font-medium">البريد الإلكتروني</label>
+                
                 <input
                   type="email"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={vipEmail}
+                  onChange={(e) => setVipEmail(e.target.value)}
                   placeholder="البريد الإلكتروني"
                   className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                 />
-                <label className="text-sm font-medium">رفع إيصال التحويل (صورة أو PDF)</label>
-                <input
-                  type="file"
-                  required
-                  accept="image/*,application/pdf"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-2 text-sm"
-                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+                  {PLANS.map((plan) => (
+                    <div
+                      key={plan.id}
+                      onClick={() => setSelectedPlan(plan.id)}
+                      className={`cursor-pointer rounded-lg border-2 p-4 text-center transition ${
+                        selectedPlan === plan.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <div className="flex justify-center mb-2">
+                        {selectedPlan === plan.id && (
+                          <Check className="h-5 w-5 text-primary" />
+                        )}
+                      </div>
+                      <h3 className="font-bold text-lg">{plan.name}</h3>
+                      <p className="text-sm text-muted-foreground">{plan.duration}</p>
+                      <p className="text-xl font-extrabold mt-1">{plan.price} ر.س</p>
+                    </div>
+                  ))}
+                </div>
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={vipLoading}
                   className="w-full rounded-lg bg-foreground px-6 py-3 text-base font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
                 >
-                  {loading ? "جارٍ الإرسال..." : "إرسال للمراجعة"}
+                  {vipLoading ? "جارٍ الإرسال..." : "اشتراك"}
                 </button>
               </form>
             </div>
