@@ -40,8 +40,13 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
     return { name: data.name.trim(), email: data.email.trim() };
   })
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: inserted, error } = await supabaseAdmin
+    const { createClient } = await import("@supabase/supabase-js");
+    const sb = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_PUBLISHABLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data: inserted, error } = await sb
       .from("vip_subscribers")
       .insert({ name: data.name, email: data.email, status: "pending" })
       .select("id")
