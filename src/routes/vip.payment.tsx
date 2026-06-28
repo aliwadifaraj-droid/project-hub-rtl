@@ -8,9 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { toast } from "sonner";
 
-const IBAN = "SA3510000065500047110807";
+const IBAN = "SA";
 const BANK_NAME = "البنك الأهلي السعودي";
-const ACCOUNT_NAME = "أحمدسالمي";
+const ACCOUNT_NAME = "انشاء";
 
 type Search = { name?: string; email?: string };
 
