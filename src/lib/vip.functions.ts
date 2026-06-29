@@ -14,7 +14,7 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("vip_subscribers")
-      .select("id,name,email,status,receipt_path,notes,created_at")
+      .select("id,name,email,status,receipt_path,notes,plan,created_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
 
