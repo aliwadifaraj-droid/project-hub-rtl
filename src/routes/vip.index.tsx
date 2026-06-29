@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { Star, Check } from "lucide-react";
+import { Star, Check, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { submitVipSubscription } from "@/lib/vip.functions";
+import { getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 
 // ⚠️ غيّر اسم المستخدم في PayPal إلى الحساب الفعلي
@@ -35,6 +37,28 @@ function VipPage() {
   const [email, setEmail] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const getMx = useServerFn(getVipMaintenance);
+  const setMx = useServerFn(setVipMaintenance);
+  const qc = useQueryClient();
+  const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
+  const toggleMx = useMutation({
+    mutationFn: (enabled: boolean) => setMx({ data: { enabled } }),
+    onSuccess: (r) => { toast.success(r.enabled ? "تم تفعيل الصيانة" : "تم إلغاء الصيانة"); qc.invalidateQueries({ queryKey: ["vip-maintenance"] }); },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+      setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    })();
+  }, []);
+
+  const maintenance = !!mx?.enabled;
 
   function openPayPal(amount: number, planId: string) {
     setSelectedPlan(planId);
@@ -77,6 +101,32 @@ function VipPage() {
               <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">العملاء المميزون</h1>
               <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وادفع عبر PayPal، ثم ارفع إيصال الدفع.</p>
             </div>
+
+            {isAdmin && (
+              <div className="mx-auto mt-6 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card p-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <Wrench className="h-4 w-4" />
+                  <span>وضع الصيانة: {maintenance ? "مفعّل" : "متوقف"}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleMx.mutate(!maintenance)}
+                  disabled={toggleMx.isPending}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold text-background transition disabled:opacity-60 ${maintenance ? "bg-destructive" : "bg-foreground hover:bg-foreground/90"}`}
+                >
+                  {maintenance ? "إلغاء الصيانة" : "تفعيل الصيانة"}
+                </button>
+              </div>
+            )}
+
+            {maintenance && !isAdmin ? (
+              <div className="mx-auto mt-10 max-w-xl rounded-xl border border-border bg-card p-10 text-center">
+                <Wrench className="mx-auto h-10 w-10 text-muted-foreground" />
+                <h2 className="mt-4 text-xl font-bold">الصفحة تحت الصيانة</h2>
+                <p className="mt-2 text-sm text-muted-foreground">نعتذر عن الإزعاج، سنعود قريباً.</p>
+              </div>
+            ) : (<>
+
 
             <div className="mx-auto mt-8 grid max-w-4xl gap-4 sm:grid-cols-3">
               {PLANS.map((p) => {
@@ -157,7 +207,9 @@ function VipPage() {
                 {loading ? "جارٍ الإرسال..." : "إرسال للمراجعة"}
               </button>
             </form>
+            </>)}
           </div>
+
         </section>
       </main>
       <SiteFooter />
