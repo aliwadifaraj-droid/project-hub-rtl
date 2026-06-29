@@ -102,6 +102,32 @@ function VipPage() {
               <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وادفع عبر PayPal، ثم ارفع إيصال الدفع.</p>
             </div>
 
+            {isAdmin && (
+              <div className="mx-auto mt-6 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card p-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <Wrench className="h-4 w-4" />
+                  <span>وضع الصيانة: {maintenance ? "مفعّل" : "متوقف"}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleMx.mutate(!maintenance)}
+                  disabled={toggleMx.isPending}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold text-background transition disabled:opacity-60 ${maintenance ? "bg-destructive" : "bg-foreground hover:bg-foreground/90"}`}
+                >
+                  {maintenance ? "إلغاء الصيانة" : "تفعيل الصيانة"}
+                </button>
+              </div>
+            )}
+
+            {maintenance && !isAdmin ? (
+              <div className="mx-auto mt-10 max-w-xl rounded-xl border border-border bg-card p-10 text-center">
+                <Wrench className="mx-auto h-10 w-10 text-muted-foreground" />
+                <h2 className="mt-4 text-xl font-bold">الصفحة تحت الصيانة</h2>
+                <p className="mt-2 text-sm text-muted-foreground">نعتذر عن الإزعاج، سنعود قريباً.</p>
+              </div>
+            ) : (<>
+
+
             <div className="mx-auto mt-8 grid max-w-4xl gap-4 sm:grid-cols-3">
               {PLANS.map((p) => {
                 const active = selectedPlan === p.id;
