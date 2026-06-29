@@ -207,7 +207,9 @@ function VipPage() {
                 {loading ? "جارٍ الإرسال..." : "إرسال للمراجعة"}
               </button>
             </form>
+            </>)}
           </div>
+
         </section>
       </main>
       <SiteFooter />
