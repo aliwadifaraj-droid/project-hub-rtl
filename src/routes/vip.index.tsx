@@ -1,14 +1,27 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { Star } from "lucide-react";
+import { Star, Check } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { submitVipSubscription } from "@/lib/vip.functions";
+import { toast } from "sonner";
+
+// ⚠️ غيّر اسم المستخدم في PayPal إلى الحساب الفعلي
+const PAYPAL_USERNAME = "alialhaddad";
+
+const PLANS = [
+  { id: "شهر", label: "اشتراك شهر", price: 125, duration: "30 يوم" },
+  { id: "شهرين", label: "اشتراك شهرين", price: 250, duration: "60 يوم" },
+  { id: "3 شهور", label: "اشتراك 3 شهور", price: 350, duration: "90 يوم" },
+];
 
 export const Route = createFileRoute("/vip/")({
   head: () => ({
     meta: [
-      { title: "العملاء المميزون — إنشاء" },
-      { name: "description", content: "اشترك لتصلك عروض وفرص حصرية قبل غيرك." },
+      { title: "العملاء المميزون — باقات الاشتراك" },
+      { name: "description", content: "اختر باقة الاشتراك المناسبة وادفع عبر PayPal." },
     ],
   }),
   component: VipPage,
@@ -16,52 +29,134 @@ export const Route = createFileRoute("/vip/")({
 
 function VipPage() {
   const navigate = useNavigate();
-  const [vipName, setVipName] = useState("");
-  const [vipEmail, setVipEmail] = useState("");
+  const subscribe = useServerFn(submitVipSubscription);
+  const [selectedPlan, setSelectedPlan] = useState<string>(PLANS[0].id);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  async function handleVipSubmit(e: React.FormEvent) {
+  function openPayPal(amount: number, planId: string) {
+    setSelectedPlan(planId);
+    window.open(`https://paypal.me/${PAYPAL_USERNAME}/${amount}`, "_blank", "noopener");
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!vipName.trim() || !vipEmail.trim()) return;
-    navigate({ to: "/vip/payment", search: { name: vipName.trim(), email: vipEmail.trim() } as never });
+    if (!file) return toast.error("ارفع صورة الإيصال");
+    if (!name.trim()) return toast.error("أدخل الاسم");
+    if (!email.trim()) return toast.error("أدخل البريد الإلكتروني");
+    if (!selectedPlan) return toast.error("اختر الباقة");
+    setLoading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "bin";
+      const path = `pending/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("vip-receipts")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (upErr) throw upErr;
+      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: path, plan: selectedPlan } });
+      navigate({ to: "/subscribe-success" });
+    } catch (err) {
+      toast.error("حصل خطأ: " + (err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-background" dir="rtl">
       <SiteHeader />
       <main className="flex-1">
-        <section id="vip" className="border-b border-border/60 bg-secondary/30">
+        <section className="border-b border-border/60 bg-secondary/30">
           <div className="container mx-auto px-4 py-12 sm:py-16">
-            <div className="mx-auto max-w-xl text-center">
+            <div className="mx-auto max-w-4xl text-center">
               <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground">
                 <Star className="h-6 w-6" />
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">العملاء المميزون</h1>
-              <p className="mt-2 text-muted-foreground">اشترك لتصلك عروض وفرص حصرية قبل غيرك.</p>
-              <form onSubmit={handleVipSubmit} className="mt-6 grid gap-3 text-start">
-                <input
-                  type="text"
-                  required
-                  value={vipName}
-                  onChange={(e) => setVipName(e.target.value)}
-                  placeholder="الاسم"
-                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                />
-                <input
-                  type="email"
-                  required
-                  value={vipEmail}
-                  onChange={(e) => setVipEmail(e.target.value)}
-                  placeholder="البريد الإلكتروني"
-                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                />
-                <button
-                  type="submit"
-                  className="w-full rounded-lg bg-foreground px-6 py-3 text-base font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
-                >
-                  اشتراك
-                </button>
-              </form>
+              <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وادفع عبر PayPal، ثم ارفع إيصال الدفع.</p>
             </div>
+
+            <div className="mx-auto mt-8 grid max-w-4xl gap-4 sm:grid-cols-3">
+              {PLANS.map((p) => {
+                const active = selectedPlan === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className={`rounded-xl border bg-card p-6 text-center transition ${active ? "border-primary ring-2 ring-primary" : "border-border"}`}
+                  >
+                    <h3 className="text-lg font-bold">{p.label}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{p.duration}</p>
+                    <p className="mt-4 text-3xl font-extrabold text-foreground">
+                      {p.price} <span className="text-sm font-medium text-muted-foreground">ر.س</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openPayPal(p.price, p.id)}
+                      className="mt-4 w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90"
+                    >
+                      ادفع عبر PayPal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPlan(p.id)}
+                      className={`mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border px-4 py-2 text-xs font-medium ${active ? "border-primary text-primary" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                    >
+                      {active && <Check className="h-3.5 w-3.5" />}
+                      {active ? "محددة" : "اختر هذه الباقة"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <form onSubmit={handleSubmit} className="mx-auto mt-10 grid max-w-xl gap-3 rounded-xl border border-border bg-card p-6 text-start">
+              <h2 className="text-lg font-bold text-center">إرسال طلب الاشتراك</h2>
+              <label className="text-sm font-medium">الباقة المختارة</label>
+              <select
+                value={selectedPlan}
+                onChange={(e) => setSelectedPlan(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+              >
+                {PLANS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label} — {p.price} ر.س</option>
+                ))}
+              </select>
+              <label className="text-sm font-medium">الاسم</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="الاسم"
+                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+              />
+              <label className="text-sm font-medium">البريد الإلكتروني</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="البريد الإلكتروني"
+                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+              />
+              <label className="text-sm font-medium">رفع صورة الإيصال (صورة أو PDF)</label>
+              <input
+                type="file"
+                required
+                accept="image/*,application/pdf"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="w-full rounded-lg border border-border bg-background px-4 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-lg bg-foreground px-6 py-3 text-base font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
+              >
+                {loading ? "جارٍ الإرسال..." : "إرسال للمراجعة"}
+              </button>
+            </form>
           </div>
         </section>
       </main>
