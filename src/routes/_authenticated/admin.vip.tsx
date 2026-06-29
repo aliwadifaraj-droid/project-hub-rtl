@@ -56,6 +56,7 @@ function AdminVipPage() {
               <TableRow>
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
+                <TableHead>الباقة</TableHead>
                 <TableHead>الحالة</TableHead>
                 <TableHead>الإيصال</TableHead>
                 <TableHead>التاريخ</TableHead>
