@@ -37,6 +37,28 @@ function VipPage() {
   const [email, setEmail] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const getMx = useServerFn(getVipMaintenance);
+  const setMx = useServerFn(setVipMaintenance);
+  const qc = useQueryClient();
+  const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
+  const toggleMx = useMutation({
+    mutationFn: (enabled: boolean) => setMx({ data: { enabled } }),
+    onSuccess: (r) => { toast.success(r.enabled ? "تم تفعيل الصيانة" : "تم إلغاء الصيانة"); qc.invalidateQueries({ queryKey: ["vip-maintenance"] }); },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+      setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    })();
+  }, []);
+
+  const maintenance = !!mx?.enabled;
 
   function openPayPal(amount: number, planId: string) {
     setSelectedPlan(planId);
