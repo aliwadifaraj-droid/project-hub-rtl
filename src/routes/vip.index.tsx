@@ -1,11 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { Star, Check } from "lucide-react";
+import { Star, Check, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { submitVipSubscription } from "@/lib/vip.functions";
+import { getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 
 // ⚠️ غيّر اسم المستخدم في PayPal إلى الحساب الفعلي
