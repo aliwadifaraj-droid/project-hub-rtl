@@ -514,6 +514,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          plan: string | null
           receipt_path: string | null
           status: string
         }
@@ -523,6 +524,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          plan?: string | null
           receipt_path?: string | null
           status?: string
         }
@@ -532,6 +534,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          plan?: string | null
           receipt_path?: string | null
           status?: string
         }
