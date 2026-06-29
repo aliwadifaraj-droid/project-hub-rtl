@@ -68,6 +68,7 @@ function AdminVipPage() {
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">{s.name}</TableCell>
                   <TableCell>{s.email}</TableCell>
+                  <TableCell className="whitespace-nowrap">{(s as { plan?: string | null }).plan ?? "—"}</TableCell>
                   <TableCell>{statusBadge(s.status)}</TableCell>
                   <TableCell>
                     {s.receipt_url ? (
