@@ -84,7 +84,7 @@ function AdminVipPage() {
                     <div className="flex gap-2">
                       {s.status !== "active" && (
                         <Button size="sm" onClick={() => approve.mutate(s.id)} disabled={approve.isPending}>
-                          تفعيل
+                          موافقة يدوي
                         </Button>
                       )}
                       {s.status !== "rejected" && (
