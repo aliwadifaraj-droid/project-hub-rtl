@@ -56,6 +56,7 @@ function AdminVipPage() {
               <TableRow>
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
+                <TableHead>الباقة</TableHead>
                 <TableHead>الحالة</TableHead>
                 <TableHead>الإيصال</TableHead>
                 <TableHead>التاريخ</TableHead>
@@ -67,6 +68,7 @@ function AdminVipPage() {
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">{s.name}</TableCell>
                   <TableCell>{s.email}</TableCell>
+                  <TableCell className="whitespace-nowrap">{(s as { plan?: string | null }).plan ?? "—"}</TableCell>
                   <TableCell>{statusBadge(s.status)}</TableCell>
                   <TableCell>
                     {s.receipt_url ? (
@@ -82,7 +84,7 @@ function AdminVipPage() {
                     <div className="flex gap-2">
                       {s.status !== "active" && (
                         <Button size="sm" onClick={() => approve.mutate(s.id)} disabled={approve.isPending}>
-                          تفعيل
+                          موافقة يدوي
                         </Button>
                       )}
                       {s.status !== "rejected" && (

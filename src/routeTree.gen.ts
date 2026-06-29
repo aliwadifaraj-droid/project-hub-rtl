@@ -23,7 +23,6 @@ import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VipIndexRouteImport } from './routes/vip.index'
-import { Route as VipPaymentRouteImport } from './routes/vip.payment'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
@@ -116,11 +115,6 @@ const IndexRoute = IndexRouteImport.update({
 const VipIndexRoute = VipIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => VipRoute,
-} as any)
-const VipPaymentRoute = VipPaymentRouteImport.update({
-  id: '/payment',
-  path: '/payment',
   getParentRoute: () => VipRoute,
 } as any)
 const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
@@ -275,7 +269,6 @@ export interface FileRoutesByFullPath {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/vip/payment': typeof VipPaymentRoute
   '/vip/': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -313,7 +306,6 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/vip/payment': typeof VipPaymentRoute
   '/vip': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -355,7 +347,6 @@ export interface FileRoutesById {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/vip/payment': typeof VipPaymentRoute
   '/vip/': typeof VipIndexRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -397,7 +388,6 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/project/$id'
     | '/projects/$projectId'
-    | '/vip/payment'
     | '/vip/'
     | '/admin/ads'
     | '/admin/chat'
@@ -435,7 +425,6 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/project/$id'
     | '/projects/$projectId'
-    | '/vip/payment'
     | '/vip'
     | '/admin/ads'
     | '/admin/chat'
@@ -476,7 +465,6 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/project/$id'
     | '/projects/$projectId'
-    | '/vip/payment'
     | '/vip/'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/chat'
@@ -616,13 +604,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/vip/'
       preLoaderRoute: typeof VipIndexRouteImport
-      parentRoute: typeof VipRoute
-    }
-    '/vip/payment': {
-      id: '/vip/payment'
-      path: '/payment'
-      fullPath: '/vip/payment'
-      preLoaderRoute: typeof VipPaymentRouteImport
       parentRoute: typeof VipRoute
     }
     '/projects/$projectId': {
@@ -870,12 +851,10 @@ const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
 )
 
 interface VipRouteChildren {
-  VipPaymentRoute: typeof VipPaymentRoute
   VipIndexRoute: typeof VipIndexRoute
 }
 
 const VipRouteChildren: VipRouteChildren = {
-  VipPaymentRoute: VipPaymentRoute,
   VipIndexRoute: VipIndexRoute,
 }
 
@@ -905,13 +884,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

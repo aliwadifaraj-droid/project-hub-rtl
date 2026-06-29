@@ -14,13 +14,13 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("vip_subscribers")
-      .select("id,name,email,status,receipt_path,notes,created_at")
+      .select("id,name,email,status,receipt_path,notes,plan,created_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
 
     // Generate signed URLs for receipts
     const rows = await Promise.all(
-      (data ?? []).map(async (r) => {
+      (data ?? []).map(async (r: typeof data[number] & { plan?: string | null }) => {
         let receipt_url: string | null = null;
         if (r.receipt_path) {
           const { data: signed } = await supabaseAdmin.storage
@@ -35,10 +35,11 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
   });
 
 export const submitVipSubscription = createServerFn({ method: "POST" })
-  .inputValidator((data: { name: string; email: string; receipt_path: string }) => {
+  .inputValidator((data: { name: string; email: string; receipt_path: string; plan: string }) => {
     if (!data?.name?.trim() || !data?.email?.trim()) throw new Error("الاسم والبريد مطلوبان");
     if (!data?.receipt_path?.trim()) throw new Error("إيصال التحويل مطلوب");
-    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim() };
+    if (!data?.plan?.trim()) throw new Error("اختر الباقة");
+    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim() };
   })
   .handler(async ({ data }) => {
     const { createClient } = await import("@supabase/supabase-js");
