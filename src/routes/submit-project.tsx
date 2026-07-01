@@ -24,7 +24,7 @@ function SubmitProjectPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  
+  const [email, setEmail] = useState("");
   
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -47,8 +47,13 @@ function SubmitProjectPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !description.trim() || !location.trim()) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!name.trim() || !description.trim() || !location.trim() || !email.trim()) {
       toast.error("جميع الحقول الأساسية إجبارية");
+      return;
+    }
+    if (!emailRegex.test(email.trim())) {
+      toast.error("يرجى إدخال بريد إلكتروني صحيح");
       return;
     }
     setSubmitting(true);
@@ -61,13 +66,14 @@ function SubmitProjectPage() {
           .from("project-images")
           .upload(path, f, { contentType: f.type, upsert: false });
         if (upErr) throw new Error(upErr.message);
-        uploadedPaths.push(supabase.storage.from("projects").getPublicUrl(path).data.publicUrl);
+        uploadedPaths.push(path);
       }
       const result = await submitAd({
         data: {
           title: name.trim(),
           description: `${description.trim()}\n\n📍 ${location.trim()}`,
           image_path: uploadedPaths[0] ?? "",
+          contact_email: email.trim(),
           domain: "",
         },
       });
@@ -76,7 +82,7 @@ function SubmitProjectPage() {
       }
       setDone(true);
     } catch (err) {
-      const formData = { name, description, location, files: files.map(f => f.name) };
+      const formData = { name, description, location, email, files: files.map(f => f.name) };
       alert(JSON.stringify(formData));
       toast.error(err instanceof Error ? err.message : "تعذر إرسال الطلب");
     } finally {
@@ -136,6 +142,17 @@ function SubmitProjectPage() {
                     required maxLength={300}
                     value={location} onChange={(e) => setLocation(e.target.value)}
                     className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </Field>
+                <Field label="البريد الإلكتروني">
+                  <input
+                    type="email"
+                    required
+                    maxLength={255}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="example@email.com"
                   />
                 </Field>
 

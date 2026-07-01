@@ -6,7 +6,8 @@ export const getVipMaintenance = createServerFn({ method: "GET" }).handler(async
   const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data } = await sb.from("site_settings").select("value").eq("key", "vip_maintenance").maybeSingle();
+  const { data, error } = await sb.from("site_settings").select("value").eq("key", "vip_maintenance").maybeSingle();
+  if (error) throw new Error(error.message);
   const v = (data?.value ?? {}) as { enabled?: boolean };
   return { enabled: !!v.enabled };
 });
@@ -16,8 +17,9 @@ export const setVipMaintenance = createServerFn({ method: "POST" })
   .inputValidator((d: { enabled: boolean }) => ({ enabled: !!d?.enabled }))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
+    const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+    if (roleError) throw new Error(roleError.message);
+    if (!isAdmin) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
       .from("site_settings")

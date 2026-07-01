@@ -67,7 +67,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
-      .select("id,title,description,image_url,link_url,status,created_by,created_at")
+      .select("id,title,description,image_url,link_url,status,created_by,contact_email,created_at")
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -83,7 +83,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
       (data ?? []).map(async (a) => ({
         ...a,
         image_signed_url: await resolveImage(a.image_url),
-        submitter_label: a.created_by ? (emailById.get(a.created_by) ?? "موظف") : "زائر",
+        submitter_label: a.created_by ? (emailById.get(a.created_by) ?? "موظف") : (a.contact_email ?? "زائر"),
       })),
     );
     return { rows, isAdmin: roles.includes("admin") };
@@ -254,6 +254,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
       title: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
       image_path: z.string().trim().max(500).optional().default(""),
+      contact_email: z.string().trim().email().max(255).optional().default(""),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -265,6 +266,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
         title: data.title,
         description: data.description || null,
         image_url: safePath || null,
+        contact_email: data.contact_email || null,
         status: "pending",
       })
       .select("id")

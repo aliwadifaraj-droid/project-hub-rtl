@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { Star, Check, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { submitVipSubscription } from "@/lib/vip.functions";
-import { getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
+import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 
 // ⚠️ غيّر اسم المستخدم في PayPal إلى الحساب الفعلي
@@ -40,12 +40,19 @@ function VipPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const getMx = useServerFn(getVipMaintenance);
-  const setMx = useServerFn(setVipMaintenance);
   const qc = useQueryClient();
   const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
   const toggleMx = useMutation({
-    mutationFn: (enabled: boolean) => setMx({ data: { enabled } }),
-    onSuccess: (r) => { toast.success(r.enabled ? "تم تفعيل الصيانة" : "تم إلغاء الصيانة"); qc.invalidateQueries({ queryKey: ["vip-maintenance"] }); },
+    mutationFn: async (enabled: boolean) => {
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes.user || !isAdmin) throw new Error("هذه العملية للأدمن فقط");
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ key: "vip_maintenance", value: { enabled }, updated_at: new Date().toISOString() });
+      if (error) throw new Error(error.message);
+      return { enabled };
+    },
+    onSuccess: (r) => { toast.success(r.enabled ? "تم تفعيل الصيانة" : "تم إلغاء الصيانة"); qc.setQueryData(["vip-maintenance"], { enabled: r.enabled }); qc.invalidateQueries({ queryKey: ["vip-maintenance"] }); },
     onError: (e) => toast.error((e as Error).message),
   });
 
