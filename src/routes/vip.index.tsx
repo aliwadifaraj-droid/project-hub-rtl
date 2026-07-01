@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { Toaster } from "@/components/ui/sonner";
 import { Star, Check, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { submitVipSubscription } from "@/lib/vip.functions";
@@ -98,6 +99,7 @@ function VipPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background" dir="rtl">
       <SiteHeader />
+      <Toaster position="top-center" dir="rtl" />
       <main className="flex-1">
         <section className="border-b border-border/60 bg-secondary/30">
           <div className="container mx-auto px-4 py-12 sm:py-16">
