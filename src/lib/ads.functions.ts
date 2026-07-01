@@ -20,7 +20,24 @@ async function assertAdmin(supabase: any, userId: string) {
 
 async function resolveImage(path: string | null): Promise<string> {
   if (!path) return "";
-  if (path.startsWith("http") || path.startsWith("data:")) return path;
+  if (path.startsWith("data:")) return path;
+  if (path.startsWith("http")) {
+    try {
+      const url = new URL(path);
+      const marker = "/storage/v1/object/public/projects/";
+      const idx = url.pathname.indexOf(marker);
+      if (idx >= 0) {
+        path = decodeURIComponent(url.pathname.slice(idx + marker.length));
+      } else {
+        const publicProjectImages = "/storage/v1/object/public/project-images/";
+        const projectImagesIdx = url.pathname.indexOf(publicProjectImages);
+        if (projectImagesIdx >= 0) path = decodeURIComponent(url.pathname.slice(projectImagesIdx + publicProjectImages.length));
+        else return path;
+      }
+    } catch {
+      return path;
+    }
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin.storage
     .from("project-images")
