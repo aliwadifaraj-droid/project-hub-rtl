@@ -271,7 +271,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
       title: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
       image_path: z.string().trim().max(500).optional().default(""),
-      contact_email: z.string().trim().email().max(255).optional().default(""),
+      contact_email: z.string().trim().max(255).refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "بريد إلكتروني غير صحيح").optional().default(""),
     }).parse(d),
   )
   .handler(async ({ data }) => {
