@@ -124,6 +124,11 @@ function AdminAdsPage() {
                     {(ad as { submitter_label?: string }).submitter_label ?? (ad.created_by ? "موظف" : "زائر")}
                   </span>
                 </div>
+                {(ad as { contact_email?: string | null }).contact_email ? (
+                  <div className="mb-3 text-xs text-muted-foreground">
+                    بريد الزائر: <span className="font-semibold text-foreground">{(ad as { contact_email?: string }).contact_email}</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
                   <span className="text-xs text-muted-foreground">
                     {new Date(ad.created_at).toLocaleDateString("ar")}
