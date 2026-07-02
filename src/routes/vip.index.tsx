@@ -171,6 +171,34 @@ function VipPage() {
               })}
             </div>
 
+            <div className="mx-auto mt-8 max-w-xl rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-bold text-center">تفاصيل التحويل البنكي</h2>
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex justify-between border-b border-border/60 py-2">
+                  <span className="text-muted-foreground">اسم البنك</span>
+                  <span className="font-bold">{BANK_INFO.name}</span>
+                </div>
+                <div className="flex justify-between border-b border-border/60 py-2">
+                  <span className="text-muted-foreground">صاحب الحساب</span>
+                  <span className="font-bold">{BANK_INFO.holder}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 py-2">
+                  <span className="text-muted-foreground">IBAN</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold" dir="ltr">{BANK_INFO.iban}</span>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(BANK_INFO.iban.replace(/\s/g, "")); toast.success("تم نسخ الآيبان"); }}
+                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary"
+                    >
+                      نسخ
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground text-center">حوّل قيمة الباقة ثم ارفع صورة الإيصال بالأسفل.</p>
+            </div>
+
             <form onSubmit={handleSubmit} className="mx-auto mt-10 grid max-w-xl gap-3 rounded-xl border border-border bg-card p-6 text-start">
               <h2 className="text-lg font-bold text-center">إرسال طلب الاشتراك</h2>
               <label className="text-sm font-medium">الباقة المختارة</label>
