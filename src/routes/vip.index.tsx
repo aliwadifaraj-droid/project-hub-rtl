@@ -11,8 +11,11 @@ import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 
-// ⚠️ غيّر اسم المستخدم في PayPal إلى الحساب الفعلي
-const PAYPAL_USERNAME = "alialhaddad";
+const BANK_INFO = {
+  name: "البنك الأهلي",
+  holder: "AHMED SALMI",
+  iban: "SA35 1000 0065 5000 4711 0807",
+};
 
 const PLANS = [
   { id: "شهر", label: "اشتراك شهر", price: 125, duration: "30 يوم" },
@@ -68,10 +71,8 @@ function VipPage() {
 
   const maintenance = !!mx?.enabled;
 
-  function openPayPal(amount: number, planId: string) {
-    setSelectedPlan(planId);
-    window.open(`https://paypal.me/${PAYPAL_USERNAME}/${amount}`, "_blank", "noopener");
-  }
+
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -152,10 +153,10 @@ function VipPage() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => openPayPal(p.price, p.id)}
+                      onClick={() => setSelectedPlan(p.id)}
                       className="mt-4 w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90"
                     >
-                      ادفع عبر PayPal
+                      اختر هذه الباقة
                     </button>
                     <button
                       type="button"
@@ -168,6 +169,34 @@ function VipPage() {
                   </div>
                 );
               })}
+            </div>
+
+            <div className="mx-auto mt-8 max-w-xl rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-bold text-center">تفاصيل التحويل البنكي</h2>
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex justify-between border-b border-border/60 py-2">
+                  <span className="text-muted-foreground">اسم البنك</span>
+                  <span className="font-bold">{BANK_INFO.name}</span>
+                </div>
+                <div className="flex justify-between border-b border-border/60 py-2">
+                  <span className="text-muted-foreground">صاحب الحساب</span>
+                  <span className="font-bold">{BANK_INFO.holder}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 py-2">
+                  <span className="text-muted-foreground">IBAN</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold" dir="ltr">{BANK_INFO.iban}</span>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(BANK_INFO.iban.replace(/\s/g, "")); toast.success("تم نسخ الآيبان"); }}
+                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary"
+                    >
+                      نسخ
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground text-center">حوّل قيمة الباقة ثم ارفع صورة الإيصال بالأسفل.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="mx-auto mt-10 grid max-w-xl gap-3 rounded-xl border border-border bg-card p-6 text-start">
