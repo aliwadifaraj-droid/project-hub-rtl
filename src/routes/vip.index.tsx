@@ -153,10 +153,10 @@ function VipPage() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => openPayPal(p.price, p.id)}
+                      onClick={() => setSelectedPlan(p.id)}
                       className="mt-4 w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90"
                     >
-                      ادفع عبر PayPal
+                      اختر هذه الباقة
                     </button>
                     <button
                       type="button"
