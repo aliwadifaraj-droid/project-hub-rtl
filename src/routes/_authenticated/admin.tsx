@@ -3,12 +3,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyRoles } from "@/lib/admin.functions";
+import { getMyRoles, sendTestEmail } from "@/lib/admin.functions";
 import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox, MessagesSquare, Megaphone, PlusCircle, Bell, ClipboardCheck, Check, Star } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox, MessagesSquare, Megaphone, PlusCircle, Bell, ClipboardCheck, Check, Star, Mail } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
@@ -206,6 +206,26 @@ function AdminLayout() {
                 </span>
               )}
             </Link>
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  const to = window.prompt("أدخل البريد لإرسال بريد تجريبي:", "");
+                  if (!to) return;
+                  const tId = toast.loading("جارٍ إرسال البريد التجريبي...");
+                  try {
+                    const r = await sendTestEmail({ data: { to } });
+                    toast.success(`تم الإرسال بنجاح إلى ${r.to}${r.id ? ` (ID: ${r.id})` : ""}`, { id: tId });
+                  } catch (e: any) {
+                    toast.error(`فشل الإرسال: ${e?.message ?? "خطأ غير معروف"}`, { id: tId, duration: 8000 });
+                  }
+                }}
+                aria-label="إرسال بريد تجريبي"
+                title="إرسال بريد تجريبي"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
+              >
+                <Mail className="h-4 w-4" />
+              </button>
+            )}
             <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
               {roleLabel}
             </span>

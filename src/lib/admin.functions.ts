@@ -175,6 +175,43 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------- Admin: send test email via Resend ----------
+export const sendTestEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { to: string }) =>
+    z.object({ to: z.string().email() }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+    if (!isAdmin) throw new Error("غير مصرح");
+
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: "noreply@ali-alhaddad.com",
+        to: [data.to],
+        subject: "بريد تجريبي من لوحة الإدارة",
+        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً 👋</h2><p>هذا بريد تجريبي للتأكد من عمل إرسال البريد عبر Resend من نطاق <strong>ali-alhaddad.com</strong>.</p><p>الوقت: ${new Date().toLocaleString("ar")}</p></div>`,
+      }),
+    });
+
+    const bodyText = await res.text();
+    if (!res.ok) {
+      throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
+    }
+    let id: string | undefined;
+    try { id = JSON.parse(bodyText)?.id; } catch { /* ignore */ }
+    return { ok: true, id, to: data.to };
+  });
+
 
 // ---------- Admin: project CRUD ----------
 const projectSchema = z.object({
