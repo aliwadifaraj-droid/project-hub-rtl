@@ -125,14 +125,56 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { error } = await supabase
+    const { data: row, error } = await supabase
       .from("project_requests")
       .update({ status: data.status })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("email,company_name,projects(name)")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+
+    // Send email via Resend on accepted/rejected
+    if (row?.email && (data.status === "accepted" || data.status === "rejected")) {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        console.error("RESEND_API_KEY missing — skipping email");
+      } else {
+        const projectName = (row as any).projects?.name || row.company_name || "طلبك";
+        const isAccepted = data.status === "accepted";
+        const subject = isAccepted ? "تم قبول طلبك ✅" : "تم رفض طلبك";
+        const html = isAccepted
+          ? `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً،</h2><p>يسعدنا إبلاغك بأنه تم <strong>قبول</strong> طلبك المتعلق بـ "${projectName}".</p><p>سنتواصل معك قريباً لاستكمال التفاصيل.</p><p>شكراً لثقتك بنا.</p></div>`
+          : `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً،</h2><p>نأسف لإبلاغك بأنه تم <strong>رفض</strong> طلبك المتعلق بـ "${projectName}" في الوقت الحالي.</p><p>يمكنك التواصل معنا لمزيد من المعلومات.</p></div>`;
+
+        try {
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              from: "noreply@ali-alhaddad.com",
+              to: [row.email],
+              subject,
+              html,
+            }),
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            console.error("Resend send failed", res.status, errText);
+          } else {
+            console.log("Resend email sent to", row.email);
+          }
+        } catch (e) {
+          console.error("Resend send exception", e);
+        }
+      }
+    }
 
     return { ok: true };
   });
+
 
 // ---------- Admin: project CRUD ----------
 const projectSchema = z.object({
