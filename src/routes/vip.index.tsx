@@ -71,10 +71,8 @@ function VipPage() {
 
   const maintenance = !!mx?.enabled;
 
-  function openPayPal(amount: number, planId: string) {
-    setSelectedPlan(planId);
-    window.open(`https://paypal.me/${PAYPAL_USERNAME}/${amount}`, "_blank", "noopener");
-  }
+
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
