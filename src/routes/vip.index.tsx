@@ -11,8 +11,11 @@ import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 
-// ⚠️ غيّر اسم المستخدم في PayPal إلى الحساب الفعلي
-const PAYPAL_USERNAME = "alialhaddad";
+const BANK_INFO = {
+  name: "البنك الأهلي",
+  holder: "AHMED SALMI",
+  iban: "SA35 1000 0065 5000 4711 0807",
+};
 
 const PLANS = [
   { id: "شهر", label: "اشتراك شهر", price: 125, duration: "30 يوم" },
