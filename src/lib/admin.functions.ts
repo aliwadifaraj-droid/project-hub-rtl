@@ -399,6 +399,21 @@ export const adminListMessages = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
+export const countContactMessages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ since: z.string().nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
+    let q = supabase.from("contact_messages").select("id", { count: "exact", head: true });
+    if (data.since) q = q.gt("created_at", data.since);
+    const { count, error } = await q;
+    if (error) throw new Error(error.message);
+    return { count: count ?? 0 };
+  });
+
 export const adminDeleteContactMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
