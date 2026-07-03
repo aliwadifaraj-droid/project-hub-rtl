@@ -60,7 +60,7 @@ export function SiteHeader() {
       const res = await countChatFn({ data: { since } });
       return res.count;
     },
-    enabled: signedIn && isStaff,
+    enabled: signedIn,
   });
 
   // realtime: refetch chat unread on new messages
