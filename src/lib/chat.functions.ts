@@ -2,13 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function assertStaff(supabase: any, userId: string) {
+async function getRoles(supabase: any, userId: string) {
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  const roles = (data ?? []).map((r: { role: string }) => r.role);
-  if (!roles.includes("admin") && !roles.includes("employee")) {
-    throw new Error("Forbidden");
-  }
-  return roles as ("admin" | "employee")[];
+  return (data ?? []).map((r: { role: string }) => r.role) as ("admin" | "employee")[];
 }
 
 export const listTeamMessages = createServerFn({ method: "GET" })
