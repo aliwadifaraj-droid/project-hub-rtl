@@ -51,7 +51,7 @@ export function SiteHeader() {
     queryFn: () => rolesFn(),
     enabled: signedIn,
   });
-  const isStaff = myRoles.includes("admin") || myRoles.includes("employee");
+  void myRoles;
 
   const { data: chatUnread = 0, refetch: refetchChat } = useQuery({
     queryKey: ["chat-unread-count"],
@@ -60,12 +60,12 @@ export function SiteHeader() {
       const res = await countChatFn({ data: { since } });
       return res.count;
     },
-    enabled: signedIn && isStaff,
+    enabled: signedIn,
   });
 
   // realtime: refetch chat unread on new messages
   useEffect(() => {
-    if (!signedIn || !isStaff) return;
+    if (!signedIn) return;
     const ch = supabase
       .channel("team_messages_badge")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_messages" }, () => {
@@ -75,7 +75,7 @@ export function SiteHeader() {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [signedIn, isStaff, refetchChat]);
+  }, [signedIn, refetchChat]);
 
   async function toggle(next: boolean) {
     setOpen(next);
@@ -121,7 +121,7 @@ export function SiteHeader() {
             <ClipboardList className="h-4 w-4" /> طلباتي
           </Link>
 
-          {signedIn && isStaff && (
+          {signedIn && (
             <Link
               to="/admin/chat"
               onClick={handleChatClick}

@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyRoles, sendTestEmail } from "@/lib/admin.functions";
+import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.functions";
 import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
@@ -26,6 +26,7 @@ function AdminLayout() {
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
+  const countContactsFn = useServerFn(countContactMessages);
   const qc = useQueryClient();
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
@@ -62,6 +63,36 @@ function AdminLayout() {
     queryFn: () => listNotifs(),
     enabled: notifOpen,
   });
+
+  const CONTACT_SEEN_KEY = "admin_contact_msgs_last_seen";
+  const { data: contactUnread = 0, refetch: refetchContact } = useQuery({
+    queryKey: ["contact-messages-unread"],
+    queryFn: async () => {
+      const since = typeof window !== "undefined" ? localStorage.getItem(CONTACT_SEEN_KEY) : null;
+      const res = await countContactsFn({ data: { since } });
+      return res.count;
+    },
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const ch = supabase
+      .channel("admin_contact_messages_bell")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "contact_messages" }, () => {
+        refetchContact();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isAdmin, refetchContact]);
+
+  function handleContactBellClick() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString());
+    }
+    qc.setQueryData(["contact-messages-unread"], 0);
+  }
 
   useEffect(() => {
     if (!roles || roles.length === 0) return;
@@ -206,6 +237,26 @@ function AdminLayout() {
                 </span>
               )}
             </Link>
+            {isAdmin && (
+              <Link
+                to="/admin/messages"
+                onClick={handleContactBellClick}
+                aria-label="رسائل التواصل"
+                title="رسائل التواصل"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  contactUnread > 0
+                    ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                {contactUnread > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {contactUnread > 99 ? "99+" : contactUnread}
+                  </span>
+                )}
+              </Link>
+            )}
             {isAdmin && (
               <button
                 onClick={async () => {

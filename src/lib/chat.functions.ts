@@ -2,20 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function assertStaff(supabase: any, userId: string) {
+async function getRoles(supabase: any, userId: string) {
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  const roles = (data ?? []).map((r: { role: string }) => r.role);
-  if (!roles.includes("admin") && !roles.includes("employee")) {
-    throw new Error("Forbidden");
-  }
-  return roles as ("admin" | "employee")[];
+  return (data ?? []).map((r: { role: string }) => r.role) as ("admin" | "employee")[];
 }
 
 export const listTeamMessages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await assertStaff(supabase, userId);
+    void userId;
+
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: msgs, error } = await supabaseAdmin
@@ -55,7 +52,8 @@ export const sendTeamMessage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertStaff(supabase, userId);
+    void supabase;
+
     const { error } = await supabase
       .from("team_messages")
       .insert({ user_id: userId, body: data.body });
@@ -68,7 +66,7 @@ export const deleteTeamMessage = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const roles = await assertStaff(supabase, userId);
+    const roles = await getRoles(supabase, userId);
     const isAdmin = roles.includes("admin");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const query = supabaseAdmin.from("team_messages").delete().eq("id", data.id);
@@ -85,7 +83,7 @@ export const countUnreadTeamMessages = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertStaff(supabase, userId);
+    void supabase;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("team_messages")
