@@ -52,7 +52,8 @@ export const sendTeamMessage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertStaff(supabase, userId);
+    void supabase;
+
     const { error } = await supabase
       .from("team_messages")
       .insert({ user_id: userId, body: data.body });
