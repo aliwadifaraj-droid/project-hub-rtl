@@ -11,7 +11,8 @@ export const listTeamMessages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await assertStaff(supabase, userId);
+    void userId;
+
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: msgs, error } = await supabaseAdmin
