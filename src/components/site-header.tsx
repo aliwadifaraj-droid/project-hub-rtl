@@ -121,7 +121,7 @@ export function SiteHeader() {
             <ClipboardList className="h-4 w-4" /> طلباتي
           </Link>
 
-          {signedIn && isStaff && (
+          {signedIn && (
             <Link
               to="/admin/chat"
               onClick={handleChatClick}
