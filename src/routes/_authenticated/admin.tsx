@@ -26,6 +26,7 @@ function AdminLayout() {
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
+  const countContactsFn = useServerFn(countContactMessages);
   const qc = useQueryClient();
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
