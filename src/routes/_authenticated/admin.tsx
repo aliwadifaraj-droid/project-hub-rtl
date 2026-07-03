@@ -7,10 +7,13 @@ import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.fun
 import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
+import { countUnreadTeamMessages } from "@/lib/chat.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
 import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox, MessagesSquare, Megaphone, PlusCircle, Bell, ClipboardCheck, Check, Star, Mail } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+
+const TEAM_CHAT_SEEN_KEY = "team_chat_last_seen";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
@@ -23,6 +26,7 @@ function AdminLayout() {
   const countPending = useServerFn(countPendingAds);
   const countPendingProj = useServerFn(countPendingProjects);
   const countUnread = useServerFn(countMyUnreadNotifications);
+  const countTeamUnread = useServerFn(countUnreadTeamMessages);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
@@ -58,6 +62,16 @@ function AdminLayout() {
     enabled: !!roles && roles.length > 0,
     refetchInterval: 30000,
   });
+  const { data: teamChatUnread = 0, refetch: refetchTeamChatUnread } = useQuery({
+    queryKey: ["chat-unread-count"],
+    queryFn: async () => {
+      const since = typeof window !== "undefined" ? localStorage.getItem(TEAM_CHAT_SEEN_KEY) : null;
+      const res = await countTeamUnread({ data: { since } });
+      return res.count;
+    },
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 30000,
+  });
   const { data: notifs } = useQuery({
     queryKey: ["my-notifications"],
     queryFn: () => listNotifs(),
@@ -87,11 +101,31 @@ function AdminLayout() {
     return () => { supabase.removeChannel(ch); };
   }, [isAdmin, refetchContact]);
 
+  useEffect(() => {
+    if (!roles || roles.length === 0) return;
+    const channel = supabase
+      .channel("admin_team_chat_bell")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_messages" }, () => {
+        refetchTeamChatUnread();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roles, refetchTeamChatUnread]);
+
   function handleContactBellClick() {
     if (typeof window !== "undefined") {
       localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString());
     }
     qc.setQueryData(["contact-messages-unread"], 0);
+  }
+
+  function handleTeamChatBellClick() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TEAM_CHAT_SEEN_KEY, new Date().toISOString());
+    }
+    qc.setQueryData(["chat-unread-count"], 0);
   }
 
   useEffect(() => {
@@ -237,6 +271,24 @@ function AdminLayout() {
                 </span>
               )}
             </Link>
+            <Link
+              to="/admin/chat"
+              onClick={handleTeamChatBellClick}
+              aria-label="رسائل شات الفريق"
+              title="رسائل شات الفريق"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                teamChatUnread > 0
+                  ? "border-primary bg-primary text-primary-foreground animate-pulse hover:bg-primary/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
+            >
+              <MessagesSquare className="h-4 w-4" />
+              {teamChatUnread > 0 && (
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  {teamChatUnread > 99 ? "99+" : teamChatUnread}
+                </span>
+              )}
+            </Link>
             {isAdmin && (
               <Link
                 to="/admin/messages"
@@ -299,6 +351,11 @@ function AdminLayout() {
                 {isAdsItem && pendingCount > 0 && (
                   <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
                     {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
+                {i.to === "/admin/chat" && teamChatUnread > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {teamChatUnread > 99 ? "99+" : teamChatUnread}
                   </span>
                 )}
                 {isPendingProjItem && pendingProjectsCount > 0 && (
