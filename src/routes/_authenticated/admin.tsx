@@ -238,6 +238,26 @@ function AdminLayout() {
               )}
             </Link>
             {isAdmin && (
+              <Link
+                to="/admin/messages"
+                onClick={handleContactBellClick}
+                aria-label="رسائل التواصل"
+                title="رسائل التواصل"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  contactUnread > 0
+                    ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                {contactUnread > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {contactUnread > 99 ? "99+" : contactUnread}
+                  </span>
+                )}
+              </Link>
+            )}
+            {isAdmin && (
               <button
                 onClick={async () => {
                   const to = window.prompt("أدخل البريد لإرسال بريد تجريبي:", "");
