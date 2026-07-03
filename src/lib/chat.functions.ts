@@ -83,7 +83,7 @@ export const countUnreadTeamMessages = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertStaff(supabase, userId);
+    void supabase;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("team_messages")
