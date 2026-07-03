@@ -65,7 +65,7 @@ export function SiteHeader() {
 
   // realtime: refetch chat unread on new messages
   useEffect(() => {
-    if (!signedIn || !isStaff) return;
+    if (!signedIn) return;
     const ch = supabase
       .channel("team_messages_badge")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_messages" }, () => {
@@ -75,7 +75,7 @@ export function SiteHeader() {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [signedIn, isStaff, refetchChat]);
+  }, [signedIn, refetchChat]);
 
   async function toggle(next: boolean) {
     setOpen(next);
