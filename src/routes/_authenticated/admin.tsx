@@ -64,6 +64,36 @@ function AdminLayout() {
     enabled: notifOpen,
   });
 
+  const CONTACT_SEEN_KEY = "admin_contact_msgs_last_seen";
+  const { data: contactUnread = 0, refetch: refetchContact } = useQuery({
+    queryKey: ["contact-messages-unread"],
+    queryFn: async () => {
+      const since = typeof window !== "undefined" ? localStorage.getItem(CONTACT_SEEN_KEY) : null;
+      const res = await countContactsFn({ data: { since } });
+      return res.count;
+    },
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const ch = supabase
+      .channel("admin_contact_messages_bell")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "contact_messages" }, () => {
+        refetchContact();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isAdmin, refetchContact]);
+
+  function handleContactBellClick() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString());
+    }
+    qc.setQueryData(["contact-messages-unread"], 0);
+  }
+
   useEffect(() => {
     if (!roles || roles.length === 0) return;
     const channel = supabase
