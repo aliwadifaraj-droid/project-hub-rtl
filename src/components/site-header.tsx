@@ -51,7 +51,7 @@ export function SiteHeader() {
     queryFn: () => rolesFn(),
     enabled: signedIn,
   });
-  const isStaff = myRoles.includes("admin") || myRoles.includes("employee");
+  void myRoles;
 
   const { data: chatUnread = 0, refetch: refetchChat } = useQuery({
     queryKey: ["chat-unread-count"],
