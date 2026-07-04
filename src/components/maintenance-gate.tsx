@@ -14,7 +14,10 @@ const ALLOW_PREFIXES = [
   "/email/",
   "/unsubscribe",
   "/api/",
+  "/admin",
+  "/settings",
 ];
+
 
 export function MaintenanceGate() {
   const path = useRouterState({ select: (s) => s.location.pathname });
