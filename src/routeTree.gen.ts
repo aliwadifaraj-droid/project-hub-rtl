@@ -17,6 +17,7 @@ import { Route as SubmitProjectRouteImport } from './routes/submit-project'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as MyRequestsRouteImport } from './routes/my-requests'
+import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdsRouteImport } from './routes/ads'
@@ -36,6 +37,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authenticated/admin.requests'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin.projects'
 import { Route as AuthenticatedAdminPendingProjectsRouteImport } from './routes/_authenticated/admin.pending-projects'
@@ -86,6 +88,11 @@ const ProjectsRoute = ProjectsRouteImport.update({
 const MyRequestsRoute = MyRequestsRouteImport.update({
   id: '/my-requests',
   path: '/my-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MaintenanceRoute = MaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -183,6 +190,12 @@ const AuthenticatedAdminSubmissionsRoute =
     path: '/submissions',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminRequestsRoute =
   AuthenticatedAdminRequestsRouteImport.update({
     id: '/requests',
@@ -253,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
@@ -278,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
@@ -292,6 +307,7 @@ export interface FileRoutesByTo {
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
@@ -315,6 +331,7 @@ export interface FileRoutesByTo {
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
@@ -331,6 +348,7 @@ export interface FileRoutesById {
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
@@ -356,6 +374,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/_authenticated/admin/requests': typeof AuthenticatedAdminRequestsRoute
+  '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
@@ -372,6 +391,7 @@ export interface FileRouteTypes {
     | '/ads'
     | '/auth'
     | '/contact'
+    | '/maintenance'
     | '/my-requests'
     | '/projects'
     | '/reset-password'
@@ -397,6 +417,7 @@ export interface FileRouteTypes {
     | '/admin/pending-projects'
     | '/admin/projects'
     | '/admin/requests'
+    | '/admin/settings'
     | '/admin/submissions'
     | '/admin/users'
     | '/admin/vip'
@@ -411,6 +432,7 @@ export interface FileRouteTypes {
     | '/ads'
     | '/auth'
     | '/contact'
+    | '/maintenance'
     | '/my-requests'
     | '/projects'
     | '/reset-password'
@@ -434,6 +456,7 @@ export interface FileRouteTypes {
     | '/admin/pending-projects'
     | '/admin/projects'
     | '/admin/requests'
+    | '/admin/settings'
     | '/admin/submissions'
     | '/admin/users'
     | '/admin/vip'
@@ -449,6 +472,7 @@ export interface FileRouteTypes {
     | '/ads'
     | '/auth'
     | '/contact'
+    | '/maintenance'
     | '/my-requests'
     | '/projects'
     | '/reset-password'
@@ -474,6 +498,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pending-projects'
     | '/_authenticated/admin/projects'
     | '/_authenticated/admin/requests'
+    | '/_authenticated/admin/settings'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
@@ -490,6 +515,7 @@ export interface RootRouteChildren {
   AdsRoute: typeof AdsRouteWithChildren
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
+  MaintenanceRoute: typeof MaintenanceRoute
   MyRequestsRoute: typeof MyRequestsRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -562,6 +588,13 @@ declare module '@tanstack/react-router' {
       path: '/my-requests'
       fullPath: '/my-requests'
       preLoaderRoute: typeof MyRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/maintenance': {
+      id: '/maintenance'
+      path: '/maintenance'
+      fullPath: '/maintenance'
+      preLoaderRoute: typeof MaintenanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -697,6 +730,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/requests': {
       id: '/_authenticated/admin/requests'
       path: '/requests'
@@ -786,6 +826,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPendingProjectsRoute: typeof AuthenticatedAdminPendingProjectsRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
   AuthenticatedAdminRequestsRoute: typeof AuthenticatedAdminRequestsRoute
+  AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVipRoute: typeof AuthenticatedAdminVipRoute
@@ -802,6 +843,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminPendingProjectsRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
   AuthenticatedAdminRequestsRoute: AuthenticatedAdminRequestsRoute,
+  AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVipRoute: AuthenticatedAdminVipRoute,
@@ -866,6 +908,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdsRoute: AdsRouteWithChildren,
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
+  MaintenanceRoute: MaintenanceRoute,
   MyRequestsRoute: MyRequestsRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
@@ -884,13 +927,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
