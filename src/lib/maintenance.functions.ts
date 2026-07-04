@@ -15,8 +15,30 @@ export const getMaintenance = createServerFn({ method: "GET" }).handler(async ()
     .maybeSingle();
   if (error) throw new Error(error.message);
   const v = (data?.value ?? {}) as { enabled?: boolean; endAt?: string | null };
-  return { enabled: !!v.enabled, endAt: v.endAt ?? null };
+  let enabled = !!v.enabled;
+  const endAt = v.endAt ?? null;
+
+  // Auto-disable when countdown has ended
+  if (enabled && endAt) {
+    const endMs = new Date(endAt).getTime();
+    if (!Number.isNaN(endMs) && endMs <= Date.now()) {
+      enabled = false;
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.from("site_settings").upsert({
+          key: KEY,
+          value: { enabled: false, endAt },
+          updated_at: new Date().toISOString(),
+        });
+      } catch {
+        // best-effort; still return disabled to the client
+      }
+    }
+  }
+
+  return { enabled, endAt };
 });
+
 
 export const setMaintenance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
