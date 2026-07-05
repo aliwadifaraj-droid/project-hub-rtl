@@ -112,11 +112,27 @@ export const approveVipSubscriber = createServerFn({ method: "POST" })
     const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
+    const { data: row, error } = await supabaseAdmin
       .from("vip_subscribers")
       .update({ status: "active" })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("email,name,plan")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+
+    if (row?.email) {
+      try {
+        const { sendResendEmail } = await import("./resend-send.server");
+        const planText = row.plan ? ` (${row.plan})` : "";
+        await sendResendEmail({
+          to: row.email,
+          subject: "تم تفعيل اشتراك VIP ✅",
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتك بنا.</p></div>`,
+        });
+      } catch (e) {
+        console.error("vip approval email error", e);
+      }
+    }
     return { ok: true };
   });
 
