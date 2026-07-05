@@ -77,6 +77,22 @@ export const approveProject = createServerFn({ method: "POST" })
         body: `تمت الموافقة على المشروع: ${row.name}`,
         link: `/projects/${row.id}`,
       });
+
+      // Send email via Resend
+      try {
+        const { data: userRes } = await supabaseAdmin.auth.admin.getUserById(row.created_by);
+        const email = userRes?.user?.email;
+        if (email) {
+          const { sendResendEmail } = await import("./resend-send.server");
+          await sendResendEmail({
+            to: email,
+            subject: "تمت الموافقة على مشروعك ✅",
+            html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً،</h2><p>يسعدنا إبلاغك بأنه تمت <strong>الموافقة</strong> على مشروعك "${row.name}".</p><p>أصبح مشروعك الآن منشوراً ومتاحاً للعموم.</p><p>شكراً لثقتك بنا.</p></div>`,
+          });
+        }
+      } catch (e) {
+        console.error("project approval email error", e);
+      }
     }
     return { ok: true };
   });
