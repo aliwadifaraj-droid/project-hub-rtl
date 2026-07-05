@@ -11,11 +11,7 @@ const ALLOW_PREFIXES = [
   "/auth",
   "/reset-password",
   "/lovable/",
-  "/email/",
-  "/unsubscribe",
   "/api/",
-  "/admin",
-  "/settings",
 ];
 
 
