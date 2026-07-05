@@ -30,8 +30,11 @@ export function MaintenanceGate() {
 
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
-    queryFn: () => fetchRoles(),
+    queryFn: async () => {
+      try { return await fetchRoles(); } catch { return []; }
+    },
     staleTime: 30000,
+    retry: false,
   });
 
   const isAdmin = hasAdminRole(roles);
