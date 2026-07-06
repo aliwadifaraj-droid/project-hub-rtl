@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { upsertProject, deleteProject, listProjects, getMyRoles } from "@/lib/admin.functions";
+import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2 } from "lucide-react";
@@ -22,7 +22,9 @@ type ProjectRow = {
   cover_url: string;
   images: string[];
   pdf_file?: string | null;
+  created_by?: string | null;
 };
+
 
 
 function ProjectsAdminPage() {
@@ -30,10 +32,14 @@ function ProjectsAdminPage() {
   const upsert = useServerFn(upsertProject);
   const del = useServerFn(deleteProject);
   const getRoles = useServerFn(getMyRoles);
+  const whoami = useServerFn(getMyUserId);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["admin-projects"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
   const isAdmin = hasAdminRole(roles);
+  const myId = me?.userId ?? null;
+
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
 
@@ -83,18 +89,21 @@ function ProjectsAdminPage() {
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <ShareLinkButton id={p.id} />
-                <button onClick={() => setEditing(p)} className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
-                  <Pencil className="h-3.5 w-3.5" /> تعديل
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => { if (confirm("تأكيد الحذف؟")) delMut.mutate(p.id); }}
-                    className="inline-flex items-center justify-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> حذف
-                  </button>
+                {(isAdmin || (myId && p.created_by === myId)) && (
+                  <>
+                    <button onClick={() => setEditing(p)} className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
+                      <Pencil className="h-3.5 w-3.5" /> تعديل
+                    </button>
+                    <button
+                      onClick={() => { if (confirm("تأكيد الحذف؟")) delMut.mutate(p.id); }}
+                      className="inline-flex items-center justify-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> حذف
+                    </button>
+                  </>
                 )}
               </div>
+
             </div>
           </div>
         ))}

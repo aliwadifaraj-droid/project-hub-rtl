@@ -8,7 +8,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("projects")
-      .select("id,name,description,location,duration,cover_image,images,pdf_file")
+      .select("id,name,description,location,duration,cover_image,images,pdf_file,created_by")
       .eq("admin_approval", "approved")
       .order("created_at", { ascending: false });
     if (error) {
@@ -28,6 +28,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     return [];
   }
 });
+
 
 export const getProject = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
@@ -287,11 +288,30 @@ export const upsertProject = createServerFn({ method: "POST" })
     const { data: myRoles } = await supabase
       .from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = !!myRoles?.some((r) => r.role === "admin");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Duplicate name check for the same user (admin exempt)
+    if (!isAdmin) {
+      const dupQuery = supabaseAdmin
+        .from("projects")
+        .select("id")
+        .eq("created_by", userId)
+        .eq("name", data.name);
+      const { data: dup, error: dupErr } = data.id
+        ? await dupQuery.neq("id", data.id).maybeSingle()
+        : await dupQuery.maybeSingle();
+      if (dupErr) throw new Error(dupErr.message);
+      if (dup) throw new Error("لديك مشروع بنفس الاسم بالفعل");
+    }
 
     if (data.id) {
-      // only admins can edit existing projects
-      if (!isAdmin) throw new Error("غير مصرح بالتعديل");
-      const { error } = await supabase.from("projects").update(data).eq("id", data.id);
+      // Verify ownership or admin
+      const { data: existing, error: exErr } = await supabaseAdmin
+        .from("projects").select("created_by").eq("id", data.id).maybeSingle();
+      if (exErr) throw new Error(exErr.message);
+      if (!existing) throw new Error("المشروع غير موجود");
+      if (!isAdmin && existing.created_by !== userId) throw new Error("غير مصرح بالتعديل");
+      const { error } = await supabaseAdmin.from("projects").update(data).eq("id", data.id);
       if (error) throw new Error(error.message);
       return { id: data.id };
     }
@@ -301,7 +321,6 @@ export const upsertProject = createServerFn({ method: "POST" })
       created_by: userId,
       admin_approval: "approved",
     };
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("projects")
       .insert(insertRow)
@@ -315,11 +334,21 @@ export const deleteProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { error } = await supabase.from("projects").delete().eq("id", data.id);
+    const { supabase, userId } = context;
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    const isAdmin = !!myRoles?.some((r) => r.role === "admin");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing, error: exErr } = await supabaseAdmin
+      .from("projects").select("created_by").eq("id", data.id).maybeSingle();
+    if (exErr) throw new Error(exErr.message);
+    if (!existing) throw new Error("المشروع غير موجود");
+    if (!isAdmin && existing.created_by !== userId) throw new Error("غير مصرح بالحذف");
+    const { error } = await supabaseAdmin.from("projects").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
 
 // ---------- Admin: employees management ----------
 export const listEmployees = createServerFn({ method: "GET" })
@@ -438,6 +467,11 @@ export const getMyRoles = createServerFn({ method: "GET" })
     const roles = (data ?? []).map((r) => r.role as "admin" | "employee");
     return roles.sort((a, b) => (a === "admin" ? -1 : b === "admin" ? 1 : a.localeCompare(b)));
   });
+
+export const getMyUserId = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => ({ userId: context.userId }));
+
 
 // ---------- Admin/Staff: list contact messages ----------
 export const adminListMessages = createServerFn({ method: "GET" })
