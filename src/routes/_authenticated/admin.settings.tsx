@@ -37,13 +37,22 @@ function AdminSettings() {
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = hasAdminRole(roles);
 
+  const fetchHideChat = useServerFn(getHideSupportChat);
+  const saveHideChat = useServerFn(setHideSupportChat);
+
   const { data, isLoading } = useQuery({
     queryKey: ["maintenance-admin"],
     queryFn: () => fetchMaintenance(),
   });
 
+  const { data: hideChatData, isLoading: hideChatLoading } = useQuery({
+    queryKey: ["hide-support-chat-admin"],
+    queryFn: () => fetchHideChat(),
+  });
+
   const [enabled, setEnabled] = useState(false);
   const [endAt, setEndAt] = useState("");
+  const [hideChat, setHideChat] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
