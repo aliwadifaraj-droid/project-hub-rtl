@@ -204,14 +204,24 @@ export const visitorEscalate = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: chat } = await supabaseAdmin.from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (!chat) throw new Error("جلسة الشات غير موجودة");
-    if (chat.status !== "escalated") {
-      await supabaseAdmin.from("support_chats").update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", chat.id);
+    if (chat.status === "escalated") return { ok: true };
+    const settings = await loadBotSettings(supabaseAdmin);
+    const within = isWithinWorkHours(settings);
+    const allowEsc = settings?.allow_escalation !== false;
+    if (!within || !allowEsc) {
+      const offMsg = settings?.off_hours_message?.trim()
+        || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.";
       await supabaseAdmin.from("support_messages").insert({
-        chat_id: chat.id, sender: "system",
-        body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
+        chat_id: chat.id, sender: "bot", body: offMsg,
       });
+      return { ok: true, escalated: false };
     }
-    return { ok: true };
+    await supabaseAdmin.from("support_chats").update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", chat.id);
+    await supabaseAdmin.from("support_messages").insert({
+      chat_id: chat.id, sender: "system",
+      body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
+    });
+    return { ok: true, escalated: true };
   });
 
 // -------- Admin --------
