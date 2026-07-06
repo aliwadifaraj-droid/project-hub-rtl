@@ -101,11 +101,6 @@ export function SupportChatWidget() {
     }
   }
 
-  async function handleEscalate() {
-    if (!token) return;
-    await escalateFn({ data: { visitorToken: token } });
-    qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
-  }
 
   const canShowQuickQuestions = useMemo(
     () => status === "bot" && qaList.length > 0,
