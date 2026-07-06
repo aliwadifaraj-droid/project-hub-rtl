@@ -77,6 +77,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+const hideSupportChatQuery = { queryKey: ["hide-support-chat-public"] as const, queryFn: () => getHideSupportChat() };
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
@@ -109,6 +111,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       throw redirect({ to: "/" });
     }
   },
+  loader: ({ context }) => context.queryClient.ensureQueryData(hideSupportChatQuery),
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
