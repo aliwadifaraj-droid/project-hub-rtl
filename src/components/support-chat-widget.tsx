@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, X, Send, Headphones } from "lucide-react";
 import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
-  visitorSendMessage, visitorEscalate,
+  visitorSendMessage,
 } from "@/lib/support.functions";
 
 const TOKEN_KEY = "support_visitor_token_v1";
