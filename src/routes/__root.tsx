@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useSuspenseQuery } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -15,6 +15,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { MaintenanceGate } from "../components/maintenance-gate";
 import { SupportChatWidget } from "../components/support-chat-widget";
+import { getHideSupportChat } from "@/lib/site-settings.functions";
 
 function NotFoundComponent() {
   return (
@@ -76,6 +77,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+const hideSupportChatQuery = { queryKey: ["hide-support-chat-public"] as const, queryFn: () => getHideSupportChat() };
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
@@ -108,6 +111,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       throw redirect({ to: "/" });
     }
   },
+  loader: ({ context }) => context.queryClient.ensureQueryData(hideSupportChatQuery),
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -155,6 +159,7 @@ function RootComponent() {
 
 function PublicSupportWidget() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const { data: hideChat } = useSuspenseQuery(hideSupportChatQuery);
   // Hide widget on admin/auth/lovable/email internal routes
   if (
     path.startsWith("/admin") ||
@@ -164,5 +169,6 @@ function PublicSupportWidget() {
     path.startsWith("/email/") ||
     path === "/maintenance"
   ) return null;
+  if (hideChat?.enabled) return null;
   return <SupportChatWidget />;
 }

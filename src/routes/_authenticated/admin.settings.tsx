@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Settings2, Save } from "lucide-react";
+import { Settings2, Save, MessageCircleOff } from "lucide-react";
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
+import { getHideSupportChat, setHideSupportChat } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 
@@ -36,13 +37,22 @@ function AdminSettings() {
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = hasAdminRole(roles);
 
+  const fetchHideChat = useServerFn(getHideSupportChat);
+  const saveHideChat = useServerFn(setHideSupportChat);
+
   const { data, isLoading } = useQuery({
     queryKey: ["maintenance-admin"],
     queryFn: () => fetchMaintenance(),
   });
 
+  const { data: hideChatData, isLoading: hideChatLoading } = useQuery({
+    queryKey: ["hide-support-chat-admin"],
+    queryFn: () => fetchHideChat(),
+  });
+
   const [enabled, setEnabled] = useState(false);
   const [endAt, setEndAt] = useState("");
+  const [hideChat, setHideChat] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -51,6 +61,12 @@ function AdminSettings() {
       setEndAt(toLocalInput(data.endAt));
     }
   }, [data]);
+
+  useEffect(() => {
+    if (hideChatData) {
+      setHideChat(!!hideChatData.enabled);
+    }
+  }, [hideChatData]);
 
   if (!isAdmin) {
     return <div className="text-sm text-muted-foreground">هذه الصفحة للأدمن فقط.</div>;
@@ -62,8 +78,11 @@ function AdminSettings() {
     try {
       const iso = fromLocalInput(endAt);
       await saveMaintenance({ data: { enabled, endAt: iso } });
+      await saveHideChat({ data: { enabled: hideChat } });
       await qc.invalidateQueries({ queryKey: ["maintenance-admin"] });
       await qc.invalidateQueries({ queryKey: ["maintenance-public"] });
+      await qc.invalidateQueries({ queryKey: ["hide-support-chat-admin"] });
+      await qc.invalidateQueries({ queryKey: ["hide-support-chat-public"] });
       toast.success("تم الحفظ", { id: tId });
     } catch (e: any) {
       toast.error(`فشل الحفظ: ${e?.message ?? "خطأ غير معروف"}`, { id: tId });
@@ -110,6 +129,29 @@ function AdminSettings() {
             disabled={isLoading}
           />
           <p className="mt-1 text-xs text-muted-foreground">اتركه فارغًا لعرض صفحة الصيانة بدون عدّاد.</p>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <div className="mb-3">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <MessageCircleOff className="h-4 w-4" />
+              إخفاء بوت الدعم
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              عند التفعيل، لن يظهر زر بوت الدعم في الصفحة الرئيسية للعملاء.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={hideChat}
+              onChange={(e) => setHideChat(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+              disabled={hideChatLoading}
+            />
+            <span className="text-sm font-medium">إخفاء بوت الدعم من الصفحة الرئيسية</span>
+          </label>
         </div>
 
         <button
