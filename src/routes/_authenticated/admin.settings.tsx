@@ -131,6 +131,29 @@ function AdminSettings() {
           <p className="mt-1 text-xs text-muted-foreground">اتركه فارغًا لعرض صفحة الصيانة بدون عدّاد.</p>
         </div>
 
+        <div className="border-t border-border pt-4">
+          <div className="mb-3">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <MessageCircleOff className="h-4 w-4" />
+              إخفاء بوت الدعم
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              عند التفعيل، لن يظهر زر بوت الدعم في الصفحة الرئيسية للعملاء.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={hideChat}
+              onChange={(e) => setHideChat(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+              disabled={hideChatLoading}
+            />
+            <span className="text-sm font-medium">إخفاء بوت الدعم من الصفحة الرئيسية</span>
+          </label>
+        </div>
+
         <button
           onClick={onSave}
           disabled={saving || isLoading}
