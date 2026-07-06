@@ -1,0 +1,249 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const uuid = z.string().uuid();
+
+async function isAdmin(supabase: any, userId: string) {
+  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
+  return !!data;
+}
+
+function matchQa(qas: Array<{ question: string; answer: string; keywords: string[] }>, text: string) {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  for (const q of qas) {
+    if (q.question.toLowerCase().includes(t) || t.includes(q.question.toLowerCase())) return q;
+    for (const k of q.keywords ?? []) {
+      const kk = (k ?? "").toLowerCase().trim();
+      if (kk && t.includes(kk)) return q;
+    }
+  }
+  return null;
+}
+
+// -------- Visitor (unauthenticated) --------
+
+export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("bot_qa")
+    .select("id,question,answer,keywords,sort_order")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+});
+
+export const startVisitorChat = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string; visitorName?: string | null }) =>
+    z.object({ visitorToken: uuid, visitorName: z.string().trim().max(80).nullable().optional() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing } = await supabaseAdmin
+      .from("support_chats").select("*").eq("visitor_token", data.visitorToken).maybeSingle();
+    if (existing) return existing;
+    const { data: created, error } = await supabaseAdmin
+      .from("support_chats")
+      .insert({ visitor_token: data.visitorToken, visitor_name: data.visitorName ?? null })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    // Welcome bot message
+    await supabaseAdmin.from("support_messages").insert({
+      chat_id: created.id, sender: "bot",
+      body: "أهلًا بك في دعم العمران! اختر سؤالًا من الأسفل أو اطلب التحدث مع موظف.",
+    });
+    return created;
+  });
+
+export const visitorGetMessages = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string; sinceIso?: string | null }) =>
+    z.object({ visitorToken: uuid, sinceIso: z.string().nullable().optional() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: chat } = await supabaseAdmin
+      .from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
+    if (!chat) return { chat: null, messages: [] };
+    let q = supabaseAdmin.from("support_messages").select("id,sender,body,created_at").eq("chat_id", chat.id).order("created_at", { ascending: true });
+    if (data.sinceIso) q = q.gt("created_at", data.sinceIso);
+    const { data: msgs, error } = await q;
+    if (error) throw new Error(error.message);
+    return { chat, messages: msgs ?? [] };
+  });
+
+export const visitorSendMessage = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string; body: string; qaId?: string | null }) =>
+    z.object({ visitorToken: uuid, body: z.string().trim().min(1).max(2000), qaId: z.string().uuid().nullable().optional() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: chat, error: ce } = await supabaseAdmin
+      .from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
+    if (ce) throw new Error(ce.message);
+    if (!chat) throw new Error("جلسة الشات غير موجودة");
+
+    await supabaseAdmin.from("support_messages").insert({ chat_id: chat.id, sender: "visitor", body: data.body });
+    await supabaseAdmin.from("support_chats").update({ last_message_at: new Date().toISOString() }).eq("id", chat.id);
+
+    // If chat still with bot, reply
+    if (chat.status === "bot") {
+      let answer: string | null = null;
+      if (data.qaId) {
+        const { data: qa } = await supabaseAdmin.from("bot_qa").select("answer").eq("id", data.qaId).eq("is_active", true).maybeSingle();
+        answer = qa?.answer ?? null;
+      }
+      if (!answer) {
+        const { data: qas } = await supabaseAdmin.from("bot_qa").select("question,answer,keywords").eq("is_active", true);
+        const m = matchQa((qas ?? []) as any, data.body);
+        answer = m?.answer ?? null;
+      }
+      if (!answer) {
+        answer = "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو الضغط على \"كلم موظف\".";
+      }
+      await supabaseAdmin.from("support_messages").insert({ chat_id: chat.id, sender: "bot", body: answer });
+    }
+    return { ok: true };
+  });
+
+export const visitorEscalate = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: chat } = await supabaseAdmin.from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
+    if (!chat) throw new Error("جلسة الشات غير موجودة");
+    if (chat.status !== "escalated") {
+      await supabaseAdmin.from("support_chats").update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", chat.id);
+      await supabaseAdmin.from("support_messages").insert({
+        chat_id: chat.id, sender: "system",
+        body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
+      });
+    }
+    return { ok: true };
+  });
+
+// -------- Admin --------
+
+async function assertStaff(supabase: any, userId: string) {
+  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  const roles = (data ?? []).map((r: any) => r.role);
+  if (!roles.length) throw new Error("Forbidden");
+}
+
+export const adminListChats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertStaff(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("support_chats")
+      .select("id,visitor_name,status,last_message_at,created_at")
+      .order("last_message_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const adminListChatMessages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { chatId: string }) => z.object({ chatId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertStaff(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: msgs, error } = await supabaseAdmin
+      .from("support_messages").select("id,sender,body,created_at")
+      .eq("chat_id", data.chatId).order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return msgs ?? [];
+  });
+
+export const adminReplyChat = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { chatId: string; body: string }) =>
+    z.object({ chatId: uuid, body: z.string().trim().min(1).max(4000) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertStaff(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("support_messages").insert({
+      chat_id: data.chatId, sender: "admin", body: data.body,
+    });
+    if (error) throw new Error(error.message);
+    await supabaseAdmin.from("support_chats")
+      .update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", data.chatId);
+    return { ok: true };
+  });
+
+export const adminCloseChat = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { chatId: string }) => z.object({ chatId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertStaff(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("support_chats").update({ status: "closed" }).eq("id", data.chatId);
+    return { ok: true };
+  });
+
+// -------- Bot training (admin) --------
+
+export const adminListBotQa = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const admin = await isAdmin(context.supabase, context.userId);
+    if (!admin) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin.from("bot_qa").select("*").order("sort_order", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const adminUpsertBotQa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id?: string | null; question: string; answer: string; keywords: string[]; is_active: boolean; sort_order: number }) =>
+    z.object({
+      id: z.string().uuid().nullable().optional(),
+      question: z.string().trim().min(1).max(300),
+      answer: z.string().trim().min(1).max(4000),
+      keywords: z.array(z.string().trim().max(60)).max(30),
+      is_active: z.boolean(),
+      sort_order: z.number().int().min(0).max(9999),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const admin = await isAdmin(context.supabase, context.userId);
+    if (!admin) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const row = { question: data.question, answer: data.answer, keywords: data.keywords, is_active: data.is_active, sort_order: data.sort_order };
+    if (data.id) {
+      const { error } = await supabaseAdmin.from("bot_qa").update(row).eq("id", data.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabaseAdmin.from("bot_qa").insert(row);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
+export const adminDeleteBotQa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const admin = await isAdmin(context.supabase, context.userId);
+    if (!admin) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("bot_qa").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const adminCountOpenSupportChats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertStaff(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { count } = await supabaseAdmin
+      .from("support_chats").select("id", { count: "exact", head: true }).eq("status", "escalated");
+    return { count: count ?? 0 };
+  });
