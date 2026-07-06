@@ -73,7 +73,7 @@ function BotTestPage() {
     setError(null);
     try {
       pushLog("info", `إرسال: ${body}`);
-      await sendFn({ data: { visitorToken: token, body, qaId: qaId ?? null } });
+      await sendFn({ data: { visitorToken: token, body, qaId: qaId != null ? String(qaId) : null } });
       pushLog("ok", "تم الإرسال، جارٍ جلب الرد…");
       setInput("");
       await refresh();
