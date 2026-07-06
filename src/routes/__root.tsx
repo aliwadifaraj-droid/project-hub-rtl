@@ -15,6 +15,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { MaintenanceGate } from "../components/maintenance-gate";
 import { SupportChatWidget } from "../components/support-chat-widget";
+import { getHideSupportChat } from "@/lib/site-settings.functions";
 
 function NotFoundComponent() {
   return (
