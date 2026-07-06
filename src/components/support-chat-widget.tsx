@@ -21,6 +21,7 @@ function getOrCreateToken(): string {
 
 export function SupportChatWidget() {
   const qc = useQueryClient();
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState<string>("");
   const [input, setInput] = useState("");
@@ -33,7 +34,8 @@ export function SupportChatWidget() {
   const sendFn = useServerFn(visitorSendMessage);
   const escalateFn = useServerFn(visitorEscalate);
 
-  useEffect(() => { setToken(getOrCreateToken()); }, []);
+  useEffect(() => { setMounted(true); setToken(getOrCreateToken()); }, []);
+
 
   // Start chat on first open
   useEffect(() => {
