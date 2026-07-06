@@ -190,16 +190,8 @@ export function SupportChatWidget() {
             </div>
           )}
 
-          {/* Input + escalate */}
+          {/* Input */}
           <div className="border-t border-border bg-background p-2">
-            {status !== "escalated" && status !== "closed" && (
-              <button
-                onClick={handleEscalate}
-                className="mb-2 w-full rounded-md border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent/20"
-              >
-                كلم موظف
-              </button>
-            )}
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
               className="flex items-center gap-1.5"
