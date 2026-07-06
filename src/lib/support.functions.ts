@@ -80,13 +80,38 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: chat, error: ce } = await supabaseAdmin
+    const { data: existingChat, error: ce } = await supabaseAdmin
       .from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (ce) throw new Error(ce.message);
-    if (!chat) throw new Error("جلسة الشات غير موجودة");
+    let chat = existingChat;
 
-    await supabaseAdmin.from("support_messages").insert({ chat_id: chat.id, sender: "visitor", body: data.body });
-    await supabaseAdmin.from("support_chats").update({ last_message_at: new Date().toISOString() }).eq("id", chat.id);
+    if (!chat) {
+      const { data: created, error: createError } = await supabaseAdmin
+        .from("support_chats")
+        .insert({ visitor_token: data.visitorToken })
+        .select("id,status")
+        .single();
+      if (createError) throw new Error(createError.message);
+
+      const { error: welcomeError } = await supabaseAdmin.from("support_messages").insert({
+        chat_id: created.id,
+        sender: "bot",
+        body: "أهلًا بك في دعم العمران! اختر سؤالًا من الأسفل أو اطلب التحدث مع موظف.",
+      });
+      if (welcomeError) throw new Error(welcomeError.message);
+      chat = created;
+    }
+
+    const { error: visitorMessageError } = await supabaseAdmin
+      .from("support_messages")
+      .insert({ chat_id: chat.id, sender: "visitor", body: data.body });
+    if (visitorMessageError) throw new Error(visitorMessageError.message);
+
+    const { error: touchError } = await supabaseAdmin
+      .from("support_chats")
+      .update({ last_message_at: new Date().toISOString() })
+      .eq("id", chat.id);
+    if (touchError) throw new Error(touchError.message);
 
     // If chat still with bot, reply
     if (chat.status === "bot") {
@@ -103,7 +128,10 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       if (!answer) {
         answer = "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو الضغط على \"كلم موظف\".";
       }
-      await supabaseAdmin.from("support_messages").insert({ chat_id: chat.id, sender: "bot", body: answer });
+      const { error: botMessageError } = await supabaseAdmin
+        .from("support_messages")
+        .insert({ chat_id: chat.id, sender: "bot", body: answer });
+      if (botMessageError) throw new Error(botMessageError.message);
     }
     return { ok: true };
   });
