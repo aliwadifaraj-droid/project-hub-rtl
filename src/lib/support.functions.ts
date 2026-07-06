@@ -75,8 +75,12 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
   });
 
 export const visitorSendMessage = createServerFn({ method: "POST" })
-  .inputValidator((d: { visitorToken: string; body: string; qaId?: string | null }) =>
-    z.object({ visitorToken: uuid, body: z.string().trim().min(1).max(2000), qaId: z.string().uuid().nullable().optional() }).parse(d),
+  .inputValidator((d: { visitorToken: string; body: string; qaId?: string | number | null }) =>
+    z.object({
+      visitorToken: uuid,
+      body: z.string().trim().min(1).max(2000),
+      qaId: z.preprocess((v) => (v === null || v === undefined || v === "" ? null : String(v)), z.string().nullable()).optional(),
+    }).parse(d),
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

@@ -92,7 +92,7 @@ export function SupportChatWidget() {
     setSendError(null);
     try {
       await startFn({ data: { visitorToken: token } });
-      await sendFn({ data: { visitorToken: token, body, qaId: qaId ?? null } });
+      await sendFn({ data: { visitorToken: token, body, qaId: qaId != null ? String(qaId) : null } });
       setInput("");
       qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
     } catch {
