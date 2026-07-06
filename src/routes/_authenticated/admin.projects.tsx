@@ -32,10 +32,14 @@ function ProjectsAdminPage() {
   const upsert = useServerFn(upsertProject);
   const del = useServerFn(deleteProject);
   const getRoles = useServerFn(getMyRoles);
+  const whoami = useServerFn(getMyUserId);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["admin-projects"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
   const isAdmin = hasAdminRole(roles);
+  const myId = me?.userId ?? null;
+
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
 
