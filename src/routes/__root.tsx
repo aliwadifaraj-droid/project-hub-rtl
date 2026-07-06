@@ -5,6 +5,7 @@ import {
   redirect,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -13,6 +14,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { MaintenanceGate } from "../components/maintenance-gate";
+import { SupportChatWidget } from "../components/support-chat-widget";
 
 function NotFoundComponent() {
   return (
@@ -146,6 +148,21 @@ function RootComponent() {
       <MaintenanceGate />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <PublicSupportWidget />
     </QueryClientProvider>
   );
+}
+
+function PublicSupportWidget() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  // Hide widget on admin/auth/lovable/email internal routes
+  if (
+    path.startsWith("/admin") ||
+    path.startsWith("/auth") ||
+    path.startsWith("/reset-password") ||
+    path.startsWith("/lovable/") ||
+    path.startsWith("/email/") ||
+    path === "/maintenance"
+  ) return null;
+  return <SupportChatWidget />;
 }
