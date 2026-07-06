@@ -170,6 +170,7 @@ function AdminLayout() {
     { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
     { to: "/admin/support", label: "دعم العملاء", icon: Headphones, show: true },
     { to: "/admin/bot-training", label: "تدريب البوت", icon: Bot, show: isAdmin },
+    { to: "/admin/bot-test", label: "تجربة البوت", icon: Bot, show: isAdmin },
     { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },

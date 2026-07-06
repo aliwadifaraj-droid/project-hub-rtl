@@ -47,6 +47,7 @@ import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
 import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authenticated/admin.chat'
 import { Route as AuthenticatedAdminBotTrainingRouteImport } from './routes/_authenticated/admin.bot-training'
+import { Route as AuthenticatedAdminBotTestRouteImport } from './routes/_authenticated/admin.bot-test'
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -251,6 +252,12 @@ const AuthenticatedAdminBotTrainingRoute =
     path: '/bot-training',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBotTestRoute =
+  AuthenticatedAdminBotTestRouteImport.update({
+    id: '/bot-test',
+    path: '/bot-test',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAdsRoute = AuthenticatedAdminAdsRouteImport.update({
   id: '/ads',
   path: '/ads',
@@ -299,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -340,6 +348,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -385,6 +394,7 @@ export interface FileRoutesById {
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/': typeof VipIndexRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/_authenticated/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/_authenticated/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
@@ -430,6 +440,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/vip/'
     | '/admin/ads'
+    | '/admin/bot-test'
     | '/admin/bot-training'
     | '/admin/chat'
     | '/admin/employees'
@@ -471,6 +482,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/vip'
     | '/admin/ads'
+    | '/admin/bot-test'
     | '/admin/bot-training'
     | '/admin/chat'
     | '/admin/employees'
@@ -515,6 +527,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/vip/'
     | '/_authenticated/admin/ads'
+    | '/_authenticated/admin/bot-test'
     | '/_authenticated/admin/bot-training'
     | '/_authenticated/admin/chat'
     | '/_authenticated/admin/employees'
@@ -826,6 +839,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBotTrainingRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/bot-test': {
+      id: '/_authenticated/admin/bot-test'
+      path: '/bot-test'
+      fullPath: '/admin/bot-test'
+      preLoaderRoute: typeof AuthenticatedAdminBotTestRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/ads': {
       id: '/_authenticated/admin/ads'
       path: '/ads'
@@ -859,6 +879,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAdsRoute: typeof AuthenticatedAdminAdsRoute
+  AuthenticatedAdminBotTestRoute: typeof AuthenticatedAdminBotTestRoute
   AuthenticatedAdminBotTrainingRoute: typeof AuthenticatedAdminBotTrainingRoute
   AuthenticatedAdminChatRoute: typeof AuthenticatedAdminChatRoute
   AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRoute
@@ -877,6 +898,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAdsRoute: AuthenticatedAdminAdsRoute,
+  AuthenticatedAdminBotTestRoute: AuthenticatedAdminBotTestRoute,
   AuthenticatedAdminBotTrainingRoute: AuthenticatedAdminBotTrainingRoute,
   AuthenticatedAdminChatRoute: AuthenticatedAdminChatRoute,
   AuthenticatedAdminEmployeesRoute: AuthenticatedAdminEmployeesRoute,
@@ -971,13 +993,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
