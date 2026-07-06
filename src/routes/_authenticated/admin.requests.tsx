@@ -104,7 +104,7 @@ function RequestsPage() {
                   <td className="p-3 text-slate-300">{r.facility_location}</td>
                   <td className="p-3 text-slate-400 text-xs">{new Date(r.created_at).toLocaleDateString("ar")}</td>
                   <td className="p-3">
-                    {isAdmin ? (
+                    {(isAdmin || r.can_manage) ? (
                       <select
                         value={r.status}
                         onChange={(e) => mut.mutate({ id: r.id, status: e.target.value as Status })}
@@ -144,7 +144,7 @@ function RequestsPage() {
                   <div className="text-xs text-slate-400 mt-0.5">{(r.projects as { name: string } | null)?.name ?? "-"}</div>
                   {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
                 </div>
-                {isAdmin ? (
+                {(isAdmin || r.can_manage) ? (
                   <select
                     value={r.status}
                     onChange={(e) => mut.mutate({ id: r.id, status: e.target.value as Status })}
