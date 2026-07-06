@@ -15,6 +15,11 @@ function generateUuid(): string {
   if (browserCrypto?.randomUUID) {
     return browserCrypto.randomUUID();
   }
+  if (!browserCrypto?.getRandomValues) {
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+      (Number(c) ^ (Math.random() * 16 >> (Number(c) / 4))).toString(16),
+    );
+  }
   const bytes = new Uint8Array(16);
   browserCrypto.getRandomValues(bytes);
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
