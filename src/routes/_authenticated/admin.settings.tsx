@@ -62,6 +62,12 @@ function AdminSettings() {
     }
   }, [data]);
 
+  useEffect(() => {
+    if (hideChatData) {
+      setHideChat(!!hideChatData.enabled);
+    }
+  }, [hideChatData]);
+
   if (!isAdmin) {
     return <div className="text-sm text-muted-foreground">هذه الصفحة للأدمن فقط.</div>;
   }
