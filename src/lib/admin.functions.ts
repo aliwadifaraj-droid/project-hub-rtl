@@ -8,7 +8,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("projects")
-      .select("id,name,description,location,duration,cover_image,images,pdf_file")
+      .select("id,name,description,location,duration,cover_image,images,pdf_file,created_by")
       .eq("admin_approval", "approved")
       .order("created_at", { ascending: false });
     if (error) {
@@ -28,6 +28,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     return [];
   }
 });
+
 
 export const getProject = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
