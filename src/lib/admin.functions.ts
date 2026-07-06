@@ -106,13 +106,21 @@ export const getBidPdfUrl = createServerFn({ method: "POST" })
 export const adminListRequests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data, error } = await supabase
+    const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
       .from("project_requests")
-      .select("id,company_name,facility_location,email,pdf_url,status,created_at,project_id,submitter_type,projects(name)")
+      .select("id,company_name,facility_location,email,pdf_url,status,created_at,project_id,submitter_type,projects(name,created_by)")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return (data ?? []).map((r) => {
+      const proj = r.projects as { name: string; created_by: string | null } | null;
+      return {
+        ...r,
+        projects: proj ? { name: proj.name } : null,
+        can_manage: !!proj && proj.created_by === userId,
+      };
+    });
   });
 
 export const updateRequestStatus = createServerFn({ method: "POST" })
@@ -124,8 +132,22 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     }).parse(d)
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: row, error } = await supabase
+    const { supabase, userId } = context;
+    // Authorization: admin OR owner of the linked project
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    const isAdmin = !!myRoles?.some((r) => r.role === "admin");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (!isAdmin) {
+      const { data: reqRow } = await supabaseAdmin
+        .from("project_requests")
+        .select("project_id,projects(created_by)")
+        .eq("id", data.id)
+        .maybeSingle();
+      const ownerId = (reqRow?.projects as { created_by: string | null } | null)?.created_by;
+      if (!ownerId || ownerId !== userId) throw new Error("غير مصرح بتغيير حالة هذا الطلب");
+    }
+    const { data: row, error } = await supabaseAdmin
       .from("project_requests")
       .update({ status: data.status })
       .eq("id", data.id)
