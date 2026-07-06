@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminListRequests, updateRequestStatus, getBidPdfUrl, getMyRoles } from "@/lib/admin.functions";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, Loader2, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/requests")({
@@ -54,10 +54,24 @@ function RequestsPage() {
     );
 
   const rows = data ?? [];
+  const newCount = rows.filter((r) => r.status === "new").length;
 
   return (
     <div dir="rtl">
-      <h1 className="mb-4 text-xl md:text-2xl font-bold">الطلبات الواردة ({rows.length})</h1>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-xl md:text-2xl font-bold">الطلبات الواردة ({rows.length})</h1>
+        <button
+          aria-label="طلبات جديدة"
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 transition"
+        >
+          <Bell className="h-5 w-5" />
+          {newCount > 0 && (
+            <span className="absolute -top-1.5 -start-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {newCount > 99 ? "99+" : newCount}
+            </span>
+          )}
+        </button>
+      </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-900 text-slate-100 shadow-lg">
         {/* Desktop table */}
