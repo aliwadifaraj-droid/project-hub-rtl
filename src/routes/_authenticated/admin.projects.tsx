@@ -22,7 +22,9 @@ type ProjectRow = {
   cover_url: string;
   images: string[];
   pdf_file?: string | null;
+  created_by?: string | null;
 };
+
 
 
 function ProjectsAdminPage() {
