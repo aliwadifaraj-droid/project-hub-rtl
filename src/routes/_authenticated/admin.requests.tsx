@@ -121,9 +121,15 @@ function RequestsPage() {
                     )}
                   </td>
                   <td className="p-3">
-                    <button onClick={() => openPdf(r.pdf_url)} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-600">
-                      <FileDown className="h-4 w-4" /> فتح PDF
-                    </button>
+                    {(isAdmin || r.can_manage) ? (
+                      <button onClick={() => openPdf(r.pdf_url)} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-600">
+                        <FileDown className="h-4 w-4" /> فتح PDF
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-slate-700/50 px-2.5 py-1.5 text-xs font-medium text-slate-400 cursor-not-allowed">
+                        <FileDown className="h-4 w-4" /> غير مصرح
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
