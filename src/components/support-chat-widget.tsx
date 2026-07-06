@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, X, Send, Headphones } from "lucide-react";
 import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
-  visitorSendMessage, visitorEscalate,
+  visitorSendMessage,
 } from "@/lib/support.functions";
 
 const TOKEN_KEY = "support_visitor_token_v1";
@@ -52,7 +52,6 @@ export function SupportChatWidget() {
   const startFn = useServerFn(startVisitorChat);
   const getMsgs = useServerFn(visitorGetMessages);
   const sendFn = useServerFn(visitorSendMessage);
-  const escalateFn = useServerFn(visitorEscalate);
 
   useEffect(() => { setMounted(true); setToken(getOrCreateToken()); }, []);
 
@@ -102,11 +101,6 @@ export function SupportChatWidget() {
     }
   }
 
-  async function handleEscalate() {
-    if (!token) return;
-    await escalateFn({ data: { visitorToken: token } });
-    qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
-  }
 
   const canShowQuickQuestions = useMemo(
     () => status === "bot" && qaList.length > 0,
@@ -196,16 +190,8 @@ export function SupportChatWidget() {
             </div>
           )}
 
-          {/* Input + escalate */}
+          {/* Input */}
           <div className="border-t border-border bg-background p-2">
-            {status !== "escalated" && status !== "closed" && (
-              <button
-                onClick={handleEscalate}
-                className="mb-2 w-full rounded-md border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent/20"
-              >
-                كلم موظف
-              </button>
-            )}
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
               className="flex items-center gap-1.5"
