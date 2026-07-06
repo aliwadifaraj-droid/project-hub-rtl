@@ -468,6 +468,11 @@ export const getMyRoles = createServerFn({ method: "GET" })
     return roles.sort((a, b) => (a === "admin" ? -1 : b === "admin" ? 1 : a.localeCompare(b)));
   });
 
+export const getMyUserId = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => ({ userId: context.userId }));
+
+
 // ---------- Admin/Staff: list contact messages ----------
 export const adminListMessages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
