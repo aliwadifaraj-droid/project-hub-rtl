@@ -22,6 +22,41 @@ function matchQa(qas: Array<{ question: string; answer: string; keywords: string
   return null;
 }
 
+const STAFF_KEYWORDS = ["موظف", "موظفة", "خدمة العملاء", "الدعم", "كلم موظف", "أريد موظف", "اريد موظف", "بدي موظف", "محادثة موظف", "human", "agent", "support"];
+function wantsHuman(text: string) {
+  const t = (text ?? "").toLowerCase();
+  return STAFF_KEYWORDS.some((k) => t.includes(k.toLowerCase()));
+}
+
+type BotSettingsRow = {
+  work_days: Record<string, boolean> | null;
+  work_start: string | null;
+  work_end: string | null;
+  off_hours_message: string | null;
+  allow_escalation: boolean | null;
+};
+async function loadBotSettings(admin: any): Promise<BotSettingsRow | null> {
+  const { data } = await admin
+    .from("bot_settings")
+    .select("work_days,work_start,work_end,off_hours_message,allow_escalation")
+    .limit(1)
+    .maybeSingle();
+  return (data as BotSettingsRow) ?? null;
+}
+function isWithinWorkHours(s: BotSettingsRow | null): boolean {
+  if (!s) return true;
+  const now = new Date();
+  const dayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  const key = dayKeys[now.getDay()];
+  if (s.work_days && s.work_days[key] === false) return false;
+  const [sh, sm] = (s.work_start ?? "00:00").split(":").map(Number);
+  const [eh, em] = (s.work_end ?? "23:59").split(":").map(Number);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  return cur >= start && cur <= end;
+}
+
 // -------- Visitor (unauthenticated) --------
 
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
