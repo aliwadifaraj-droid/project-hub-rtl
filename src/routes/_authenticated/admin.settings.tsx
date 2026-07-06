@@ -78,8 +78,11 @@ function AdminSettings() {
     try {
       const iso = fromLocalInput(endAt);
       await saveMaintenance({ data: { enabled, endAt: iso } });
+      await saveHideChat({ data: { enabled: hideChat } });
       await qc.invalidateQueries({ queryKey: ["maintenance-admin"] });
       await qc.invalidateQueries({ queryKey: ["maintenance-public"] });
+      await qc.invalidateQueries({ queryKey: ["hide-support-chat-admin"] });
+      await qc.invalidateQueries({ queryKey: ["hide-support-chat-public"] });
       toast.success("تم الحفظ", { id: tId });
     } catch (e: any) {
       toast.error(`فشل الحفظ: ${e?.message ?? "خطأ غير معروف"}`, { id: tId });
