@@ -119,6 +119,9 @@ export const adminListRequests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    const isAdmin = !!myRoles?.some((r) => r.role === "admin");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("project_requests")
@@ -127,10 +130,12 @@ export const adminListRequests = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return (data ?? []).map((r) => {
       const proj = r.projects as { name: string; created_by: string | null } | null;
+      const canManage = !!proj && proj.created_by === userId;
       return {
         ...r,
+        email: isAdmin || canManage ? r.email : null,
         projects: proj ? { name: proj.name } : null,
-        can_manage: !!proj && proj.created_by === userId,
+        can_manage: canManage,
       };
     });
   });
