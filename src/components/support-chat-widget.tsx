@@ -11,11 +11,12 @@ const TOKEN_KEY = "support_visitor_token_v1";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function generateUuid(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.randomUUID) {
+    return browserCrypto.randomUUID();
   }
   const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
+  browserCrypto.getRandomValues(bytes);
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"));
