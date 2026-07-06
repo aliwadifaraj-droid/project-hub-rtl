@@ -133,18 +133,37 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
 
-    // Send email via Resend on accepted/rejected
-    if (row?.email && (data.status === "accepted" || data.status === "rejected")) {
+    // Send email via Resend on any status change
+    if (row?.email) {
       const apiKey = process.env.RESEND_API_KEY;
       if (!apiKey) {
         console.error("RESEND_API_KEY missing — skipping email");
       } else {
         const projectName = (row as any).projects?.name || row.company_name || "طلبك";
-        const isAccepted = data.status === "accepted";
-        const subject = isAccepted ? "تم قبول طلبك ✅" : "تم رفض طلبك";
-        const html = isAccepted
-          ? `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً،</h2><p>يسعدنا إبلاغك بأنه تم <strong>قبول</strong> طلبك المتعلق بـ "${projectName}".</p><p>سنتواصل معك قريباً لاستكمال التفاصيل.</p><p>شكراً لثقتك بنا.</p></div>`
-          : `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً،</h2><p>نأسف لإبلاغك بأنه تم <strong>رفض</strong> طلبك المتعلق بـ "${projectName}" في الوقت الحالي.</p><p>يمكنك التواصل معنا لمزيد من المعلومات.</p></div>`;
+        const statusLabels: Record<string, string> = {
+          new: "جديد",
+          reviewing: "قيد المراجعة",
+          accepted: "مقبول",
+          rejected: "مرفوض",
+        };
+        const statusColors: Record<string, string> = {
+          new: "#2563eb",
+          reviewing: "#d97706",
+          accepted: "#16a34a",
+          rejected: "#dc2626",
+        };
+        const label = statusLabels[data.status] ?? data.status;
+        const color = statusColors[data.status] ?? "#111";
+        const subject = "تحديث حالة طلبك في منصة العمران";
+        const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb">
+  <div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+    <h2 style="margin:0 0 12px">تحديث حالة طلبك</h2>
+    <p>مرحباً،</p>
+    <p>نودّ إعلامك بأن حالة طلبك المتعلق بمشروع <strong>"${projectName}"</strong> قد تم تحديثها إلى:</p>
+    <p style="font-size:18px;font-weight:bold;color:${color};padding:12px;background:#f3f4f6;border-radius:6px;text-align:center">${label}</p>
+    <p>شكراً لاستخدامك <strong>منصة العمران</strong>.</p>
+  </div>
+</div>`;
 
         try {
           const res = await fetch("https://api.resend.com/emails", {
@@ -164,13 +183,14 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
             const errText = await res.text();
             console.error("Resend send failed", res.status, errText);
           } else {
-            console.log("Resend email sent to", row.email);
+            console.log("Resend status email sent to", row.email, "status:", data.status);
           }
         } catch (e) {
           console.error("Resend send exception", e);
         }
       }
     }
+
 
     return { ok: true };
   });
