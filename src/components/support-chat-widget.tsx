@@ -8,12 +8,25 @@ import {
 } from "@/lib/support.functions";
 
 const TOKEN_KEY = "support_visitor_token_v1";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function generateUuid(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+}
 
 function getOrCreateToken(): string {
   if (typeof window === "undefined") return "";
   let t = localStorage.getItem(TOKEN_KEY);
-  if (!t) {
-    t = (crypto as any).randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  if (!t || !UUID_RE.test(t)) {
+    t = generateUuid();
     localStorage.setItem(TOKEN_KEY, t);
   }
   return t;
@@ -26,6 +39,7 @@ export function SupportChatWidget() {
   const [token, setToken] = useState<string>("");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const listQa = useServerFn(listBotQuestions);
@@ -67,11 +81,16 @@ export function SupportChatWidget() {
 
   async function handleSend(text: string, qaId?: string | null) {
     if (!token || !text.trim() || sending) return;
+    const body = text.trim();
     setSending(true);
+    setSendError(null);
     try {
-      await sendFn({ data: { visitorToken: token, body: text.trim(), qaId: qaId ?? null } });
+      await startFn({ data: { visitorToken: token } });
+      await sendFn({ data: { visitorToken: token, body, qaId: qaId ?? null } });
       setInput("");
       qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
+    } catch {
+      setSendError("تعذر إرسال الرسالة، حاول مرة أخرى.");
     } finally {
       setSending(false);
     }
@@ -201,6 +220,7 @@ export function SupportChatWidget() {
                 <Send className="h-4 w-4" />
               </button>
             </form>
+            {sendError && <div className="mt-1 text-[11px] text-destructive">{sendError}</div>}
           </div>
         </div>
       )}
