@@ -14,7 +14,7 @@ const projectsQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "إنشاء — منصة مشاريع المقاولات" },
+      { title: "العمران — منصة مشاريع المقاولات" },
       { name: "description", content: "تصفح أحدث مشاريع المقاولات وقدّم عرض السعر الخاص بك مباشرة." },
     ],
   }),

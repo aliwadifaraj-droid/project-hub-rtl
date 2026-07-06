@@ -72,7 +72,7 @@ function AuthPage() {
               {isForgot ? <Mail className="h-5 w-5" /> : isLogin ? <Lock className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
             </span>
             <h1 className="text-2xl font-bold">
-              {isForgot ? "استعادة كلمة المرور" : isLogin ? "دخول لوحة التحكم" : "إنشاء حساب الأدمن"}
+            {isForgot ? "استعادة كلمة المرور" : isLogin ? "دخول لوحة التحكم" : "إنشاء حساب الأدمن"}
             </h1>
           </div>
           <form onSubmit={onSubmit} className="space-y-4">

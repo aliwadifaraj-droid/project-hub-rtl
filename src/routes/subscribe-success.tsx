@@ -5,7 +5,7 @@ import { CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/subscribe-success")({
   head: () => ({
-    meta: [{ title: "تم الاشتراك بنجاح — إنشاء" }],
+    meta: [{ title: "تم الاشتراك بنجاح — العمران" }],
   }),
   component: SubscribeSuccessPage,
 });
