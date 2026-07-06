@@ -22,6 +22,41 @@ function matchQa(qas: Array<{ question: string; answer: string; keywords: string
   return null;
 }
 
+const STAFF_KEYWORDS = ["موظف", "موظفة", "خدمة العملاء", "الدعم", "كلم موظف", "أريد موظف", "اريد موظف", "بدي موظف", "محادثة موظف", "human", "agent", "support"];
+function wantsHuman(text: string) {
+  const t = (text ?? "").toLowerCase();
+  return STAFF_KEYWORDS.some((k) => t.includes(k.toLowerCase()));
+}
+
+type BotSettingsRow = {
+  work_days: Record<string, boolean> | null;
+  work_start: string | null;
+  work_end: string | null;
+  off_hours_message: string | null;
+  allow_escalation: boolean | null;
+};
+async function loadBotSettings(admin: any): Promise<BotSettingsRow | null> {
+  const { data } = await admin
+    .from("bot_settings")
+    .select("work_days,work_start,work_end,off_hours_message,allow_escalation")
+    .limit(1)
+    .maybeSingle();
+  return (data as BotSettingsRow) ?? null;
+}
+function isWithinWorkHours(s: BotSettingsRow | null): boolean {
+  if (!s) return true;
+  const now = new Date();
+  const dayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  const key = dayKeys[now.getDay()];
+  if (s.work_days && s.work_days[key] === false) return false;
+  const [sh, sm] = (s.work_start ?? "00:00").split(":").map(Number);
+  const [eh, em] = (s.work_end ?? "23:59").split(":").map(Number);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  return cur >= start && cur <= end;
+}
+
 // -------- Visitor (unauthenticated) --------
 
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
@@ -119,23 +154,46 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
 
     // If chat still with bot, reply
     if (chat.status === "bot") {
-      let answer: string | null = null;
-      if (data.qaId) {
-        const { data: qa } = await supabaseAdmin.from("bot_qa").select("answer").eq("id", data.qaId).eq("is_active", true).maybeSingle();
-        answer = qa?.answer ?? null;
+      const settings = await loadBotSettings(supabaseAdmin);
+      const askedForHuman = !data.qaId && wantsHuman(data.body);
+
+      if (askedForHuman) {
+        const within = isWithinWorkHours(settings);
+        const allowEsc = settings?.allow_escalation !== false;
+        if (within && allowEsc) {
+          await supabaseAdmin.from("support_chats")
+            .update({ status: "escalated", last_message_at: new Date().toISOString() })
+            .eq("id", chat.id);
+          await supabaseAdmin.from("support_messages").insert({
+            chat_id: chat.id, sender: "system",
+            body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
+          });
+        } else {
+          const offMsg = settings?.off_hours_message?.trim()
+            || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.";
+          await supabaseAdmin.from("support_messages").insert({
+            chat_id: chat.id, sender: "bot", body: offMsg,
+          });
+        }
+      } else {
+        let answer: string | null = null;
+        if (data.qaId) {
+          const { data: qa } = await supabaseAdmin.from("bot_qa").select("answer").eq("id", data.qaId).eq("is_active", true).maybeSingle();
+          answer = qa?.answer ?? null;
+        }
+        if (!answer) {
+          const { data: qas } = await supabaseAdmin.from("bot_qa").select("question,answer,keywords").eq("is_active", true);
+          const m = matchQa((qas ?? []) as any, data.body);
+          answer = m?.answer ?? null;
+        }
+        if (!answer) {
+          answer = "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
+        }
+        const { error: botMessageError } = await supabaseAdmin
+          .from("support_messages")
+          .insert({ chat_id: chat.id, sender: "bot", body: answer });
+        if (botMessageError) throw new Error(botMessageError.message);
       }
-      if (!answer) {
-        const { data: qas } = await supabaseAdmin.from("bot_qa").select("question,answer,keywords").eq("is_active", true);
-        const m = matchQa((qas ?? []) as any, data.body);
-        answer = m?.answer ?? null;
-      }
-      if (!answer) {
-        answer = "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو الضغط على \"كلم موظف\".";
-      }
-      const { error: botMessageError } = await supabaseAdmin
-        .from("support_messages")
-        .insert({ chat_id: chat.id, sender: "bot", body: answer });
-      if (botMessageError) throw new Error(botMessageError.message);
     }
     return { ok: true };
   });
@@ -146,14 +204,24 @@ export const visitorEscalate = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: chat } = await supabaseAdmin.from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (!chat) throw new Error("جلسة الشات غير موجودة");
-    if (chat.status !== "escalated") {
-      await supabaseAdmin.from("support_chats").update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", chat.id);
+    if (chat.status === "escalated") return { ok: true };
+    const settings = await loadBotSettings(supabaseAdmin);
+    const within = isWithinWorkHours(settings);
+    const allowEsc = settings?.allow_escalation !== false;
+    if (!within || !allowEsc) {
+      const offMsg = settings?.off_hours_message?.trim()
+        || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.";
       await supabaseAdmin.from("support_messages").insert({
-        chat_id: chat.id, sender: "system",
-        body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
+        chat_id: chat.id, sender: "bot", body: offMsg,
       });
+      return { ok: true, escalated: false };
     }
-    return { ok: true };
+    await supabaseAdmin.from("support_chats").update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", chat.id);
+    await supabaseAdmin.from("support_messages").insert({
+      chat_id: chat.id, sender: "system",
+      body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
+    });
+    return { ok: true, escalated: true };
   });
 
 // -------- Admin --------
