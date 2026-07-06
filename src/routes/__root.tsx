@@ -159,6 +159,7 @@ function RootComponent() {
 
 function PublicSupportWidget() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const { data: hideChat } = useSuspenseQuery(hideSupportChatQuery);
   // Hide widget on admin/auth/lovable/email internal routes
   if (
     path.startsWith("/admin") ||
@@ -168,5 +169,6 @@ function PublicSupportWidget() {
     path.startsWith("/email/") ||
     path === "/maintenance"
   ) return null;
+  if (hideChat?.enabled) return null;
   return <SupportChatWidget />;
 }
