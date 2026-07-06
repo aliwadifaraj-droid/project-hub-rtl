@@ -99,7 +99,7 @@ export function SiteHeader() {
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
             <Building2 className="h-5 w-5" />
           </span>
-          <span>إنشاء</span>
+          <span>العمران</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
           <Link

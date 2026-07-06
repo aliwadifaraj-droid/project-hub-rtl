@@ -11,8 +11,8 @@ import { Toaster } from "@/components/ui/sonner";
 export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
-      { title: "تواصل بنا — إنشاء" },
-      { name: "description", content: "تواصل مع فريق منصة إنشاء لمشاريع المقاولات." },
+      { title: "تواصل بنا — العمران" },
+      { name: "description", content: "تواصل مع فريق منصة العمران لمشاريع المقاولات." },
     ],
   }),
   component: ContactPage,
