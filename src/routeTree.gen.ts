@@ -48,6 +48,7 @@ import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authenticated/admin.chat'
 import { Route as AuthenticatedAdminBotTrainingRouteImport } from './routes/_authenticated/admin.bot-training'
 import { Route as AuthenticatedAdminBotTestRouteImport } from './routes/_authenticated/admin.bot-test'
+import { Route as AuthenticatedAdminBotSettingsRouteImport } from './routes/_authenticated/admin.bot-settings'
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -258,6 +259,12 @@ const AuthenticatedAdminBotTestRoute =
     path: '/bot-test',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBotSettingsRoute =
+  AuthenticatedAdminBotSettingsRouteImport.update({
+    id: '/bot-settings',
+    path: '/bot-settings',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAdsRoute = AuthenticatedAdminAdsRouteImport.update({
   id: '/ads',
   path: '/ads',
@@ -306,6 +313,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/admin/bot-settings': typeof AuthenticatedAdminBotSettingsRoute
   '/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -348,6 +356,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/admin/bot-settings': typeof AuthenticatedAdminBotSettingsRoute
   '/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -394,6 +403,7 @@ export interface FileRoutesById {
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/': typeof VipIndexRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/_authenticated/admin/bot-settings': typeof AuthenticatedAdminBotSettingsRoute
   '/_authenticated/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/_authenticated/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
@@ -440,6 +450,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/vip/'
     | '/admin/ads'
+    | '/admin/bot-settings'
     | '/admin/bot-test'
     | '/admin/bot-training'
     | '/admin/chat'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/vip'
     | '/admin/ads'
+    | '/admin/bot-settings'
     | '/admin/bot-test'
     | '/admin/bot-training'
     | '/admin/chat'
@@ -527,6 +539,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/vip/'
     | '/_authenticated/admin/ads'
+    | '/_authenticated/admin/bot-settings'
     | '/_authenticated/admin/bot-test'
     | '/_authenticated/admin/bot-training'
     | '/_authenticated/admin/chat'
@@ -846,6 +859,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBotTestRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/bot-settings': {
+      id: '/_authenticated/admin/bot-settings'
+      path: '/bot-settings'
+      fullPath: '/admin/bot-settings'
+      preLoaderRoute: typeof AuthenticatedAdminBotSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/ads': {
       id: '/_authenticated/admin/ads'
       path: '/ads'
@@ -879,6 +899,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAdsRoute: typeof AuthenticatedAdminAdsRoute
+  AuthenticatedAdminBotSettingsRoute: typeof AuthenticatedAdminBotSettingsRoute
   AuthenticatedAdminBotTestRoute: typeof AuthenticatedAdminBotTestRoute
   AuthenticatedAdminBotTrainingRoute: typeof AuthenticatedAdminBotTrainingRoute
   AuthenticatedAdminChatRoute: typeof AuthenticatedAdminChatRoute
@@ -898,6 +919,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAdsRoute: AuthenticatedAdminAdsRoute,
+  AuthenticatedAdminBotSettingsRoute: AuthenticatedAdminBotSettingsRoute,
   AuthenticatedAdminBotTestRoute: AuthenticatedAdminBotTestRoute,
   AuthenticatedAdminBotTrainingRoute: AuthenticatedAdminBotTrainingRoute,
   AuthenticatedAdminChatRoute: AuthenticatedAdminChatRoute,
