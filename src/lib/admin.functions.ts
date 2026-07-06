@@ -90,11 +90,22 @@ export const getBidPdfUrl = createServerFn({ method: "POST" })
     z.object({ path: z.string().min(1).max(500) }).parse(d)
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    // ensure user has staff role
-    const { data: roles } = await supabase.from("user_roles").select("role");
-    if (!roles || roles.length === 0) throw new Error("Forbidden");
+    const { supabase, userId } = context;
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    const isAdmin = !!myRoles?.some((r) => r.role === "admin");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (!isAdmin) {
+      const { data: reqRow } = await supabaseAdmin
+        .from("project_requests")
+        .select("project_id,projects(created_by)")
+        .eq("pdf_url", data.path)
+        .maybeSingle();
+      const ownerId = (reqRow?.projects as { created_by: string | null } | null)?.created_by;
+      if (!ownerId || ownerId !== userId) throw new Error("غير مصرح بفتح هذا الملف");
+    }
+
     const { data: signed, error } = await supabaseAdmin.storage
       .from("bid-pdfs")
       .createSignedUrl(data.path, 60 * 10);
