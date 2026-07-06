@@ -130,6 +130,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_settings: {
+        Row: {
+          allow_escalation: boolean
+          created_at: string
+          id: string
+          off_hours_message: string
+          singleton: boolean
+          updated_at: string
+          work_days: Json
+          work_end: string
+          work_start: string
+        }
+        Insert: {
+          allow_escalation?: boolean
+          created_at?: string
+          id?: string
+          off_hours_message?: string
+          singleton?: boolean
+          updated_at?: string
+          work_days?: Json
+          work_end?: string
+          work_start?: string
+        }
+        Update: {
+          allow_escalation?: boolean
+          created_at?: string
+          id?: string
+          off_hours_message?: string
+          singleton?: boolean
+          updated_at?: string
+          work_days?: Json
+          work_end?: string
+          work_start?: string
+        }
+        Relationships: []
+      }
       contact_messages: {
         Row: {
           created_at: string
