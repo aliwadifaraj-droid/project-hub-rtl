@@ -88,8 +88,11 @@ export function SupportChatWidget() {
     [status, qaList.length],
   );
 
+  if (!mounted) return null;
+
   return (
     <>
+
       {!open && (
         <button
           onClick={() => setOpen(true)}
