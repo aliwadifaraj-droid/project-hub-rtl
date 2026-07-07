@@ -6,6 +6,8 @@ import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
   visitorSendMessage,
 } from "@/lib/support.functions";
+import { getBotSettings } from "@/lib/bot-settings.functions";
+
 
 const TOKEN_KEY = "support_visitor_token_v1";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
