@@ -137,6 +137,7 @@ export type Database = {
         Row: {
           allow_escalation: boolean
           created_at: string
+          fallback_message: string
           id: string
           off_hours_message: string
           show_suggested_questions: boolean
@@ -149,6 +150,7 @@ export type Database = {
         Insert: {
           allow_escalation?: boolean
           created_at?: string
+          fallback_message?: string
           id?: string
           off_hours_message?: string
           show_suggested_questions?: boolean
@@ -161,6 +163,7 @@ export type Database = {
         Update: {
           allow_escalation?: boolean
           created_at?: string
+          fallback_message?: string
           id?: string
           off_hours_message?: string
           show_suggested_questions?: boolean
