@@ -8,7 +8,7 @@ export const getDatabaseSize = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase } = context;
-    const { data, error } = await supabase.rpc("get_database_size");
+    const { data, error } = await (supabase as any).rpc("get_database_size");
     if (error) throw new Error(error.message);
     const row = Array.isArray(data) ? data[0] : data;
     const sizeBytes = Number(row?.size_bytes ?? 0);
