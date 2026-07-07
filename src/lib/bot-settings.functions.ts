@@ -22,7 +22,7 @@ export const getBotSettings = createServerFn({ method: "GET" }).handler(async ()
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("bot_settings")
-    .select("id,work_days,work_start,work_end,off_hours_message,allow_escalation,show_suggested_questions")
+    .select("id,work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation,show_suggested_questions")
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
