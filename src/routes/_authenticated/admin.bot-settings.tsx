@@ -67,6 +67,7 @@ function BotSettingsPage() {
           work_start: workStart,
           work_end: workEnd,
           off_hours_message: offMsg,
+          fallback_message: fallbackMsg,
           allow_escalation: allowEsc,
           show_suggested_questions: showSuggested,
         },
