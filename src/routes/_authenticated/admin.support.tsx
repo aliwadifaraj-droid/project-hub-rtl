@@ -17,6 +17,7 @@ function AdminSupportPage() {
   const listMsgs = useServerFn(adminListChatMessages);
   const reply = useServerFn(adminReplyChat);
   const closeFn = useServerFn(adminCloseChat);
+  const delAllFn = useServerFn(adminDeleteAllSupport);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
