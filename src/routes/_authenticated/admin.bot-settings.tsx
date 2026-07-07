@@ -53,6 +53,7 @@ function BotSettingsPage() {
     setWorkStart(trimSec(data.work_start));
     setWorkEnd(trimSec(data.work_end));
     setOffMsg(data.off_hours_message);
+    setFallbackMsg(data.fallback_message ?? "");
     setAllowEsc(data.allow_escalation);
     setShowSuggested(data.show_suggested_questions ?? true);
   }, [data]);
