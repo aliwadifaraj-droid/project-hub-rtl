@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { adminListChats, adminListChatMessages, adminReplyChat, adminCloseChat } from "@/lib/support.functions";
-import { Send, Headphones, CheckCircle2 } from "lucide-react";
+import { adminListChats, adminListChatMessages, adminReplyChat, adminCloseChat, adminDeleteAllSupport } from "@/lib/support.functions";
+import { Send, Headphones, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/support")({
