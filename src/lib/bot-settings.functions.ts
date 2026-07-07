@@ -13,6 +13,7 @@ export type BotSettings = {
   work_start: string;
   work_end: string;
   off_hours_message: string;
+  fallback_message: string;
   allow_escalation: boolean;
   show_suggested_questions: boolean;
 };
