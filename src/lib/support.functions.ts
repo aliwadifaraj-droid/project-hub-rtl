@@ -45,13 +45,23 @@ async function loadBotSettings(admin: any): Promise<BotSettingsRow | null> {
 }
 function isWithinWorkHours(s: BotSettingsRow | null): boolean {
   if (!s) return true;
-  const now = new Date();
-  const dayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-  const key = dayKeys[now.getDay()];
+  const tz = "Asia/Riyadh";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const wd = parts.find((p) => p.type === "weekday")?.value ?? "";
+  const hh = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const mm = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const map: Record<string, string> = { Sun: "sun", Mon: "mon", Tue: "tue", Wed: "wed", Thu: "thu", Fri: "fri", Sat: "sat" };
+  const key = map[wd] ?? "sun";
   if (s.work_days && s.work_days[key] === false) return false;
   const [sh, sm] = (s.work_start ?? "00:00").split(":").map(Number);
   const [eh, em] = (s.work_end ?? "23:59").split(":").map(Number);
-  const cur = now.getHours() * 60 + now.getMinutes();
+  const cur = (hh % 24) * 60 + (mm % 60);
   const start = sh * 60 + sm;
   const end = eh * 60 + em;
   return cur >= start && cur <= end;
