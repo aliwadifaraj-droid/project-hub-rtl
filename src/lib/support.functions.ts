@@ -33,12 +33,13 @@ type BotSettingsRow = {
   work_start: string | null;
   work_end: string | null;
   off_hours_message: string | null;
+  fallback_message: string | null;
   allow_escalation: boolean | null;
 };
 async function loadBotSettings(admin: any): Promise<BotSettingsRow | null> {
   const { data } = await admin
     .from("bot_settings")
-    .select("work_days,work_start,work_end,off_hours_message,allow_escalation")
+    .select("work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation")
     .limit(1)
     .maybeSingle();
   return (data as BotSettingsRow) ?? null;
