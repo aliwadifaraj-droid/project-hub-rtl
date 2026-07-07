@@ -136,6 +136,7 @@ export type Database = {
           created_at: string
           id: string
           off_hours_message: string
+          show_suggested_questions: boolean
           singleton: boolean
           updated_at: string
           work_days: Json
@@ -147,6 +148,7 @@ export type Database = {
           created_at?: string
           id?: string
           off_hours_message?: string
+          show_suggested_questions?: boolean
           singleton?: boolean
           updated_at?: string
           work_days?: Json
@@ -158,6 +160,7 @@ export type Database = {
           created_at?: string
           id?: string
           off_hours_message?: string
+          show_suggested_questions?: boolean
           singleton?: boolean
           updated_at?: string
           work_days?: Json
