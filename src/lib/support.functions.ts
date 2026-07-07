@@ -266,6 +266,10 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
         }
       } else {
         if (!answer) {
+          const projAns = await answerProjectQuery(supabaseAdmin, data.body);
+          if (projAns) answer = projAns;
+        }
+        if (!answer) {
           answer = settings?.fallback_message?.trim()
             || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
         }
