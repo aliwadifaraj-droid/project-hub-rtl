@@ -37,7 +37,7 @@ export const getProject = createServerFn({ method: "GET" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: p, error } = await supabaseAdmin
         .from("projects")
-        .select("id,name,description,location,duration,cover_image,images,pdf_file")
+        .select("id,name,description,location,duration,cover_image,images,pdf_file,status")
         .eq("id", data.id)
         .maybeSingle();
       if (error) {
