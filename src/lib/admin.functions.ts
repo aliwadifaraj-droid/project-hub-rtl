@@ -8,7 +8,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("projects")
-      .select("id,name,description,location,duration,cover_image,images,pdf_file,created_by")
+      .select("id,name,description,location,duration,cover_image,images,pdf_file,created_by,status")
       .eq("admin_approval", "approved")
       .order("created_at", { ascending: false });
     if (error) {
