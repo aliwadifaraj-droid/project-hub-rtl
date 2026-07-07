@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Settings2, Save, MessageCircleOff } from "lucide-react";
+import { Settings2, Save, MessageCircleOff, Database, AlertTriangle } from "lucide-react";
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
 import { getHideSupportChat, setHideSupportChat } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
+import { getDatabaseSize } from "@/lib/db-stats.functions";
 import { hasAdminRole } from "@/lib/role-label";
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
@@ -39,6 +40,14 @@ function AdminSettings() {
 
   const fetchHideChat = useServerFn(getHideSupportChat);
   const saveHideChat = useServerFn(setHideSupportChat);
+  const fetchDbSize = useServerFn(getDatabaseSize);
+
+  const { data: dbSize, isLoading: dbSizeLoading } = useQuery({
+    queryKey: ["db-size-admin"],
+    queryFn: () => fetchDbSize(),
+    enabled: hasAdminRole(roles),
+    refetchInterval: 60_000,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["maintenance-admin"],
@@ -96,6 +105,51 @@ function AdminSettings() {
       <div className="mb-6 flex items-center gap-2">
         <Settings2 className="h-5 w-5" />
         <h1 className="text-xl font-bold">إعدادات الموقع</h1>
+      </div>
+
+
+      <div className="mb-6 rounded-lg border border-border bg-card p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <Database className="h-5 w-5" />
+          <h2 className="text-base font-semibold">مساحة قاعدة البيانات</h2>
+        </div>
+        {dbSizeLoading || !dbSize ? (
+          <p className="text-sm text-muted-foreground">جارٍ التحميل...</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-bold">{dbSize.sizePretty}</span>
+              <span className="text-sm text-muted-foreground">
+                من {Math.round(dbSize.limitBytes / (1024 * 1024))} MB
+              </span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full transition-all ${
+                  dbSize.percent >= 80
+                    ? "bg-destructive"
+                    : dbSize.percent >= 60
+                    ? "bg-yellow-500"
+                    : "bg-primary"
+                }`}
+                style={{ width: `${Math.min(100, dbSize.percent).toFixed(1)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">نسبة الاستهلاك</span>
+              <span className="font-semibold">{dbSize.percent.toFixed(1)}%</span>
+            </div>
+            {dbSize.percent >= 80 && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <div>
+                  <div className="font-semibold">تنبيه: تجاوزت مساحة قاعدة البيانات 80%</div>
+                  <div className="mt-1 opacity-90">يُنصح بمراجعة البيانات وحذف غير الضروري أو ترقية الخطة.</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border border-border bg-card p-6 space-y-6">
