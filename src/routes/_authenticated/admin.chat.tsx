@@ -18,6 +18,7 @@ function TeamChatPage() {
   const listFn = useServerFn(listTeamMessages);
   const sendFn = useServerFn(sendTeamMessage);
   const delFn = useServerFn(deleteTeamMessage);
+  const delAllFn = useServerFn(deleteAllTeamMessages);
 
   const rolesFn = useServerFn(getMyRoles);
 
