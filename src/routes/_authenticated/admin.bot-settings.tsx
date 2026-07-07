@@ -42,6 +42,7 @@ function BotSettingsPage() {
   const [workStart, setWorkStart] = useState("09:00");
   const [workEnd, setWorkEnd] = useState("17:00");
   const [offMsg, setOffMsg] = useState("نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
+  const [fallbackMsg, setFallbackMsg] = useState("عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.");
   const [allowEsc, setAllowEsc] = useState(true);
   const [showSuggested, setShowSuggested] = useState(true);
   const [saving, setSaving] = useState(false);
