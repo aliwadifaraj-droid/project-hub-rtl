@@ -40,6 +40,14 @@ function AdminSettings() {
 
   const fetchHideChat = useServerFn(getHideSupportChat);
   const saveHideChat = useServerFn(setHideSupportChat);
+  const fetchDbSize = useServerFn(getDatabaseSize);
+
+  const { data: dbSize, isLoading: dbSizeLoading } = useQuery({
+    queryKey: ["db-size-admin"],
+    queryFn: () => fetchDbSize(),
+    enabled: hasAdminRole(roles),
+    refetchInterval: 60_000,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["maintenance-admin"],
