@@ -408,6 +408,11 @@ function AdminLayout() {
                     {teamChatUnread > 99 ? "99+" : teamChatUnread}
                   </span>
                 )}
+                {i.to === "/admin/support" && supportEscalatedCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground animate-pulse">
+                    {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
+                  </span>
+                )}
                 {isPendingProjItem && pendingProjectsCount > 0 && (
                   <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                     {pendingProjectsCount > 99 ? "99+" : pendingProjectsCount}
