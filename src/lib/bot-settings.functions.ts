@@ -37,6 +37,7 @@ export const updateBotSettings = createServerFn({ method: "POST" })
     work_end: string;
     off_hours_message: string;
     allow_escalation: boolean;
+    show_suggested_questions: boolean;
   }) =>
     z.object({
       work_days: daysSchema,
@@ -44,6 +45,7 @@ export const updateBotSettings = createServerFn({ method: "POST" })
       work_end: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
       off_hours_message: z.string().trim().min(1).max(1000),
       allow_escalation: z.boolean(),
+      show_suggested_questions: z.boolean(),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
