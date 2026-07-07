@@ -137,16 +137,40 @@ function BotSettingsPage() {
             </div>
           </section>
 
-          {/* Off-hours message */}
+          {/* Messages */}
           <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-bold">رسالة خارج الدوام</h2>
-            <textarea
-              rows={4}
-              value={offMsg}
-              onChange={(e) => setOffMsg(e.target.value)}
-              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
+            <h2 className="mb-3 text-sm font-bold">الرسائل</h2>
+
+            <div className="mb-4">
+              <label className="mb-1 block text-xs font-semibold">رسالة خارج الدوام</label>
+              <textarea
+                rows={4}
+                value={offMsg}
+                onChange={(e) => setOffMsg(e.target.value)}
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <div>
+                <h3 className="text-sm font-bold">إظهار الأسئلة المقترحة</h3>
+                <p className="text-xs text-muted-foreground">عرض قائمة الأسئلة السريعة في بوت الصفحة الرئيسية</p>
+              </div>
+              <button
+                onClick={() => setShowSuggested(!showSuggested)}
+                role="switch"
+                aria-checked={showSuggested}
+                className={`relative h-6 w-11 rounded-full transition ${showSuggested ? "bg-primary" : "bg-muted"}`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-all ${
+                    showSuggested ? "start-0.5" : "end-0.5"
+                  }`}
+                />
+              </button>
+            </div>
           </section>
+
 
           {/* Allow escalation */}
           <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
