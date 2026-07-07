@@ -6,6 +6,8 @@ import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
   visitorSendMessage,
 } from "@/lib/support.functions";
+import { getBotSettings } from "@/lib/bot-settings.functions";
+
 
 const TOKEN_KEY = "support_visitor_token_v1";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -52,6 +54,8 @@ export function SupportChatWidget() {
   const startFn = useServerFn(startVisitorChat);
   const getMsgs = useServerFn(visitorGetMessages);
   const sendFn = useServerFn(visitorSendMessage);
+  const getSettings = useServerFn(getBotSettings);
+
 
   useEffect(() => { setMounted(true); setToken(getOrCreateToken()); }, []);
 
@@ -69,6 +73,14 @@ export function SupportChatWidget() {
     enabled: open,
     staleTime: 60_000,
   });
+
+  const { data: botSettings } = useQuery({
+    queryKey: ["bot-settings-public"],
+    queryFn: () => getSettings(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
 
   const { data: chatData } = useQuery({
     queryKey: ["support-visitor-chat", token],
@@ -103,8 +115,8 @@ export function SupportChatWidget() {
 
 
   const canShowQuickQuestions = useMemo(
-    () => status === "bot" && qaList.length > 0,
-    [status, qaList.length],
+    () => status === "bot" && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
+    [status, qaList.length, botSettings?.show_suggested_questions],
   );
 
   if (!mounted) return null;
