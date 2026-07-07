@@ -268,6 +268,18 @@ export const visitorEscalate = createServerFn({ method: "POST" })
     return { ok: true, escalated: true };
   });
 
+export const visitorEndSession = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: chat } = await supabaseAdmin
+      .from("support_chats").select("id").eq("visitor_token", data.visitorToken).maybeSingle();
+    if (!chat) return { ok: true };
+    await supabaseAdmin.from("support_messages").delete().eq("chat_id", chat.id);
+    await supabaseAdmin.from("support_chats").delete().eq("id", chat.id);
+    return { ok: true };
+  });
+
 // -------- Admin --------
 
 async function assertStaff(supabase: any, userId: string) {
