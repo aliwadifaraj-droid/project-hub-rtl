@@ -70,6 +70,7 @@ function BotTrainingPage() {
           keywords: editing.keywords ?? [],
           is_active: editing.is_active ?? true,
           sort_order: editing.sort_order ?? 0,
+          action: (editing.action as QaAction) ?? "none",
         },
       });
       setEditing(null);
