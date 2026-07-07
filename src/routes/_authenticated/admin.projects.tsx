@@ -89,6 +89,13 @@ function ProjectsAdminPage() {
               <h3 className="font-bold">{p.name}</h3>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  to="/project/$id"
+                  params={{ id: p.id }}
+                  className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
+                >
+                  <Eye className="h-3.5 w-3.5" /> تفاصيل
+                </Link>
                 <ShareLinkButton id={p.id} />
                 {(isAdmin || (myId && p.created_by === myId)) && (
                   <>
@@ -104,6 +111,13 @@ function ProjectsAdminPage() {
                   </>
                 )}
               </div>
+              {isAdmin ? (
+                <AdminProjectStatus
+                  projectId={p.id}
+                  currentStatus={(p as { status?: string }).status}
+                  queryKey={["admin-projects"]}
+                />
+              ) : null}
 
             </div>
           </div>
