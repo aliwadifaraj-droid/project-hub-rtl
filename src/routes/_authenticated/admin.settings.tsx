@@ -46,7 +46,7 @@ function AdminSettings() {
     queryKey: ["db-size-admin"],
     queryFn: () => fetchDbSize(),
     enabled: hasAdminRole(roles),
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
   });
 
   const { data, isLoading } = useQuery({
