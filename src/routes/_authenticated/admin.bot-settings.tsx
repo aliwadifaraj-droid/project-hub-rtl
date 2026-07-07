@@ -42,6 +42,7 @@ function BotSettingsPage() {
   const [workStart, setWorkStart] = useState("09:00");
   const [workEnd, setWorkEnd] = useState("17:00");
   const [offMsg, setOffMsg] = useState("نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
+  const [fallbackMsg, setFallbackMsg] = useState("عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.");
   const [allowEsc, setAllowEsc] = useState(true);
   const [showSuggested, setShowSuggested] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -52,6 +53,7 @@ function BotSettingsPage() {
     setWorkStart(trimSec(data.work_start));
     setWorkEnd(trimSec(data.work_end));
     setOffMsg(data.off_hours_message);
+    setFallbackMsg(data.fallback_message ?? "");
     setAllowEsc(data.allow_escalation);
     setShowSuggested(data.show_suggested_questions ?? true);
   }, [data]);
@@ -65,6 +67,7 @@ function BotSettingsPage() {
           work_start: workStart,
           work_end: workEnd,
           off_hours_message: offMsg,
+          fallback_message: fallbackMsg,
           allow_escalation: allowEsc,
           show_suggested_questions: showSuggested,
         },
@@ -150,6 +153,20 @@ function BotSettingsPage() {
                 className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+
+            <div className="mb-4">
+              <label className="mb-1 block text-xs font-semibold">الرد الافتراضي</label>
+              <textarea
+                rows={4}
+                value={fallbackMsg}
+                onChange={(e) => setFallbackMsg(e.target.value)}
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                يُستخدم عندما لا يجد البوت إجابة مطابقة لسؤال العميل.
+              </p>
+            </div>
+
 
             <div className="flex items-center justify-between border-t border-border pt-3">
               <div>
