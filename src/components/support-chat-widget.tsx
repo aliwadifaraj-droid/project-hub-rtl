@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, X, Send, Headphones } from "lucide-react";
+import { MessageCircle, X, Send, Headphones, PowerOff } from "lucide-react";
 import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
-  visitorSendMessage,
+  visitorSendMessage, visitorEndSession,
 } from "@/lib/support.functions";
 import { getBotSettings } from "@/lib/bot-settings.functions";
 
 
 const TOKEN_KEY = "support_visitor_token_v1";
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IDLE_MS = 5 * 60 * 1000;
 
 function generateUuid(): string {
   const browserCrypto = globalThis.crypto;
@@ -30,16 +30,6 @@ function generateUuid(): string {
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
 
-function getOrCreateToken(): string {
-  if (typeof window === "undefined") return "";
-  let t = localStorage.getItem(TOKEN_KEY);
-  if (!t || !UUID_RE.test(t)) {
-    t = generateUuid();
-    localStorage.setItem(TOKEN_KEY, t);
-  }
-  return t;
-}
-
 export function SupportChatWidget() {
   const qc = useQueryClient();
   const [mounted, setMounted] = useState(false);
@@ -49,23 +39,63 @@ export function SupportChatWidget() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const listQa = useServerFn(listBotQuestions);
   const startFn = useServerFn(startVisitorChat);
   const getMsgs = useServerFn(visitorGetMessages);
   const sendFn = useServerFn(visitorSendMessage);
+  const endFn = useServerFn(visitorEndSession);
   const getSettings = useServerFn(getBotSettings);
 
+  useEffect(() => { setMounted(true); }, []);
 
-  useEffect(() => { setMounted(true); setToken(getOrCreateToken()); }, []);
-
-
-  // Start chat on first open
-  useEffect(() => {
-    if (open && token) {
-      startFn({ data: { visitorToken: token } }).catch(() => {});
+  const endSession = useCallback(async (opts?: { silent?: boolean }) => {
+    if (idleTimer.current) { clearTimeout(idleTimer.current); idleTimer.current = null; }
+    const t = token;
+    setToken("");
+    setInput("");
+    setSendError(null);
+    if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+    if (t) {
+      try { await endFn({ data: { visitorToken: t } }); } catch {}
+      qc.removeQueries({ queryKey: ["support-visitor-chat", t] });
     }
-  }, [open, token, startFn]);
+    if (!opts?.silent) {
+      // stay open on welcome screen (token cleared → welcome view renders)
+    }
+  }, [token, endFn, qc]);
+
+  const resetIdle = useCallback(() => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (!open || !token) return;
+    idleTimer.current = setTimeout(() => { endSession({ silent: true }); }, IDLE_MS);
+  }, [open, token, endSession]);
+
+  // When widget opens: always start a FRESH session
+  useEffect(() => {
+    if (!open || !mounted) return;
+    if (token) return;
+    const t = generateUuid();
+    if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+    startFn({ data: { visitorToken: t } }).catch(() => {});
+  }, [open, mounted, token, startFn]);
+
+  // End session when tab closes
+  useEffect(() => {
+    if (!token) return;
+    const onUnload = () => {
+      try {
+        if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+          // best-effort; server fn RPC doesn't accept beacon, so just clear local
+        }
+      } catch {}
+      if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [token]);
 
   const { data: qaList = [] } = useQuery({
     queryKey: ["bot-qa-public"],
@@ -81,20 +111,25 @@ export function SupportChatWidget() {
     staleTime: 60_000,
   });
 
-
   const { data: chatData } = useQuery({
     queryKey: ["support-visitor-chat", token],
     queryFn: () => getMsgs({ data: { visitorToken: token, sinceIso: null } }),
     enabled: open && !!token,
-    refetchInterval: open ? 3000 : false,
+    refetchInterval: open && !!token ? 3000 : false,
   });
 
   const messages = chatData?.messages ?? [];
   const status = chatData?.chat?.status ?? "bot";
+  const lastMsg = messages[messages.length - 1];
+  const showEndAfterBot = !!lastMsg && (lastMsg.sender === "bot" || lastMsg.sender === "admin");
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, open]);
+
+  // Reset idle timer on any message change or user activity
+  useEffect(() => { resetIdle(); }, [messages.length, resetIdle]);
+  useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current); }, []);
 
   async function handleSend(text: string, qaId?: string | null) {
     if (!token || !text.trim() || sending) return;
@@ -106,13 +141,13 @@ export function SupportChatWidget() {
       await sendFn({ data: { visitorToken: token, body, qaId: qaId != null ? String(qaId) : null } });
       setInput("");
       qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
+      resetIdle();
     } catch {
       setSendError("تعذر إرسال الرسالة، حاول مرة أخرى.");
     } finally {
       setSending(false);
     }
   }
-
 
   const canShowQuickQuestions = useMemo(
     () => status === "bot" && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
@@ -123,7 +158,6 @@ export function SupportChatWidget() {
 
   return (
     <>
-
       {!open && (
         <button
           onClick={() => setOpen(true)}
@@ -135,7 +169,11 @@ export function SupportChatWidget() {
       )}
 
       {open && (
-        <div className="fixed bottom-5 right-5 z-50 flex h-[560px] max-h-[85vh] w-[360px] max-w-[95vw] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--shadow-elegant)]">
+        <div
+          onMouseMove={resetIdle}
+          onKeyDown={resetIdle}
+          className="fixed bottom-5 right-5 z-50 flex h-[560px] max-h-[85vh] w-[360px] max-w-[95vw] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--shadow-elegant)]"
+        >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border bg-[image:var(--gradient-hero)] px-4 py-3 text-primary-foreground">
             <div className="flex items-center gap-2">
@@ -181,6 +219,18 @@ export function SupportChatWidget() {
                 </div>
               );
             })}
+
+            {showEndAfterBot && token && (
+              <div className="flex justify-start pt-1">
+                <button
+                  onClick={() => endSession()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-[11px] font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground transition"
+                >
+                  <PowerOff className="h-3 w-3" />
+                  إنهاء المحادثة
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Quick questions */}
