@@ -54,6 +54,8 @@ export function SupportChatWidget() {
   const startFn = useServerFn(startVisitorChat);
   const getMsgs = useServerFn(visitorGetMessages);
   const sendFn = useServerFn(visitorSendMessage);
+  const getSettings = useServerFn(getBotSettings);
+
 
   useEffect(() => { setMounted(true); setToken(getOrCreateToken()); }, []);
 
