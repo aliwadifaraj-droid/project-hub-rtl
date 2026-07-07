@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminListBotQa, adminUpsertBotQa, adminDeleteBotQa } from "@/lib/support.functions";
 import { Bot, Plus, Trash2, Save, X } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +27,15 @@ function BotTrainingPage() {
   });
 
   const [editing, setEditing] = useState<Partial<QaRow> | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editing && editorRef.current) {
+      editorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const first = editorRef.current.querySelector<HTMLInputElement>("input,textarea");
+      first?.focus();
+    }
+  }, [editing?.id, editing && !editing.id]);
 
   function startNew() {
     setEditing({ question: "", answer: "", keywords: [], is_active: true, sort_order: (rows.length + 1) * 10 });
@@ -77,7 +86,7 @@ function BotTrainingPage() {
       </div>
 
       {editing && (
-        <div className="mb-4 rounded-xl border border-border bg-background p-4 shadow-sm">
+        <div ref={editorRef} className="mb-4 rounded-xl border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold">{editing.id ? "تعديل سؤال" : "سؤال جديد"}</h2>
             <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground">
@@ -144,7 +153,7 @@ function BotTrainingPage() {
                   <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-[10px] ${r.is_active ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{r.is_active ? "مفعل" : "معطل"}</span></td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      <button onClick={() => setEditing(r)} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
+                      <button onClick={() => setEditing({ id: r.id, question: r.question, answer: r.answer, keywords: Array.isArray(r.keywords) ? [...r.keywords] : [], is_active: r.is_active, sort_order: r.sort_order })} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
                       <button onClick={() => remove(r.id)} className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-3 w-3" /> حذف
                       </button>
