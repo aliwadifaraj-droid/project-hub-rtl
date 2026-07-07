@@ -95,15 +95,35 @@ function TeamChatPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
-          <MessagesSquare className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-xl font-bold">غرفة شات الفريق</h1>
-          <p className="text-xs text-muted-foreground">محادثة مشتركة بين الأدمن وجميع المستخدمين</p>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
+            <MessagesSquare className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-xl font-bold">غرفة شات الفريق</h1>
+            <p className="text-xs text-muted-foreground">محادثة مشتركة بين الأدمن وجميع المستخدمين</p>
+          </div>
         </div>
+        {isAdmin && messages.length > 0 && (
+          <button
+            onClick={async () => {
+              if (!confirm("حذف جميع رسائل شات الفريق؟ لا يمكن التراجع.")) return;
+              try {
+                await delAllFn();
+                qc.invalidateQueries({ queryKey: ["team-messages"] });
+                toast.success("تم حذف جميع الرسائل");
+              } catch (err: any) {
+                toast.error(err?.message ?? "تعذر الحذف");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-red-600/20 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-600/30"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> حذف الكل
+          </button>
+        )}
       </div>
+
 
       <div className="flex h-[calc(100vh-220px)] min-h-[420px] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
