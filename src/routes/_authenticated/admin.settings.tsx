@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Settings2, Save, MessageCircleOff } from "lucide-react";
+import { Settings2, Save, MessageCircleOff, Database, AlertTriangle } from "lucide-react";
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
 import { getHideSupportChat, setHideSupportChat } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
+import { getDatabaseSize } from "@/lib/db-stats.functions";
 import { hasAdminRole } from "@/lib/role-label";
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
