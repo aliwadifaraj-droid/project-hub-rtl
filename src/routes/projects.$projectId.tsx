@@ -140,10 +140,16 @@ function ProjectDetail() {
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">الحالة</dt>
-                  <dd className="font-medium text-accent">مفتوح للعروض</dd>
+                  <dd className="font-medium text-accent">{statusLabel((project as { status?: string }).status)}</dd>
                 </div>
               </dl>
+              <AdminProjectStatus
+                projectId={project.id}
+                currentStatus={(project as { status?: string }).status}
+                queryKey={["project", projectId]}
+              />
             </div>
+
           </aside>
         </div>
 
