@@ -43,6 +43,7 @@ function BotSettingsPage() {
   const [workEnd, setWorkEnd] = useState("17:00");
   const [offMsg, setOffMsg] = useState("نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
   const [allowEsc, setAllowEsc] = useState(true);
+  const [showSuggested, setShowSuggested] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ function BotSettingsPage() {
     setWorkEnd(trimSec(data.work_end));
     setOffMsg(data.off_hours_message);
     setAllowEsc(data.allow_escalation);
+    setShowSuggested(data.show_suggested_questions ?? true);
   }, [data]);
 
   async function save() {
@@ -64,9 +66,11 @@ function BotSettingsPage() {
           work_end: workEnd,
           off_hours_message: offMsg,
           allow_escalation: allowEsc,
+          show_suggested_questions: showSuggested,
         },
       });
       qc.invalidateQueries({ queryKey: ["bot-settings"] });
+      qc.invalidateQueries({ queryKey: ["bot-settings-public"] });
       toast.success("تم حفظ الإعدادات");
     } catch (e: any) {
       toast.error(e?.message ?? "تعذر الحفظ");
