@@ -12,8 +12,9 @@ export const getDatabaseSize = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     const row = Array.isArray(data) ? data[0] : data;
     const sizeBytes = Number(row?.size_bytes ?? 0);
-    const sizePretty = String(row?.size_pretty ?? "");
     const limitBytes = DEFAULT_LIMIT_BYTES;
+    const sizeMB = sizeBytes / (1024 * 1024);
+    const limitMB = limitBytes / (1024 * 1024);
     const percent = limitBytes > 0 ? (sizeBytes / limitBytes) * 100 : 0;
-    return { sizeBytes, sizePretty, limitBytes, percent };
+    return { sizeBytes, sizeMB, limitBytes, limitMB, percent };
   });

@@ -46,7 +46,7 @@ function AdminSettings() {
     queryKey: ["db-size-admin"],
     queryFn: () => fetchDbSize(),
     enabled: hasAdminRole(roles),
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
   });
 
   const { data, isLoading } = useQuery({
@@ -118,9 +118,9 @@ function AdminSettings() {
         ) : (
           <div className="space-y-3">
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold">{dbSize.sizePretty}</span>
+              <span className="text-2xl font-bold">{dbSize.sizeMB.toFixed(2)} MB</span>
               <span className="text-sm text-muted-foreground">
-                من {Math.round(dbSize.limitBytes / (1024 * 1024))} MB
+                من {dbSize.limitMB.toFixed(0)} MB
               </span>
             </div>
             <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
