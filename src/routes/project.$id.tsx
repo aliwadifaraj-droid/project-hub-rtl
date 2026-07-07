@@ -6,6 +6,7 @@ import { getProject, submitBidRequest } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -153,9 +154,9 @@ function ProjectDetail() {
                   <dt className="text-muted-foreground">المدة المتوقعة</dt>
                   <dd className="font-medium">{project.duration}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <dt className="text-muted-foreground">الحالة</dt>
-                  <dd className="font-medium text-accent">{statusLabel((project as { status?: string }).status)}</dd>
+                  <dd><ProjectStatusBadge status={(project as { status?: string }).status} /></dd>
                 </div>
               </dl>
               <AdminProjectStatus
