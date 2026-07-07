@@ -28,6 +28,7 @@ function AdminLayout() {
   const countPendingProj = useServerFn(countPendingProjects);
   const countUnread = useServerFn(countMyUnreadNotifications);
   const countTeamUnread = useServerFn(countUnreadTeamMessages);
+  const countOpenSupport = useServerFn(adminCountOpenSupportChats);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
