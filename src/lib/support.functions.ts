@@ -347,7 +347,7 @@ export const adminListBotQa = createServerFn({ method: "GET" })
 
 export const adminUpsertBotQa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id?: string | null; question: string; answer: string; keywords: string[]; is_active: boolean; sort_order: number }) =>
+  .inputValidator((d: { id?: string | null; question: string; answer: string; keywords: string[]; is_active: boolean; sort_order: number; action?: "none" | "escalate" }) =>
     z.object({
       id: z.string().uuid().nullable().optional(),
       question: z.string().trim().min(1).max(300),
@@ -355,13 +355,14 @@ export const adminUpsertBotQa = createServerFn({ method: "POST" })
       keywords: z.array(z.string().trim().max(60)).max(30),
       is_active: z.boolean(),
       sort_order: z.number().int().min(0).max(9999),
+      action: z.enum(["none", "escalate"]).default("none"),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const row = { question: data.question, answer: data.answer, keywords: data.keywords, is_active: data.is_active, sort_order: data.sort_order };
+    const row = { question: data.question, answer: data.answer, keywords: data.keywords, is_active: data.is_active, sort_order: data.sort_order, action: data.action ?? "none" };
     if (data.id) {
       const { error } = await supabaseAdmin.from("bot_qa").update(row).eq("id", data.id);
       if (error) throw new Error(error.message);
