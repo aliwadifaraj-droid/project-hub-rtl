@@ -95,3 +95,17 @@ export const countUnreadTeamMessages = createServerFn({ method: "POST" })
     return { count: count ?? 0 };
   });
 
+export const deleteAllTeamMessages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const roles = await getRoles(context.supabase, context.userId);
+    if (!roles.includes("admin")) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("team_messages")
+      .delete()
+      .not("id", "is", null);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
