@@ -74,6 +74,15 @@ function AdminLayout() {
     enabled: !!roles && roles.length > 0,
     refetchInterval: 30000,
   });
+  const { data: supportEscalatedCount = 0, refetch: refetchSupportEscalated } = useQuery({
+    queryKey: ["support-escalated-count"],
+    queryFn: async () => {
+      const res = await countOpenSupport();
+      return res.count;
+    },
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 15000,
+  });
   const { data: notifs } = useQuery({
     queryKey: ["my-notifications"],
     queryFn: () => listNotifs(),
