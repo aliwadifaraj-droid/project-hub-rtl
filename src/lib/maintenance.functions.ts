@@ -54,12 +54,15 @@ export const setMaintenance = createServerFn({ method: "POST" })
     });
     if (roleError) throw new Error(roleError.message);
     if (!isAdmin) throw new Error("Forbidden");
+    const normalizedEndAt = data.enabled && data.endAt && new Date(data.endAt).getTime() <= Date.now()
+      ? null
+      : data.endAt;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("site_settings").upsert({
       key: KEY,
-      value: { enabled: data.enabled, endAt: data.endAt },
+      value: { enabled: data.enabled, endAt: normalizedEndAt },
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error(error.message);
-    return { ok: true, enabled: data.enabled, endAt: data.endAt };
+    return { ok: true, enabled: data.enabled, endAt: normalizedEndAt };
   });
