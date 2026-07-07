@@ -10,10 +10,12 @@ export const Route = createFileRoute("/_authenticated/admin/bot-training")({
   component: BotTrainingPage,
 });
 
+type QaAction = "none" | "escalate";
 type QaRow = {
   id: string; question: string; answer: string;
-  keywords: string[]; is_active: boolean; sort_order: number;
+  keywords: string[]; is_active: boolean; sort_order: number; action: QaAction;
 };
+const ACTION_LABEL: Record<QaAction, string> = { none: "بدون", escalate: "تحويل لموظف" };
 
 function BotTrainingPage() {
   const qc = useQueryClient();
