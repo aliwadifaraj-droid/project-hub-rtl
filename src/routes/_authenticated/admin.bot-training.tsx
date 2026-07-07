@@ -40,7 +40,7 @@ function BotTrainingPage() {
   }, [editing?.id, editing && !editing.id]);
 
   function startNew() {
-    setEditing({ question: "", answer: "", keywords: [], is_active: true, sort_order: (rows.length + 1) * 10 });
+    setEditing({ question: "", answer: "", keywords: [], is_active: true, sort_order: (rows.length + 1) * 10, action: "none" });
   }
 
   async function save() {
