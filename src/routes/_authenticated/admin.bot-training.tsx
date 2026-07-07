@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminListBotQa, adminUpsertBotQa, adminDeleteBotQa } from "@/lib/support.functions";
 import { Bot, Plus, Trash2, Save, X } from "lucide-react";
 import { toast } from "sonner";
