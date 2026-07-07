@@ -354,6 +354,27 @@ export const deleteProject = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const updateProjectStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      status: z.enum(["active", "delivered", "cancelled"]),
+    }).parse(d)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: myRoles } = await supabase
+      .from("user_roles").select("role").eq("user_id", userId);
+    const isAdmin = !!myRoles?.some((r) => r.role === "admin");
+    if (!isAdmin) throw new Error("غير مصرح");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("projects").update({ status: data.status }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+
 
 // ---------- Admin: employees management ----------
 export const listEmployees = createServerFn({ method: "GET" })
