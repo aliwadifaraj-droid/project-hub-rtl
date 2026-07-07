@@ -153,7 +153,7 @@ function BotTrainingPage() {
                   <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-[10px] ${r.is_active ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{r.is_active ? "مفعل" : "معطل"}</span></td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      <button onClick={() => setEditing(r)} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
+                      <button onClick={() => setEditing({ id: r.id, question: r.question, answer: r.answer, keywords: Array.isArray(r.keywords) ? [...r.keywords] : [], is_active: r.is_active, sort_order: r.sort_order })} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
                       <button onClick={() => remove(r.id)} className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-3 w-3" /> حذف
                       </button>
