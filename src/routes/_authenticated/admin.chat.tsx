@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { listTeamMessages, sendTeamMessage, deleteTeamMessage } from "@/lib/chat.functions";
+import { listTeamMessages, sendTeamMessage, deleteTeamMessage, deleteAllTeamMessages } from "@/lib/chat.functions";
 import { getMyRoles } from "@/lib/admin.functions";
 import { getRoleLabel } from "@/lib/role-label";
 import { Send, Trash2, MessagesSquare } from "lucide-react";
