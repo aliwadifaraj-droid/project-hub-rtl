@@ -9,6 +9,13 @@ import { SiteFooter } from "@/components/site-footer";
 import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { AdminProjectStatus } from "@/components/admin-project-status";
+
+function statusLabel(s?: string | null) {
+  if (s === "delivered") return "تم التسليم";
+  if (s === "cancelled") return "ملغي";
+  return "مفتوح للعروض";
+}
 
 const projectQuery = (id: string) =>
   queryOptions({
