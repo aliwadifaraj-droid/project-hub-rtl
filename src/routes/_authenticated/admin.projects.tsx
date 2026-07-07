@@ -5,6 +5,7 @@ import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
+import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
@@ -24,6 +25,8 @@ type ProjectRow = {
   images: string[];
   pdf_file?: string | null;
   created_by?: string | null;
+  status?: string | null;
+  admin_approval?: string | null;
 };
 
 
@@ -86,7 +89,10 @@ function ProjectsAdminPage() {
               <img src={p.cover_url} alt={p.name} className="aspect-video w-full object-cover" />
             ) : <div className="aspect-video w-full bg-secondary" />}
             <div className="p-4">
-              <h3 className="font-bold">{p.name}</h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-bold">{p.name}</h3>
+                <ProjectStatusBadge status={p.status} />
+              </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link
