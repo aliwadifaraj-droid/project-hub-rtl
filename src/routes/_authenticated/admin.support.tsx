@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { adminListChats, adminListChatMessages, adminReplyChat, adminCloseChat } from "@/lib/support.functions";
-import { Send, Headphones, CheckCircle2 } from "lucide-react";
+import { adminListChats, adminListChatMessages, adminReplyChat, adminCloseChat, adminDeleteAllSupport } from "@/lib/support.functions";
+import { Send, Headphones, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/support")({
@@ -17,6 +17,7 @@ function AdminSupportPage() {
   const listMsgs = useServerFn(adminListChatMessages);
   const reply = useServerFn(adminReplyChat);
   const closeFn = useServerFn(adminCloseChat);
+  const delAllFn = useServerFn(adminDeleteAllSupport);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -74,15 +75,37 @@ function AdminSupportPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
-          <Headphones className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-xl font-bold">دعم العملاء</h1>
-          <p className="text-xs text-muted-foreground">كل محادثات العملاء والبوت</p>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
+            <Headphones className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-xl font-bold">دعم العملاء</h1>
+            <p className="text-xs text-muted-foreground">كل محادثات العملاء والبوت</p>
+          </div>
         </div>
+        {chats.length > 0 && (
+          <button
+            onClick={async () => {
+              if (!confirm("حذف جميع محادثات ورسائل الدعم؟ لا يمكن التراجع.")) return;
+              try {
+                await delAllFn();
+                setActiveId(null);
+                qc.invalidateQueries({ queryKey: ["admin-support-chats"] });
+                qc.invalidateQueries({ queryKey: ["admin-support-msgs"] });
+                toast.success("تم حذف جميع الرسائل");
+              } catch (err: any) {
+                toast.error(err?.message ?? "تعذر الحذف");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-red-600/20 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-600/30"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> حذف الكل
+          </button>
+        )}
       </div>
+
 
       <div className="grid h-[calc(100vh-220px)] min-h-[500px] grid-cols-1 gap-3 md:grid-cols-[280px_1fr]">
         {/* Chat list */}
