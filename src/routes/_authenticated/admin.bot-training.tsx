@@ -174,6 +174,7 @@ function BotTrainingPage() {
                 <th className="p-3">السؤال</th>
                 <th className="p-3">الإجابة</th>
                 <th className="p-3">الحالة</th>
+                <th className="p-3">الإجراء</th>
                 <th className="p-3">إجراء</th>
               </tr>
             </thead>
@@ -183,9 +184,10 @@ function BotTrainingPage() {
                   <td className="p-3 font-medium">{r.question}</td>
                   <td className="p-3 text-muted-foreground line-clamp-2 max-w-md">{r.answer}</td>
                   <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-[10px] ${r.is_active ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{r.is_active ? "مفعل" : "معطل"}</span></td>
+                  <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-[10px] ${r.action === "escalate" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>{ACTION_LABEL[(r.action as QaAction) ?? "none"]}</span></td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      <button onClick={() => setEditing({ id: r.id, question: r.question, answer: r.answer, keywords: Array.isArray(r.keywords) ? [...r.keywords] : [], is_active: r.is_active, sort_order: r.sort_order })} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
+                      <button onClick={() => setEditing({ id: r.id, question: r.question, answer: r.answer, keywords: Array.isArray(r.keywords) ? [...r.keywords] : [], is_active: r.is_active, sort_order: r.sort_order, action: (r.action as QaAction) ?? "none" })} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
                       <button onClick={() => remove(r.id)} className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-3 w-3" /> حذف
                       </button>
