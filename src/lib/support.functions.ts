@@ -286,6 +286,20 @@ export const adminCloseChat = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const adminDeleteAllSupport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    if (!(await isAdmin(context.supabase, context.userId))) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: mErr } = await supabaseAdmin
+      .from("support_messages").delete().not("id", "is", null);
+    if (mErr) throw new Error(mErr.message);
+    const { error: cErr } = await supabaseAdmin
+      .from("support_chats").delete().not("id", "is", null);
+    if (cErr) throw new Error(cErr.message);
+    return { ok: true };
+  });
+
 // -------- Bot training (admin) --------
 
 export const adminListBotQa = createServerFn({ method: "GET" })
