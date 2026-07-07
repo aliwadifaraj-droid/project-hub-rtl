@@ -167,37 +167,57 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     // If chat still with bot, reply
     if (chat.status === "bot") {
       const settings = await loadBotSettings(supabaseAdmin);
-      const askedForHuman = !data.qaId && wantsHuman(data.body);
+      const within = isWithinWorkHours(settings);
+      const allowEsc = settings?.allow_escalation !== false;
+      const offMsg = settings?.off_hours_message?.trim()
+        || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.";
 
-      if (askedForHuman) {
-        const within = isWithinWorkHours(settings);
-        const allowEsc = settings?.allow_escalation !== false;
+      async function doEscalate() {
         if (within && allowEsc) {
           await supabaseAdmin.from("support_chats")
             .update({ status: "escalated", last_message_at: new Date().toISOString() })
-            .eq("id", chat.id);
+            .eq("id", chat!.id);
           await supabaseAdmin.from("support_messages").insert({
-            chat_id: chat.id, sender: "system",
+            chat_id: chat!.id, sender: "system",
             body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
           });
         } else {
-          const offMsg = settings?.off_hours_message?.trim()
-            || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.";
           await supabaseAdmin.from("support_messages").insert({
-            chat_id: chat.id, sender: "bot", body: offMsg,
+            chat_id: chat!.id, sender: "bot", body: offMsg,
+          });
+        }
+      }
+
+      // Determine if this turn triggers an escalate action
+      let triggerEscalate = false;
+      let answer: string | null = null;
+
+      if (data.qaId) {
+        const { data: qa } = await supabaseAdmin
+          .from("bot_qa").select("answer,action")
+          .eq("id", data.qaId).eq("is_active", true).maybeSingle();
+        if (qa?.action === "escalate") triggerEscalate = true;
+        else answer = qa?.answer ?? null;
+      } else if (wantsHuman(data.body)) {
+        triggerEscalate = true;
+      } else {
+        const { data: qas } = await supabaseAdmin
+          .from("bot_qa").select("question,answer,keywords,action").eq("is_active", true);
+        const m = matchQa((qas ?? []) as any, data.body);
+        if (m && (m as any).action === "escalate") triggerEscalate = true;
+        else answer = m?.answer ?? null;
+      }
+
+      if (triggerEscalate) {
+        const alreadyAsked = await botAlreadyAskedClarify(supabaseAdmin, chat.id);
+        if (alreadyAsked) {
+          await doEscalate();
+        } else {
+          await supabaseAdmin.from("support_messages").insert({
+            chat_id: chat.id, sender: "bot", body: CLARIFY_PROMPT,
           });
         }
       } else {
-        let answer: string | null = null;
-        if (data.qaId) {
-          const { data: qa } = await supabaseAdmin.from("bot_qa").select("answer").eq("id", data.qaId).eq("is_active", true).maybeSingle();
-          answer = qa?.answer ?? null;
-        }
-        if (!answer) {
-          const { data: qas } = await supabaseAdmin.from("bot_qa").select("question,answer,keywords").eq("is_active", true);
-          const m = matchQa((qas ?? []) as any, data.body);
-          answer = m?.answer ?? null;
-        }
         if (!answer) {
           answer = "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
         }
