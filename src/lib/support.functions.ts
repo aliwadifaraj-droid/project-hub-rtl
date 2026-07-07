@@ -93,6 +93,42 @@ async function botAlreadyAskedClarify(admin: any, chatId: string): Promise<boole
   return !!(data && data.length);
 }
 
+// --- Project lookup from bot ---
+const DETAIL_KEYWORDS = ["تفاصيل", "تفصيل", "وضع", "حالة", "تكلم عن", "اخبرني", "أخبرني", "معلومات", "كلمني"];
+const EXIST_KEYWORDS = ["موجود", "عندكم", "عندك", "متوفر", "فيه", "لديكم", "هل"];
+const STOP_WORDS = new Set(["مشروع", "المشروع", "هل", "عندكم", "عندك", "متوفر", "موجود", "موجودة", "فيه", "لديكم", "تفاصيل", "تفصيل", "وضع", "حالة", "تكلم", "عن", "اخبرني", "أخبرني", "معلومات", "كلمني", "من", "فضلك", "لو", "سمحت", "ابغى", "أبغى", "ابي", "أبي", "اريد", "أريد", "كل", "ما", "وش", "ايش", "أيش"]);
+function extractProjectName(text: string): string {
+  const t = (text ?? "").replace(/[?؟.!,،]/g, " ");
+  const tokens = t.split(/\s+/).filter(Boolean).filter((w) => !STOP_WORDS.has(w));
+  return tokens.join(" ").trim();
+}
+function detectProjectIntent(text: string): "details" | "exists" | null {
+  const t = (text ?? "").toLowerCase();
+  if (!t.includes("مشروع") && !t.includes("المشروع")) return null;
+  if (DETAIL_KEYWORDS.some((k) => t.includes(k))) return "details";
+  if (EXIST_KEYWORDS.some((k) => t.includes(k))) return "exists";
+  return null;
+}
+async function answerProjectQuery(admin: any, text: string): Promise<string | null> {
+  const intent = detectProjectIntent(text);
+  if (!intent) return null;
+  const name = extractProjectName(text);
+  if (!name) return "غير موجوده حاليا";
+  const escaped = name.replace(/[%_,]/g, " ").trim();
+  if (!escaped) return "غير موجوده حاليا";
+  const { data } = await admin
+    .from("projects")
+    .select("name,location,description,admin_approval")
+    .ilike("name", `%${escaped}%`)
+    .limit(1);
+  const p = data?.[0];
+  if (!p) return "غير موجوده حاليا";
+  if (intent === "exists") return "موجود";
+  const statusMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
+  const status = statusMap[p.admin_approval] ?? (p.admin_approval ?? "غير محدد");
+  return `الاسم: ${p.name}\nالموقع: ${p.location ?? "-"}\nالحالة: ${status}\nالوصف: ${p.description ?? "-"}`;
+}
+
 export const startVisitorChat = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string; visitorName?: string | null }) =>
     z.object({ visitorToken: uuid, visitorName: z.string().trim().max(80).nullable().optional() }).parse(d),
