@@ -99,6 +99,7 @@ export type Database = {
       }
       bot_qa: {
         Row: {
+          action: string
           answer: string
           created_at: string
           id: string
@@ -109,6 +110,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          action?: string
           answer: string
           created_at?: string
           id?: string
@@ -119,6 +121,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          action?: string
           answer?: string
           created_at?: string
           id?: string
