@@ -115,8 +115,8 @@ export function SupportChatWidget() {
 
 
   const canShowQuickQuestions = useMemo(
-    () => status === "bot" && qaList.length > 0,
-    [status, qaList.length],
+    () => status === "bot" && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
+    [status, qaList.length, botSettings?.show_suggested_questions],
   );
 
   if (!mounted) return null;
