@@ -230,7 +230,8 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
         }
       } else {
         if (!answer) {
-          answer = "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
+          answer = settings?.fallback_message?.trim()
+            || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
         }
         const { error: botMessageError } = await supabaseAdmin
           .from("support_messages")
