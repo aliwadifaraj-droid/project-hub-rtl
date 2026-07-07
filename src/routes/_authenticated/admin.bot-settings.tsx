@@ -154,6 +154,20 @@ function BotSettingsPage() {
               />
             </div>
 
+            <div className="mb-4">
+              <label className="mb-1 block text-xs font-semibold">الرد الافتراضي</label>
+              <textarea
+                rows={4}
+                value={fallbackMsg}
+                onChange={(e) => setFallbackMsg(e.target.value)}
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                يُستخدم عندما لا يجد البوت إجابة مطابقة لسؤال العميل.
+              </p>
+            </div>
+
+
             <div className="flex items-center justify-between border-t border-border pt-3">
               <div>
                 <h3 className="text-sm font-bold">إظهار الأسئلة المقترحة</h3>
