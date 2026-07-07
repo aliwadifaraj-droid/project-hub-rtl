@@ -322,6 +322,23 @@ function AdminLayout() {
                 </span>
               )}
             </Link>
+            <Link
+              to="/admin/support"
+              aria-label="دعم العملاء - محادثات محوَّلة"
+              title="عملاء بحاجة إلى موظف"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                supportEscalatedCount > 0
+                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
+            >
+              <Headphones className="h-4 w-4" />
+              {supportEscalatedCount > 0 && (
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
+                </span>
+              )}
+            </Link>
             {isAdmin && (
               <Link
                 to="/admin/messages"
