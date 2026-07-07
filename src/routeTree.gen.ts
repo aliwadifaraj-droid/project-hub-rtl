@@ -24,7 +24,6 @@ import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VipIndexRouteImport } from './routes/vip.index'
-import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AdsAdIdRouteImport } from './routes/ads.$adId'
@@ -127,11 +126,6 @@ const VipIndexRoute = VipIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => VipRoute,
-} as any)
-const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
-  id: '/$projectId',
-  path: '/$projectId',
-  getParentRoute: () => ProjectsRoute,
 } as any)
 const ProjectIdRoute = ProjectIdRouteImport.update({
   id: '/project/$id',
@@ -296,7 +290,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
-  '/projects': typeof ProjectsRouteWithChildren
+  '/projects': typeof ProjectsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
   '/subscribe-success': typeof SubscribeSuccessRoute
@@ -310,7 +304,6 @@ export interface FileRoutesByFullPath {
   '/ads/$adId': typeof AdsAdIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/bot-settings': typeof AuthenticatedAdminBotSettingsRoute
@@ -341,7 +334,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
-  '/projects': typeof ProjectsRouteWithChildren
+  '/projects': typeof ProjectsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
   '/subscribe-success': typeof SubscribeSuccessRoute
@@ -353,7 +346,6 @@ export interface FileRoutesByTo {
   '/ads/$adId': typeof AdsAdIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip': typeof VipIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/bot-settings': typeof AuthenticatedAdminBotSettingsRoute
@@ -386,7 +378,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
-  '/projects': typeof ProjectsRouteWithChildren
+  '/projects': typeof ProjectsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/submit-project': typeof SubmitProjectRoute
   '/subscribe-success': typeof SubscribeSuccessRoute
@@ -400,7 +392,6 @@ export interface FileRoutesById {
   '/ads/$adId': typeof AdsAdIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/vip/': typeof VipIndexRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/bot-settings': typeof AuthenticatedAdminBotSettingsRoute
@@ -447,7 +438,6 @@ export interface FileRouteTypes {
     | '/ads/$adId'
     | '/email/unsubscribe'
     | '/project/$id'
-    | '/projects/$projectId'
     | '/vip/'
     | '/admin/ads'
     | '/admin/bot-settings'
@@ -490,7 +480,6 @@ export interface FileRouteTypes {
     | '/ads/$adId'
     | '/email/unsubscribe'
     | '/project/$id'
-    | '/projects/$projectId'
     | '/vip'
     | '/admin/ads'
     | '/admin/bot-settings'
@@ -536,7 +525,6 @@ export interface FileRouteTypes {
     | '/ads/$adId'
     | '/email/unsubscribe'
     | '/project/$id'
-    | '/projects/$projectId'
     | '/vip/'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/bot-settings'
@@ -569,7 +557,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   MaintenanceRoute: typeof MaintenanceRoute
   MyRequestsRoute: typeof MyRequestsRoute
-  ProjectsRoute: typeof ProjectsRouteWithChildren
+  ProjectsRoute: typeof ProjectsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SubmitProjectRoute: typeof SubmitProjectRoute
   SubscribeSuccessRoute: typeof SubscribeSuccessRoute
@@ -690,13 +678,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/vip/'
       preLoaderRoute: typeof VipIndexRouteImport
       parentRoute: typeof VipRoute
-    }
-    '/projects/$projectId': {
-      id: '/projects/$projectId'
-      path: '/$projectId'
-      fullPath: '/projects/$projectId'
-      preLoaderRoute: typeof ProjectsProjectIdRouteImport
-      parentRoute: typeof ProjectsRoute
     }
     '/project/$id': {
       id: '/project/$id'
@@ -968,18 +949,6 @@ const AdsRouteChildren: AdsRouteChildren = {
 
 const AdsRouteWithChildren = AdsRoute._addFileChildren(AdsRouteChildren)
 
-interface ProjectsRouteChildren {
-  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
-}
-
-const ProjectsRouteChildren: ProjectsRouteChildren = {
-  ProjectsProjectIdRoute: ProjectsProjectIdRoute,
-}
-
-const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
-  ProjectsRouteChildren,
-)
-
 interface VipRouteChildren {
   VipIndexRoute: typeof VipIndexRoute
 }
@@ -998,7 +967,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   MaintenanceRoute: MaintenanceRoute,
   MyRequestsRoute: MyRequestsRoute,
-  ProjectsRoute: ProjectsRouteWithChildren,
+  ProjectsRoute: ProjectsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SubmitProjectRoute: SubmitProjectRoute,
   SubscribeSuccessRoute: SubscribeSuccessRoute,
@@ -1015,13 +984,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

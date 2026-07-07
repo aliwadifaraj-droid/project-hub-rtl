@@ -1,12 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2 } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { AdminProjectStatus } from "@/components/admin-project-status";
 
 export const Route = createFileRoute("/_authenticated/admin/projects")({
   component: ProjectsAdminPage,
