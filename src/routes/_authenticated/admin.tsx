@@ -8,6 +8,7 @@ import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
+import { adminCountOpenSupportChats } from "@/lib/support.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
 import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, Inbox, MessagesSquare, Megaphone, PlusCircle, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
@@ -27,6 +28,7 @@ function AdminLayout() {
   const countPendingProj = useServerFn(countPendingProjects);
   const countUnread = useServerFn(countMyUnreadNotifications);
   const countTeamUnread = useServerFn(countUnreadTeamMessages);
+  const countOpenSupport = useServerFn(adminCountOpenSupportChats);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
@@ -72,6 +74,15 @@ function AdminLayout() {
     enabled: !!roles && roles.length > 0,
     refetchInterval: 30000,
   });
+  const { data: supportEscalatedCount = 0, refetch: refetchSupportEscalated } = useQuery({
+    queryKey: ["support-escalated-count"],
+    queryFn: async () => {
+      const res = await countOpenSupport();
+      return res.count;
+    },
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 15000,
+  });
   const { data: notifs } = useQuery({
     queryKey: ["my-notifications"],
     queryFn: () => listNotifs(),
@@ -113,6 +124,23 @@ function AdminLayout() {
       supabase.removeChannel(channel);
     };
   }, [roles, refetchTeamChatUnread]);
+
+  useEffect(() => {
+    if (!roles || roles.length === 0) return;
+    const channel = supabase
+      .channel("admin_support_bell")
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_chats" }, (payload) => {
+        const row = (payload.new ?? payload.old) as { status?: string } | undefined;
+        if (row?.status === "escalated" && payload.eventType !== "DELETE") {
+          toast.message("عميل بحاجة إلى موظف دعم", {
+            icon: <Headphones className="h-4 w-4" />,
+          });
+        }
+        refetchSupportEscalated();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [roles, refetchSupportEscalated]);
 
   function handleContactBellClick() {
     if (typeof window !== "undefined") {
@@ -294,6 +322,23 @@ function AdminLayout() {
                 </span>
               )}
             </Link>
+            <Link
+              to="/admin/support"
+              aria-label="دعم العملاء - محادثات محوَّلة"
+              title="عملاء بحاجة إلى موظف"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                supportEscalatedCount > 0
+                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
+            >
+              <Headphones className="h-4 w-4" />
+              {supportEscalatedCount > 0 && (
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
+                </span>
+              )}
+            </Link>
             {isAdmin && (
               <Link
                 to="/admin/messages"
@@ -361,6 +406,11 @@ function AdminLayout() {
                 {i.to === "/admin/chat" && teamChatUnread > 0 && (
                   <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                     {teamChatUnread > 99 ? "99+" : teamChatUnread}
+                  </span>
+                )}
+                {i.to === "/admin/support" && supportEscalatedCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground animate-pulse">
+                    {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
                   </span>
                 )}
                 {isPendingProjItem && pendingProjectsCount > 0 && (
