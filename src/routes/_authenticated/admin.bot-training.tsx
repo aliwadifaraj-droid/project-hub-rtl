@@ -27,6 +27,15 @@ function BotTrainingPage() {
   });
 
   const [editing, setEditing] = useState<Partial<QaRow> | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editing && editorRef.current) {
+      editorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const first = editorRef.current.querySelector<HTMLInputElement>("input,textarea");
+      first?.focus();
+    }
+  }, [editing?.id, editing && !editing.id]);
 
   function startNew() {
     setEditing({ question: "", answer: "", keywords: [], is_active: true, sort_order: (rows.length + 1) * 10 });
