@@ -458,6 +458,7 @@ export type Database = {
           name: string
           owner_id: string | null
           pdf_file: string | null
+          status: string
         }
         Insert: {
           ad_id?: string | null
@@ -474,6 +475,7 @@ export type Database = {
           name: string
           owner_id?: string | null
           pdf_file?: string | null
+          status?: string
         }
         Update: {
           ad_id?: string | null
@@ -490,6 +492,7 @@ export type Database = {
           name?: string
           owner_id?: string | null
           pdf_file?: string | null
+          status?: string
         }
         Relationships: [
           {

@@ -9,6 +9,13 @@ import { SiteFooter } from "@/components/site-footer";
 import { ArrowRight, MapPin, Clock, Upload, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { AdminProjectStatus } from "@/components/admin-project-status";
+
+function statusLabel(s?: string | null) {
+  if (s === "delivered") return "تم التسليم";
+  if (s === "cancelled") return "ملغي";
+  return "مفتوح للعروض";
+}
 
 const projectQuery = (id: string) =>
   queryOptions({
@@ -140,10 +147,16 @@ function ProjectDetail() {
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">الحالة</dt>
-                  <dd className="font-medium text-accent">مفتوح للعروض</dd>
+                  <dd className="font-medium text-accent">{statusLabel((project as { status?: string }).status)}</dd>
                 </div>
               </dl>
+              <AdminProjectStatus
+                projectId={project.id}
+                currentStatus={(project as { status?: string }).status}
+                queryKey={["project", projectId]}
+              />
             </div>
+
           </aside>
         </div>
 
