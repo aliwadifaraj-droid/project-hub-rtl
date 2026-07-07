@@ -86,7 +86,7 @@ function BotTrainingPage() {
       </div>
 
       {editing && (
-        <div className="mb-4 rounded-xl border border-border bg-background p-4 shadow-sm">
+        <div ref={editorRef} className="mb-4 rounded-xl border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold">{editing.id ? "تعديل سؤال" : "سؤال جديد"}</h2>
             <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground">
