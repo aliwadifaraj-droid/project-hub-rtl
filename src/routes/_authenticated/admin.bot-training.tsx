@@ -130,6 +130,18 @@ function BotTrainingPage() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold">الإجراء</label>
+              <select
+                value={(editing.action as QaAction) ?? "none"}
+                onChange={(e) => setEditing({ ...editing, action: e.target.value as QaAction })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="none">بدون</option>
+                <option value="escalate">تحويل لموظف</option>
+              </select>
+              <p className="mt-1 text-[11px] text-muted-foreground">عند اختيار "تحويل لموظف": البوت يرد أول مرة بطلب التوضيح، وعند تكرار العميل يتم التحويل فوراً.</p>
+            </div>
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={editing.is_active ?? true} onChange={(e) => setEditing({ ...editing, is_active: e.target.checked })} />
