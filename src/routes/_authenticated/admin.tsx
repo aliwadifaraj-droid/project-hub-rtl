@@ -125,6 +125,23 @@ function AdminLayout() {
     };
   }, [roles, refetchTeamChatUnread]);
 
+  useEffect(() => {
+    if (!roles || roles.length === 0) return;
+    const channel = supabase
+      .channel("admin_support_bell")
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_chats" }, (payload) => {
+        const row = (payload.new ?? payload.old) as { status?: string } | undefined;
+        if (row?.status === "escalated" && payload.eventType !== "DELETE") {
+          toast.message("عميل بحاجة إلى موظف دعم", {
+            icon: <Headphones className="h-4 w-4" />,
+          });
+        }
+        refetchSupportEscalated();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [roles, refetchSupportEscalated]);
+
   function handleContactBellClick() {
     if (typeof window !== "undefined") {
       localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString());
