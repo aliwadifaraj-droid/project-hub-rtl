@@ -43,6 +43,22 @@ function BotTrainingPage() {
 
   async function save() {
     if (!editing) return;
+
+    // Check for duplicate keywords across other questions
+    const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
+    const newKeywords = (editing.keywords ?? []).map(normalize).filter(Boolean);
+
+    for (const row of rows) {
+      if (editing.id && row.id === editing.id) continue;
+      const existing = (Array.isArray(row.keywords) ? row.keywords : []).map(normalize);
+      for (let i = 0; i < newKeywords.length; i++) {
+        if (existing.includes(newKeywords[i])) {
+          toast.error(`خطأ: كلمة [${(editing.keywords ?? [])[i]}] موجودة في سؤال [${row.question}]. غيرها`);
+          return;
+        }
+      }
+    }
+
     try {
       await upsertFn({
         data: {
@@ -61,6 +77,7 @@ function BotTrainingPage() {
       toast.error(err?.message ?? "تعذر الحفظ");
     }
   }
+
 
   async function remove(id: string) {
     if (!confirm("حذف هذا السؤال؟")) return;
