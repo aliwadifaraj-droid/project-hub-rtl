@@ -63,12 +63,24 @@ export const listBotQuestions = createServerFn({ method: "GET" }).handler(async 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("bot_qa")
-    .select("id,question,answer,keywords,sort_order")
+    .select("id,question,answer,keywords,sort_order,action")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message);
   return data ?? [];
 });
+
+const CLARIFY_PROMPT = "ممكن توضح مشكلتك أحاول أساعدك؟";
+async function botAlreadyAskedClarify(admin: any, chatId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("support_messages")
+    .select("id")
+    .eq("chat_id", chatId)
+    .eq("sender", "bot")
+    .eq("body", CLARIFY_PROMPT)
+    .limit(1);
+  return !!(data && data.length);
+}
 
 export const startVisitorChat = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string; visitorName?: string | null }) =>
@@ -155,37 +167,57 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     // If chat still with bot, reply
     if (chat.status === "bot") {
       const settings = await loadBotSettings(supabaseAdmin);
-      const askedForHuman = !data.qaId && wantsHuman(data.body);
+      const within = isWithinWorkHours(settings);
+      const allowEsc = settings?.allow_escalation !== false;
+      const offMsg = settings?.off_hours_message?.trim()
+        || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.";
 
-      if (askedForHuman) {
-        const within = isWithinWorkHours(settings);
-        const allowEsc = settings?.allow_escalation !== false;
+      async function doEscalate() {
         if (within && allowEsc) {
           await supabaseAdmin.from("support_chats")
             .update({ status: "escalated", last_message_at: new Date().toISOString() })
-            .eq("id", chat.id);
+            .eq("id", chat!.id);
           await supabaseAdmin.from("support_messages").insert({
-            chat_id: chat.id, sender: "system",
+            chat_id: chat!.id, sender: "system",
             body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
           });
         } else {
-          const offMsg = settings?.off_hours_message?.trim()
-            || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.";
           await supabaseAdmin.from("support_messages").insert({
-            chat_id: chat.id, sender: "bot", body: offMsg,
+            chat_id: chat!.id, sender: "bot", body: offMsg,
+          });
+        }
+      }
+
+      // Determine if this turn triggers an escalate action
+      let triggerEscalate = false;
+      let answer: string | null = null;
+
+      if (data.qaId) {
+        const { data: qa } = await supabaseAdmin
+          .from("bot_qa").select("answer,action")
+          .eq("id", data.qaId).eq("is_active", true).maybeSingle();
+        if (qa?.action === "escalate") triggerEscalate = true;
+        else answer = qa?.answer ?? null;
+      } else if (wantsHuman(data.body)) {
+        triggerEscalate = true;
+      } else {
+        const { data: qas } = await supabaseAdmin
+          .from("bot_qa").select("question,answer,keywords,action").eq("is_active", true);
+        const m = matchQa((qas ?? []) as any, data.body);
+        if (m && (m as any).action === "escalate") triggerEscalate = true;
+        else answer = m?.answer ?? null;
+      }
+
+      if (triggerEscalate) {
+        const alreadyAsked = await botAlreadyAskedClarify(supabaseAdmin, chat.id);
+        if (alreadyAsked) {
+          await doEscalate();
+        } else {
+          await supabaseAdmin.from("support_messages").insert({
+            chat_id: chat.id, sender: "bot", body: CLARIFY_PROMPT,
           });
         }
       } else {
-        let answer: string | null = null;
-        if (data.qaId) {
-          const { data: qa } = await supabaseAdmin.from("bot_qa").select("answer").eq("id", data.qaId).eq("is_active", true).maybeSingle();
-          answer = qa?.answer ?? null;
-        }
-        if (!answer) {
-          const { data: qas } = await supabaseAdmin.from("bot_qa").select("question,answer,keywords").eq("is_active", true);
-          const m = matchQa((qas ?? []) as any, data.body);
-          answer = m?.answer ?? null;
-        }
         if (!answer) {
           answer = "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
         }
@@ -315,7 +347,7 @@ export const adminListBotQa = createServerFn({ method: "GET" })
 
 export const adminUpsertBotQa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id?: string | null; question: string; answer: string; keywords: string[]; is_active: boolean; sort_order: number }) =>
+  .inputValidator((d: { id?: string | null; question: string; answer: string; keywords: string[]; is_active: boolean; sort_order: number; action?: "none" | "escalate" }) =>
     z.object({
       id: z.string().uuid().nullable().optional(),
       question: z.string().trim().min(1).max(300),
@@ -323,13 +355,14 @@ export const adminUpsertBotQa = createServerFn({ method: "POST" })
       keywords: z.array(z.string().trim().max(60)).max(30),
       is_active: z.boolean(),
       sort_order: z.number().int().min(0).max(9999),
+      action: z.enum(["none", "escalate"]).default("none"),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const row = { question: data.question, answer: data.answer, keywords: data.keywords, is_active: data.is_active, sort_order: data.sort_order };
+    const row = { question: data.question, answer: data.answer, keywords: data.keywords, is_active: data.is_active, sort_order: data.sort_order, action: data.action ?? "none" };
     if (data.id) {
       const { error } = await supabaseAdmin.from("bot_qa").update(row).eq("id", data.id);
       if (error) throw new Error(error.message);

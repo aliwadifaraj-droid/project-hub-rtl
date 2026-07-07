@@ -10,10 +10,12 @@ export const Route = createFileRoute("/_authenticated/admin/bot-training")({
   component: BotTrainingPage,
 });
 
+type QaAction = "none" | "escalate";
 type QaRow = {
   id: string; question: string; answer: string;
-  keywords: string[]; is_active: boolean; sort_order: number;
+  keywords: string[]; is_active: boolean; sort_order: number; action: QaAction;
 };
+const ACTION_LABEL: Record<QaAction, string> = { none: "بدون", escalate: "تحويل لموظف" };
 
 function BotTrainingPage() {
   const qc = useQueryClient();
@@ -38,7 +40,7 @@ function BotTrainingPage() {
   }, [editing?.id, editing && !editing.id]);
 
   function startNew() {
-    setEditing({ question: "", answer: "", keywords: [], is_active: true, sort_order: (rows.length + 1) * 10 });
+    setEditing({ question: "", answer: "", keywords: [], is_active: true, sort_order: (rows.length + 1) * 10, action: "none" });
   }
 
   async function save() {
@@ -68,6 +70,7 @@ function BotTrainingPage() {
           keywords: editing.keywords ?? [],
           is_active: editing.is_active ?? true,
           sort_order: editing.sort_order ?? 0,
+          action: (editing.action as QaAction) ?? "none",
         },
       });
       setEditing(null);
@@ -127,6 +130,18 @@ function BotTrainingPage() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold">الإجراء</label>
+              <select
+                value={(editing.action as QaAction) ?? "none"}
+                onChange={(e) => setEditing({ ...editing, action: e.target.value as QaAction })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="none">بدون</option>
+                <option value="escalate">تحويل لموظف</option>
+              </select>
+              <p className="mt-1 text-[11px] text-muted-foreground">عند اختيار "تحويل لموظف": البوت يرد أول مرة بطلب التوضيح، وعند تكرار العميل يتم التحويل فوراً.</p>
+            </div>
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={editing.is_active ?? true} onChange={(e) => setEditing({ ...editing, is_active: e.target.checked })} />
@@ -159,6 +174,7 @@ function BotTrainingPage() {
                 <th className="p-3">السؤال</th>
                 <th className="p-3">الإجابة</th>
                 <th className="p-3">الحالة</th>
+                <th className="p-3">الإجراء</th>
                 <th className="p-3">إجراء</th>
               </tr>
             </thead>
@@ -168,9 +184,10 @@ function BotTrainingPage() {
                   <td className="p-3 font-medium">{r.question}</td>
                   <td className="p-3 text-muted-foreground line-clamp-2 max-w-md">{r.answer}</td>
                   <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-[10px] ${r.is_active ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{r.is_active ? "مفعل" : "معطل"}</span></td>
+                  <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-[10px] ${r.action === "escalate" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}>{ACTION_LABEL[(r.action as QaAction) ?? "none"]}</span></td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      <button onClick={() => setEditing({ id: r.id, question: r.question, answer: r.answer, keywords: Array.isArray(r.keywords) ? [...r.keywords] : [], is_active: r.is_active, sort_order: r.sort_order })} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
+                      <button onClick={() => setEditing({ id: r.id, question: r.question, answer: r.answer, keywords: Array.isArray(r.keywords) ? [...r.keywords] : [], is_active: r.is_active, sort_order: r.sort_order, action: (r.action as QaAction) ?? "none" })} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">تعديل</button>
                       <button onClick={() => remove(r.id)} className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-3 w-3" /> حذف
                       </button>
