@@ -74,6 +74,14 @@ export function SupportChatWidget() {
     staleTime: 60_000,
   });
 
+  const { data: botSettings } = useQuery({
+    queryKey: ["bot-settings-public"],
+    queryFn: () => getSettings(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+
   const { data: chatData } = useQuery({
     queryKey: ["support-visitor-chat", token],
     queryFn: () => getMsgs({ data: { visitorToken: token, sinceIso: null } }),
