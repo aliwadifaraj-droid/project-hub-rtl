@@ -1,12 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2 } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { AdminProjectStatus } from "@/components/admin-project-status";
 
 export const Route = createFileRoute("/_authenticated/admin/projects")({
   component: ProjectsAdminPage,
@@ -88,6 +89,13 @@ function ProjectsAdminPage() {
               <h3 className="font-bold">{p.name}</h3>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  to="/project/$id"
+                  params={{ id: p.id }}
+                  className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
+                >
+                  <Eye className="h-3.5 w-3.5" /> تفاصيل
+                </Link>
                 <ShareLinkButton id={p.id} />
                 {(isAdmin || (myId && p.created_by === myId)) && (
                   <>
@@ -103,6 +111,13 @@ function ProjectsAdminPage() {
                   </>
                 )}
               </div>
+              {isAdmin ? (
+                <AdminProjectStatus
+                  projectId={p.id}
+                  currentStatus={(p as { status?: string }).status}
+                  queryKey={["admin-projects"]}
+                />
+              ) : null}
 
             </div>
           </div>
