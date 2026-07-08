@@ -126,7 +126,7 @@ async function answerProjectQuery(admin: any, text: string): Promise<string | nu
   if (intent === "exists") return "موجود";
   const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
   const approvalStatus = approvalMap[p.admin_approval] ?? (p.admin_approval ?? "غير محدد");
-  const projectStatusMap: Record<string, string> = { active: "الحالة: مفتوح", delivered: "الحالة: تم التسليم", cancelled: "الحالة: ملغي" };
+  conconst projectStatusMap: Record<string, string> = { active: "الحالة: 🟢 مفتوح", delivered: "الحالة: ✅ تم التسليم", cancelled: "الحالة: ❌ ملغي" };
   const projectStatus = projectStatusMap[p.status] ?? "";
   return `الاسم: ${p.name}\nالموقع: ${p.location ?? "-"}\nحالة الاعتماد: ${approvalStatus}\nالوصف: ${p.description ?? "-"}${projectStatus ? "\n" + projectStatus : ""}`;
 }
