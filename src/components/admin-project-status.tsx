@@ -19,7 +19,7 @@ export function AdminProjectStatus({
   const getRoles = useServerFn(getMyRoles);
   const update = useServerFn(updateProjectStatus);
   const qc = useQueryClient();
-  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles(), retry: false });
   const isAdmin = hasAdminRole(roles);
 
   const mut = useMutation({
