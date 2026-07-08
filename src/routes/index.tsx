@@ -4,7 +4,7 @@ import { listProjects } from "@/lib/admin.functions";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { ProjectStatusBadge } from "@/components/project-status-badge";
+
 import { MapPin, Clock, ArrowLeft, Star } from "lucide-react";
 
 const projectsQuery = queryOptions({
