@@ -7,7 +7,7 @@ import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { ProjectStatusBadge } from "@/components/project-status-badge";
+
 import { Toaster } from "@/components/ui/sonner";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
@@ -105,10 +105,7 @@ function ProjectsPage() {
                   <img src={p.cover_url} alt={p.name} className="aspect-video w-full object-cover" />
                 ) : <div className="aspect-video w-full bg-secondary" />}
                 <div className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold">{p.name}</h3>
-                    <ProjectStatusBadge status={p.status} />
-                  </div>
+                  <h3 className="font-bold">{p.name}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <ShareLinkButton id={p.id} />
