@@ -44,7 +44,13 @@ function ProjectDetail() {
   const { id } = Route.useParams();
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
+  const getRoles = useServerFn(getMyRoles);
   const navigate = Route.useNavigate();
+  const { data: roles } = useSuspenseQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => getRoles(),
+  });
+  const isAdmin = hasAdminRole(roles);
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
