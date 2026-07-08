@@ -81,10 +81,7 @@ function HomePage() {
                     />
                   </div>
                   <div className="p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h2 className="font-bold text-lg text-foreground line-clamp-1">{p.name}</h2>
-                      <ProjectStatusBadge status={(p as { status?: string }).status} />
-                    </div>
+                    <h2 className="font-bold text-lg text-foreground line-clamp-1">{p.name}</h2>
                     <p className="text-sm text-muted-foreground line-clamp-2">{p.description}</p>
                     <div className="flex flex-wrap gap-3 pt-2 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{p.location}</span>
