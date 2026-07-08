@@ -46,9 +46,10 @@ function ProjectDetail() {
   const submit = useServerFn(submitBidRequest);
   const getRoles = useServerFn(getMyRoles);
   const navigate = Route.useNavigate();
-  const { data: roles } = useSuspenseQuery({
+  const { data: roles } = useQuery({
     queryKey: ["my-roles"],
     queryFn: () => getRoles(),
+    retry: false,
   });
   const isAdmin = hasAdminRole(roles);
 
