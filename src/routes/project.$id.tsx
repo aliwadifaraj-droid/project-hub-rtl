@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { getProject, submitBidRequest, getMyRoles } from "@/lib/admin.functions";
@@ -46,9 +46,10 @@ function ProjectDetail() {
   const submit = useServerFn(submitBidRequest);
   const getRoles = useServerFn(getMyRoles);
   const navigate = Route.useNavigate();
-  const { data: roles } = useSuspenseQuery({
+  const { data: roles } = useQuery({
     queryKey: ["my-roles"],
     queryFn: () => getRoles(),
+    retry: false,
   });
   const isAdmin = hasAdminRole(roles);
 
