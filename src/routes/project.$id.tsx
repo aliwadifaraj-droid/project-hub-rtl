@@ -2,7 +2,8 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { getProject, submitBidRequest } from "@/lib/admin.functions";
+import { getProject, submitBidRequest, getMyRoles } from "@/lib/admin.functions";
+import { hasAdminRole } from "@/lib/role-label";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -43,7 +44,13 @@ function ProjectDetail() {
   const { id } = Route.useParams();
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
+  const getRoles = useServerFn(getMyRoles);
   const navigate = Route.useNavigate();
+  const { data: roles } = useSuspenseQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => getRoles(),
+  });
+  const isAdmin = hasAdminRole(roles);
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -154,10 +161,12 @@ function ProjectDetail() {
                   <dt className="text-muted-foreground">المدة المتوقعة</dt>
                   <dd className="font-medium">{project.duration}</dd>
                 </div>
-                <div className="flex justify-between items-center">
-                  <dt className="text-muted-foreground">الحالة</dt>
-                  <dd><ProjectStatusBadge status={(project as { status?: string }).status} /></dd>
-                </div>
+                {isAdmin ? (
+                  <div className="flex justify-between items-center">
+                    <dt className="text-muted-foreground">الحالة</dt>
+                    <dd><ProjectStatusBadge status={(project as { status?: string }).status} /></dd>
+                  </div>
+                ) : null}
               </dl>
               <AdminProjectStatus
                 projectId={project.id}
