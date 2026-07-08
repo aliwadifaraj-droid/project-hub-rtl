@@ -161,10 +161,12 @@ function ProjectDetail() {
                   <dt className="text-muted-foreground">المدة المتوقعة</dt>
                   <dd className="font-medium">{project.duration}</dd>
                 </div>
-                <div className="flex justify-between items-center">
-                  <dt className="text-muted-foreground">الحالة</dt>
-                  <dd><ProjectStatusBadge status={(project as { status?: string }).status} /></dd>
-                </div>
+                {isAdmin ? (
+                  <div className="flex justify-between items-center">
+                    <dt className="text-muted-foreground">الحالة</dt>
+                    <dd><ProjectStatusBadge status={(project as { status?: string }).status} /></dd>
+                  </div>
+                ) : null}
               </dl>
               <AdminProjectStatus
                 projectId={project.id}
