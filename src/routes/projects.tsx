@@ -7,7 +7,7 @@ import { hasAdminRole } from "@/lib/role-label";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { ProjectStatusBadge } from "@/components/project-status-badge";
+
 import { Toaster } from "@/components/ui/sonner";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
