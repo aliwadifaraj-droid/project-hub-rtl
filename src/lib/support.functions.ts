@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const uuid = z.string().uuid();
-const GEMINI_KEY = "AQ.Ab8RN6L_0yvKsYWIRBFdJUpxt4klJ812iC45A-QqDlIGYt_M-w";
+const GEMINI_KEY = process.env.GEMINI_KEY;
 
 async function askGemini(question: string): Promise<string> {
   const prompt = `انت بوت خدمة عملاء لمنصة العمران. رد باختصار وبلهجة سعودية مهذبة. السؤال: ${question}`;
@@ -83,8 +83,6 @@ function isWithinWorkHours(s: BotSettingsRow | null): boolean {
   return cur >= start && cur <= end;
 }
 
-// -------- Visitor (unauthenticated) --------
-
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
@@ -108,7 +106,6 @@ async function botAlreadyAskedClarify(admin: any, chatId: string): Promise<boole
   return!!(data && data.length);
 }
 
-// --- Project lookup from bot ---
 const DETAIL_KEYWORDS = ["تفاصيل", "تفصيل", "وضع", "حالة", "تكلم عن", "اخبرني", "أخبرني", "معلومات", "كلمني"];
 const EXIST_KEYWORDS = ["موجود", "عندكم", "عندك", "متوفر", "فيه", "لديكم", "هل"];
 const STOP_WORDS = new Set(["مشروع", "المشروع", "هل", "عندكم", "عندك", "متوفر", "موجود", "موجودة", "فيه", "لديكم", "تفاصيل", "تفصيل", "وضع", "حالة", "تكلم", "عن", "اخبرني", "أخبرني", "معلومات", "كلمني", "من", "فضلك", "لو", "سمحت", "ابغى", "أبغى", "ابي", "أبي", "اريد", "أريد", "كل", "ما", "وش", "ايش", "أيش"]);
@@ -142,9 +139,9 @@ async function answerProjectQuery(admin: any, text: string): Promise<string | nu
   const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
   const approvalStatus = approvalMap[p.admin_approval]?? (p.admin_approval?? "غير محدد");
   const projectStatus = p.status === 'delivered'
-  ? 'الحالة: ✅ تم التسليم'
+? 'الحالة: ✅ تم التسليم'
     : p.status === 'cancelled'
-  ? 'الحالة: ❌ ملغي'
+? 'الحالة: ❌ ملغي'
     : 'الحالة: 🟢 مفتوح';
   return `الاسم: ${p.name}
 الموقع: ${p.location?? "-"}
@@ -160,13 +157,13 @@ export const startVisitorChat = createServerFn({ method: "POST" })
 .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: existing } = await supabaseAdmin
-  .from("support_chats").select("*").eq("visitor_token", data.visitorToken).maybeSingle();
+.from("support_chats").select("*").eq("visitor_token", data.visitorToken).maybeSingle();
     if (existing) return existing;
     const { data: created, error } = await supabaseAdmin
-  .from("support_chats")
-  .insert({ visitor_token: data.visitorToken, visitor_name: data.visitorName?? null })
-  .select("*")
-  .single();
+.from("support_chats")
+.insert({ visitor_token: data.visitorToken, visitor_name: data.visitorName?? null })
+.select("*")
+.single();
     if (error) throw new Error(error.message);
     await supabaseAdmin.from("support_messages").insert({
       chat_id: created.id, sender: "bot",
@@ -182,7 +179,7 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
 .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: chat } = await supabaseAdmin
-  .from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
+.from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (!chat) return { chat: null, messages: [] };
     let q = supabaseAdmin.from("support_messages").select("id,sender,body,created_at").eq("chat_id", chat.id).order("created_at", { ascending: true });
     if (data.sinceIso) q = q.gt("created_at", data.sinceIso);
@@ -202,16 +199,16 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
 .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: existingChat, error: ce } = await supabaseAdmin
-  .from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
+.from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (ce) throw new Error(ce.message);
     let chat = existingChat;
 
     if (!chat) {
       const { data: created, error: createError } = await supabaseAdmin
-    . from("support_chats")
-    .insert({ visitor_token: data.visitorToken })
-    .select("id,status")
-    .single();
+  . from("support_chats")
+  .insert({ visitor_token: data.visitorToken })
+  .select("id,status")
+  .single();
       if (createError) throw new Error(createError.message);
 
       const { error: welcomeError } = await supabaseAdmin.from("support_messages").insert({
@@ -224,14 +221,14 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
 
     const { error: visitorMessageError } = await supabaseAdmin
-  .from("support_messages")
-  .insert({ chat_id: chat.id, sender: "visitor", body: data.body });
+.from("support_messages")
+.insert({ chat_id: chat.id, sender: "visitor", body: data.body });
     if (visitorMessageError) throw new Error(visitorMessageError.message);
 
     const { error: touchError } = await supabaseAdmin
-  .from("support_chats")
-  .update({ last_message_at: new Date().toISOString() })
-  .eq("id", chat.id);
+.from("support_chats")
+.update({ last_message_at: new Date().toISOString() })
+.eq("id", chat.id);
     if (touchError) throw new Error(touchError.message);
 
     if (chat.status === "bot") {
@@ -244,8 +241,8 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       async function doEscalate() {
         if (within && allowEsc) {
           await supabaseAdmin.from("support_chats")
-        .update({ status: "escalated", last_message_at: new Date().toISOString() })
-        .eq("id", chat!.id);
+      .update({ status: "escalated", last_message_at: new Date().toISOString() })
+      .eq("id", chat!.id);
           await supabaseAdmin.from("support_messages").insert({
             chat_id: chat!.id, sender: "system",
             body: "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.",
@@ -262,15 +259,15 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
 
       if (data.qaId) {
         const { data: qa } = await supabaseAdmin
-      .from("bot_qa").select("answer,action")
-      .eq("id", data.qaId).eq("is_active", true).maybeSingle();
+    .from("bot_qa").select("answer,action")
+    .eq("id", data.qaId).eq("is_active", true).maybeSingle();
         if (qa?.action === "escalate") triggerEscalate = true;
         else answer = qa?.answer?? null;
       } else if (wantsHuman(data.body)) {
         triggerEscalate = true;
       } else {
         const { data: qas } = await supabaseAdmin
-      .from("bot_qa").select("question,answer,keywords,action").eq("is_active", true);
+    .from("bot_qa").select("question,answer,keywords,action").eq("is_active", true);
         const m = matchQa((qas?? []) as any, data.body);
         if (m && (m as any).action === "escalate") triggerEscalate = true;
         else answer = m?.answer?? null;
@@ -291,11 +288,11 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           if (projAns) answer = projAns;
         }
         if (!answer) {
-          answer = await askGemini(data.body); // << هنا Gemini رد
+          answer = await askGemini(data.body);
         }
         const { error: botMessageError } = await supabaseAdmin
-      .from("support_messages")
-      .insert({ chat_id: chat.id, sender: "bot", body: answer });
+    .from("support_messages")
+    .insert({ chat_id: chat.id, sender: "bot", body: answer });
         if (botMessageError) throw new Error(botMessageError.message);
       }
     }
@@ -333,14 +330,12 @@ export const visitorEndSession = createServerFn({ method: "POST" })
 .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: chat } = await supabaseAdmin
-  .from("support_chats").select("id").eq("visitor_token", data.visitorToken).maybeSingle();
+.from("support_chats").select("id").eq("visitor_token", data.visitorToken).maybeSingle();
     if (!chat) return { ok: true };
     await supabaseAdmin.from("support_messages").delete().eq("chat_id", chat.id);
     await supabaseAdmin.from("support_chats").delete().eq("id", chat.id);
     return { ok: true };
   });
-
-// -------- Admin --------
 
 async function assertStaff(supabase: any, userId: string) {
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
@@ -354,10 +349,10 @@ export const adminListChats = createServerFn({ method: "GET" })
     await assertStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
-  .from("support_chats")
-  .select("id,visitor_name,status,last_message_at,created_at")
-  .order("last_message_at", { ascending: false })
-  .limit(200);
+.from("support_chats")
+.select("id,visitor_name,status,last_message_at,created_at")
+.order("last_message_at", { ascending: false })
+.limit(200);
     if (error) throw new Error(error.message);
     return data?? [];
   });
@@ -369,8 +364,8 @@ export const adminListChatMessages = createServerFn({ method: "POST" })
     await assertStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: msgs, error } = await supabaseAdmin
-  .from("support_messages").select("id,sender,body,created_at")
-  .eq("chat_id", data.chatId).order("created_at", { ascending: true });
+.from("support_messages").select("id,sender,body,created_at")
+.eq("chat_id", data.chatId).order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
     return msgs?? [];
   });
@@ -388,7 +383,7 @@ export const adminReplyChat = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
     await supabaseAdmin.from("support_chats")
-  .update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", data.chatId);
+.update({ status: "escalated", last_message_at: new Date().toISOString() }).eq("id", data.chatId);
     return { ok: true };
   });
 
@@ -408,15 +403,13 @@ export const adminDeleteAllSupport = createServerFn({ method: "POST" })
     if (!(await isAdmin(context.supabase, context.userId))) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: mErr } = await supabaseAdmin
-  .from("support_messages").delete().not("id", "is", null);
+.from("support_messages").delete().not("id", "is", null);
     if (mErr) throw new Error(mErr.message);
     const { error: cErr } = await supabaseAdmin
-  .from("support_chats").delete().not("id", "is", null);
+.from("support_chats").delete().not("id", "is", null);
     if (cErr) throw new Error(cErr.message);
     return { ok: true };
   });
-
-// -------- Bot training (admin) --------
 
 export const adminListBotQa = createServerFn({ method: "GET" })
 .middleware([requireSupabaseAuth])
@@ -475,6 +468,6 @@ export const adminCountOpenSupportChats = createServerFn({ method: "GET" })
     await assertStaff(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { count } = await supabaseAdmin
-  .from("support_chats").select("id", { count: "exact", head: true }).eq("status", "escalated");
+.from("support_chats").select("id", { count: "exact", head: true }).eq("status", "escalated");
     return { count: count?? 0 };
   });
