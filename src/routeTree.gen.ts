@@ -44,6 +44,7 @@ import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminPendingProjectsRouteImport } from './routes/_authenticated/admin.pending-projects'
 import { Route as AuthenticatedAdminMyProjectsRouteImport } from './routes/_authenticated/admin.my-projects'
 import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
+import { Route as AuthenticatedAdminGeminiSettingsRouteImport } from './routes/_authenticated/admin.gemini-settings'
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
 import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authenticated/admin.chat'
 import { Route as AuthenticatedAdminBotTrainingRouteImport } from './routes/_authenticated/admin.bot-training'
@@ -236,6 +237,12 @@ const AuthenticatedAdminMessagesRoute =
     path: '/messages',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminGeminiSettingsRoute =
+  AuthenticatedAdminGeminiSettingsRouteImport.update({
+    id: '/gemini-settings',
+    path: '/gemini-settings',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminEmployeesRoute =
   AuthenticatedAdminEmployeesRouteImport.update({
     id: '/employees',
@@ -317,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
+  '/admin/gemini-settings': typeof AuthenticatedAdminGeminiSettingsRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
@@ -360,6 +368,7 @@ export interface FileRoutesByTo {
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
+  '/admin/gemini-settings': typeof AuthenticatedAdminGeminiSettingsRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
@@ -407,6 +416,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
+  '/_authenticated/admin/gemini-settings': typeof AuthenticatedAdminGeminiSettingsRoute
   '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
   '/_authenticated/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
@@ -454,6 +464,7 @@ export interface FileRouteTypes {
     | '/admin/bot-training'
     | '/admin/chat'
     | '/admin/employees'
+    | '/admin/gemini-settings'
     | '/admin/messages'
     | '/admin/my-projects'
     | '/admin/pending-projects'
@@ -497,6 +508,7 @@ export interface FileRouteTypes {
     | '/admin/bot-training'
     | '/admin/chat'
     | '/admin/employees'
+    | '/admin/gemini-settings'
     | '/admin/messages'
     | '/admin/my-projects'
     | '/admin/pending-projects'
@@ -543,6 +555,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/bot-training'
     | '/_authenticated/admin/chat'
     | '/_authenticated/admin/employees'
+    | '/_authenticated/admin/gemini-settings'
     | '/_authenticated/admin/messages'
     | '/_authenticated/admin/my-projects'
     | '/_authenticated/admin/pending-projects'
@@ -832,6 +845,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminMessagesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/gemini-settings': {
+      id: '/_authenticated/admin/gemini-settings'
+      path: '/gemini-settings'
+      fullPath: '/admin/gemini-settings'
+      preLoaderRoute: typeof AuthenticatedAdminGeminiSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/employees': {
       id: '/_authenticated/admin/employees'
       path: '/employees'
@@ -905,6 +925,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBotTrainingRoute: typeof AuthenticatedAdminBotTrainingRoute
   AuthenticatedAdminChatRoute: typeof AuthenticatedAdminChatRoute
   AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRoute
+  AuthenticatedAdminGeminiSettingsRoute: typeof AuthenticatedAdminGeminiSettingsRoute
   AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminMyProjectsRoute: typeof AuthenticatedAdminMyProjectsRoute
   AuthenticatedAdminPendingProjectsRoute: typeof AuthenticatedAdminPendingProjectsRoute
@@ -925,6 +946,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBotTrainingRoute: AuthenticatedAdminBotTrainingRoute,
   AuthenticatedAdminChatRoute: AuthenticatedAdminChatRoute,
   AuthenticatedAdminEmployeesRoute: AuthenticatedAdminEmployeesRoute,
+  AuthenticatedAdminGeminiSettingsRoute: AuthenticatedAdminGeminiSettingsRoute,
   AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminMyProjectsRoute: AuthenticatedAdminMyProjectsRoute,
   AuthenticatedAdminPendingProjectsRoute:
