@@ -23,7 +23,25 @@ function matchQa(qas: Array<{ question: string; answer: string; keywords: string
 }
 
 const GEMINI_FAIL = "ما قدرت افهم السؤال. تبغى احولك لموظف؟";
-async function askGemini(userText: string): Promise<string> {
+type GeminiCfg = {
+  system_instruction?: string | null;
+  dialect?: string | null;
+  bot_name?: string | null;
+  blocked_replies?: string[] | null;
+  scope?: string | null;
+};
+function buildGeminiSystem(cfg: GeminiCfg | null): string {
+  const base = cfg?.system_instruction?.trim()
+    || "أنت مساعد دعم لمنصة العمران. رد باللهجة السعودية، ودود ومختصر جدًا (سطر أو سطرين). لا تخترع معلومات.";
+  const parts: string[] = [base];
+  if (cfg?.bot_name?.trim()) parts.push(`اسمك: ${cfg.bot_name.trim()}.`);
+  if (cfg?.dialect?.trim()) parts.push(`اللهجة: ${cfg.dialect.trim()}.`);
+  if (cfg?.scope?.trim()) parts.push(`نطاق عملك: ${cfg.scope.trim()} — لا تجاوب خارج هذا النطاق.`);
+  const blocked = (cfg?.blocked_replies ?? []).map((s) => s?.trim()).filter(Boolean) as string[];
+  if (blocked.length) parts.push(`ممنوع تذكر أو ترد بأي من: ${blocked.join("، ")}.`);
+  return parts.join("\n");
+}
+async function askGemini(userText: string, cfg: GeminiCfg | null): Promise<string> {
   const key = process.env.GEMINI_KEY;
   if (!key) return GEMINI_FAIL;
   try {
@@ -33,9 +51,7 @@ async function askGemini(userText: string): Promise<string> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: "أنت مساعد دعم لمنصة العمران. رد باللهجة السعودية، ودود ومختصر جدًا (سطر أو سطرين). لا تخترع معلومات." }],
-          },
+          systemInstruction: { parts: [{ text: buildGeminiSystem(cfg) }] },
           contents: [{ role: "user", parts: [{ text: userText }] }],
           generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
         }),
@@ -43,12 +59,29 @@ async function askGemini(userText: string): Promise<string> {
     );
     if (!res.ok) return GEMINI_FAIL;
     const j: any = await res.json();
-    const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("\n").trim();
-    return text || GEMINI_FAIL;
+    let text: string = j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("\n").trim() ?? "";
+    if (!text) return GEMINI_FAIL;
+    const blocked = (cfg?.blocked_replies ?? []).map((s) => s?.trim().toLowerCase()).filter(Boolean) as string[];
+    if (blocked.some((b) => text.toLowerCase().includes(b))) return GEMINI_FAIL;
+    return text;
   } catch {
     return GEMINI_FAIL;
   }
 }
+async function loadGeminiCfg(admin: any): Promise<GeminiCfg | null> {
+  const { data } = await admin.from("bot_settings")
+    .select("gemini_system_instruction,gemini_dialect,gemini_bot_name,gemini_blocked_replies,gemini_scope")
+    .limit(1).maybeSingle();
+  if (!data) return null;
+  return {
+    system_instruction: data.gemini_system_instruction,
+    dialect: data.gemini_dialect,
+    bot_name: data.gemini_bot_name,
+    blocked_replies: data.gemini_blocked_replies,
+    scope: data.gemini_scope,
+  };
+}
+
 
 const STAFF_KEYWORDS = ["موظف", "موظفة", "خدمة العملاء", "الدعم", "كلم موظف", "أريد موظف", "اريد موظف", "بدي موظف", "محادثة موظف", "human", "agent", "support"];
 function wantsHuman(text: string) {
