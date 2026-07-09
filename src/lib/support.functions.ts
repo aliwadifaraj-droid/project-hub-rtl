@@ -333,8 +333,10 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           if (projAns) answer = projAns;
         }
         if (!answer) {
-          answer = await askGemini(data.body);
+          const cfg = await loadGeminiCfg(supabaseAdmin);
+          answer = await askGemini(data.body, cfg);
         }
+
         if (!answer) {
           answer = settings?.fallback_message?.trim()
             || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
