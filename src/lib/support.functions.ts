@@ -22,6 +22,34 @@ function matchQa(qas: Array<{ question: string; answer: string; keywords: string
   return null;
 }
 
+const GEMINI_FAIL = "ما قدرت افهم السؤال. تبغى احولك لموظف؟";
+async function askGemini(userText: string): Promise<string> {
+  const key = process.env.GEMINI_KEY;
+  if (!key) return GEMINI_FAIL;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: "أنت مساعد دعم لمنصة العمران. رد باللهجة السعودية، ودود ومختصر جدًا (سطر أو سطرين). لا تخترع معلومات." }],
+          },
+          contents: [{ role: "user", parts: [{ text: userText }] }],
+          generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
+        }),
+      },
+    );
+    if (!res.ok) return GEMINI_FAIL;
+    const j: any = await res.json();
+    const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("\n").trim();
+    return text || GEMINI_FAIL;
+  } catch {
+    return GEMINI_FAIL;
+  }
+}
+
 const STAFF_KEYWORDS = ["موظف", "موظفة", "خدمة العملاء", "الدعم", "كلم موظف", "أريد موظف", "اريد موظف", "بدي موظف", "محادثة موظف", "human", "agent", "support"];
 function wantsHuman(text: string) {
   const t = (text ?? "").toLowerCase();
