@@ -138,6 +138,11 @@ export type Database = {
           allow_escalation: boolean
           created_at: string
           fallback_message: string
+          gemini_blocked_replies: string[]
+          gemini_bot_name: string
+          gemini_dialect: string
+          gemini_scope: string
+          gemini_system_instruction: string
           id: string
           off_hours_message: string
           show_suggested_questions: boolean
@@ -151,6 +156,11 @@ export type Database = {
           allow_escalation?: boolean
           created_at?: string
           fallback_message?: string
+          gemini_blocked_replies?: string[]
+          gemini_bot_name?: string
+          gemini_dialect?: string
+          gemini_scope?: string
+          gemini_system_instruction?: string
           id?: string
           off_hours_message?: string
           show_suggested_questions?: boolean
@@ -164,6 +174,11 @@ export type Database = {
           allow_escalation?: boolean
           created_at?: string
           fallback_message?: string
+          gemini_blocked_replies?: string[]
+          gemini_bot_name?: string
+          gemini_dialect?: string
+          gemini_scope?: string
+          gemini_system_instruction?: string
           id?: string
           off_hours_message?: string
           show_suggested_questions?: boolean

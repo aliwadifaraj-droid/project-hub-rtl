@@ -33,6 +33,7 @@ import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/c
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiAdminBotSettingsRouteImport } from './routes/api/admin/bot-settings'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin.support'
@@ -43,6 +44,7 @@ import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminPendingProjectsRouteImport } from './routes/_authenticated/admin.pending-projects'
 import { Route as AuthenticatedAdminMyProjectsRouteImport } from './routes/_authenticated/admin.my-projects'
 import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
+import { Route as AuthenticatedAdminGeminiSettingsRouteImport } from './routes/_authenticated/admin.gemini-settings'
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
 import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authenticated/admin.chat'
 import { Route as AuthenticatedAdminBotTrainingRouteImport } from './routes/_authenticated/admin.bot-training'
@@ -172,6 +174,11 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminBotSettingsRoute = ApiAdminBotSettingsRouteImport.update({
+  id: '/api/admin/bot-settings',
+  path: '/api/admin/bot-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminVipRoute = AuthenticatedAdminVipRouteImport.update({
   id: '/vip',
   path: '/vip',
@@ -228,6 +235,12 @@ const AuthenticatedAdminMessagesRoute =
   AuthenticatedAdminMessagesRouteImport.update({
     id: '/messages',
     path: '/messages',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminGeminiSettingsRoute =
+  AuthenticatedAdminGeminiSettingsRouteImport.update({
+    id: '/gemini-settings',
+    path: '/gemini-settings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminEmployeesRoute =
@@ -311,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
+  '/admin/gemini-settings': typeof AuthenticatedAdminGeminiSettingsRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
@@ -321,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/api/admin/bot-settings': typeof ApiAdminBotSettingsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -353,6 +368,7 @@ export interface FileRoutesByTo {
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
+  '/admin/gemini-settings': typeof AuthenticatedAdminGeminiSettingsRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
@@ -363,6 +379,7 @@ export interface FileRoutesByTo {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/api/admin/bot-settings': typeof ApiAdminBotSettingsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -399,6 +416,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
+  '/_authenticated/admin/gemini-settings': typeof AuthenticatedAdminGeminiSettingsRoute
   '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
   '/_authenticated/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
@@ -409,6 +427,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/api/admin/bot-settings': typeof ApiAdminBotSettingsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -445,6 +464,7 @@ export interface FileRouteTypes {
     | '/admin/bot-training'
     | '/admin/chat'
     | '/admin/employees'
+    | '/admin/gemini-settings'
     | '/admin/messages'
     | '/admin/my-projects'
     | '/admin/pending-projects'
@@ -455,6 +475,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
+    | '/api/admin/bot-settings'
     | '/lovable/email/suppression'
     | '/admin/'
     | '/lovable/email/queue/process'
@@ -487,6 +508,7 @@ export interface FileRouteTypes {
     | '/admin/bot-training'
     | '/admin/chat'
     | '/admin/employees'
+    | '/admin/gemini-settings'
     | '/admin/messages'
     | '/admin/my-projects'
     | '/admin/pending-projects'
@@ -497,6 +519,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
+    | '/api/admin/bot-settings'
     | '/lovable/email/suppression'
     | '/admin'
     | '/lovable/email/queue/process'
@@ -532,6 +555,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/bot-training'
     | '/_authenticated/admin/chat'
     | '/_authenticated/admin/employees'
+    | '/_authenticated/admin/gemini-settings'
     | '/_authenticated/admin/messages'
     | '/_authenticated/admin/my-projects'
     | '/_authenticated/admin/pending-projects'
@@ -542,6 +566,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
+    | '/api/admin/bot-settings'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/lovable/email/queue/process'
@@ -566,6 +591,7 @@ export interface RootRouteChildren {
   VipRoute: typeof VipRouteWithChildren
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
+  ApiAdminBotSettingsRoute: typeof ApiAdminBotSettingsRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -742,6 +768,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/bot-settings': {
+      id: '/api/admin/bot-settings'
+      path: '/api/admin/bot-settings'
+      fullPath: '/api/admin/bot-settings'
+      preLoaderRoute: typeof ApiAdminBotSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/vip': {
       id: '/_authenticated/admin/vip'
       path: '/vip'
@@ -810,6 +843,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/admin/messages'
       preLoaderRoute: typeof AuthenticatedAdminMessagesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/gemini-settings': {
+      id: '/_authenticated/admin/gemini-settings'
+      path: '/gemini-settings'
+      fullPath: '/admin/gemini-settings'
+      preLoaderRoute: typeof AuthenticatedAdminGeminiSettingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/employees': {
@@ -885,6 +925,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBotTrainingRoute: typeof AuthenticatedAdminBotTrainingRoute
   AuthenticatedAdminChatRoute: typeof AuthenticatedAdminChatRoute
   AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRoute
+  AuthenticatedAdminGeminiSettingsRoute: typeof AuthenticatedAdminGeminiSettingsRoute
   AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminMyProjectsRoute: typeof AuthenticatedAdminMyProjectsRoute
   AuthenticatedAdminPendingProjectsRoute: typeof AuthenticatedAdminPendingProjectsRoute
@@ -905,6 +946,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBotTrainingRoute: AuthenticatedAdminBotTrainingRoute,
   AuthenticatedAdminChatRoute: AuthenticatedAdminChatRoute,
   AuthenticatedAdminEmployeesRoute: AuthenticatedAdminEmployeesRoute,
+  AuthenticatedAdminGeminiSettingsRoute: AuthenticatedAdminGeminiSettingsRoute,
   AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminMyProjectsRoute: AuthenticatedAdminMyProjectsRoute,
   AuthenticatedAdminPendingProjectsRoute:
@@ -976,6 +1018,7 @@ const rootRouteChildren: RootRouteChildren = {
   VipRoute: VipRouteWithChildren,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ProjectIdRoute: ProjectIdRoute,
+  ApiAdminBotSettingsRoute: ApiAdminBotSettingsRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
@@ -984,13 +1027,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
