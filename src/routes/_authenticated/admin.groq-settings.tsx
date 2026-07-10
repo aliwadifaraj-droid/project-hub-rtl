@@ -5,7 +5,7 @@ import { Bot, Save, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/_authenticated/admin/gemini-settings")({
+export const Route = createFileRoute("/_authenticated/admin/groq-settings")({
   component: GeminiSettingsPage,
 });
 
