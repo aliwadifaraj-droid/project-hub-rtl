@@ -397,6 +397,9 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
         }
       } else {
         if (!answer) {
+          answer = await answerProjectQuery(supabaseAdmin, data.body);
+        }
+        if (!answer) {
           const context = await retrieveContext(supabaseAdmin, data.body);
           if (!context) {
             answer = NO_CONTEXT;
