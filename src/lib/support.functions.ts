@@ -127,7 +127,7 @@ async function retrieveContext(admin: any, userText: string): Promise<string> {
   const { data: projs } = projOr ? await projQuery.or(projOr) : await projQuery;
   if (projs?.length) {
     const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
-    const statusMap: Record<string, string> = { active: "مفتوح", delivered: "تم التسليم", cancelled: "ملغي" };
+    const statusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
     blocks.push("[المشاريع]\n" + projs.map((p: any) =>
       `- ${p.name} | الموقع: ${p.location ?? "-"} | الاعتماد: ${approvalMap[p.admin_approval] ?? p.admin_approval ?? "-"} | الحالة: ${statusMap[p.status] ?? p.status ?? "-"} | ${p.description ?? ""}`.trim()
     ).join("\n"));
@@ -252,12 +252,12 @@ async function answerProjectQuery(admin: any, text: string): Promise<string | nu
     .limit(1);
   const p = data?.[0];
   if (!p) return "غير موجوده حاليا";
-  if (intent === "exists") return "موجود";
+  const projectStatusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
+  const projectStatus = projectStatusMap[p.status] ?? "مفتوح للعروض";
+  if (intent === "exists") return `موجود\nالحالة: ${projectStatus}`;
   const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
   const approvalStatus = approvalMap[p.admin_approval] ?? (p.admin_approval ?? "غير محدد");
-  const projectStatusMap: Record<string, string> = { active: "الحالة: مفتوح", delivered: "الحالة: تم التسليم", cancelled: "الحالة: ملغي" };
-  const projectStatus = projectStatusMap[p.status] ?? "";
-  return `الاسم: ${p.name}\nالموقع: ${p.location ?? "-"}\nحالة الاعتماد: ${approvalStatus}\nالوصف: ${p.description ?? "-"}${projectStatus ? "\n" + projectStatus : ""}`;
+  return `الاسم: ${p.name}\nالموقع: ${p.location ?? "-"}\nحالة الاعتماد: ${approvalStatus}\nالوصف: ${p.description ?? "-"}\nالحالة: ${projectStatus}`;
 }
 
 export const startVisitorChat = createServerFn({ method: "POST" })
@@ -396,6 +396,9 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           });
         }
       } else {
+        if (!answer) {
+          answer = await answerProjectQuery(supabaseAdmin, data.body);
+        }
         if (!answer) {
           const context = await retrieveContext(supabaseAdmin, data.body);
           if (!context) {
