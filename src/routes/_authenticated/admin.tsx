@@ -199,7 +199,7 @@ function AdminLayout() {
     { to: "/admin/support", label: "دعم العملاء", icon: Headphones, show: true },
     { to: "/admin/bot-training", label: "تدريب البوت", icon: Bot, show: isAdmin },
     { to: "/admin/bot-settings", label: "إعدادات البوت", icon: Settings2, show: isAdmin },
-    { to: "/admin/gemini-settings", label: "إعدادات Gemini", icon: Bot, show: isAdmin },
+    { to: "/admin/groq-settings", label: "إعدادات Groq", icon: Bot, show: isAdmin },
     { to: "/admin/bot-test", label: "تجربة البوت", icon: Bot, show: isAdmin },
     { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },

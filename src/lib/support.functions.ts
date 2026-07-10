@@ -42,24 +42,28 @@ function buildGeminiSystem(cfg: GeminiCfg | null): string {
   return parts.join("\n");
 }
 async function askGemini(userText: string, cfg: GeminiCfg | null): Promise<string> {
-  const key = process.env.GEMINI_KEY;
+  const key = process.env.GROQ_API_KEY;
   if (!key) return GEMINI_FAIL;
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: buildGeminiSystem(cfg) }] },
-          contents: [{ role: "user", parts: [{ text: userText }] }],
-          generationConfig: { temperature: 0.6, maxOutputTokens: 200 },
-        }),
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
       },
-    );
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.6,
+        max_tokens: 200,
+        messages: [
+          { role: "system", content: buildGeminiSystem(cfg) },
+          { role: "user", content: userText },
+        ],
+      }),
+    });
     if (!res.ok) return GEMINI_FAIL;
     const j: any = await res.json();
-    let text: string = j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("\n").trim() ?? "";
+    const text: string = (j?.choices?.[0]?.message?.content ?? "").trim();
     if (!text) return GEMINI_FAIL;
     const blocked = (cfg?.blocked_replies ?? []).map((s) => s?.trim().toLowerCase()).filter(Boolean) as string[];
     if (blocked.some((b) => text.toLowerCase().includes(b))) return GEMINI_FAIL;

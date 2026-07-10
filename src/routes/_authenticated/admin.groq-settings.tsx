@@ -5,7 +5,7 @@ import { Bot, Save, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/_authenticated/admin/gemini-settings")({
+export const Route = createFileRoute("/_authenticated/admin/groq-settings")({
   component: GeminiSettingsPage,
 });
 
@@ -65,7 +65,7 @@ function GeminiSettingsPage() {
     try {
       await saveCfg({ systemInstruction, dialect, botName, blockedReplies: blocked, scope });
       qc.invalidateQueries({ queryKey: ["gemini-cfg"] });
-      toast.success("تم حفظ إعدادات Gemini");
+      toast.success("تم حفظ إعدادات Groq");
     } catch (e: any) {
       toast.error(e?.message ?? "تعذر الحفظ");
     } finally {
@@ -88,7 +88,7 @@ function GeminiSettingsPage() {
           <Bot className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-xl font-bold">إعدادات Gemini</h1>
+          <h1 className="text-xl font-bold">إعدادات Groq</h1>
           <p className="text-xs text-muted-foreground">تحكم في شخصية البوت ونطاق ردوده</p>
         </div>
       </div>
