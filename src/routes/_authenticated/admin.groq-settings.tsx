@@ -65,7 +65,7 @@ function GeminiSettingsPage() {
     try {
       await saveCfg({ systemInstruction, dialect, botName, blockedReplies: blocked, scope });
       qc.invalidateQueries({ queryKey: ["gemini-cfg"] });
-      toast.success("تم حفظ إعدادات Gemini");
+      toast.success("تم حفظ إعدادات Groq");
     } catch (e: any) {
       toast.error(e?.message ?? "تعذر الحفظ");
     } finally {
