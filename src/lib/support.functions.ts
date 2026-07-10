@@ -397,12 +397,13 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
         }
       } else {
         if (!answer) {
-          const projAns = await answerProjectQuery(supabaseAdmin, data.body);
-          if (projAns) answer = projAns;
-        }
-        if (!answer) {
-          const cfg = await loadGeminiCfg(supabaseAdmin);
-          answer = await askGemini(data.body, cfg);
+          const context = await retrieveContext(supabaseAdmin, data.body);
+          if (!context) {
+            answer = NO_CONTEXT;
+          } else {
+            const cfg = await loadGeminiCfg(supabaseAdmin);
+            answer = await askGemini(data.body, cfg, context);
+          }
         }
 
         if (!answer) {
