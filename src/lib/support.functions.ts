@@ -127,7 +127,7 @@ async function retrieveContext(admin: any, userText: string): Promise<string> {
   const { data: projs } = projOr ? await projQuery.or(projOr) : await projQuery;
   if (projs?.length) {
     const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
-    const statusMap: Record<string, string> = { active: "مفتوح", delivered: "تم التسليم", cancelled: "ملغي" };
+    const statusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
     blocks.push("[المشاريع]\n" + projs.map((p: any) =>
       `- ${p.name} | الموقع: ${p.location ?? "-"} | الاعتماد: ${approvalMap[p.admin_approval] ?? p.admin_approval ?? "-"} | الحالة: ${statusMap[p.status] ?? p.status ?? "-"} | ${p.description ?? ""}`.trim()
     ).join("\n"));
