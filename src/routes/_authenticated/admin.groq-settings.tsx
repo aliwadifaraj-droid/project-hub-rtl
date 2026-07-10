@@ -88,7 +88,7 @@ function GeminiSettingsPage() {
           <Bot className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-xl font-bold">إعدادات Gemini</h1>
+          <h1 className="text-xl font-bold">إعدادات Groq</h1>
           <p className="text-xs text-muted-foreground">تحكم في شخصية البوت ونطاق ردوده</p>
         </div>
       </div>
