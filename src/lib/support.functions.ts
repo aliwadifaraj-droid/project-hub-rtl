@@ -252,12 +252,12 @@ async function answerProjectQuery(admin: any, text: string): Promise<string | nu
     .limit(1);
   const p = data?.[0];
   if (!p) return "غير موجوده حاليا";
-  if (intent === "exists") return "موجود";
+  const projectStatusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
+  const projectStatus = projectStatusMap[p.status] ?? "مفتوح للعروض";
+  if (intent === "exists") return `موجود\nالحالة: ${projectStatus}`;
   const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
   const approvalStatus = approvalMap[p.admin_approval] ?? (p.admin_approval ?? "غير محدد");
-  const projectStatusMap: Record<string, string> = { active: "الحالة: مفتوح", delivered: "الحالة: تم التسليم", cancelled: "الحالة: ملغي" };
-  const projectStatus = projectStatusMap[p.status] ?? "";
-  return `الاسم: ${p.name}\nالموقع: ${p.location ?? "-"}\nحالة الاعتماد: ${approvalStatus}\nالوصف: ${p.description ?? "-"}${projectStatus ? "\n" + projectStatus : ""}`;
+  return `الاسم: ${p.name}\nالموقع: ${p.location ?? "-"}\nحالة الاعتماد: ${approvalStatus}\nالوصف: ${p.description ?? "-"}\nالحالة: ${projectStatus}`;
 }
 
 export const startVisitorChat = createServerFn({ method: "POST" })
