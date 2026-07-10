@@ -23,6 +23,7 @@ function matchQa(qas: Array<{ question: string; answer: string; keywords: string
 }
 
 const GEMINI_FAIL = "ما قدرت افهم السؤال. تبغى احولك لموظف؟";
+const NO_CONTEXT = "ما عندي معلومة عن هذا في ملفات المنصة. تبغى احولك لموظف؟";
 type GeminiCfg = {
   system_instruction?: string | null;
   dialect?: string | null;
@@ -30,18 +31,28 @@ type GeminiCfg = {
   blocked_replies?: string[] | null;
   scope?: string | null;
 };
-function buildGeminiSystem(cfg: GeminiCfg | null): string {
+function buildGeminiSystem(cfg: GeminiCfg | null, context: string): string {
   const base = cfg?.system_instruction?.trim()
-    || "أنت مساعد دعم لمنصة العمران. رد باللهجة السعودية، ودود ومختصر جدًا (سطر أو سطرين). لا تخترع معلومات.";
+    || "أنت مساعد دعم لمنصة العمران. رد باللهجة السعودية، ودود ومختصر جدًا (سطر أو سطرين).";
   const parts: string[] = [base];
   if (cfg?.bot_name?.trim()) parts.push(`اسمك: ${cfg.bot_name.trim()}.`);
   if (cfg?.dialect?.trim()) parts.push(`اللهجة: ${cfg.dialect.trim()}.`);
-  if (cfg?.scope?.trim()) parts.push(`نطاق عملك: ${cfg.scope.trim()} — لا تجاوب خارج هذا النطاق.`);
+  if (cfg?.scope?.trim()) parts.push(`نطاق عملك: ${cfg.scope.trim()}.`);
   const blocked = (cfg?.blocked_replies ?? []).map((s) => s?.trim()).filter(Boolean) as string[];
   if (blocked.length) parts.push(`ممنوع تذكر أو ترد بأي من: ${blocked.join("، ")}.`);
+  parts.push(
+    "قواعد صارمة:",
+    "- جاوب فقط من (بيانات المنصة) أدناه.",
+    "- ممنوع تخترع أي معلومة غير موجودة في البيانات.",
+    "- إذا ما فيه إجابة واضحة في البيانات، رد حرفيًا: " + NO_CONTEXT,
+    "",
+    "===== بيانات المنصة =====",
+    context || "(لا توجد بيانات)",
+    "===== نهاية البيانات =====",
+  );
   return parts.join("\n");
 }
-async function askGemini(userText: string, cfg: GeminiCfg | null): Promise<string> {
+async function askGemini(userText: string, cfg: GeminiCfg | null, context: string): Promise<string> {
   const key = process.env.GROQ_API_KEY;
   if (!key) return GEMINI_FAIL;
   try {
@@ -53,10 +64,10 @@ async function askGemini(userText: string, cfg: GeminiCfg | null): Promise<strin
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        temperature: 0.6,
-        max_tokens: 200,
+        temperature: 0.2,
+        max_tokens: 250,
         messages: [
-          { role: "system", content: buildGeminiSystem(cfg) },
+          { role: "system", content: buildGeminiSystem(cfg, context) },
           { role: "user", content: userText },
         ],
       }),
@@ -84,6 +95,59 @@ async function loadGeminiCfg(admin: any): Promise<GeminiCfg | null> {
     blocked_replies: data.gemini_blocked_replies,
     scope: data.gemini_scope,
   };
+}
+
+const RAG_STOP = new Set(["مشروع","المشروع","هل","عندكم","عندك","متوفر","موجود","موجودة","فيه","لديكم","تفاصيل","تفصيل","وضع","حالة","تكلم","عن","اخبرني","أخبرني","معلومات","كلمني","من","فضلك","لو","سمحت","ابغى","أبغى","ابي","أبي","اريد","أريد","كل","ما","وش","ايش","أيش","في","على","إلى","الى","و","أو","او","ثم","كيف","متى","اين","أين","لماذا","ليش","ايه","إيه"]);
+function ragTokens(text: string): string[] {
+  return (text ?? "")
+    .replace(/[?؟.!,،:؛()"'“”]/g, " ")
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 2 && !RAG_STOP.has(w));
+}
+async function retrieveContext(admin: any, userText: string): Promise<string> {
+  const tokens = ragTokens(userText).slice(0, 6);
+  const blocks: string[] = [];
+
+  const qaOr = tokens.length
+    ? tokens.map((t) => `question.ilike.%${t}%,answer.ilike.%${t}%`).join(",")
+    : "";
+  const qaQuery = admin.from("bot_qa").select("question,answer").eq("is_active", true).limit(6);
+  const { data: qas } = qaOr ? await qaQuery.or(qaOr) : await qaQuery;
+  if (qas?.length) {
+    blocks.push("[الأسئلة الشائعة]\n" + qas.map((q: any) => `س: ${q.question}\nج: ${q.answer}`).join("\n---\n"));
+  }
+
+  const projOr = tokens.length
+    ? tokens.map((t) => `name.ilike.%${t}%,location.ilike.%${t}%,description.ilike.%${t}%`).join(",")
+    : "";
+  const projQuery = admin.from("projects")
+    .select("name,location,description,admin_approval,status")
+    .limit(5);
+  const { data: projs } = projOr ? await projQuery.or(projOr) : await projQuery;
+  if (projs?.length) {
+    const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
+    const statusMap: Record<string, string> = { active: "مفتوح", delivered: "تم التسليم", cancelled: "ملغي" };
+    blocks.push("[المشاريع]\n" + projs.map((p: any) =>
+      `- ${p.name} | الموقع: ${p.location ?? "-"} | الاعتماد: ${approvalMap[p.admin_approval] ?? p.admin_approval ?? "-"} | الحالة: ${statusMap[p.status] ?? p.status ?? "-"} | ${p.description ?? ""}`.trim()
+    ).join("\n"));
+  }
+
+  const adOr = tokens.length
+    ? tokens.map((t) => `title.ilike.%${t}%,description.ilike.%${t}%,domain.ilike.%${t}%`).join(",")
+    : "";
+  const adQuery = admin.from("ads")
+    .select("title,description,domain,link_url")
+    .eq("status", "approved")
+    .limit(5);
+  const { data: ads } = adOr ? await adQuery.or(adOr) : await adQuery;
+  if (ads?.length) {
+    blocks.push("[الإعلانات]\n" + ads.map((a: any) =>
+      `- ${a.title} | المجال: ${a.domain ?? "-"} | ${a.description ?? ""}${a.link_url ? " | رابط: " + a.link_url : ""}`
+    ).join("\n"));
+  }
+
+  return blocks.join("\n\n");
 }
 
 
