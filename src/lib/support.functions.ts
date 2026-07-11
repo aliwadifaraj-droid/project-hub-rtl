@@ -223,9 +223,9 @@ async function botAlreadyAskedClarify(admin: any, chatId: string): Promise<boole
 }
 
 // --- Project lookup from bot (DB-first, no Groq) ---
-const DETAIL_KEYWORDS = ["تفاصيل", "تفصيل", "وضع", "حالة", "تكلم عن", "اخبرني", "أخبرني", "معلومات", "كلمني"];
+const COUNT_KEYWORDS = ["كم عدد", "كم مشروع", "عدد المشاريع", "كم عندكم", "كم لديكم"];
 const LIST_KEYWORDS = ["مشاريع", "المشاريع", "قائمة", "جميع المشاريع", "كل المشاريع", "عرض المشاريع", "اعرض", "أعرض"];
-const STOP_WORDS = new Set(["مشروع", "المشروع", "مشاريع", "المشاريع", "هل", "عندكم", "عندك", "متوفر", "موجود", "موجودة", "فيه", "لديكم", "تفاصيل", "تفصيل", "وضع", "حالة", "تكلم", "عن", "اخبرني", "أخبرني", "معلومات", "كلمني", "من", "فضلك", "لو", "سمحت", "ابغى", "أبغى", "ابي", "أبي", "اريد", "أريد", "كل", "ما", "وش", "ايش", "أيش", "قائمة", "جميع", "عرض", "اعرض", "أعرض"]);
+const STOP_WORDS = new Set(["مشروع", "المشروع", "مشاريع", "المشاريع", "هل", "عندكم", "عندك", "متوفر", "موجود", "موجودة", "فيه", "لديكم", "تفاصيل", "تفصيل", "وضع", "حالة", "تكلم", "عن", "اخبرني", "أخبرني", "معلومات", "كلمني", "من", "فضلك", "لو", "سمحت", "ابغى", "أبغى", "ابي", "أبي", "اريد", "أريد", "كل", "ما", "وش", "ايش", "أيش", "قائمة", "جميع", "عرض", "اعرض", "أعرض", "كم", "عدد"]);
 
 function extractProjectName(text: string): string {
   const t = (text ?? "").replace(/[?؟.!,،]/g, " ");
@@ -234,47 +234,58 @@ function extractProjectName(text: string): string {
 }
 
 const projectStatusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
-const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
 
-function formatProject(p: any): string {
+function formatProjectDetails(p: any): string {
   const st = projectStatusMap[p.status] ?? "مفتوح للعروض";
-  const ap = approvalMap[p.admin_approval] ?? (p.admin_approval ?? "-");
-  return `• ${p.name}\n  الموقع: ${p.location ?? "-"}\n  الاعتماد: ${ap}\n  الحالة: ${st}${p.description ? `\n  الوصف: ${p.description}` : ""}`;
+  return `• ${p.name}\n  الموقع: ${p.location ?? "-"}\n  الحالة: ${st}${p.description ? `\n  الوصف: ${p.description}` : ""}`;
+}
+
+function formatProjectShort(p: any): string {
+  const st = projectStatusMap[p.status] ?? "مفتوح للعروض";
+  return `• ${p.name} — ${p.location ?? "-"} — ${st}`;
 }
 
 async function answerProjectQuery(admin: any, text: string): Promise<string | null> {
   const t = (text ?? "").toLowerCase();
   const mentionsProject = t.includes("مشروع") || t.includes("المشروع") || LIST_KEYWORDS.some((k) => t.includes(k));
 
-  // List all approved projects
-  if (LIST_KEYWORDS.some((k) => t.includes(k)) && !DETAIL_KEYWORDS.some((k) => t.includes(k))) {
-    const { data } = await admin
+  // 1) "كم عدد" → number only
+  if (COUNT_KEYWORDS.some((k) => t.includes(k))) {
+    const { count } = await admin
       .from("projects")
-      .select("name,location,description,admin_approval,status")
-      .eq("admin_approval", "approved")
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (!data?.length) return "لا توجد مشاريع حاليًا.";
-    return "المشاريع المتاحة:\n\n" + data.map(formatProject).join("\n\n");
+      .select("id", { count: "exact", head: true })
+      .eq("admin_approval", "approved");
+    return `عدد المشاريع: ${count ?? 0}`;
   }
 
-  // Search by name/location tokens
+  // 2) Search by name → details + status only
   const name = extractProjectName(text);
   if (name) {
-    const escaped = name.replace(/[%_,]/g, " ").trim();
-    const tokens = escaped.split(/\s+/).filter((w) => w.length >= 2).slice(0, 5);
+    const tokens = name.replace(/[%_,]/g, " ").split(/\s+/).filter((w) => w.length >= 2).slice(0, 5);
     if (tokens.length) {
       const orExpr = tokens.map((tok) => `name.ilike.%${tok}%,location.ilike.%${tok}%`).join(",");
       const { data } = await admin
         .from("projects")
-        .select("name,location,description,admin_approval,status")
+        .select("name,location,description,status")
+        .eq("admin_approval", "approved")
         .or(orExpr)
         .limit(3);
-      if (data?.length) return data.map(formatProject).join("\n\n");
+      if (data?.length) return data.map(formatProjectDetails).join("\n\n");
     }
   }
 
-  if (mentionsProject) return "غير موجوده حاليا";
+  // 3) General projects question → short list: name + location + status
+  if (mentionsProject) {
+    const { data } = await admin
+      .from("projects")
+      .select("name,location,status")
+      .eq("admin_approval", "approved")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (!data?.length) return null;
+    return "المشاريع المتاحة:\n\n" + data.map(formatProjectShort).join("\n");
+  }
+
   return null;
 }
 
