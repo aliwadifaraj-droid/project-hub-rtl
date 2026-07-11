@@ -222,42 +222,60 @@ async function botAlreadyAskedClarify(admin: any, chatId: string): Promise<boole
   return !!(data && data.length);
 }
 
-// --- Project lookup from bot ---
+// --- Project lookup from bot (DB-first, no Groq) ---
 const DETAIL_KEYWORDS = ["تفاصيل", "تفصيل", "وضع", "حالة", "تكلم عن", "اخبرني", "أخبرني", "معلومات", "كلمني"];
-const EXIST_KEYWORDS = ["موجود", "عندكم", "عندك", "متوفر", "فيه", "لديكم", "هل"];
-const STOP_WORDS = new Set(["مشروع", "المشروع", "هل", "عندكم", "عندك", "متوفر", "موجود", "موجودة", "فيه", "لديكم", "تفاصيل", "تفصيل", "وضع", "حالة", "تكلم", "عن", "اخبرني", "أخبرني", "معلومات", "كلمني", "من", "فضلك", "لو", "سمحت", "ابغى", "أبغى", "ابي", "أبي", "اريد", "أريد", "كل", "ما", "وش", "ايش", "أيش"]);
+const LIST_KEYWORDS = ["مشاريع", "المشاريع", "قائمة", "جميع المشاريع", "كل المشاريع", "عرض المشاريع", "اعرض", "أعرض"];
+const STOP_WORDS = new Set(["مشروع", "المشروع", "مشاريع", "المشاريع", "هل", "عندكم", "عندك", "متوفر", "موجود", "موجودة", "فيه", "لديكم", "تفاصيل", "تفصيل", "وضع", "حالة", "تكلم", "عن", "اخبرني", "أخبرني", "معلومات", "كلمني", "من", "فضلك", "لو", "سمحت", "ابغى", "أبغى", "ابي", "أبي", "اريد", "أريد", "كل", "ما", "وش", "ايش", "أيش", "قائمة", "جميع", "عرض", "اعرض", "أعرض"]);
+
 function extractProjectName(text: string): string {
   const t = (text ?? "").replace(/[?؟.!,،]/g, " ");
   const tokens = t.split(/\s+/).filter(Boolean).filter((w) => !STOP_WORDS.has(w));
   return tokens.join(" ").trim();
 }
-function detectProjectIntent(text: string): "details" | "exists" | null {
-  const t = (text ?? "").toLowerCase();
-  if (!t.includes("مشروع") && !t.includes("المشروع")) return null;
-  if (DETAIL_KEYWORDS.some((k) => t.includes(k))) return "details";
-  if (EXIST_KEYWORDS.some((k) => t.includes(k))) return "exists";
-  return null;
+
+const projectStatusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
+const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
+
+function formatProject(p: any): string {
+  const st = projectStatusMap[p.status] ?? "مفتوح للعروض";
+  const ap = approvalMap[p.admin_approval] ?? (p.admin_approval ?? "-");
+  return `• ${p.name}\n  الموقع: ${p.location ?? "-"}\n  الاعتماد: ${ap}\n  الحالة: ${st}${p.description ? `\n  الوصف: ${p.description}` : ""}`;
 }
+
 async function answerProjectQuery(admin: any, text: string): Promise<string | null> {
-  const intent = detectProjectIntent(text);
-  if (!intent) return null;
+  const t = (text ?? "").toLowerCase();
+  const mentionsProject = t.includes("مشروع") || t.includes("المشروع") || LIST_KEYWORDS.some((k) => t.includes(k));
+
+  // List all approved projects
+  if (LIST_KEYWORDS.some((k) => t.includes(k)) && !DETAIL_KEYWORDS.some((k) => t.includes(k))) {
+    const { data } = await admin
+      .from("projects")
+      .select("name,location,description,admin_approval,status")
+      .eq("admin_approval", "approved")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (!data?.length) return "لا توجد مشاريع حاليًا.";
+    return "المشاريع المتاحة:\n\n" + data.map(formatProject).join("\n\n");
+  }
+
+  // Search by name/location tokens
   const name = extractProjectName(text);
-  if (!name) return "غير موجوده حاليا";
-  const escaped = name.replace(/[%_,]/g, " ").trim();
-  if (!escaped) return "غير موجوده حاليا";
-  const { data } = await admin
-    .from("projects")
-    .select("name,location,description,admin_approval,status")
-    .ilike("name", `%${escaped}%`)
-    .limit(1);
-  const p = data?.[0];
-  if (!p) return "غير موجوده حاليا";
-  const projectStatusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
-  const projectStatus = projectStatusMap[p.status] ?? "مفتوح للعروض";
-  if (intent === "exists") return `موجود\nالحالة: ${projectStatus}`;
-  const approvalMap: Record<string, string> = { approved: "معتمد", pending: "قيد المراجعة", rejected: "مرفوض" };
-  const approvalStatus = approvalMap[p.admin_approval] ?? (p.admin_approval ?? "غير محدد");
-  return `الاسم: ${p.name}\nالموقع: ${p.location ?? "-"}\nحالة الاعتماد: ${approvalStatus}\nالوصف: ${p.description ?? "-"}\nالحالة: ${projectStatus}`;
+  if (name) {
+    const escaped = name.replace(/[%_,]/g, " ").trim();
+    const tokens = escaped.split(/\s+/).filter((w) => w.length >= 2).slice(0, 5);
+    if (tokens.length) {
+      const orExpr = tokens.map((tok) => `name.ilike.%${tok}%,location.ilike.%${tok}%`).join(",");
+      const { data } = await admin
+        .from("projects")
+        .select("name,location,description,admin_approval,status")
+        .or(orExpr)
+        .limit(3);
+      if (data?.length) return data.map(formatProject).join("\n\n");
+    }
+  }
+
+  if (mentionsProject) return "غير موجوده حاليا";
+  return null;
 }
 
 export const startVisitorChat = createServerFn({ method: "POST" })
