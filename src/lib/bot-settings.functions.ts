@@ -16,13 +16,15 @@ export type BotSettings = {
   fallback_message: string;
   allow_escalation: boolean;
   show_suggested_questions: boolean;
+  local_enabled: boolean;
+  local_system_prompt: string;
 };
 
 export const getBotSettings = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("bot_settings")
-    .select("id,work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation,show_suggested_questions")
+    .select("id,work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation,show_suggested_questions,local_enabled,local_system_prompt")
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -40,6 +42,8 @@ export const updateBotSettings = createServerFn({ method: "POST" })
     fallback_message: string;
     allow_escalation: boolean;
     show_suggested_questions: boolean;
+    local_enabled: boolean;
+    local_system_prompt: string;
   }) =>
     z.object({
       work_days: daysSchema,
@@ -49,6 +53,8 @@ export const updateBotSettings = createServerFn({ method: "POST" })
       fallback_message: z.string().trim().min(1).max(1000),
       allow_escalation: z.boolean(),
       show_suggested_questions: z.boolean(),
+      local_enabled: z.boolean(),
+      local_system_prompt: z.string().trim().max(4000),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {

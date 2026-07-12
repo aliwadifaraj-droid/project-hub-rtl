@@ -164,11 +164,14 @@ type BotSettingsRow = {
   off_hours_message: string | null;
   fallback_message: string | null;
   allow_escalation: boolean | null;
+  local_enabled: boolean | null;
+  local_system_prompt: string | null;
+  groq_enabled: boolean | null;
 };
 async function loadBotSettings(admin: any): Promise<BotSettingsRow | null> {
   const { data } = await admin
     .from("bot_settings")
-    .select("work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation")
+    .select("work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation,local_enabled,local_system_prompt,groq_enabled")
     .limit(1)
     .maybeSingle();
   return (data as BotSettingsRow) ?? null;
@@ -402,21 +405,25 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       // Determine if this turn triggers an escalate action
       let triggerEscalate = false;
       let answer: string | null = null;
+      let localAnswered = false;
+      const localOn = settings?.local_enabled !== false;
+      const groqOn = settings?.groq_enabled !== false;
+      const localPrompt = (settings?.local_system_prompt ?? "").trim();
 
       if (data.qaId) {
         const { data: qa } = await supabaseAdmin
           .from("bot_qa").select("answer,action")
           .eq("id", data.qaId).eq("is_active", true).maybeSingle();
         if (qa?.action === "escalate") triggerEscalate = true;
-        else answer = qa?.answer ?? null;
+        else { answer = qa?.answer ?? null; if (answer) localAnswered = true; }
       } else if (wantsHuman(data.body)) {
         triggerEscalate = true;
-      } else {
+      } else if (localOn) {
         const { data: qas } = await supabaseAdmin
           .from("bot_qa").select("question,answer,keywords,action").eq("is_active", true);
         const m = matchQa((qas ?? []) as any, data.body);
         if (m && (m as any).action === "escalate") triggerEscalate = true;
-        else answer = m?.answer ?? null;
+        else { answer = m?.answer ?? null; if (answer) localAnswered = true; }
       }
 
       if (triggerEscalate) {
@@ -429,10 +436,11 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           });
         }
       } else {
-        if (!answer) {
+        if (!answer && localOn) {
           answer = await answerProjectQuery(supabaseAdmin, data.body);
+          if (answer) localAnswered = true;
         }
-        if (!answer) {
+        if (!answer && groqOn) {
           const context = await retrieveContext(supabaseAdmin, data.body);
           if (!context) {
             answer = NO_CONTEXT;
@@ -446,9 +454,11 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           answer = settings?.fallback_message?.trim()
             || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.";
         }
+
+        const finalBody = localAnswered && localPrompt ? `${localPrompt}\n\n${answer}` : answer;
         const { error: botMessageError } = await supabaseAdmin
           .from("support_messages")
-          .insert({ chat_id: chat.id, sender: "bot", body: answer });
+          .insert({ chat_id: chat.id, sender: "bot", body: finalBody });
         if (botMessageError) throw new Error(botMessageError.message);
       }
     }
