@@ -45,6 +45,8 @@ function BotSettingsPage() {
   const [fallbackMsg, setFallbackMsg] = useState("عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة \"موظف\" للتحدث مع الدعم.");
   const [allowEsc, setAllowEsc] = useState(true);
   const [showSuggested, setShowSuggested] = useState(true);
+  const [localEnabled, setLocalEnabled] = useState(true);
+  const [localSystemPrompt, setLocalSystemPrompt] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -56,6 +58,8 @@ function BotSettingsPage() {
     setFallbackMsg(data.fallback_message ?? "");
     setAllowEsc(data.allow_escalation);
     setShowSuggested(data.show_suggested_questions ?? true);
+    setLocalEnabled(data.local_enabled ?? true);
+    setLocalSystemPrompt(data.local_system_prompt ?? "");
   }, [data]);
 
   async function save() {
@@ -70,6 +74,8 @@ function BotSettingsPage() {
           fallback_message: fallbackMsg,
           allow_escalation: allowEsc,
           show_suggested_questions: showSuggested,
+          local_enabled: localEnabled,
+          local_system_prompt: localSystemPrompt,
         },
       });
       qc.invalidateQueries({ queryKey: ["bot-settings"] });

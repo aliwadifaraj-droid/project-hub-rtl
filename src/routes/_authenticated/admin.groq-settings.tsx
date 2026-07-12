@@ -101,6 +101,29 @@ function GeminiSettingsPage() {
       ) : (
         <div className="space-y-4">
           <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold">تفعيل Groq</h2>
+                <p className="text-xs text-muted-foreground">تشغيل أو إيقاف ردود Groq للأسئلة الخارجية</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGroqEnabled(!groqEnabled)}
+                role="switch"
+                aria-checked={groqEnabled}
+                className={`relative h-6 w-11 rounded-full transition ${groqEnabled ? "bg-primary" : "bg-muted"}`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-all ${
+                    groqEnabled ? "start-0.5" : "end-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
+
             <label className="mb-1 block text-xs font-semibold">System Instruction</label>
             <textarea
               rows={5}
