@@ -164,11 +164,14 @@ type BotSettingsRow = {
   off_hours_message: string | null;
   fallback_message: string | null;
   allow_escalation: boolean | null;
+  local_enabled: boolean | null;
+  local_system_prompt: string | null;
+  groq_enabled: boolean | null;
 };
 async function loadBotSettings(admin: any): Promise<BotSettingsRow | null> {
   const { data } = await admin
     .from("bot_settings")
-    .select("work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation")
+    .select("work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation,local_enabled,local_system_prompt,groq_enabled")
     .limit(1)
     .maybeSingle();
   return (data as BotSettingsRow) ?? null;

@@ -195,6 +195,41 @@ function BotSettingsPage() {
           </section>
 
 
+          {/* Local bot */}
+          <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold">تفعيل البوت المحلي</h2>
+                <p className="text-xs text-muted-foreground">تشغيل أو إيقاف ردود البوت المحلي (بيانات المنصة)</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLocalEnabled(!localEnabled)}
+                role="switch"
+                aria-checked={localEnabled}
+                className={`relative h-6 w-11 rounded-full transition ${localEnabled ? "bg-primary" : "bg-muted"}`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-all ${
+                    localEnabled ? "start-0.5" : "end-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <label className="mb-1 block text-xs font-semibold">System Prompt</label>
+            <textarea
+              rows={5}
+              value={localSystemPrompt}
+              onChange={(e) => setLocalSystemPrompt(e.target.value)}
+              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              placeholder="تعليمات يقرأها البوت المحلي قبل أي رد..."
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              يستخدمها البوت المحلي كتوجيه ثابت قبل كل رد.
+            </p>
+          </section>
+
           {/* Allow escalation */}
           <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-center justify-between">
