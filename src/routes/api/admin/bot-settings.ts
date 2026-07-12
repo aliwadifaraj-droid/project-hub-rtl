@@ -10,6 +10,7 @@ const bodySchema = z.object({
   botName: z.string().trim().max(100),
   blockedReplies: z.array(z.string().trim().max(200)).max(50),
   scope: z.string().trim().max(2000),
+  groqEnabled: z.boolean(),
 });
 
 async function authorizeAdmin(request: Request) {
@@ -45,7 +46,7 @@ export const Route = createFileRoute("/api/admin/bot-settings")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data, error } = await supabaseAdmin
           .from("bot_settings")
-          .select("id,gemini_system_instruction,gemini_dialect,gemini_bot_name,gemini_blocked_replies,gemini_scope")
+          .select("id,gemini_system_instruction,gemini_dialect,gemini_bot_name,gemini_blocked_replies,gemini_scope,groq_enabled")
           .limit(1).maybeSingle();
         if (error) return new Response(error.message, { status: 500 });
         return Response.json({
@@ -54,6 +55,7 @@ export const Route = createFileRoute("/api/admin/bot-settings")({
           botName: data?.gemini_bot_name ?? "",
           blockedReplies: data?.gemini_blocked_replies ?? [],
           scope: data?.gemini_scope ?? "",
+          groqEnabled: (data as any)?.groq_enabled ?? true,
         });
       },
       POST: async ({ request }) => {
@@ -73,6 +75,7 @@ export const Route = createFileRoute("/api/admin/bot-settings")({
           gemini_bot_name: v.botName,
           gemini_blocked_replies: v.blockedReplies.filter((s) => s.length > 0),
           gemini_scope: v.scope,
+          groq_enabled: v.groqEnabled,
         };
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: existing } = await supabaseAdmin

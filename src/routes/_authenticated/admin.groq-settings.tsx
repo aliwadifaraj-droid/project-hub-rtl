@@ -15,6 +15,7 @@ type GeminiCfg = {
   botName: string;
   blockedReplies: string[];
   scope: string;
+  groqEnabled: boolean;
 };
 
 async function authHeaders(): Promise<HeadersInit> {
@@ -49,6 +50,7 @@ function GeminiSettingsPage() {
   const [blocked, setBlocked] = useState<string[]>([]);
   const [newBlocked, setNewBlocked] = useState("");
   const [scope, setScope] = useState("");
+  const [groqEnabled, setGroqEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -58,12 +60,13 @@ function GeminiSettingsPage() {
     setBotName(data.botName);
     setBlocked(data.blockedReplies ?? []);
     setScope(data.scope);
+    setGroqEnabled(data.groqEnabled ?? true);
   }, [data]);
 
   async function save() {
     setSaving(true);
     try {
-      await saveCfg({ systemInstruction, dialect, botName, blockedReplies: blocked, scope });
+      await saveCfg({ systemInstruction, dialect, botName, blockedReplies: blocked, scope, groqEnabled });
       qc.invalidateQueries({ queryKey: ["gemini-cfg"] });
       toast.success("تم حفظ إعدادات Groq");
     } catch (e: any) {
