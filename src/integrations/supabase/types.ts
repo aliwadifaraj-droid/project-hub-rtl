@@ -143,7 +143,10 @@ export type Database = {
           gemini_dialect: string
           gemini_scope: string
           gemini_system_instruction: string
+          groq_enabled: boolean
           id: string
+          local_enabled: boolean
+          local_system_prompt: string
           off_hours_message: string
           show_suggested_questions: boolean
           singleton: boolean
@@ -161,7 +164,10 @@ export type Database = {
           gemini_dialect?: string
           gemini_scope?: string
           gemini_system_instruction?: string
+          groq_enabled?: boolean
           id?: string
+          local_enabled?: boolean
+          local_system_prompt?: string
           off_hours_message?: string
           show_suggested_questions?: boolean
           singleton?: boolean
@@ -179,7 +185,10 @@ export type Database = {
           gemini_dialect?: string
           gemini_scope?: string
           gemini_system_instruction?: string
+          groq_enabled?: boolean
           id?: string
+          local_enabled?: boolean
+          local_system_prompt?: string
           off_hours_message?: string
           show_suggested_questions?: boolean
           singleton?: boolean
