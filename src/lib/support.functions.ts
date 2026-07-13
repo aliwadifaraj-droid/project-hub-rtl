@@ -200,14 +200,8 @@ function isWithinWorkHours(s: BotSettingsRow | null): boolean {
 // -------- Visitor (unauthenticated) --------
 
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("bot_qa")
-    .select("id,question,answer,keywords,sort_order,action")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  const { listActiveForVisitors } = await import("./bot-qa.repo");
+  return await listActiveForVisitors();
 });
 
 const CLARIFY_PROMPT = "ممكن توضح مشكلتك أحاول أساعدك؟";
