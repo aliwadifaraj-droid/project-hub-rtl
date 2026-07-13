@@ -109,13 +109,10 @@ async function retrieveContext(admin: any, userText: string): Promise<string> {
   const tokens = ragTokens(userText).slice(0, 6);
   const blocks: string[] = [];
 
-  const qaOr = tokens.length
-    ? tokens.map((t) => `question.ilike.%${t}%,answer.ilike.%${t}%`).join(",")
-    : "";
-  const qaQuery = admin.from("bot_qa").select("question,answer").eq("is_active", true).limit(6);
-  const { data: qas } = qaOr ? await qaQuery.or(qaOr) : await qaQuery;
-  if (qas?.length) {
-    blocks.push("[الأسئلة الشائعة]\n" + qas.map((q: any) => `س: ${q.question}\nج: ${q.answer}`).join("\n---\n"));
+  const { searchActiveQa } = await import("./bot-qa.repo");
+  const qas = await searchActiveQa(tokens, 6);
+  if (qas.length) {
+    blocks.push("[الأسئلة الشائعة]\n" + qas.map((q) => `س: ${q.question}\nج: ${q.answer}`).join("\n---\n"));
   }
 
   const projOr = tokens.length
