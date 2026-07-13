@@ -109,13 +109,10 @@ async function retrieveContext(admin: any, userText: string): Promise<string> {
   const tokens = ragTokens(userText).slice(0, 6);
   const blocks: string[] = [];
 
-  const qaOr = tokens.length
-    ? tokens.map((t) => `question.ilike.%${t}%,answer.ilike.%${t}%`).join(",")
-    : "";
-  const qaQuery = admin.from("bot_qa").select("question,answer").eq("is_active", true).limit(6);
-  const { data: qas } = qaOr ? await qaQuery.or(qaOr) : await qaQuery;
-  if (qas?.length) {
-    blocks.push("[الأسئلة الشائعة]\n" + qas.map((q: any) => `س: ${q.question}\nج: ${q.answer}`).join("\n---\n"));
+  const { searchActiveQa } = await import("./bot-qa.repo");
+  const qas = await searchActiveQa(tokens, 6);
+  if (qas.length) {
+    blocks.push("[الأسئلة الشائعة]\n" + qas.map((q) => `س: ${q.question}\nج: ${q.answer}`).join("\n---\n"));
   }
 
   const projOr = tokens.length
@@ -203,14 +200,8 @@ function isWithinWorkHours(s: BotSettingsRow | null): boolean {
 // -------- Visitor (unauthenticated) --------
 
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("bot_qa")
-    .select("id,question,answer,keywords,sort_order,action")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  const { listActiveForVisitors } = await import("./bot-qa.repo");
+  return await listActiveForVisitors();
 });
 
 const CLARIFY_PROMPT = "ممكن توضح مشكلتك أحاول أساعدك؟";
@@ -410,18 +401,16 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       const groqOn = settings?.groq_enabled !== false;
       const localPrompt = (settings?.local_system_prompt ?? "").trim();
 
+      const botQa = await import("./bot-qa.repo");
       if (data.qaId) {
-        const { data: qa } = await supabaseAdmin
-          .from("bot_qa").select("answer,action")
-          .eq("id", data.qaId).eq("is_active", true).maybeSingle();
+        const qa = await botQa.getQaById(data.qaId);
         if (qa?.action === "escalate") triggerEscalate = true;
         else { answer = qa?.answer ?? null; if (answer) localAnswered = true; }
       } else if (wantsHuman(data.body)) {
         triggerEscalate = true;
       } else if (localOn) {
-        const { data: qas } = await supabaseAdmin
-          .from("bot_qa").select("question,answer,keywords,action").eq("is_active", true);
-        const m = matchQa((qas ?? []) as any, data.body);
+        const qas = await botQa.listActiveQa();
+        const m = matchQa(qas as any, data.body);
         if (m && (m as any).action === "escalate") triggerEscalate = true;
         else { answer = m?.answer ?? null; if (answer) localAnswered = true; }
       }
@@ -586,10 +575,8 @@ export const adminListBotQa = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin.from("bot_qa").select("*").order("sort_order", { ascending: true });
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const { listAllQa } = await import("./bot-qa.repo");
+    return await listAllQa();
   });
 
 export const adminUpsertBotQa = createServerFn({ method: "POST" })
@@ -608,15 +595,16 @@ export const adminUpsertBotQa = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const row = { question: data.question, answer: data.answer, keywords: data.keywords, is_active: data.is_active, sort_order: data.sort_order, action: data.action ?? "none" };
-    if (data.id) {
-      const { error } = await supabaseAdmin.from("bot_qa").update(row).eq("id", data.id);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabaseAdmin.from("bot_qa").insert(row);
-      if (error) throw new Error(error.message);
-    }
+    const { upsertQa } = await import("./bot-qa.repo");
+    await upsertQa({
+      id: data.id ?? null,
+      question: data.question,
+      answer: data.answer,
+      keywords: data.keywords,
+      is_active: data.is_active,
+      sort_order: data.sort_order,
+      action: data.action ?? "none",
+    });
     return { ok: true };
   });
 
@@ -626,9 +614,8 @@ export const adminDeleteBotQa = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("bot_qa").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const { deleteQa } = await import("./bot-qa.repo");
+    await deleteQa(data.id);
     return { ok: true };
   });
 
