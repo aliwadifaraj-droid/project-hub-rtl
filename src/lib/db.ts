@@ -35,14 +35,9 @@ export const db = {
   },
 };
 
-/** Map a libSQL result row to a plain object. */
+/** Map libSQL result rows to plain objects (libSQL Rows are already keyed). */
 export function rowsToObjects<T = Record<string, unknown>>(result: {
-  columns: string[];
-  rows: unknown[][];
+  rows: readonly unknown[];
 }): T[] {
-  return result.rows.map((row) => {
-    const obj: Record<string, unknown> = {};
-    result.columns.forEach((c, i) => { obj[c] = row[i]; });
-    return obj as T;
-  });
+  return (result.rows as unknown[]).map((r) => ({ ...(r as object) })) as T[];
 }
