@@ -401,18 +401,16 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       const groqOn = settings?.groq_enabled !== false;
       const localPrompt = (settings?.local_system_prompt ?? "").trim();
 
+      const botQa = await import("./bot-qa.repo");
       if (data.qaId) {
-        const { data: qa } = await supabaseAdmin
-          .from("bot_qa").select("answer,action")
-          .eq("id", data.qaId).eq("is_active", true).maybeSingle();
+        const qa = await botQa.getQaById(data.qaId);
         if (qa?.action === "escalate") triggerEscalate = true;
         else { answer = qa?.answer ?? null; if (answer) localAnswered = true; }
       } else if (wantsHuman(data.body)) {
         triggerEscalate = true;
       } else if (localOn) {
-        const { data: qas } = await supabaseAdmin
-          .from("bot_qa").select("question,answer,keywords,action").eq("is_active", true);
-        const m = matchQa((qas ?? []) as any, data.body);
+        const qas = await botQa.listActiveQa();
+        const m = matchQa(qas as any, data.body);
         if (m && (m as any).action === "escalate") triggerEscalate = true;
         else { answer = m?.answer ?? null; if (answer) localAnswered = true; }
       }
