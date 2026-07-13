@@ -575,10 +575,8 @@ export const adminListBotQa = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin.from("bot_qa").select("*").order("sort_order", { ascending: true });
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const { listAllQa } = await import("./bot-qa.repo");
+    return await listAllQa();
   });
 
 export const adminUpsertBotQa = createServerFn({ method: "POST" })
@@ -597,15 +595,16 @@ export const adminUpsertBotQa = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const row = { question: data.question, answer: data.answer, keywords: data.keywords, is_active: data.is_active, sort_order: data.sort_order, action: data.action ?? "none" };
-    if (data.id) {
-      const { error } = await supabaseAdmin.from("bot_qa").update(row).eq("id", data.id);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabaseAdmin.from("bot_qa").insert(row);
-      if (error) throw new Error(error.message);
-    }
+    const { upsertQa } = await import("./bot-qa.repo");
+    await upsertQa({
+      id: data.id ?? null,
+      question: data.question,
+      answer: data.answer,
+      keywords: data.keywords,
+      is_active: data.is_active,
+      sort_order: data.sort_order,
+      action: data.action ?? "none",
+    });
     return { ok: true };
   });
 
@@ -615,9 +614,8 @@ export const adminDeleteBotQa = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const admin = await isAdmin(context.supabase, context.userId);
     if (!admin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("bot_qa").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const { deleteQa } = await import("./bot-qa.repo");
+    await deleteQa(data.id);
     return { ok: true };
   });
 
