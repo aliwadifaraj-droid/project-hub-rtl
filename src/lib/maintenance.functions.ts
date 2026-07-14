@@ -2,10 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAdmin } from "./auth-middleware.server";
 import { db, rowsToObjects } from "./db";
 
-const KEY = "maintenance_mode";
-
 export const getMaintenance = createServerFn({ method: "GET" }).handler(async () => {
-  const result = await db.execute("SELECT value FROM site_settings WHERE key = ? LIMIT 1", [KEY]);
+  const key = "maintenance_mode";
+  const result = await db.execute("SELECT value FROM site_settings WHERE key = ? LIMIT 1", [key]);
   const row = rowsToObjects<{ value: string | null }>(result)[0];
   const v = row?.value ? (JSON.parse(row.value) as { enabled?: boolean; endAt?: string | null }) : {};
   let enabled = !!v.enabled;
@@ -21,7 +20,7 @@ export const getMaintenance = createServerFn({ method: "GET" }).handler(async ()
           `INSERT INTO site_settings (id, key, value, updated_at)
            VALUES (?, ?, ?, ?)
            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-          [crypto.randomUUID(), KEY, JSON.stringify({ enabled: false, endAt }), new Date().toISOString()],
+          [crypto.randomUUID(), key, JSON.stringify({ enabled: false, endAt }), new Date().toISOString()],
         );
       } catch {
         // best-effort; still return disabled to the client
@@ -40,6 +39,7 @@ export const setMaintenance = createServerFn({ method: "POST" })
     endAt: d?.endAt ? String(d.endAt) : null,
   }))
   .handler(async ({ data }) => {
+    const key = "maintenance_mode";
     const normalizedEndAt = data.enabled && data.endAt && new Date(data.endAt).getTime() <= Date.now()
       ? null
       : data.endAt;
@@ -47,7 +47,7 @@ export const setMaintenance = createServerFn({ method: "POST" })
       `INSERT INTO site_settings (id, key, value, updated_at)
        VALUES (?, ?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      [crypto.randomUUID(), KEY, JSON.stringify({ enabled: data.enabled, endAt: normalizedEndAt }), new Date().toISOString()],
+      [crypto.randomUUID(), key, JSON.stringify({ enabled: data.enabled, endAt: normalizedEndAt }), new Date().toISOString()],
     );
     return { ok: true, enabled: data.enabled, endAt: normalizedEndAt };
   });
