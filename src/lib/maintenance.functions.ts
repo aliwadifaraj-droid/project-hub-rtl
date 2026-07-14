@@ -1,20 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "./auth-middleware.server";
+import { db, rowsToObjects } from "./db";
 
 const KEY = "maintenance_mode";
 
 export const getMaintenance = createServerFn({ method: "GET" }).handler(async () => {
-  const { createClient } = await import("@supabase/supabase-js");
-  const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data, error } = await sb
-    .from("site_settings")
-    .select("value")
-    .eq("key", KEY)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  const v = (data?.value ?? {}) as { enabled?: boolean; endAt?: string | null };
+  const result = await db.execute("SELECT value FROM site_settings WHERE key = ? LIMIT 1", [KEY]);
+  const row = rowsToObjects<{ value: string | null }>(result)[0];
+  const v = row?.value ? (JSON.parse(row.value) as { enabled?: boolean; endAt?: string | null }) : {};
   let enabled = !!v.enabled;
   const endAt = v.endAt ?? null;
 
@@ -24,12 +17,12 @@ export const getMaintenance = createServerFn({ method: "GET" }).handler(async ()
     if (!Number.isNaN(endMs) && endMs <= Date.now()) {
       enabled = false;
       try {
-        const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-        await supabaseAdmin.from("site_settings").upsert({
-          key: KEY,
-          value: { enabled: false, endAt },
-          updated_at: new Date().toISOString(),
-        });
+        await db.execute(
+          `INSERT INTO site_settings (id, key, value, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+          [crypto.randomUUID(), KEY, JSON.stringify({ enabled: false, endAt }), new Date().toISOString()],
+        );
       } catch {
         // best-effort; still return disabled to the client
       }
@@ -41,28 +34,20 @@ export const getMaintenance = createServerFn({ method: "GET" }).handler(async ()
 
 
 export const setMaintenance = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { enabled: boolean; endAt: string | null }) => ({
     enabled: !!d?.enabled,
     endAt: d?.endAt ? String(d.endAt) : null,
   }))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", {
-      _user_id: userId,
-      _role: "admin",
-    });
-    if (roleError) throw new Error(roleError.message);
-    if (!isAdmin) throw new Error("Forbidden");
+  .handler(async ({ data }) => {
     const normalizedEndAt = data.enabled && data.endAt && new Date(data.endAt).getTime() <= Date.now()
       ? null
       : data.endAt;
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { error } = await supabaseAdmin.from("site_settings").upsert({
-      key: KEY,
-      value: { enabled: data.enabled, endAt: normalizedEndAt },
-      updated_at: new Date().toISOString(),
-    });
-    if (error) throw new Error(error.message);
+    await db.execute(
+      `INSERT INTO site_settings (id, key, value, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [crypto.randomUUID(), KEY, JSON.stringify({ enabled: data.enabled, endAt: normalizedEndAt }), new Date().toISOString()],
+    );
     return { ok: true, enabled: data.enabled, endAt: normalizedEndAt };
   });
