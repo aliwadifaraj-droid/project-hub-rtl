@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { signOut } from "@/lib/auth.functions";
 import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.functions";
 import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
@@ -29,6 +30,7 @@ function AdminLayout() {
   const countUnread = useServerFn(countMyUnreadNotifications);
   const countTeamUnread = useServerFn(countUnreadTeamMessages);
   const countOpenSupport = useServerFn(adminCountOpenSupportChats);
+  const doSignOut = useServerFn(signOut);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
@@ -186,7 +188,7 @@ function AdminLayout() {
   }, [qc, roles]);
 
   async function logout() {
-    await supabase.auth.signOut();
+    await doSignOut();
     navigate({ to: "/auth", replace: true });
   }
 
