@@ -54,7 +54,6 @@ import { Route as AuthenticatedAdminBotSettingsRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
-import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 
 const VipRoute = VipRouteImport.update({
   id: '/vip',
@@ -295,12 +294,6 @@ const LovableEmailTransactionalPreviewRoute =
     path: '/lovable/email/transactional/preview',
     getParentRoute: () => rootRouteImport,
   } as any)
-const LovableEmailQueueProcessRoute =
-  LovableEmailQueueProcessRouteImport.update({
-    id: '/lovable/email/queue/process',
-    path: '/lovable/email/queue/process',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -345,7 +338,6 @@ export interface FileRoutesByFullPath {
   '/api/admin/bot-settings': typeof ApiAdminBotSettingsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
 }
@@ -390,7 +382,6 @@ export interface FileRoutesByTo {
   '/api/admin/bot-settings': typeof ApiAdminBotSettingsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
 }
@@ -439,7 +430,6 @@ export interface FileRoutesById {
   '/api/admin/bot-settings': typeof ApiAdminBotSettingsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
 }
@@ -488,7 +478,6 @@ export interface FileRouteTypes {
     | '/api/admin/bot-settings'
     | '/lovable/email/suppression'
     | '/admin/'
-    | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
   fileRoutesByTo: FileRoutesByTo
@@ -533,7 +522,6 @@ export interface FileRouteTypes {
     | '/api/admin/bot-settings'
     | '/lovable/email/suppression'
     | '/admin'
-    | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
   id:
@@ -581,7 +569,6 @@ export interface FileRouteTypes {
     | '/api/admin/bot-settings'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
-    | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
   fileRoutesById: FileRoutesById
@@ -605,7 +592,6 @@ export interface RootRouteChildren {
   ProjectIdRoute: typeof ProjectIdRoute
   ApiAdminBotSettingsRoute: typeof ApiAdminBotSettingsRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
-  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
 }
@@ -927,13 +913,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/queue/process': {
-      id: '/lovable/email/queue/process'
-      path: '/lovable/email/queue/process'
-      fullPath: '/lovable/email/queue/process'
-      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -1041,7 +1020,6 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdRoute: ProjectIdRoute,
   ApiAdminBotSettingsRoute: ApiAdminBotSettingsRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
-  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
 }
