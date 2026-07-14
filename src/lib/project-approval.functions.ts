@@ -1,74 +1,33 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-async function assertAdmin(supabase: any, userId: string) {
-  const { data } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  if (!data?.some((r: { role: string }) => r.role === "admin")) {
-    throw new Error("Forbidden");
-  }
-}
+import { requireAuth, requireAdmin } from "./auth-middleware.server";
+import * as projectsRepo from "./projects.repo";
+import { getUserById } from "./users.repo";
 
 export const listPendingProjects = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { data, error } = await supabaseAdmin
-      .from("projects")
-      .select("id,name,description,location,duration,cover_image,created_by,created_at")
-      .eq("admin_approval", "pending")
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-
-    // resolve creator emails
-    const ids = Array.from(new Set((data ?? []).map((p) => p.created_by).filter(Boolean) as string[]));
-    const emails = new Map<string, string>();
-    if (ids.length > 0) {
-      const { data: users } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
-      (users?.users ?? []).forEach((u) => {
-        if (ids.includes(u.id) && u.email) emails.set(u.id, u.email);
-      });
-    }
-    return (data ?? []).map((p) => ({
-      ...p,
-      creator_email: p.created_by ? emails.get(p.created_by) ?? "" : "",
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const rows = await projectsRepo.listPending();
+    return Promise.all(rows.map(async (p) => {
+      const u = p.created_by ? await getUserById(p.created_by).catch(() => null) : null;
+      return { ...p, creator_email: u?.email ?? "" };
     }));
   });
 
 export const countPendingProjects = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data: myRoles } = await supabase
-      .from("user_roles").select("role").eq("user_id", userId);
-    if (!myRoles?.some((r) => r.role === "admin")) return 0;
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { count } = await supabaseAdmin
-      .from("projects")
-      .select("id", { count: "exact", head: true })
-      .eq("admin_approval", "pending");
-    return count ?? 0;
+    if (!context.roles.includes("admin")) return 0;
+    return projectsRepo.countPending();
   });
 
 export const approveProject = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { data: row, error } = await supabaseAdmin
-      .from("projects")
-      .update({ admin_approval: "approved" })
-      .eq("id", data.id)
-      .select("id,name,created_by")
-      .single();
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    const row = await projectsRepo.getById(data.id);
+    if (!row) throw new Error("المشروع غير موجود");
+    await projectsRepo.updateProject(data.id, { admin_approval: "approved" });
 
     if (row.created_by) {
       const { insertOne } = await import("./notifications.repo");
@@ -78,44 +37,29 @@ export const approveProject = createServerFn({ method: "POST" })
         body: `تمت الموافقة على المشروع: ${row.name}`,
         link: `/projects/${row.id}`,
       });
-
-
-      // Send email via Resend
       try {
-        const { data: userRes } = await supabaseAdmin.auth.admin.getUserById(row.created_by);
-        const email = userRes?.user?.email;
-        if (email) {
+        const u = await getUserById(row.created_by);
+        if (u?.email) {
           const { sendResendEmail } = await import("./resend-send.server");
           await sendResendEmail({
-            to: email,
+            to: u.email,
             subject: "تمت الموافقة على مشروعك ✅",
-            html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً،</h2><p>يسعدنا إبلاغك بأنه تمت <strong>الموافقة</strong> على مشروعك "${row.name}".</p><p>أصبح مشروعك الآن منشوراً ومتاحاً للعموم.</p><p>شكراً لثقتك بنا.</p></div>`,
+            html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً،</h2><p>يسعدنا إبلاغك بأنه تمت <strong>الموافقة</strong> على مشروعك "${row.name}".</p><p>أصبح مشروعك الآن منشوراً ومتاحاً للعموم.</p></div>`,
           });
         }
-      } catch (e) {
-        console.error("project approval email error", e);
-      }
+      } catch (e) { console.error("project approval email error", e); }
     }
     return { ok: true };
   });
 
 export const rejectProject = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), reason: z.string().max(500).optional() }).parse(d),
-  )
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { data: row, error } = await supabaseAdmin
-      .from("projects")
-      .update({ admin_approval: "rejected" })
-      .eq("id", data.id)
-      .select("id,name,created_by")
-      .single();
-    if (error) throw new Error(error.message);
-
+    z.object({ id: z.string().uuid(), reason: z.string().max(500).optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const row = await projectsRepo.getById(data.id);
+    if (!row) throw new Error("المشروع غير موجود");
+    await projectsRepo.updateProject(data.id, { admin_approval: "rejected" });
     if (row.created_by) {
       const { insertOne } = await import("./notifications.repo");
       await insertOne({
