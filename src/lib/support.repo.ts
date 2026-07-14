@@ -59,7 +59,7 @@ export async function addSupportMessage(chatId: string, sender: string, body: st
   const now = new Date().toISOString();
   await db.batch([
     { sql: `INSERT INTO support_messages (id, chat_id, sender, body, created_at) VALUES (?, ?, ?, ?, ?)`, args: [crypto.randomUUID(), chatId, sender, body, now] },
-    { sql: `UPDATE support_chats SET updated_at = ?, last_message_at = ? WHERE id = ?`, args: [now, now, chatId] },
+    { sql: `UPDATE support_chats SET updated_at = ? WHERE id = ?`, args: [now, chatId] },
   ]);
 }
 
@@ -77,7 +77,7 @@ export async function botAlreadyAsked(chatId: string, body: string): Promise<boo
 
 export async function updateChatStatus(chatId: string, status: string): Promise<void> {
   const now = new Date().toISOString();
-  await db.execute(`UPDATE support_chats SET status = ?, updated_at = ?, last_message_at = ? WHERE id = ?`, [status, now, now, chatId]);
+  await db.execute(`UPDATE support_chats SET status = ?, updated_at = ? WHERE id = ?`, [status, now, chatId]);
 }
 
 export async function deleteVisitorChat(visitorToken: string): Promise<void> {
