@@ -27,6 +27,7 @@ import { Route as VipIndexRouteImport } from './routes/vip.index'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AdsAdIdRouteImport } from './routes/ads.$adId'
+import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
 import { Route as AuthenticatedEmployeesRouteImport } from './routes/_authenticated/employees'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
@@ -143,6 +144,11 @@ const AdsAdIdRoute = AdsAdIdRouteImport.update({
   id: '/$adId',
   path: '/$adId',
   getParentRoute: () => AdsRoute,
+} as any)
+const AuthenticatedUploadRoute = AuthenticatedUploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedEmployeesRoute = AuthenticatedEmployeesRouteImport.update({
   id: '/employees',
@@ -314,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
+  '/upload': typeof AuthenticatedUploadRoute
   '/ads/$adId': typeof AdsAdIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
@@ -358,6 +365,7 @@ export interface FileRoutesByTo {
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
+  '/upload': typeof AuthenticatedUploadRoute
   '/ads/$adId': typeof AdsAdIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
@@ -406,6 +414,7 @@ export interface FileRoutesById {
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/employees': typeof AuthenticatedEmployeesRoute
+  '/_authenticated/upload': typeof AuthenticatedUploadRoute
   '/ads/$adId': typeof AdsAdIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/project/$id': typeof ProjectIdRoute
@@ -454,6 +463,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/dashboard'
     | '/employees'
+    | '/upload'
     | '/ads/$adId'
     | '/email/unsubscribe'
     | '/project/$id'
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/dashboard'
     | '/employees'
+    | '/upload'
     | '/ads/$adId'
     | '/email/unsubscribe'
     | '/project/$id'
@@ -545,6 +556,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat'
     | '/_authenticated/dashboard'
     | '/_authenticated/employees'
+    | '/_authenticated/upload'
     | '/ads/$adId'
     | '/email/unsubscribe'
     | '/project/$id'
@@ -725,6 +737,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/ads/$adId'
       preLoaderRoute: typeof AdsAdIdRouteImport
       parentRoute: typeof AdsRoute
+    }
+    '/_authenticated/upload': {
+      id: '/_authenticated/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof AuthenticatedUploadRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/employees': {
       id: '/_authenticated/employees'
@@ -969,6 +988,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEmployeesRoute: typeof AuthenticatedEmployeesRoute
+  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -976,6 +996,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEmployeesRoute: AuthenticatedEmployeesRoute,
+  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
