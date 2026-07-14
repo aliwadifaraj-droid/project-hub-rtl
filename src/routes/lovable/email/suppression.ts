@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
 import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
 import { createFileRoute } from '@tanstack/react-router'
+import { insertEmailLog, suppressEmail } from '@/lib/email.repo'
 
 // Suppression event payload sent by the Go API when Mailgun reports
 // a bounce, complaint, or unsubscribe.
@@ -56,10 +56,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
     handlers: {
       POST: async ({ request }) => {
         const apiKey = process.env.LOVABLE_API_KEY
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-        if (!apiKey || !supabaseUrl || !supabaseServiceKey) {
+        if (!apiKey) {
           console.error('Missing required environment variables')
           return Response.json({ error: 'Server configuration error' }, { status: 500 })
         }
@@ -98,50 +95,15 @@ export const Route = createFileRoute("/lovable/email/suppression")({
           return Response.json({ error: 'Internal error' }, { status: 500 })
         }
 
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
         const normalizedEmail = payload.email.toLowerCase()
 
-        // 1. Upsert to suppressed_emails (idempotent — safe for retries)
-        const { error: suppressError } = await supabase
-          .from('suppressed_emails')
-          .upsert(
-            {
-              email: normalizedEmail,
-              reason: payload.reason,
-              metadata: payload.metadata ?? null,
-            },
-            { onConflict: 'email' },
-          )
-
-        if (suppressError) {
-          console.error('Failed to upsert suppressed email', {
-            error: suppressError,
-            email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
-          })
-          return Response.json({ error: 'Failed to write suppression' }, { status: 500 })
-        }
+        await suppressEmail(normalizedEmail, payload.reason, 'lovable-email')
 
         // 2. Append a new log entry for the suppression event (never update existing rows)
         const sendLogStatus = mapReasonToStatus(payload.reason)
         const sendLogMessage = mapReasonToMessage(payload.reason)
 
-        const { error: insertError } = await supabase
-          .from('email_send_log')
-          .insert({
-            message_id: payload.message_id ?? null,
-            template_name: 'system',
-            recipient_email: normalizedEmail,
-            status: sendLogStatus,
-            error_message: sendLogMessage,
-            metadata: payload.metadata ?? null,
-          })
-
-        if (insertError) {
-          // Non-fatal — log and continue. The suppression was already recorded.
-          console.warn('Failed to insert email_send_log', {
-            error: insertError,
-          })
-        }
+        await insertEmailLog({ to_email: normalizedEmail, template: 'system', status: sendLogStatus, error: sendLogMessage, metadata: payload.metadata ?? null })
 
         console.log('Suppression processed', {
           email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
