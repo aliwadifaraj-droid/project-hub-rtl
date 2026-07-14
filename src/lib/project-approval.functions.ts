@@ -71,12 +71,14 @@ export const approveProject = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     if (row.created_by) {
-      await supabaseAdmin.from("notifications").insert({
+      const { insertOne } = await import("./notifications.repo");
+      await insertOne({
         user_id: row.created_by,
         title: "تمت الموافقة على مشروعك",
         body: `تمت الموافقة على المشروع: ${row.name}`,
         link: `/projects/${row.id}`,
       });
+
 
       // Send email via Resend
       try {
@@ -115,7 +117,8 @@ export const rejectProject = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     if (row.created_by) {
-      await supabaseAdmin.from("notifications").insert({
+      const { insertOne } = await import("./notifications.repo");
+      await insertOne({
         user_id: row.created_by,
         title: "تم رفض مشروعك",
         body: data.reason ? `${row.name}: ${data.reason}` : `تم رفض المشروع: ${row.name}`,

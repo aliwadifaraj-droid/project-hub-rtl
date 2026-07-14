@@ -61,7 +61,8 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
       .select("user_id")
       .eq("role", "admin");
     if (admins && admins.length > 0) {
-      await supabaseAdmin.from("notifications").insert(
+      const { insertMany } = await import("./notifications.repo");
+      await insertMany(
         admins.map((a) => ({
           user_id: a.user_id,
           title: "طلب اشتراك VIP جديد",
@@ -92,7 +93,8 @@ export const attachVipReceipt = createServerFn({ method: "POST" })
       .select("user_id")
       .eq("role", "admin");
     if (admins && admins.length > 0) {
-      await supabaseAdmin.from("notifications").insert(
+      const { insertMany } = await import("./notifications.repo");
+      await insertMany(
         admins.map((a) => ({
           user_id: a.user_id,
           title: "طلب اشتراك VIP جديد",
