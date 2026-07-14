@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "./auth-middleware.server";
+import { getBotSettingsRow, upsertBotSettings } from "./bot-settings.repo";
 
 const daysSchema = z.object({
   sun: z.boolean(), mon: z.boolean(), tue: z.boolean(),
@@ -21,19 +22,24 @@ export type BotSettings = {
 };
 
 export const getBotSettings = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-  const { data, error } = await supabaseAdmin
-    .from("bot_settings")
-    .select("id,work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation,show_suggested_questions,local_enabled,local_system_prompt")
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data as BotSettings | null;
+  const row = await getBotSettingsRow();
+  return row ? {
+    id: row.id,
+    work_days: row.work_days,
+    work_start: row.work_start,
+    work_end: row.work_end,
+    off_hours_message: row.off_hours_message,
+    fallback_message: row.fallback_message,
+    allow_escalation: row.allow_escalation,
+    show_suggested_questions: row.show_suggested_questions,
+    local_enabled: row.local_enabled,
+    local_system_prompt: row.local_system_prompt,
+  } as BotSettings : null;
 });
 
 
 export const updateBotSettings = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: {
     work_days: z.infer<typeof daysSchema>;
     work_start: string;
@@ -57,18 +63,7 @@ export const updateBotSettings = createServerFn({ method: "POST" })
       local_system_prompt: z.string().trim().max(4000),
     }).parse(d),
   )
-  .handler(async ({ data, context }) => {
-    const { data: adminRow } = await context.supabase
-      .from("user_roles").select("role").eq("user_id", context.userId).eq("role", "admin").maybeSingle();
-    if (!adminRow) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { data: existing } = await supabaseAdmin.from("bot_settings").select("id").limit(1).maybeSingle();
-    if (existing) {
-      const { error } = await supabaseAdmin.from("bot_settings").update(data).eq("id", existing.id);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabaseAdmin.from("bot_settings").insert({ ...data, singleton: true });
-      if (error) throw new Error(error.message);
-    }
+  .handler(async ({ data }) => {
+    await upsertBotSettings(data);
     return { ok: true };
   });

@@ -7,11 +7,8 @@ async function resolveImage(path: string | null): Promise<string> {
   if (!path) return "";
   if (path.startsWith("http") || path.startsWith("data:")) return path;
   if (!path.includes("/")) return path;
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin.storage
-    .from("project-images")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
-  return data?.signedUrl ?? "";
+  const { signGetUrl } = await import("./r2");
+  return signGetUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
 export const listMyProjects = createServerFn({ method: "GET" })

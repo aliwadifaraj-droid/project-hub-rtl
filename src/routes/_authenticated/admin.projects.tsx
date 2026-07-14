@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
+import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
-import { supabase } from "@/integrations/supabase/client";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -141,14 +141,13 @@ function ProjectModal({
 }: { value: Partial<ProjectRow>; onClose: () => void; onSave: (v: Partial<ProjectRow>) => void; saving: boolean }) {
   const [form, setForm] = useState<Partial<ProjectRow>>(value);
   const [uploading, setUploading] = useState(false);
+  const upload = useServerFn(uploadStoredFile);
 
   async function uploadFile(file: File): Promise<string> {
-    const path = `projects/${Date.now()}-${file.name.replace(/[^\w.\-]/g, "_")}`;
-    const { error } = await supabase.storage.from("project-images").upload(path, file, {
-      contentType: file.type,
-    });
-    if (error) throw error;
-    return path;
+    const data = await fileToBase64(file);
+    const purpose = file.type === "application/pdf" ? "bid-pdf" : "project-image";
+    const res = await upload({ data: { filename: file.name, mime: file.type, purpose, data } });
+    return res.key;
   }
 
   async function onCover(e: React.ChangeEvent<HTMLInputElement>) {
@@ -248,6 +247,15 @@ function ProjectModal({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="mb-1.5 block text-sm font-semibold">{label}</label>{children}</div>;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function buildProjectUrl(id: string): string {

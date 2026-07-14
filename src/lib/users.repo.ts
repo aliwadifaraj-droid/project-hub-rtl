@@ -96,6 +96,20 @@ export async function revokeRole(userId: string, role: string): Promise<void> {
   );
 }
 
+export async function deleteUser(userId: string): Promise<void> {
+  await db.batch([
+    { sql: "DELETE FROM user_roles WHERE user_id = ?", args: [userId] },
+    { sql: "DELETE FROM profiles WHERE user_id = ?", args: [userId] },
+    { sql: "DELETE FROM users WHERE id = ?", args: [userId] },
+  ]);
+}
+
+export async function getRoleNameById(roleId: string): Promise<string | null> {
+  const r = await db.execute("SELECT name FROM roles WHERE id = ? LIMIT 1", [roleId]);
+  const row = rowsToObjects<{ name: string }>(r)[0];
+  return row?.name ? String(row.name) : null;
+}
+
 export async function listUsersWithRoles(limit = 200): Promise<UserWithRoles[]> {
   const r = await db.execute(
     `SELECT u.id, u.email, u.created_at,

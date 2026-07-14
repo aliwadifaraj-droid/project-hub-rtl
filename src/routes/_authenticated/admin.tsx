@@ -2,7 +2,6 @@ import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tan
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth.functions";
 import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.functions";
 import { countPendingAds } from "@/lib/ads.functions";
@@ -103,47 +102,6 @@ function AdminLayout() {
     refetchInterval: 30000,
   });
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    const ch = supabase
-      .channel("admin_contact_messages_bell")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "contact_messages" }, () => {
-        refetchContact();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [isAdmin, refetchContact]);
-
-  useEffect(() => {
-    if (!roles || roles.length === 0) return;
-    const channel = supabase
-      .channel("admin_team_chat_bell")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_messages" }, () => {
-        refetchTeamChatUnread();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [roles, refetchTeamChatUnread]);
-
-  useEffect(() => {
-    if (!roles || roles.length === 0) return;
-    const channel = supabase
-      .channel("admin_support_bell")
-      .on("postgres_changes", { event: "*", schema: "public", table: "support_chats" }, (payload) => {
-        const row = (payload.new ?? payload.old) as { status?: string } | undefined;
-        if (row?.status === "escalated" && payload.eventType !== "DELETE") {
-          toast.message("عميل بحاجة إلى موظف دعم", {
-            icon: <Headphones className="h-4 w-4" />,
-          });
-        }
-        refetchSupportEscalated();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [roles, refetchSupportEscalated]);
-
   function handleContactBellClick() {
     if (typeof window !== "undefined") {
       localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString());
@@ -157,35 +115,6 @@ function AdminLayout() {
     }
     qc.setQueryData(["chat-unread-count"], 0);
   }
-
-  useEffect(() => {
-    if (!roles || roles.length === 0) return;
-    const channel = supabase
-      .channel("ads-pending-bell")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "ads" },
-        (payload) => {
-          const row = payload.new as { status?: string; title?: string };
-          if (row?.status === "pending") {
-            toast.message("إعلان جديد بانتظار الموافقة", {
-              description: row.title ?? "",
-              icon: <Bell className="h-4 w-4" />,
-            });
-            qc.invalidateQueries({ queryKey: ["pending-ads-count"] });
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "ads" },
-        () => qc.invalidateQueries({ queryKey: ["pending-ads-count"] }),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc, roles]);
 
   async function logout() {
     await doSignOut();

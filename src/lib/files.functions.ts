@@ -42,6 +42,33 @@ export const uploadFile = createServerFn({ method: "POST" })
     return { id, key };
   });
 
+/** Public upload for visitor-facing forms. Restricted by purpose and file size. */
+export const uploadPublicFile = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => uploadSchema.extend({
+    purpose: z.enum(["project-image", "vip-receipt", "bid-pdf"]),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const bytes = b64ToBytes(data.data);
+    const isPdf = data.mime === "application/pdf" || data.filename.toLowerCase().endsWith(".pdf");
+    const isImage = (data.mime ?? "").startsWith("image/");
+    if (data.purpose === "project-image" && !isImage) throw new Error("الملف يجب أن يكون صورة");
+    if (data.purpose === "bid-pdf" && !isPdf) throw new Error("الملف يجب أن يكون PDF");
+    if (data.purpose === "vip-receipt" && !isImage && !isPdf) throw new Error("الإيصال يجب أن يكون صورة أو PDF");
+    const max = data.purpose === "bid-pdf" ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (bytes.length > max) throw new Error(data.purpose === "bid-pdf" ? "حجم الملف أكبر من 10MB" : "حجم الملف أكبر من 5MB");
+    const key = makeKey(data.purpose === "bid-pdf" ? "bids" : data.purpose === "vip-receipt" ? "vip-receipts" : "submissions", data.filename);
+    await uploadToR2({ key, body: bytes, contentType: data.mime });
+    const id = await insertFile({
+      r2_key: key,
+      filename: data.filename,
+      mime: data.mime ?? null,
+      size: bytes.length,
+      purpose: data.purpose,
+      uploaded_by: null,
+    });
+    return { id, key };
+  });
+
 /** Get a short-lived signed URL for a stored file by id or key. */
 export const getFileUrl = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>

@@ -2,9 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { listTeamMessages, sendTeamMessage, deleteTeamMessage, deleteAllTeamMessages } from "@/lib/chat.functions";
-import { getMyRoles } from "@/lib/admin.functions";
+import { getMyRoles, getMyUserId } from "@/lib/admin.functions";
 import { getRoleLabel } from "@/lib/role-label";
 import { Send, Trash2, MessagesSquare } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +20,7 @@ function TeamChatPage() {
   const delAllFn = useServerFn(deleteAllTeamMessages);
 
   const rolesFn = useServerFn(getMyRoles);
+  const whoami = useServerFn(getMyUserId);
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["team-messages"],
@@ -31,29 +31,13 @@ function TeamChatPage() {
     queryKey: ["my-roles"],
     queryFn: () => rolesFn(),
   });
+  const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
   const isAdmin = myRoles.includes("admin");
 
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [meId, setMeId] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setMeId(data.user?.id ?? null));
-  }, []);
-
-  useEffect(() => {
-    const ch = supabase
-      .channel("team_messages_room")
-      .on("postgres_changes", { event: "*", schema: "public", table: "team_messages" }, () => {
-        qc.invalidateQueries({ queryKey: ["team-messages"] });
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [qc]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -133,7 +117,7 @@ function TeamChatPage() {
             <p className="text-center text-sm text-muted-foreground">لا توجد رسائل بعد. ابدأ المحادثة!</p>
           ) : (
             messages.map((m) => {
-              const mine = m.user_id === meId;
+              const mine = m.user_id === me?.userId;
               return (
                 <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                   <div className={`group max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${mine ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"}`}>

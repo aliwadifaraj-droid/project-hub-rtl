@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Bot, Save, Plus, X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/groq-settings")({
   component: GeminiSettingsPage,
@@ -18,14 +17,8 @@ type GeminiCfg = {
   groqEnabled: boolean;
 };
 
-async function authHeaders(): Promise<HeadersInit> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function fetchCfg(): Promise<GeminiCfg> {
-  const res = await fetch("/api/admin/bot-settings", { headers: await authHeaders() });
+  const res = await fetch("/api/admin/bot-settings");
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -33,7 +26,7 @@ async function fetchCfg(): Promise<GeminiCfg> {
 async function saveCfg(cfg: GeminiCfg) {
   const res = await fetch("/api/admin/bot-settings", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cfg),
   });
   if (!res.ok) throw new Error(await res.text());

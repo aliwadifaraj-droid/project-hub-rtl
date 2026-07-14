@@ -6,9 +6,10 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 import { Star, Check, Wrench } from "lucide-react";
-import { supabase } from "@/lib/kill-switch-clients";
+import { getMe } from "@/lib/auth.functions";
+import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
-import { getVipMaintenance } from "@/lib/site-settings.functions";
+import { getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 
 const BANK_INFO = {
@@ -36,6 +37,8 @@ export const Route = createFileRoute("/vip/")({
 function VipPage() {
   const navigate = useNavigate();
   const subscribe = useServerFn(submitVipSubscription);
+  const upload = useServerFn(uploadPublicFile);
+  const meFn = useServerFn(getMe);
   const [selectedPlan, setSelectedPlan] = useState<string>(PLANS[0].id);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -44,16 +47,13 @@ function VipPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const getMx = useServerFn(getVipMaintenance);
+  const setMx = useServerFn(setVipMaintenance);
   const qc = useQueryClient();
   const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
   const toggleMx = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const { data: userRes } = await supabase.auth.getUser();
-      if (!userRes.user || !isAdmin) throw new Error("هذه العملية للأدمن فقط");
-      const { error } = await supabase
-        .from("site_settings")
-        .upsert({ key: "vip_maintenance", value: { enabled }, updated_at: new Date().toISOString() });
-      if (error) throw new Error(error.message);
+      if (!isAdmin) throw new Error("هذه العملية للأدمن فقط");
+      await setMx({ data: { enabled } });
       return { enabled };
     },
     onSuccess: (r) => { toast.success(r.enabled ? "تم تفعيل الصيانة" : "تم إلغاء الصيانة"); qc.setQueryData(["vip-maintenance"], { enabled: r.enabled }); qc.invalidateQueries({ queryKey: ["vip-maintenance"] }); },
@@ -62,12 +62,10 @@ function VipPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
-      setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+      const me = await meFn();
+      setIsAdmin(!!me?.roles.includes("admin"));
     })();
-  }, []);
+  }, [meFn]);
 
   const maintenance = !!mx?.enabled;
 
@@ -82,13 +80,9 @@ function VipPage() {
     if (!selectedPlan) return toast.error("اختر الباقة");
     setLoading(true);
     try {
-      const ext = file.name.split(".").pop() ?? "bin";
-      const path = `pending/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("vip-receipts")
-        .upload(path, file, { upsert: false, contentType: file.type });
-      if (upErr) throw upErr;
-      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: path, plan: selectedPlan } });
+      const data = await fileToBase64(file);
+      const res = await upload({ data: { filename: file.name, mime: file.type, purpose: "vip-receipt", data } });
+      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan } });
       navigate({ to: "/subscribe-success" });
     } catch (err) {
       toast.error("حصل خطأ: " + (err as Error).message);
@@ -253,4 +247,13 @@ function VipPage() {
       <SiteFooter />
     </div>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
