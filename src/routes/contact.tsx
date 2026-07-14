@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { supabase } from "@/lib/kill-switch-clients";
+import { submitContactMessage } from "@/lib/public.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { CheckCircle2, Loader2, Mail, MessageSquare, User } from "lucide-react";
@@ -25,6 +26,7 @@ const schema = z.object({
 });
 
 function ContactPage() {
+  const submitContact = useServerFn(submitContactMessage);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -40,8 +42,7 @@ function ContactPage() {
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("contact_messages").insert({ name: parsed.data.name, email: parsed.data.email, message: parsed.data.message });
-      if (error) throw error;
+      await submitContact({ data: parsed.data });
       setDone(true);
     } catch (err) {
       console.error(err);

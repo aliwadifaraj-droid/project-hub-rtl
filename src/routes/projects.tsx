@@ -3,8 +3,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { upsertProject, deleteProject, listProjects } from "@/lib/admin.functions";
+import { getMe } from "@/lib/auth.functions";
+import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
-import { supabase } from "@/lib/kill-switch-clients";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
@@ -33,6 +34,7 @@ function ProjectsPage() {
   const list = useServerFn(listProjects);
   const upsert = useServerFn(upsertProject);
   const del = useServerFn(deleteProject);
+  const meFn = useServerFn(getMe);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => list() });
   const [isAdmin, setIsAdmin] = useState(false);
@@ -42,14 +44,13 @@ function ProjectsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    supabase.auth.getUser().then(async ({ data: authData }) => {
-      if (!authData.user || cancelled) return;
+    meFn().then((me) => {
+      if (!me || cancelled) return;
       setSignedIn(true);
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", authData.user.id);
-      if (!cancelled) setIsAdmin(hasAdminRole((roles ?? []).map((r) => r.role)));
-    });
+      setIsAdmin(hasAdminRole(me.roles));
+    }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, []);
+  }, [meFn]);
 
   const saveMut = useMutation({
     mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
@@ -142,21 +143,20 @@ function ProjectModal({
 }: { value: Partial<ProjectRow>; onClose: () => void; onSave: (v: Partial<ProjectRow>) => void; saving: boolean }) {
   const [form, setForm] = useState<Partial<ProjectRow>>(value);
   const [uploading, setUploading] = useState(false);
+  const upload = useServerFn(uploadStoredFile);
 
-  async function uploadFile(file: File): Promise<string> {
-    const path = `projects/${Date.now()}-${file.name.replace(/[^\w.\-]/g, "_")}`;
-    const { error } = await supabase.storage.from("project-images").upload(path, file, {
-      contentType: file.type,
-    });
-    if (error) throw error;
-    return path;
+  async function uploadProjectFile(file: File): Promise<string> {
+    const data = await fileToBase64(file);
+    const purpose = file.type === "application/pdf" ? "bid-pdf" : "project-image";
+    const res = await upload({ data: { filename: file.name, mime: file.type, purpose, data } });
+    return res.key;
   }
 
   async function onCover(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return;
     setUploading(true);
     try {
-      const path = await uploadFile(f);
+      const path = await uploadProjectFile(f);
       setForm((s) => ({ ...s, cover_image: path }));
       toast.success("تم رفع صورة الغلاف");
     } catch (err) { toast.error("فشل الرفع"); console.error(err); }
@@ -166,7 +166,7 @@ function ProjectModal({
     const files = Array.from(e.target.files ?? []); if (files.length === 0) return;
     setUploading(true);
     try {
-      const paths = await Promise.all(files.map(uploadFile));
+      const paths = await Promise.all(files.map(uploadProjectFile));
       setForm((s) => ({ ...s, images: [...(s.images ?? []), ...paths] }));
     } catch { toast.error("فشل رفع الصور"); }
     finally { setUploading(false); }
@@ -176,7 +176,7 @@ function ProjectModal({
     if (f.type !== "application/pdf") { toast.error("الملف يجب أن يكون PDF"); return; }
     setUploading(true);
     try {
-      const path = await uploadFile(f);
+      const path = await uploadProjectFile(f);
       setForm((s) => ({ ...s, pdf_file: path }));
       toast.success("تم رفع ملف PDF");
     } catch (err) { toast.error("فشل رفع PDF"); console.error(err); }
@@ -249,6 +249,15 @@ function ProjectModal({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="mb-1.5 block text-sm font-semibold">{label}</label>{children}</div>;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function buildProjectUrl(id: string): string {

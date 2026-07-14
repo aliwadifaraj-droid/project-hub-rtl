@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { submitVisitorAd } from "@/lib/ads.functions";
-import { supabase } from "@/integrations/supabase/client";
+import { uploadPublicFile } from "@/lib/files.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/submit-project")({
 
 function SubmitProjectPage() {
   const submitAd = useServerFn(submitVisitorAd);
+  const upload = useServerFn(uploadPublicFile);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -60,13 +61,9 @@ function SubmitProjectPage() {
     try {
       const uploadedPaths: string[] = [];
       for (const f of files) {
-        const safe = f.name.replace(/[^\w.\-]/g, "_").slice(-80);
-        const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
-        const { error: upErr } = await supabase.storage
-          .from("project-images")
-          .upload(path, f, { contentType: f.type, upsert: false });
-        if (upErr) throw new Error(upErr.message);
-        uploadedPaths.push(path);
+        const data = await fileToBase64(f);
+        const res = await upload({ data: { filename: f.name, mime: f.type, purpose: "project-image", data } });
+        uploadedPaths.push(res.key);
       }
       const result = await submitAd({
         data: {
@@ -212,4 +209,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }

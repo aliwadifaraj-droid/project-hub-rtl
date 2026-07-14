@@ -1,32 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "./auth-middleware.server";
+import * as vipRepo from "./vip.repo";
+import { listUsersWithRoles } from "./users.repo";
 
 export const listVipSubscribers = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data: myRoles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { data, error } = await supabaseAdmin
-      .from("vip_subscribers")
-      .select("id,name,email,status,receipt_path,notes,plan,created_at")
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-
-    // Generate signed URLs for receipts
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const data = await vipRepo.listVipSubscribers();
     const rows = await Promise.all(
-      (data ?? []).map(async (r: typeof data[number] & { plan?: string | null }) => {
+      data.map(async (r) => {
         let receipt_url: string | null = null;
         if (r.receipt_path) {
-          const { data: signed } = await supabaseAdmin.storage
-            .from("vip-receipts")
-            .createSignedUrl(r.receipt_path, 3600);
-          receipt_url = signed?.signedUrl ?? null;
+          const { signGetUrl } = await import("./r2");
+          receipt_url = await signGetUrl(r.receipt_path, 3600).catch(() => null);
         }
         return { ...r, receipt_url };
       }),
@@ -42,36 +28,20 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
     return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim() };
   })
   .handler(async ({ data }) => {
-    const { createClient } = await import("@supabase/supabase-js");
-    const sb = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_PUBLISHABLE_KEY!,
-      { auth: { persistSession: false, autoRefreshToken: false } },
-    );
-    const { data: inserted, error } = await sb
-      .from("vip_subscribers")
-      .insert({ name: data.name, email: data.email, status: "pending", receipt_path: data.receipt_path })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { data: admins } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "admin");
-    if (admins && admins.length > 0) {
+    const id = await vipRepo.insertVipSubscriber(data);
+    const admins = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin"));
+    if (admins.length > 0) {
       const { insertMany } = await import("./notifications.repo");
       await insertMany(
         admins.map((a) => ({
-          user_id: a.user_id,
+          user_id: a.id,
           title: "طلب اشتراك VIP جديد",
           body: "تم رفع إيصال جديد بانتظار الموافقة",
           link: "/admin/vip",
         })),
       );
     }
-    return { id: inserted.id };
+    return { id };
   });
 
 export const attachVipReceipt = createServerFn({ method: "POST" })
@@ -80,23 +50,13 @@ export const attachVipReceipt = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { error } = await supabaseAdmin
-      .from("vip_subscribers")
-      .update({ receipt_path: data.receipt_path })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
-
-    // Notify all admins
-    const { data: admins } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "admin");
-    if (admins && admins.length > 0) {
+    await vipRepo.updateVipReceipt(data.id, data.receipt_path);
+    const admins = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin"));
+    if (admins.length > 0) {
       const { insertMany } = await import("./notifications.repo");
       await insertMany(
         admins.map((a) => ({
-          user_id: a.user_id,
+          user_id: a.id,
           title: "طلب اشتراك VIP جديد",
           body: "تم رفع إيصال جديد بانتظار الموافقة",
           link: "/admin/vip",
@@ -107,20 +67,10 @@ export const attachVipReceipt = createServerFn({ method: "POST" })
   });
 
 export const approveVipSubscriber = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((data: { id: string }) => data)
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { data: row, error } = await supabaseAdmin
-      .from("vip_subscribers")
-      .update({ status: "active" })
-      .eq("id", data.id)
-      .select("email,name,plan")
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    const row = await vipRepo.updateVipStatus(data.id, "active");
 
     if (row?.email) {
       try {
@@ -139,17 +89,9 @@ export const approveVipSubscriber = createServerFn({ method: "POST" })
   });
 
 export const rejectVipSubscriber = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((data: { id: string }) => data)
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
-    const { error } = await supabaseAdmin
-      .from("vip_subscribers")
-      .update({ status: "rejected" })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    await vipRepo.updateVipStatus(data.id, "rejected");
     return { ok: true };
   });

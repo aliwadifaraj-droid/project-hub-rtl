@@ -1,11 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
-import { getRolesForUser, findUserById } from "./users.repo";
+import { hashPassword } from "./auth.server";
+import { getRolesForUser, findUserById, findUserByEmail, createUser, grantRole, listUsersWithRoles, getRoleNameById, deleteUser as deleteUserRow } from "./users.repo";
 import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
 import * as submissionsRepo from "./project-submissions.repo";
+import * as contactRepo from "./contact-messages.repo";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   if (!path) return "";
@@ -83,12 +84,8 @@ export const getBidPdfUrl = createServerFn({ method: "POST" })
       const proj = req?.project_id ? await projectsRepo.getById(req.project_id) : null;
       if (!proj || proj.created_by !== context.userId) throw new Error("غير مصرح بفتح هذا الملف");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: signed, error } = await supabaseAdmin.storage
-      .from("bid-pdfs")
-      .createSignedUrl(data.path, 60 * 10);
-    if (error) throw new Error(error.message);
-    return signed.signedUrl;
+    const { signGetUrl } = await import("./r2");
+    return signGetUrl(data.path, 60 * 10);
   });
 
 // ---------- Admin/Staff: list requests ----------
@@ -238,21 +235,17 @@ export const updateProjectStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ---------- Admin: employees management (still Supabase auth admin) ----------
+// ---------- Admin: employees management ----------
 export const listEmployees = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data: myRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rolesData } = await supabaseAdmin.from("user_roles").select("user_id,role,created_at");
-    const { data: usersList } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
-    const users = usersList?.users ?? [];
-    return (rolesData ?? []).map((r) => {
-      const u = users.find((x) => x.id === r.user_id);
-      return { user_id: r.user_id, email: u?.email ?? "?", role: r.role, created_at: r.created_at };
-    });
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const users = await listUsersWithRoles(500);
+    return users.flatMap((u) => (u.roles.length ? u.roles : ["user"]).map((role) => ({
+      user_id: u.id,
+      email: u.email,
+      role,
+      created_at: u.created_at,
+    })));
   });
 
 export const listRoles = createServerFn({ method: "GET" })
@@ -266,51 +259,30 @@ export const listRoles = createServerFn({ method: "GET" })
   });
 
 export const createEmployee = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { email: string; password: string; role_id: string }) =>
     z.object({
       email: z.string().email().max(255),
       password: z.string().min(6).max(72),
-      role_id: z.string().uuid(),
+      role_id: z.string().min(1).max(80),
     }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: myRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: roleRow, error: roleLookupErr } = await supabaseAdmin
-      .from("roles").select("id,name").eq("id", data.role_id).maybeSingle();
-    if (roleLookupErr || !roleRow) throw new Error("الدور غير موجود");
-    if (roleRow.name !== "admin" && roleRow.name !== "employee") throw new Error("نوع الدور غير مدعوم");
-
-    const { createAdminAuthClient } = await import("@/lib/admin-auth.server");
-    const authAdmin = createAdminAuthClient();
-    const { data: created, error: createErr } = await authAdmin.auth.admin.createUser({
-      email: data.email, password: data.password, email_confirm: true,
-    });
-    if (createErr || !created.user) throw new Error(createErr?.message ?? "Failed to create user");
-
-    const { error: roleErr } = await supabaseAdmin
-      .from("user_roles").insert({ user_id: created.user.id, role: roleRow.name as "admin" | "employee" });
-    if (roleErr) throw new Error(roleErr.message);
-
-    const { error: profErr } = await supabaseAdmin
-      .from("profiles").insert({ id: created.user.id, email: data.email, role_id: data.role_id });
-    if (profErr) throw new Error(profErr.message);
-    return { id: created.user.id };
+  .handler(async ({ data }) => {
+    const roleName = await getRoleNameById(data.role_id);
+    if (!roleName) throw new Error("الدور غير موجود");
+    if (roleName !== "admin" && roleName !== "employee" && roleName !== "user") throw new Error("نوع الدور غير مدعوم");
+    const email = data.email.trim().toLowerCase();
+    if (await findUserByEmail(email)) throw new Error("هذا البريد مسجل بالفعل");
+    const id = await createUser(email, await hashPassword(data.password));
+    await grantRole(id, roleName);
+    return { id };
   });
 
 export const deleteEmployee = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { user_id: string }) => z.object({ user_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    if (data.user_id === userId) throw new Error("لا يمكنك حذف نفسك");
-    const { data: myRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
-    if (error) throw new Error(error.message);
+    if (data.user_id === context.userId) throw new Error("لا يمكنك حذف نفسك");
+    await deleteUserRow(data.user_id);
     return { ok: true };
   });
 
@@ -325,64 +297,35 @@ export const getMyUserId = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => ({ userId: context.userId }));
 
-// ---------- Contact messages (unchanged Supabase for now) ----------
+// ---------- Contact messages ----------
 export const adminListMessages = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data, error } = await supabase
-      .from("contact_messages")
-      .select("id,name,email,message,created_at")
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-    return data ?? [];
-  });
+  .middleware([requireAdmin])
+  .handler(async () => contactRepo.listContactMessages());
 
 export const countContactMessages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) => z.object({ since: z.string().nullable() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: myRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    let q = supabase.from("contact_messages").select("id", { count: "exact", head: true });
-    if (data.since) q = q.gt("created_at", data.since);
-    const { count, error } = await q;
-    if (error) throw new Error(error.message);
-    return { count: count ?? 0 };
-  });
+  .handler(async ({ data }) => ({ count: await contactRepo.countContactMessagesSince(data.since) }));
 
 export const adminDeleteContactMessage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: myRoles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-    if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { error } = await supabase.from("contact_messages").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    await contactRepo.deleteContactMessage(data.id);
     return { ok: true };
   });
 
-// ---------- Signup first admin (still Supabase auth) ----------
-const FIRST_ADMIN_EMAIL = "zydalwadii@gmail.com";
+// ---------- Signup first admin ----------
+const FIRST_ADMIN_EMAIL = "aliwadifaraj@gmail.com";
 export const signupFirstAdmin = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; password: string }) =>
     z.object({ email: z.string().email().max(255), password: z.string().min(6).max(72) }).parse(d))
   .handler(async ({ data }) => {
-    if (data.email.toLowerCase() !== FIRST_ADMIN_EMAIL) throw new Error("التسجيل مسموح فقط للحساب المخصص");
-    const { createAdminAuthClient } = await import("@/lib/admin-auth.server");
-    const supabaseAdmin = createAdminAuthClient();
-    const { data: existingAdmins } = await supabaseAdmin
-      .from("user_roles").select("user_id").eq("role", "admin").limit(1);
-    if (existingAdmins && existingAdmins.length > 0) throw new Error("يوجد أدمن مسجل بالفعل");
-    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-      email: data.email, password: data.password, email_confirm: true,
-    });
-    if (error || !created.user) throw new Error(error?.message ?? "فشل إنشاء الحساب");
-    const { error: roleErr } = await supabaseAdmin
-      .from("user_roles").insert({ user_id: created.user.id, role: "admin" });
-    if (roleErr) throw new Error(roleErr.message);
+    const email = data.email.trim().toLowerCase();
+    if (email !== FIRST_ADMIN_EMAIL) throw new Error("التسجيل مسموح فقط للحساب المخصص");
+    if (await findUserByEmail(email)) throw new Error("هذا البريد مسجل بالفعل");
+    const id = await createUser(email, await hashPassword(data.password));
+    await grantRole(id, "admin");
     return { ok: true };
   });
 
@@ -419,13 +362,10 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     const proj = await projectsRepo.getById(data.project_id);
     if (!proj) throw new Error("المشروع غير موجود");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
-    const { error: upErr } = await supabaseAdmin.storage
-      .from("bid-pdfs")
-      .upload(path, bytes, { contentType: "application/pdf", upsert: false });
-    if (upErr) throw new Error(upErr.message);
+    const { uploadToR2 } = await import("./r2");
+    await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
 
     await requestsRepo.insertRequest({
       project_id: data.project_id,
@@ -455,7 +395,6 @@ export const submitProjectSuggestion = createServerFn({ method: "POST" })
       images: z.array(imageItemSchema).max(8).default([]),
     }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const uploadedPaths: string[] = [];
     for (const img of data.images) {
       const bytes = Buffer.from(img.file_base64, "base64");
@@ -463,10 +402,8 @@ export const submitProjectSuggestion = createServerFn({ method: "POST" })
       if (bytes.length > 5 * 1024 * 1024) throw new Error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
       const safeName = img.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
       const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
-      const { error: upErr } = await supabaseAdmin.storage
-        .from("project-images")
-        .upload(path, bytes, { contentType: img.content_type, upsert: false });
-      if (upErr) throw new Error(upErr.message);
+      const { uploadToR2 } = await import("./r2");
+      await uploadToR2({ key: path, body: bytes, contentType: img.content_type });
       uploadedPaths.push(path);
     }
     await submissionsRepo.insertSubmission({
