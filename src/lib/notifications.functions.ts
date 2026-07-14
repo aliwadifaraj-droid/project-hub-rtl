@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "./auth-middleware.server";
 import {
   listForUser,
   countUnreadForUser,
@@ -9,7 +9,7 @@ import {
 } from "./notifications.repo";
 
 export const listMyNotifications = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     const rows = await listForUser(context.userId, 50);
     return rows.map((r) => ({
@@ -23,13 +23,13 @@ export const listMyNotifications = createServerFn({ method: "GET" })
   });
 
 export const countMyUnreadNotifications = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     return await countUnreadForUser(context.userId);
   });
 
 export const markNotificationRead = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await markRead(context.userId, data.id);
@@ -37,7 +37,7 @@ export const markNotificationRead = createServerFn({ method: "POST" })
   });
 
 export const markAllNotificationsRead = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
     await markAllRead(context.userId);
     return { ok: true };
