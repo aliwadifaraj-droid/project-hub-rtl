@@ -255,10 +255,12 @@ export const listEmployees = createServerFn({ method: "GET" })
 
 export const listRoles = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .handler(async () => {
+  .handler(async (): Promise<{ id: string; name: string; label: string }[]> => {
     const { db, rowsToObjects } = await import("./db");
     const r = await db.execute(`SELECT id,name,label FROM roles ORDER BY name`);
-    return rowsToObjects(r);
+    return rowsToObjects(r).map((x: any) => ({
+      id: String(x.id), name: String(x.name), label: String(x.label),
+    }));
   });
 
 export const createEmployee = createServerFn({ method: "POST" })
