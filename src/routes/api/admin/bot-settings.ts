@@ -43,7 +43,7 @@ export const Route = createFileRoute("/api/admin/bot-settings")({
       GET: async ({ request }) => {
         const auth = await authorizeAdmin(request);
         if (!auth) return new Response("Unauthorized", { status: 401 });
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
         const { data, error } = await supabaseAdmin
           .from("bot_settings")
           .select("id,gemini_system_instruction,gemini_dialect,gemini_bot_name,gemini_blocked_replies,gemini_scope,groq_enabled")
@@ -77,7 +77,7 @@ export const Route = createFileRoute("/api/admin/bot-settings")({
           gemini_scope: v.scope,
           groq_enabled: v.groqEnabled,
         };
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
         const { data: existing } = await supabaseAdmin
           .from("bot_settings").select("id").limit(1).maybeSingle();
         if (existing) {

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { upsertProject, deleteProject, listProjects } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/kill-switch-clients";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 

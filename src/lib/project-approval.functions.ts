@@ -17,7 +17,7 @@ export const listPendingProjects = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("projects")
       .select("id,name,description,location,duration,cover_image,created_by,created_at")
@@ -47,7 +47,7 @@ export const countPendingProjects = createServerFn({ method: "GET" })
     const { data: myRoles } = await supabase
       .from("user_roles").select("role").eq("user_id", userId);
     if (!myRoles?.some((r) => r.role === "admin")) return 0;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { count } = await supabaseAdmin
       .from("projects")
       .select("id", { count: "exact", head: true })
@@ -61,7 +61,7 @@ export const approveProject = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("projects")
       .update({ admin_approval: "approved" })
@@ -107,7 +107,7 @@ export const rejectProject = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("projects")
       .update({ admin_approval: "rejected" })

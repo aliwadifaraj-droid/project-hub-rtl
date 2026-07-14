@@ -6,7 +6,7 @@ async function resolveImage(path: string | null): Promise<string> {
   if (!path) return "";
   if (path.startsWith("http") || path.startsWith("data:")) return path;
   if (!path.includes("/")) return path;
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
   const { data } = await supabaseAdmin.storage
     .from("project-images")
     .createSignedUrl(path, 60 * 60 * 24 * 7);

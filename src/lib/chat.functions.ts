@@ -14,7 +14,7 @@ export const listTeamMessages = createServerFn({ method: "GET" })
     void userId;
 
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: msgs, error } = await supabaseAdmin
       .from("team_messages")
       .select("id,user_id,body,created_at")
@@ -68,7 +68,7 @@ export const deleteTeamMessage = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const roles = await getRoles(supabase, userId);
     const isAdmin = roles.includes("admin");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const query = supabaseAdmin.from("team_messages").delete().eq("id", data.id);
     // Admins can delete any message; non-admins only their own
     const { error } = isAdmin ? await query : await query.eq("user_id", userId);
@@ -84,7 +84,7 @@ export const countUnreadTeamMessages = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     void supabase;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     let q = supabaseAdmin
       .from("team_messages")
       .select("id", { count: "exact", head: true })
@@ -100,7 +100,7 @@ export const deleteAllTeamMessages = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const roles = await getRoles(context.supabase, context.userId);
     if (!roles.includes("admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("team_messages")
       .delete()

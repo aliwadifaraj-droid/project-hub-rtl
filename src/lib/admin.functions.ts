@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // ---------- Public: list projects with resolved cover URLs ----------
 export const listProjects = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("projects")
       .select("id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval")
@@ -33,7 +33,7 @@ export const getProject = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
       const { data: p, error } = await supabaseAdmin
         .from("projects")
         .select("id,name,description,location,duration,cover_image,images,pdf_file,status")
@@ -59,7 +59,7 @@ async function resolveStoragePath(path: string | null): Promise<string> {
   if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("/")) return path;
   // seed keys
   if (!path.includes("/")) return path;
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
   const { data } = await supabaseAdmin.storage
     .from("project-images")
     .createSignedUrl(path, 60 * 60 * 24 * 7);
@@ -72,7 +72,7 @@ export const searchRequests = createServerFn({ method: "GET" })
     z.object({ q: z.string().trim().min(1).max(200) }).parse(d)
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: rows, error } = await supabaseAdmin
       .from("project_requests")
       .select("id,company_name,facility_location,status,created_at,project_id,projects(name)")
@@ -95,7 +95,7 @@ export const getBidPdfUrl = createServerFn({ method: "POST" })
       .from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = !!myRoles?.some((r) => r.role === "admin");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     if (!isAdmin) {
       const { data: reqRow } = await supabaseAdmin
         .from("project_requests")
@@ -121,7 +121,7 @@ export const adminListRequests = createServerFn({ method: "GET" })
     const { data: myRoles } = await supabase
       .from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = !!myRoles?.some((r) => r.role === "admin");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("project_requests")
       .select("id,company_name,facility_location,email,pdf_url,status,created_at,project_id,submitter_type,projects(name,created_by)")
@@ -153,7 +153,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     const { data: myRoles } = await supabase
       .from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = !!myRoles?.some((r) => r.role === "admin");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     if (!isAdmin) {
       const { data: reqRow } = await supabaseAdmin
         .from("project_requests")
@@ -292,7 +292,7 @@ export const upsertProject = createServerFn({ method: "POST" })
     const { data: myRoles } = await supabase
       .from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = !!myRoles?.some((r) => r.role === "admin");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
 
     // Duplicate name check for the same user (admin exempt)
     if (!isAdmin) {
@@ -342,7 +342,7 @@ export const deleteProject = createServerFn({ method: "POST" })
     const { data: myRoles } = await supabase
       .from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = !!myRoles?.some((r) => r.role === "admin");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: existing, error: exErr } = await supabaseAdmin
       .from("projects").select("created_by").eq("id", data.id).maybeSingle();
     if (exErr) throw new Error(exErr.message);
@@ -367,7 +367,7 @@ export const updateProjectStatus = createServerFn({ method: "POST" })
       .from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = !!myRoles?.some((r) => r.role === "admin");
     if (!isAdmin) throw new Error("غير مصرح");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin.from("projects").update({ status: data.status }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -387,7 +387,7 @@ export const listEmployees = createServerFn({ method: "GET" })
       .eq("user_id", userId);
     if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: rolesData } = await supabaseAdmin
       .from("user_roles")
       .select("user_id,role,created_at");
@@ -407,7 +407,7 @@ export const listEmployees = createServerFn({ method: "GET" })
 export const listRoles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("roles")
       .select("id,name,label")
@@ -431,7 +431,7 @@ export const createEmployee = createServerFn({ method: "POST" })
       .from("user_roles").select("role").eq("user_id", userId);
     if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: roleRow, error: roleLookupErr } = await supabaseAdmin
       .from("roles").select("id,name").eq("id", data.role_id).maybeSingle();
     if (roleLookupErr || !roleRow) throw new Error("الدور غير موجود");
@@ -473,7 +473,7 @@ export const deleteEmployee = createServerFn({ method: "POST" })
       .from("user_roles").select("role").eq("user_id", userId);
     if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.user_id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -624,7 +624,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       // ignore — default to guest
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
 
     // verify project exists
     const { data: proj } = await supabaseAdmin
@@ -669,7 +669,7 @@ export const submitProjectSuggestion = createServerFn({ method: "POST" })
     }).parse(d)
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
 
     const uploadedPaths: string[] = [];
     for (const img of data.images) {
@@ -707,7 +707,7 @@ export const adminListSubmissions = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("project_submissions")
       .select("id,name,description,location,contact_phone,images,status,created_at,approved_project_id")
@@ -729,7 +729,7 @@ export const approveSubmission = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
 
     const { data: sub, error: sErr } = await supabaseAdmin
       .from("project_submissions")
@@ -773,7 +773,7 @@ export const deleteSubmission = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("project_submissions")
       .delete()
@@ -795,7 +795,7 @@ export const submitProjectWithPaths = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin.from("project_submissions").insert({
       name: data.name,
       description: data.description,

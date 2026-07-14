@@ -292,7 +292,7 @@ export const startVisitorChat = createServerFn({ method: "POST" })
     z.object({ visitorToken: uuid, visitorName: z.string().trim().max(80).nullable().optional() }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: existing } = await supabaseAdmin
       .from("support_chats").select("*").eq("visitor_token", data.visitorToken).maybeSingle();
     if (existing) return existing;
@@ -315,7 +315,7 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
     z.object({ visitorToken: uuid, sinceIso: z.string().nullable().optional() }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: chat } = await supabaseAdmin
       .from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (!chat) return { chat: null, messages: [] };
@@ -335,7 +335,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: existingChat, error: ce } = await supabaseAdmin
       .from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (ce) throw new Error(ce.message);
@@ -457,7 +457,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
 export const visitorEscalate = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: chat } = await supabaseAdmin.from("support_chats").select("id,status").eq("visitor_token", data.visitorToken).maybeSingle();
     if (!chat) throw new Error("جلسة الشات غير موجودة");
     if (chat.status === "escalated") return { ok: true };
@@ -483,7 +483,7 @@ export const visitorEscalate = createServerFn({ method: "POST" })
 export const visitorEndSession = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: chat } = await supabaseAdmin
       .from("support_chats").select("id").eq("visitor_token", data.visitorToken).maybeSingle();
     if (!chat) return { ok: true };
@@ -504,7 +504,7 @@ export const adminListChats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertStaff(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("support_chats")
       .select("id,visitor_name,status,last_message_at,created_at")
@@ -519,7 +519,7 @@ export const adminListChatMessages = createServerFn({ method: "POST" })
   .inputValidator((d: { chatId: string }) => z.object({ chatId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await assertStaff(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: msgs, error } = await supabaseAdmin
       .from("support_messages").select("id,sender,body,created_at")
       .eq("chat_id", data.chatId).order("created_at", { ascending: true });
@@ -534,7 +534,7 @@ export const adminReplyChat = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertStaff(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin.from("support_messages").insert({
       chat_id: data.chatId, sender: "admin", body: data.body,
     });
@@ -549,7 +549,7 @@ export const adminCloseChat = createServerFn({ method: "POST" })
   .inputValidator((d: { chatId: string }) => z.object({ chatId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await assertStaff(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     await supabaseAdmin.from("support_chats").update({ status: "closed" }).eq("id", data.chatId);
     return { ok: true };
   });
@@ -558,7 +558,7 @@ export const adminDeleteAllSupport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     if (!(await isAdmin(context.supabase, context.userId))) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error: mErr } = await supabaseAdmin
       .from("support_messages").delete().not("id", "is", null);
     if (mErr) throw new Error(mErr.message);
@@ -623,7 +623,7 @@ export const adminCountOpenSupportChats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertStaff(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { count } = await supabaseAdmin
       .from("support_chats").select("id", { count: "exact", head: true }).eq("status", "escalated");
     return { count: count ?? 0 };

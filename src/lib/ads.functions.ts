@@ -38,7 +38,7 @@ async function resolveImage(path: string | null): Promise<string> {
       return path;
     }
   }
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
   const { data } = await supabaseAdmin.storage
     .from("project-images")
     .createSignedUrl(path, 60 * 60 * 24 * 7);
@@ -57,7 +57,7 @@ export const createAd = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertStaff(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("ads")
       .insert({
@@ -81,7 +81,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const roles = await assertStaff(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
       .select("id,title,description,image_url,link_url,status,created_by,contact_email,created_at")
@@ -111,7 +111,7 @@ export const countPendingAds = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     await assertStaff(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { count, error } = await supabaseAdmin
       .from("ads")
       .select("id", { count: "exact", head: true })
@@ -126,7 +126,7 @@ export const approveAd = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     // Load ad first
     const { data: ad, error: adErr } = await supabaseAdmin
       .from("ads")
@@ -171,7 +171,7 @@ export const rejectAd = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("ads")
       .update({ status: "rejected", rejection_reason: data.reason })
@@ -193,7 +193,7 @@ export const updateAd = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("ads")
       .update({
@@ -212,7 +212,7 @@ export const deleteAd = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin.from("ads").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -236,7 +236,7 @@ export const deleteMyAd = createServerFn({ method: "POST" })
 // Public — anyone can list approved ads
 export const listApprovedAds = createServerFn({ method: "GET" })
   .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("ads")
       .select("id,title,description,image_url,link_url,created_at")
@@ -253,7 +253,7 @@ export const listApprovedAds = createServerFn({ method: "GET" })
 export const getApprovedAd = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("ads")
       .select("id,title,description,image_url,link_url,created_at,status")
@@ -276,7 +276,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const safePath = data.image_path && data.image_path.startsWith("submissions/") ? data.image_path : "";
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("ads")
       .insert({
@@ -298,7 +298,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
 export const listAdComments = createServerFn({ method: "GET" })
   .inputValidator((d: { adId: string }) => z.object({ adId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: rows, error } = await supabaseAdmin
       .from("ad_comments")
       .select("id,author_name,body,created_at")
@@ -319,7 +319,7 @@ export const submitAdComment = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: ad } = await supabaseAdmin
       .from("ads").select("status").eq("id", data.adId).maybeSingle();
     if (!ad || ad.status !== "approved") throw new Error("الإعلان غير متاح");
