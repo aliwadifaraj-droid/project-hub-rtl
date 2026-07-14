@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as adsRepo from "./ads.repo";
 import * as projectsRepo from "./projects.repo";
-import { getUserById } from "./users.repo";
+import { findUserById } from "./users.repo";
 
 function assertStaff(roles: string[]) {
   if (!roles.includes("admin") && !roles.includes("employee")) throw new Error("غير مصرح");
@@ -64,7 +64,7 @@ export const listPendingAds = createServerFn({ method: "GET" })
     const rows = await Promise.all(ads.map(async (a) => {
       let submitter_label = a.contact_email ?? "زائر";
       if (a.created_by) {
-        const u = await getUserById(a.created_by).catch(() => null);
+        const u = await findUserById(a.created_by).catch(() => null);
         submitter_label = u?.email ?? "موظف";
       }
       return { ...a, image_signed_url: await resolveImage(a.image_url), submitter_label };

@@ -2,14 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as projectsRepo from "./projects.repo";
-import { getUserById } from "./users.repo";
+import { findUserById } from "./users.repo";
 
 export const listPendingProjects = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     const rows = await projectsRepo.listPending();
     return Promise.all(rows.map(async (p) => {
-      const u = p.created_by ? await getUserById(p.created_by).catch(() => null) : null;
+      const u = p.created_by ? await findUserById(p.created_by).catch(() => null) : null;
       return { ...p, creator_email: u?.email ?? "" };
     }));
   });
@@ -38,7 +38,7 @@ export const approveProject = createServerFn({ method: "POST" })
         link: `/projects/${row.id}`,
       });
       try {
-        const u = await getUserById(row.created_by);
+        const u = await findUserById(row.created_by);
         if (u?.email) {
           const { sendResendEmail } = await import("./resend-send.server");
           await sendResendEmail({
