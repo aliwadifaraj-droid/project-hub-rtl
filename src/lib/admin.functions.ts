@@ -10,12 +10,14 @@ import * as submissionsRepo from "./project-submissions.repo";
 async function resolveStoragePath(path: string | null): Promise<string> {
   if (!path) return "";
   if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("/")) return path;
-  if (!path.includes("/")) return path;
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin.storage
-    .from("project-images")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
-  return data?.signedUrl ?? "";
+  if (!path.includes("/")) return path; // static asset key (e.g., "tower")
+  // R2 object key → signed URL
+  try {
+    const { signGetUrl } = await import("./r2");
+    return await signGetUrl(path, 60 * 60 * 24 * 7);
+  } catch {
+    return "";
+  }
 }
 
 // ---------- Public: list projects ----------
