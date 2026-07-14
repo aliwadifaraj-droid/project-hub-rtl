@@ -1,9 +1,8 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Building2, ClipboardList, Megaphone, Bell, MessagesSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import {
   listMyNotifications,
   countMyUnreadNotifications,
@@ -11,28 +10,35 @@ import {
   markAllNotificationsRead,
 } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
-import { getMyRoles } from "@/lib/admin.functions";
+import { getMe } from "@/lib/auth.functions";
 
 const CHAT_SEEN_KEY = "team_chat_last_seen";
 
 export function SiteHeader() {
   const [signedIn, setSignedIn] = useState(false);
   const [open, setOpen] = useState(false);
+  const path = useRouterState({ select: (s) => s.location.pathname });
   const qc = useQueryClient();
   const countUnread = useServerFn(countMyUnreadNotifications);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
-  const rolesFn = useServerFn(getMyRoles);
+  const fetchMe = useServerFn(getMe);
   const countChatFn = useServerFn(countUnreadTeamMessages);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setSignedIn(!!data.user));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setSignedIn(!!session?.user);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
+    let mounted = true;
+    fetchMe()
+      .then((me) => {
+        if (mounted) setSignedIn(!!me);
+      })
+      .catch(() => {
+        if (mounted) setSignedIn(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [fetchMe, path]);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
@@ -46,13 +52,6 @@ export function SiteHeader() {
     enabled: signedIn && open,
   });
 
-  const { data: myRoles = [] } = useQuery({
-    queryKey: ["my-roles"],
-    queryFn: () => rolesFn(),
-    enabled: signedIn,
-  });
-  void myRoles;
-
   const { data: chatUnread = 0, refetch: refetchChat } = useQuery({
     queryKey: ["chat-unread-count"],
     queryFn: async () => {
@@ -63,19 +62,7 @@ export function SiteHeader() {
     enabled: signedIn,
   });
 
-  // realtime: refetch chat unread on new messages
-  useEffect(() => {
-    if (!signedIn) return;
-    const ch = supabase
-      .channel("team_messages_badge")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_messages" }, () => {
-        refetchChat();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [signedIn, refetchChat]);
+  void refetchChat;
 
   async function toggle(next: boolean) {
     setOpen(next);

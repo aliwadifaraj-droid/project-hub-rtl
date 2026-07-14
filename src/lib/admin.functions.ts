@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "./auth-middleware.server";
+import { getRolesForUser } from "./users.repo";
 
 // ---------- Public: list projects with resolved cover URLs ----------
 export const listProjects = createServerFn({ method: "GET" }).handler(async () => {
@@ -480,21 +482,14 @@ export const deleteEmployee = createServerFn({ method: "POST" })
   });
 
 export const getMyRoles = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .order("role", { ascending: true });
-    if (error) throw new Error(error.message);
-    const roles = (data ?? []).map((r) => r.role as "admin" | "employee");
+    const roles = (await getRolesForUser(context.userId)) as ("admin" | "employee")[];
     return roles.sort((a, b) => (a === "admin" ? -1 : b === "admin" ? 1 : a.localeCompare(b)));
   });
 
 export const getMyUserId = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => ({ userId: context.userId }));
 
 

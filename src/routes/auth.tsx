@@ -22,9 +22,11 @@ function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    doGetMe().then((me) => {
-      if (me) navigate({ to: "/admin", replace: true });
-    });
+    doGetMe()
+      .then((me) => {
+        if (me) navigate({ to: "/admin", replace: true });
+      })
+      .catch(() => undefined);
   }, [doGetMe, navigate]);
 
   async function onSubmit(e: React.FormEvent) {
