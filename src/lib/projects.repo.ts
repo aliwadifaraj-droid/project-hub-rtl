@@ -14,6 +14,7 @@ export type ProjectRow = {
   status: string;
   admin_approval: string;
   ad_id: string | null;
+  domain: string | null;
   created_at: string;
 };
 
@@ -33,11 +34,12 @@ function decode(r: any): ProjectRow {
     status: String(r.status ?? "active"),
     admin_approval: String(r.admin_approval ?? "pending"),
     ad_id: r.ad_id ?? null,
+    domain: r.domain ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at";
 
 export async function listAllProjects(): Promise<ProjectRow[]> {
   const r = await db.execute(`SELECT ${COLS} FROM projects ORDER BY created_at DESC`);

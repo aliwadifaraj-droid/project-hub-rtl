@@ -20,7 +20,8 @@ export const listMyProjects = createServerFn({ method: "GET" })
     const rows = await projectsRepo.listByOwner(context.userId);
     return Promise.all(rows.map(async (p) => ({
       id: p.id, name: p.name, description: p.description, location: p.location,
-      duration: p.duration, cover_image: p.cover_image, ad_id: p.ad_id, created_at: p.created_at,
+      duration: p.duration, cover_image: p.cover_image, ad_id: p.ad_id,
+      domain: p.domain, created_at: p.created_at,
       cover_url: await resolveImage(p.cover_image).catch(() => ""),
     })));
   });
