@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { adminListChats, adminListChatMessages, adminReplyChat, adminCloseChat, adminDeleteAllSupport } from "@/lib/support.functions";
 import { Send, Headphones, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,19 +34,6 @@ function AdminSupportPage() {
     enabled: !!activeId,
     refetchInterval: activeId ? 3000 : false,
   });
-
-  useEffect(() => {
-    const ch = supabase.channel("admin_support_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "support_messages" }, () => {
-        qc.invalidateQueries({ queryKey: ["admin-support-msgs", activeId] });
-        qc.invalidateQueries({ queryKey: ["admin-support-chats"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "support_chats" }, () => {
-        qc.invalidateQueries({ queryKey: ["admin-support-chats"] });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [qc, activeId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

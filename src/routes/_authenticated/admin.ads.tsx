@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { listPendingAds, approveAd, rejectAd } from "@/lib/ads.functions";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Check, X, Megaphone, ExternalLink, Bell, User } from "lucide-react";
+import { Loader2, Check, X, Megaphone, ExternalLink, User } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/ads")({
@@ -20,38 +18,6 @@ function AdminAdsPage() {
     queryKey: ["pending-ads"],
     queryFn: () => list(),
   });
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("ads-pending-admin")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "ads" },
-        (payload) => {
-          const row = payload.new as { status?: string; title?: string };
-          if (row?.status === "pending") {
-            toast.success("إعلان جديد بانتظار الموافقة", {
-              description: row.title ?? "",
-              icon: <Bell className="h-4 w-4" />,
-            });
-            qc.invalidateQueries({ queryKey: ["pending-ads"] });
-            qc.invalidateQueries({ queryKey: ["pending-ads-count"] });
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "ads" },
-        () => {
-          qc.invalidateQueries({ queryKey: ["pending-ads"] });
-          qc.invalidateQueries({ queryKey: ["pending-ads-count"] });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc]);
 
   const approveMut = useMutation({
     mutationFn: (id: string) => approve({ data: { id } }),
