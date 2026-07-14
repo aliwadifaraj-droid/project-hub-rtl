@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAuth } from "./auth-middleware.server";
+import * as projectsRepo from "./projects.repo";
 
 async function resolveImage(path: string | null): Promise<string> {
   if (!path) return "";
   if (path.startsWith("http") || path.startsWith("data:")) return path;
   if (!path.includes("/")) return path;
-  const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin.storage
     .from("project-images")
     .createSignedUrl(path, 60 * 60 * 24 * 7);
@@ -14,34 +15,23 @@ async function resolveImage(path: string | null): Promise<string> {
 }
 
 export const listMyProjects = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data, error } = await supabase
-      .from("projects")
-      .select("id,name,description,location,duration,cover_image,domain,ad_id,created_at")
-      .eq("owner_id", userId)
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-    const rows = await Promise.all(
-      (data ?? []).map(async (p) => ({
-        ...p,
-        cover_url: await resolveImage(p.cover_image).catch(() => ""),
-      })),
-    );
-    return rows;
+    const rows = await projectsRepo.listByOwner(context.userId);
+    return Promise.all(rows.map(async (p) => ({
+      id: p.id, name: p.name, description: p.description, location: p.location,
+      duration: p.duration, cover_image: p.cover_image, ad_id: p.ad_id,
+      domain: p.domain, created_at: p.created_at,
+      cover_url: await resolveImage(p.cover_image).catch(() => ""),
+    })));
   });
 
 export const deleteMyProject = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: row, error: e1 } = await supabase
-      .from("projects").select("owner_id").eq("id", data.id).maybeSingle();
-    if (e1) throw new Error(e1.message);
-    if (!row || row.owner_id !== userId) throw new Error("غير مصرح");
-    const { error } = await supabase.from("projects").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const row = await projectsRepo.getById(data.id);
+    if (!row || row.created_by !== context.userId) throw new Error("غير مصرح");
+    await projectsRepo.deleteProject(data.id);
     return { ok: true };
   });

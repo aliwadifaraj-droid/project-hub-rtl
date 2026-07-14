@@ -122,7 +122,7 @@ function RequestsPage() {
                   </td>
                   <td className="p-3">
                     {(isAdmin || r.can_manage) ? (
-                      <button onClick={() => openPdf(r.pdf_url)} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-600">
+                      <button onClick={() => openPdf(r.pdf_url ?? "")} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-600">
                         <FileDown className="h-4 w-4" /> فتح PDF
                       </button>
                     ) : (
@@ -175,7 +175,7 @@ function RequestsPage() {
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs text-slate-500">{new Date(r.created_at).toLocaleDateString("ar")}</span>
                 {(isAdmin || r.can_manage) ? (
-                  <button onClick={() => openPdf(r.pdf_url)} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium hover:bg-slate-600">
+                  <button onClick={() => openPdf(r.pdf_url ?? "")} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium hover:bg-slate-600">
                     <FileDown className="h-4 w-4" /> فتح PDF
                   </button>
                 ) : (
