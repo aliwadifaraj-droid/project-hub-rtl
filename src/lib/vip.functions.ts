@@ -11,7 +11,7 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
       .eq("user_id", userId);
     if (!myRoles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data, error } = await supabaseAdmin
       .from("vip_subscribers")
       .select("id,name,email,status,receipt_path,notes,plan,created_at")
@@ -55,7 +55,7 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: admins } = await supabaseAdmin
       .from("user_roles")
       .select("user_id")
@@ -80,7 +80,7 @@ export const attachVipReceipt = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("vip_subscribers")
       .update({ receipt_path: data.receipt_path })
@@ -113,7 +113,7 @@ export const approveVipSubscriber = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: row, error } = await supabaseAdmin
       .from("vip_subscribers")
       .update({ status: "active" })
@@ -145,7 +145,7 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     if (!roles?.some((r) => r.role === "admin")) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("vip_subscribers")
       .update({ status: "rejected" })

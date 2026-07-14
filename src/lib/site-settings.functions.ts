@@ -20,7 +20,7 @@ export const setVipMaintenance = createServerFn({ method: "POST" })
     const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     if (roleError) throw new Error(roleError.message);
     if (!isAdmin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("site_settings")
       .upsert({ key: "vip_maintenance", value: { enabled: data.enabled }, updated_at: new Date().toISOString() });
@@ -47,7 +47,7 @@ export const setHideSupportChat = createServerFn({ method: "POST" })
     const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     if (roleError) throw new Error(roleError.message);
     if (!isAdmin) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin
       .from("site_settings")
       .upsert({ key: "hide_support_chat", value: { enabled: data.enabled }, updated_at: new Date().toISOString() });

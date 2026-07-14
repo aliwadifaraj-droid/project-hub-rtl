@@ -21,7 +21,7 @@ export type BotSettings = {
 };
 
 export const getBotSettings = createServerFn({ method: "GET" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
   const { data, error } = await supabaseAdmin
     .from("bot_settings")
     .select("id,work_days,work_start,work_end,off_hours_message,fallback_message,allow_escalation,show_suggested_questions,local_enabled,local_system_prompt")
@@ -61,7 +61,7 @@ export const updateBotSettings = createServerFn({ method: "POST" })
     const { data: adminRow } = await context.supabase
       .from("user_roles").select("role").eq("user_id", context.userId).eq("role", "admin").maybeSingle();
     if (!adminRow) throw new Error("Forbidden");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { data: existing } = await supabaseAdmin.from("bot_settings").select("id").limit(1).maybeSingle();
     if (existing) {
       const { error } = await supabaseAdmin.from("bot_settings").update(data).eq("id", existing.id);

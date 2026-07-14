@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 import { Star, Check, Wrench } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/kill-switch-clients";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";

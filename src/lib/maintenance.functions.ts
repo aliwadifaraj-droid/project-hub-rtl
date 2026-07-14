@@ -24,7 +24,7 @@ export const getMaintenance = createServerFn({ method: "GET" }).handler(async ()
     if (!Number.isNaN(endMs) && endMs <= Date.now()) {
       enabled = false;
       try {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
         await supabaseAdmin.from("site_settings").upsert({
           key: KEY,
           value: { enabled: false, endAt },
@@ -57,7 +57,7 @@ export const setMaintenance = createServerFn({ method: "POST" })
     const normalizedEndAt = data.enabled && data.endAt && new Date(data.endAt).getTime() <= Date.now()
       ? null
       : data.endAt;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await import("@/lib/kill-switch-admin.server");
     const { error } = await supabaseAdmin.from("site_settings").upsert({
       key: KEY,
       value: { enabled: data.enabled, endAt: normalizedEndAt },
