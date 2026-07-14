@@ -26,11 +26,8 @@ async function resolveImage(path: string | null): Promise<string> {
       }
     } catch { return path; }
   }
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin.storage
-    .from("project-images")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
-  return data?.signedUrl ?? "";
+  const { signGetUrl } = await import("./r2");
+  return signGetUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
 const adSchema = z.object({
