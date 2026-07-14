@@ -1,60 +1,45 @@
 // COMPAT SHIM: this file used to hold the Supabase-auth middleware.
-// It now delegates to the new Turso cookie-based session and provides a
-// minimal `context.supabase` compatibility surface so existing callers that
-// do `context.supabase.from("user_roles")...` or `.rpc("has_role", ...)`
-// keep working during the multi-batch migration to Turso.
+// It now delegates to the new Turso cookie-based session, keeping the
+// `context.supabase` client typed (via kill-switch admin) so existing
+// callers using `context.supabase.from(...)` / `.rpc(...)` still compile.
+// Two operations are intercepted so RBAC checks work off the JWT claims:
+//   - `.from("user_roles").select("role").eq("user_id", <id>)`
+//   - `.rpc("has_role", { _user_id, _role })`
 //
 // New code should import `requireAuth` from `@/lib/auth-middleware.server`.
 import { createMiddleware } from "@tanstack/react-start";
 import { getSessionClaims, type SessionClaims } from "@/lib/auth.server";
+import { supabaseAdmin } from "@/lib/kill-switch-admin.server";
 
 function makeCompatSupabase(claims: SessionClaims) {
   const rolesRows = claims.roles.map((role) => ({ role }));
-  const rolesResult = Promise.resolve({ data: rolesRows, error: null });
-
-  return {
-    from(table: string) {
-      if (table === "user_roles") {
-        // .select("role").eq("user_id", <id>) → { data: [{role}], error: null }
-        return {
-          select: () => ({
-            eq: () => rolesResult,
-          }),
+  return new Proxy(supabaseAdmin, {
+    get(target, prop, receiver) {
+      if (prop === "from") {
+        return (table: string) => {
+          if (table === "user_roles") {
+            const p = Promise.resolve({ data: rolesRows, error: null });
+            return {
+              select: () => ({
+                eq: () => p,
+              }),
+            };
+          }
+          return (target as any).from(table);
         };
       }
-      // Everything else: empty result (kill-switch behavior).
-      const empty = Promise.resolve({ data: null, error: null });
-      const chain: any = new Proxy(function () {}, {
-        get() { return () => chain; },
-        apply() { return empty; },
-      });
-      return chain;
-    },
-    rpc(name: string, args?: any) {
-      if (name === "has_role") {
-        const has = claims.roles.includes(args?._role);
-        return Promise.resolve({ data: has, error: null });
+      if (prop === "rpc") {
+        return (name: string, args?: any) => {
+          if (name === "has_role") {
+            const has = claims.roles.includes(args?._role);
+            return Promise.resolve({ data: has, error: null });
+          }
+          return (target as any).rpc(name, args);
+        };
       }
-      return Promise.resolve({ data: null, error: null });
+      return Reflect.get(target, prop, receiver);
     },
-    auth: {
-      admin: {
-        listUsers: () => Promise.resolve({ data: { users: [] }, error: null }),
-        getUserById: () => Promise.resolve({ data: { user: null }, error: null }),
-        deleteUser: () => Promise.resolve({ data: null, error: null }),
-        updateUserById: () => Promise.resolve({ data: null, error: null }),
-        createUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      },
-    },
-    storage: {
-      from: () => ({
-        createSignedUrl: () => Promise.resolve({ data: { signedUrl: "" }, error: null }),
-        upload: () => Promise.resolve({ data: null, error: null }),
-        remove: () => Promise.resolve({ data: null, error: null }),
-        getPublicUrl: () => ({ data: { publicUrl: "" } }),
-      }),
-    },
-  };
+  });
 }
 
 export const requireSupabaseAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
@@ -62,7 +47,7 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
   if (!claims) throw new Error("Unauthorized");
   return next({
     context: {
-      supabase: makeCompatSupabase(claims) as any,
+      supabase: makeCompatSupabase(claims),
       userId: claims.sub,
       claims: { sub: claims.sub, email: claims.email, roles: claims.roles },
     },
