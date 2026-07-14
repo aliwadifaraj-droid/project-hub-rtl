@@ -1,53 +1,44 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  listForUser,
+  countUnreadForUser,
+  markRead,
+  markAllRead,
+} from "./notifications.repo";
 
 export const listMyNotifications = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("id,title,body,link,read,created_at")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const rows = await listForUser(context.userId, 50);
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      link: r.link,
+      read: r.read,
+      created_at: r.created_at,
+    }));
   });
 
 export const countMyUnreadNotifications = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { count, error } = await supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("read", false);
-    if (error) throw new Error(error.message);
-    return count ?? 0;
+    return await countUnreadForUser(context.userId);
   });
 
 export const markNotificationRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    await markRead(context.userId, data.id);
     return { ok: true };
   });
 
 export const markAllNotificationsRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("read", false);
-    if (error) throw new Error(error.message);
+    await markAllRead(context.userId);
     return { ok: true };
   });
