@@ -1,17 +1,23 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "./auth-middleware.server";
+import { db, rowsToObjects } from "./db";
 
 // Free tier default limit (bytes). Adjust if your plan differs.
 const DEFAULT_LIMIT_BYTES = 500 * 1024 * 1024; // 500 MB
 
 export const getDatabaseSize = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data, error } = await (supabase as any).rpc("get_database_size");
-    if (error) throw new Error(error.message);
-    const row = Array.isArray(data) ? data[0] : data;
-    const sizeBytes = Number(row?.size_bytes ?? 0);
+  .middleware([requireAdmin])
+  .handler(async () => {
+    let sizeBytes = 0;
+    try {
+      const pageCount = rowsToObjects<Record<string, unknown>>(await db.execute("PRAGMA page_count"))[0];
+      const pageSize = rowsToObjects<Record<string, unknown>>(await db.execute("PRAGMA page_size"))[0];
+      const count = Number(Object.values(pageCount ?? {})[0] ?? 0);
+      const size = Number(Object.values(pageSize ?? {})[0] ?? 0);
+      sizeBytes = Number.isFinite(count * size) ? count * size : 0;
+    } catch {
+      sizeBytes = 0;
+    }
     const limitBytes = DEFAULT_LIMIT_BYTES;
     const sizeMB = sizeBytes / (1024 * 1024);
     const limitMB = limitBytes / (1024 * 1024);
