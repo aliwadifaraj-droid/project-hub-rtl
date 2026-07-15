@@ -1,7 +1,6 @@
 // COMPAT SHIM: this file used to hold the Supabase-auth middleware.
-// It now delegates to the new Turso cookie-based session, keeping the
-// `context.supabase` client typed (via kill-switch admin) so existing
-// callers using `context.supabase.from(...)` / `.rpc(...)` still compile.
+// It now delegates to the new Turso cookie-based session, keeping a no-op
+// `context.supabase` compatibility object so old callers still compile.
 // Two operations are intercepted so RBAC checks work off the JWT claims:
 //   - `.from("user_roles").select("role").eq("user_id", <id>)`
 //   - `.rpc("has_role", { _user_id, _role })`
@@ -9,11 +8,22 @@
 // New code should import `requireAuth` from `@/lib/auth-middleware.server`.
 import { createMiddleware } from "@tanstack/react-start";
 import { getSessionClaims, type SessionClaims } from "@/lib/auth.server";
-import { supabaseAdmin } from "@/lib/kill-switch-admin.server";
+
+const emptyResult = { data: null, error: null, count: 0 };
+const chainable: any = new Proxy(() => undefined, {
+  get(_target, prop) {
+    if (prop === "then") return (resolve: (value: typeof emptyResult) => void) => resolve(emptyResult);
+    return () => chainable;
+  },
+  apply() {
+    return chainable;
+  },
+});
+const compatClient: any = new Proxy({}, { get: () => () => chainable });
 
 function makeCompatSupabase(claims: SessionClaims) {
   const rolesRows = claims.roles.map((role) => ({ role }));
-  return new Proxy(supabaseAdmin, {
+  return new Proxy(compatClient, {
     get(target, prop, receiver) {
       if (prop === "from") {
         return (table: string) => {

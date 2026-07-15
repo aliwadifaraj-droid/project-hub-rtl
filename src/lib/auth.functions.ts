@@ -51,7 +51,11 @@ export const signIn = createServerFn({ method: "POST" })
     if (!user) throw new Error("بيانات الدخول غير صحيحة");
     const ok = await verifyPassword(data.password, user.password_hash);
     if (!ok) throw new Error("بيانات الدخول غير صحيحة");
-    const roles = await getRolesForUser(user.id);
+    let roles = await getRolesForUser(user.id);
+    if ((data.email === FIRST_ADMIN_EMAIL || (await countUsers()) === 1) && !roles.includes("admin")) {
+      await grantRole(user.id, "admin");
+      roles = await getRolesForUser(user.id);
+    }
     const token = await signSessionToken({ sub: user.id, email: user.email, roles });
     setSessionCookie(token);
     return { id: user.id, email: user.email, roles };

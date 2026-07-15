@@ -7,18 +7,10 @@ import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
+import { resolveStoredFileUrl } from "./storage-url";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
-  if (!path) return "";
-  if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("/")) return path;
-  if (!path.includes("/")) return path; // static asset key (e.g., "tower")
-  // R2 object key → signed URL
-  try {
-    const { signGetUrl } = await import("./r2");
-    return await signGetUrl(path, 60 * 60 * 24 * 7);
-  } catch {
-    return "";
-  }
+  return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
 // ---------- Public: list projects ----------
