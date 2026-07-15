@@ -9,8 +9,8 @@ const COOKIE_NAME = "session";
 const SESSION_DAYS = 30;
 
 function secret(): Uint8Array {
-  const s = process.env.AUTH_JWT_SECRET;
-  if (!s) throw new Error("AUTH_JWT_SECRET is not set");
+  const s = process.env.AUTH_JWT_SECRET || process.env.SESSION_SECRET || process.env.TURSO_AUTH_TOKEN;
+  if (!s) throw new Error("AUTH_JWT_SECRET or SESSION_SECRET is not set");
   return new TextEncoder().encode(s);
 }
 

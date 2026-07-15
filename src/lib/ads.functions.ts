@@ -4,30 +4,14 @@ import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as adsRepo from "./ads.repo";
 import * as projectsRepo from "./projects.repo";
 import { findUserById } from "./users.repo";
+import { resolveStoredFileUrl } from "./storage-url";
 
 function assertStaff(roles: string[]) {
   if (!roles.includes("admin") && !roles.includes("employee")) throw new Error("غير مصرح");
 }
 
 async function resolveImage(path: string | null): Promise<string> {
-  if (!path) return "";
-  if (path.startsWith("data:")) return path;
-  if (path.startsWith("http")) {
-    try {
-      const url = new URL(path);
-      const marker = "/storage/v1/object/public/projects/";
-      const idx = url.pathname.indexOf(marker);
-      if (idx >= 0) path = decodeURIComponent(url.pathname.slice(idx + marker.length));
-      else {
-        const pub = "/storage/v1/object/public/project-images/";
-        const pi = url.pathname.indexOf(pub);
-        if (pi >= 0) path = decodeURIComponent(url.pathname.slice(pi + pub.length));
-        else return path;
-      }
-    } catch { return path; }
-  }
-  const { signGetUrl } = await import("./r2");
-  return signGetUrl(path, 60 * 60 * 24 * 7).catch(() => "");
+  return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
 const adSchema = z.object({

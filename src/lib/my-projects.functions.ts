@@ -2,13 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
 import * as projectsRepo from "./projects.repo";
+import { resolveStoredFileUrl } from "./storage-url";
 
 async function resolveImage(path: string | null): Promise<string> {
-  if (!path) return "";
-  if (path.startsWith("http") || path.startsWith("data:")) return path;
-  if (!path.includes("/")) return path;
-  const { signGetUrl } = await import("./r2");
-  return signGetUrl(path, 60 * 60 * 24 * 7).catch(() => "");
+  return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
 export const listMyProjects = createServerFn({ method: "GET" })
