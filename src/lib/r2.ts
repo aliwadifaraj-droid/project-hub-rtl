@@ -53,7 +53,7 @@ export async function uploadToR2(params: {
   const url = objectUrl(params.key);
   const res = await getClient().fetch(url, {
     method: "PUT",
-    body,
+    body: body as BodyInit,
     headers: params.contentType ? { "content-type": params.contentType } : undefined,
   });
   if (!res.ok) {
