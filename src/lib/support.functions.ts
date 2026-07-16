@@ -36,13 +36,65 @@ function matchQa(qas: Array<{ question: string; answer: string; keywords: string
 }
 
 async function answerProjectQuery(text: string): Promise<string | null> {
-  const t = (text ?? "").toLowerCase();
-  if (!t.includes("مشروع") && !t.includes("المشاريع")) return null;
+  const t = (text ?? "").toLowerCase().trim();
+  if (!t) return null;
+  const projectKeywords = ["مشروع", "المشاريع", "مشاريع", "project", "projects"];
+  if (!projectKeywords.some((k) => t.includes(k))) return null;
+
   const rows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
-  if (!rows.length) return null;
-  if (t.includes("كم") || t.includes("عدد")) return `عدد المشاريع: ${rows.length}`;
+  if (!rows.length) return "لا توجد مشاريع متاحة حالياً.";
+
   const statusMap: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
-  return "المشاريع المتاحة:\n\n" + rows.slice(0, 20).map((p) => `• ${p.name} — ${p.location ?? "-"} — ${statusMap[p.status] ?? p.status}`).join("\n");
+
+  // Count queries
+  if (t.includes("كم") || t.includes("عدد") || t.includes("count") || t.includes("how many")) {
+    return `عدد المشاريع المعتمدة حالياً: ${rows.length}`;
+  }
+
+  // Try to find a specific project by name/location match
+  const match = rows.find((p) => {
+    const name = (p.name ?? "").toLowerCase();
+    const loc = (p.location ?? "").toLowerCase();
+    return (name && t.includes(name)) || (loc && t.includes(loc));
+  });
+  if (match) {
+    const parts = [
+      `المشروع: ${match.name}`,
+      match.location ? `الموقع: ${match.location}` : null,
+      match.duration ? `المدة: ${match.duration}` : null,
+      `الحالة: ${statusMap[match.status] ?? match.status}`,
+      match.description ? `الوصف: ${match.description.slice(0, 400)}` : null,
+    ].filter(Boolean);
+    return parts.join("\n");
+  }
+
+  // Status-filtered listing
+  let filtered = rows;
+  if (t.includes("مفتوح") || t.includes("متاح")) filtered = rows.filter((p) => p.status === "active");
+  else if (t.includes("مسلم") || t.includes("تسليم") || t.includes("منجز")) filtered = rows.filter((p) => p.status === "delivered");
+  else if (t.includes("ملغ")) filtered = rows.filter((p) => p.status === "cancelled");
+
+  if (!filtered.length) return "لا توجد مشاريع مطابقة لطلبك.";
+  return "المشاريع المتاحة:\n\n" + filtered.slice(0, 20).map((p) => `• ${p.name} — ${p.location ?? "-"} — ${statusMap[p.status] ?? p.status}`).join("\n");
+}
+
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+/** Returns true when current time (Riyadh, UTC+3) is inside configured work hours. */
+function isInWorkHours(settings: { work_days: Record<string, boolean> | null; work_start: string | null; work_end: string | null }): boolean {
+  if (!settings.work_days || !settings.work_start || !settings.work_end) return true;
+  const now = new Date();
+  // Compute in Asia/Riyadh (UTC+3, no DST).
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const localMinutes = (utcMinutes + 3 * 60) % (24 * 60);
+  const dayIdx = (now.getUTCDay() + Math.floor((utcMinutes + 3 * 60) / (24 * 60))) % 7;
+  const dayKey = DAY_KEYS[dayIdx];
+  if (!settings.work_days[dayKey]) return false;
+  const [sh, sm] = settings.work_start.split(":").map(Number);
+  const [eh, em] = settings.work_end.split(":").map(Number);
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  return localMinutes >= start && localMinutes <= end;
 }
 
 async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string | null) {
@@ -55,7 +107,8 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
 
 async function escalateOrOffHours(chatId: string) {
   const settings = await getBotSettingsRow();
-  if (settings?.allow_escalation === false) {
+  const offHours = settings ? !isInWorkHours(settings) : false;
+  if (offHours || settings?.allow_escalation === false) {
     await supportRepo.addSupportMessage(chatId, "bot", settings?.off_hours_message?.trim() || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
     return { escalated: false };
   }
