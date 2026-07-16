@@ -1,27 +1,21 @@
-// Cloudflare R2 (S3-compatible) client. Server-only.
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+// Cloudflare R2 client — uses aws4fetch (works on Workers/Node/Vercel).
+// Server-only.
+import { AwsClient } from "aws4fetch";
 
-let _client: S3Client | null = null;
+let _client: AwsClient | null = null;
 
-function getClient(): S3Client {
+function getClient(): AwsClient {
   if (_client) return _client;
-  const endpoint = process.env.R2_ENDPOINT;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  if (!endpoint || !accessKeyId || !secretAccessKey) {
-    throw new Error("R2 credentials missing (R2_ENDPOINT / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY)");
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error("R2 credentials missing (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY)");
   }
-  _client = new S3Client({
+  _client = new AwsClient({
+    accessKeyId,
+    secretAccessKey,
+    service: "s3",
     region: "auto",
-    endpoint,
-    credentials: { accessKeyId, secretAccessKey },
-    forcePathStyle: true,
   });
   return _client;
 }
@@ -32,36 +26,60 @@ export function getBucket(): string {
   return b;
 }
 
-/** Upload a file to R2 and return the object key. */
+function getEndpoint(): string {
+  const e = process.env.R2_ENDPOINT;
+  if (!e) throw new Error("R2_ENDPOINT is not set");
+  return e.replace(/\/+$/, "");
+}
+
+function encodeKey(key: string) {
+  return key.split("/").map(encodeURIComponent).join("/");
+}
+
+function objectUrl(key: string): string {
+  return `${getEndpoint()}/${getBucket()}/${encodeKey(key)}`;
+}
+
+/** Upload a file to R2. */
 export async function uploadToR2(params: {
   key: string;
   body: Uint8Array | ArrayBuffer | Buffer;
   contentType?: string;
 }): Promise<{ key: string; bucket: string }> {
-  const bucket = getBucket();
   const body =
     params.body instanceof Uint8Array
       ? params.body
       : new Uint8Array(params.body as ArrayBuffer);
-  await getClient().send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: params.key,
-      Body: body,
-      ContentType: params.contentType,
-    }),
-  );
-  return { key: params.key, bucket };
+  const url = objectUrl(params.key);
+  const res = await getClient().fetch(url, {
+    method: "PUT",
+    body: body as BodyInit,
+    headers: params.contentType ? { "content-type": params.contentType } : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`R2 PUT ${res.status}: ${text.slice(0, 300)}`);
+  }
+  return { key: params.key, bucket: getBucket() };
 }
 
 /** Generate a signed GET URL valid for `expiresIn` seconds (default 1h). */
 export async function signGetUrl(key: string, expiresIn = 60 * 60): Promise<string> {
-  const cmd = new GetObjectCommand({ Bucket: getBucket(), Key: key });
-  return getSignedUrl(getClient(), cmd, { expiresIn });
+  const url = new URL(objectUrl(key));
+  url.searchParams.set("X-Amz-Expires", String(Math.min(Math.max(expiresIn, 1), 60 * 60 * 24 * 7)));
+  const signed = await getClient().sign(
+    new Request(url.toString(), { method: "GET" }),
+    { aws: { signQuery: true } },
+  );
+  return signed.url;
 }
 
 export async function deleteFromR2(key: string): Promise<void> {
-  await getClient().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }));
+  const res = await getClient().fetch(objectUrl(key), { method: "DELETE" });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`R2 DELETE ${res.status}: ${text.slice(0, 300)}`);
+  }
 }
 
 /** Build a deterministic object key: <prefix>/<uuid>-<filename>. */

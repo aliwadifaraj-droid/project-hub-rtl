@@ -1,41 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Bot, Save, Plus, X } from "lucide-react";
 import { toast } from "sonner";
+import { getGroqSettings, updateGroqSettings, type GroqSettings } from "@/lib/bot-settings.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/groq-settings")({
   component: GeminiSettingsPage,
 });
 
-type GeminiCfg = {
-  systemInstruction: string;
-  dialect: string;
-  botName: string;
-  blockedReplies: string[];
-  scope: string;
-  groqEnabled: boolean;
-};
-
-async function fetchCfg(): Promise<GeminiCfg> {
-  const res = await fetch("/api/admin/bot-settings");
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-async function saveCfg(cfg: GeminiCfg) {
-  const res = await fetch("/api/admin/bot-settings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(cfg),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
 function GeminiSettingsPage() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["gemini-cfg"], queryFn: fetchCfg });
+  const fetchCfg = useServerFn(getGroqSettings);
+  const saveCfg = useServerFn(updateGroqSettings);
+  const { data, isLoading } = useQuery({ queryKey: ["groq-cfg"], queryFn: () => fetchCfg() });
 
   const [systemInstruction, setSystem] = useState("");
   const [dialect, setDialect] = useState("");
@@ -59,8 +38,9 @@ function GeminiSettingsPage() {
   async function save() {
     setSaving(true);
     try {
-      await saveCfg({ systemInstruction, dialect, botName, blockedReplies: blocked, scope, groqEnabled });
-      qc.invalidateQueries({ queryKey: ["gemini-cfg"] });
+      const payload: GroqSettings = { systemInstruction, dialect, botName, blockedReplies: blocked, scope, groqEnabled };
+      await saveCfg({ data: payload });
+      qc.invalidateQueries({ queryKey: ["groq-cfg"] });
       toast.success("تم حفظ إعدادات Groq");
     } catch (e: any) {
       toast.error(e?.message ?? "تعذر الحفظ");
@@ -116,7 +96,6 @@ function GeminiSettingsPage() {
           </section>
 
           <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
-
             <label className="mb-1 block text-xs font-semibold">System Instruction</label>
             <textarea
               rows={5}
