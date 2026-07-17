@@ -105,3 +105,56 @@ export const deleteFile = createServerFn({ method: "POST" })
   });
 
 export { getFileByKey };
+
+/**
+ * Register a file that was uploaded directly from the browser to R2.
+ * No R2 credentials involved on the server; we just persist metadata in Turso.
+ */
+export const registerUploadedFile = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      key: z.string().min(1).max(500),
+      filename: z.string().min(1).max(200),
+      mime: z.string().max(200).optional(),
+      size: z.number().int().min(0).max(200 * 1024 * 1024),
+      purpose: z.enum(["project-image", "bid-pdf", "vip-receipt", "other"]).default("other"),
+      publicUrl: z.string().url().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const id = await insertFile({
+      r2_key: data.key,
+      filename: data.filename,
+      mime: data.mime ?? null,
+      size: data.size,
+      purpose: data.purpose,
+      uploaded_by: context.userId,
+    });
+    return { id, key: data.key, publicUrl: data.publicUrl ?? "" };
+  });
+
+/** Public variant for visitor-facing forms (VIP receipts, project submissions). */
+export const registerPublicUploadedFile = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      key: z.string().min(1).max(500),
+      filename: z.string().min(1).max(200),
+      mime: z.string().max(200).optional(),
+      size: z.number().int().min(0).max(20 * 1024 * 1024),
+      purpose: z.enum(["project-image", "vip-receipt", "bid-pdf"]),
+      publicUrl: z.string().url().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const id = await insertFile({
+      r2_key: data.key,
+      filename: data.filename,
+      mime: data.mime ?? null,
+      size: data.size,
+      purpose: data.purpose,
+      uploaded_by: null,
+    });
+    return { id, key: data.key, publicUrl: data.publicUrl ?? "" };
+  });
+
