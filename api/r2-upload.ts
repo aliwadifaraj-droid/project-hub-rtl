@@ -28,8 +28,10 @@ export default async function handler(req: any, res: any) {
     const key = makeKey('uploads', filename);
     await uploadToR2({ key, body: buffer, contentType });
 
-    // 5. نرجع الرابط العام
-    const publicUrl = `${process.env.VITE_R2_PUBLIC_URL}/${key}`;
+    // 5. نرجع الرابط العام - التعديل هنا
+    const baseUrl = process.env.VITE_R2_PUBLIC_URL || `https://${process.env.R2_BUCKET}.r2.dev`;
+    const publicUrl = `${baseUrl}/${key}`;
+    
     return res.status(200).json({ url: publicUrl, key });
 
   } catch (err: any) {
