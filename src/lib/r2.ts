@@ -21,10 +21,11 @@ function getClient(): AwsClient {
 }
 
 export function getBucket(): string {
-  const b = process.env.R2_BUCKET;
+  const b = process.env.R2_BUCKET || process.env.R2_BUCKET_NAME;
   if (!b) throw new Error("R2_BUCKET is not set");
   return b;
 }
+
 
 function getEndpoint(): string {
   const e = process.env.R2_ENDPOINT;
