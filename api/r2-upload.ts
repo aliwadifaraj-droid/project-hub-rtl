@@ -1,4 +1,6 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import formidable from 'formidable';
+import fs from 'fs';
 
 const R2 = new S3Client({
   region: "auto",
@@ -10,35 +12,38 @@ const R2 = new S3Client({
 });
 
 export const config = {
-  api: { bodyParser: false },
+  api: { bodyParser: false }, // لازم نطفيه عشان formidable
 };
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  try {
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const buffer = Buffer.concat(chunks);
+  const form = formidable({ multiples: false });
 
-    const filename = req.headers['x-filename'] || `file-${Date.now()}.bin`;
-    const contentType = req.headers['content-type'] || 'application/octet-stream';
-    const key = `uploads/${Date.now()}-${filename}`;
+  form.parse(req, async (err, fields, files: any) => {
+    if (err) return res.status(500).json({ error: err.message });
 
-    await R2.send(new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-    }));
+    try {
+      const file = files.file[0]; // اسم الحقل لازم يكون 'file'
+      const buffer = fs.readFileSync(file.filepath);
+      const key = `uploads/${Date.now()}-${file.originalFilename}`;
 
-    const baseUrl = process.env.VITE_R2_PUBLIC_URL || `https://${process.env.R2_BUCKET}.r2.dev`;
-    const publicUrl = `${baseUrl}/${key}`;
-    
-    return res.status(200).json({ url: publicUrl, key });
+      await R2.send(new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: key,
+        Body: buffer,
+        ContentType: file.mimetype,
+      }));
 
-  } catch (err: any) {
-    console.error("R2 UPLOAD ERROR:", err);
-    return res.status(500).json({ error: err.message });
-  }
+      const baseUrl = process.env.VITE_R2_PUBLIC_URL || `https://${process.env.R2_BUCKET}.r2.dev`;
+      const publicUrl = `${baseUrl}/${key}`;
+      
+      fs.unlinkSync(file.filepath); // امسح الملف المؤقت
+      return res.status(200).json({ url: publicUrl, key });
+
+    } catch (e: any) {
+      console.error("R2 UPLOAD ERROR:", e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
 }
