@@ -1,6 +1,5 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import formidable from 'formidable';
-import fs from 'fs';
+import Busboy from 'busboy';
 
 const R2 = new S3Client({
   region: "auto",
@@ -11,39 +10,48 @@ const R2 = new S3Client({
   },
 });
 
-export const config = {
-  api: { bodyParser: false }, // لازم نطفيه عشان formidable
-};
+export const config = { api: { bodyParser: false } };
 
-export default async function handler(req: any, res: any) {
+export default function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  const form = formidable({ multiples: false });
+  const busboy = Busboy({ headers: req.headers });
+  let uploadPromise: Promise<any> | null = null;
 
-  form.parse(req, async (err, fields, files: any) => {
-    if (err) return res.status(500).json({ error: err.message });
+  busboy.on('file', (name, file, info) => {
+    const { filename, mimeType } = info;
+    const key = `uploads/${Date.now()}-${filename}`;
+    const chunks: Buffer[] = [];
 
+    file.on('data', (chunk) => chunks.push(chunk));
+
+    uploadPromise = new Promise(async (resolve, reject) => {
+      file.on('end', async () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          await R2.send(new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key,
+            Body: buffer,
+            ContentType: mimeType,
+          }));
+          const baseUrl = process.env.VITE_R2_PUBLIC_URL || `https://${process.env.R2_BUCKET}.r2.dev`;
+          resolve({ url: `${baseUrl}/${key}`, key });
+        } catch (err) { reject(err); }
+      });
+    });
+  });
+
+  busboy.on('finish', async () => {
     try {
-      const file = files.file[0]; // اسم الحقل لازم يكون 'file'
-      const buffer = fs.readFileSync(file.filepath);
-      const key = `uploads/${Date.now()}-${file.originalFilename}`;
-
-      await R2.send(new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET,
-        Key: key,
-        Body: buffer,
-        ContentType: file.mimetype,
-      }));
-
-      const baseUrl = process.env.VITE_R2_PUBLIC_URL || `https://${process.env.R2_BUCKET}.r2.dev`;
-      const publicUrl = `${baseUrl}/${key}`;
-      
-      fs.unlinkSync(file.filepath); // امسح الملف المؤقت
-      return res.status(200).json({ url: publicUrl, key });
-
-    } catch (e: any) {
-      console.error("R2 UPLOAD ERROR:", e);
-      return res.status(500).json({ error: e.message });
+      if (!uploadPromise) return res.status(400).json({ error: "لم يتم ارسال ملف باسم 'file'" });
+      const result = await uploadPromise;
+      return res.status(200).json(result);
+    } catch (err: any) {
+      console.error("UPLOAD ERROR:", err);
+      return res.status(500).json({ error: err.message });
     }
   });
+
+  req.pipe(busboy);
 }
