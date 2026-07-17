@@ -210,7 +210,18 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       else await supportRepo.addSupportMessage(chat.id, "bot", CLARIFY_PROMPT);
       return { ok: true };
     }
-    answer = answer || await answerProjectQuery(data.body) || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
+    const projectAnswer = await answerProjectQuery(data.body);
+    let finalAnswer = answer || projectAnswer;
+    if (!finalAnswer && settings?.groq_enabled !== false) {
+      finalAnswer = await askGroq(data.body, {
+        systemInstruction: settings?.gemini_system_instruction,
+        dialect: settings?.gemini_dialect,
+        botName: settings?.gemini_bot_name,
+        scope: settings?.gemini_scope,
+        blockedReplies: settings?.gemini_blocked_replies,
+      });
+    }
+    answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
     await supportRepo.addSupportMessage(chat.id, "bot", answer);
     return { ok: true };
   });
