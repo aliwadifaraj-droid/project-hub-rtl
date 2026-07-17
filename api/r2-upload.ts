@@ -1,5 +1,4 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import Busboy from 'busboy';
 
 const R2 = new S3Client({
   region: "auto",
@@ -10,48 +9,36 @@ const R2 = new S3Client({
   },
 });
 
-export const config = { api: { bodyParser: false } };
+export const config = { api: { bodyParser: true, sizeLimit: '10mb' } }; // شغلنا bodyParser
 
-export default function handler(req: any, res: any) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
-
-  const busboy = Busboy({ headers: req.headers });
-  let uploadPromise: Promise<any> | null = null;
-
-  busboy.on('file', (name, file, info) => {
-    const { filename, mimeType } = info;
-    const key = `uploads/${Date.now()}-${filename}`;
-    const chunks: Buffer[] = [];
-
-    file.on('data', (chunk) => chunks.push(chunk));
-
-    uploadPromise = new Promise(async (resolve, reject) => {
-      file.on('end', async () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          await R2.send(new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET,
-            Key: key,
-            Body: buffer,
-            ContentType: mimeType,
-          }));
-          const baseUrl = process.env.VITE_R2_PUBLIC_URL || `https://${process.env.R2_BUCKET}.r2.dev`;
-          resolve({ url: `${baseUrl}/${key}`, key });
-        } catch (err) { reject(err); }
-      });
-    });
+export default async function handler(req: any, res: any) {
+  console.log("METHOD:", req.method);
+  console.log("ENV CHECK:", {
+    has_account:!!process.env.R2_ACCOUNT_ID,
+    has_key:!!process.env.R2_ACCESS_KEY_ID,
+    has_bucket:!!process.env.R2_BUCKET
   });
 
-  busboy.on('finish', async () => {
-    try {
-      if (!uploadPromise) return res.status(400).json({ error: "لم يتم ارسال ملف باسم 'file'" });
-      const result = await uploadPromise;
-      return res.status(200).json(result);
-    } catch (err: any) {
-      console.error("UPLOAD ERROR:", err);
-      return res.status(500).json({ error: err.message });
-    }
-  });
+  if (req.method!== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  req.pipe(busboy);
+  try {
+    const file = req.body; // دام bodyParser شغال
+    if(!file) return res.status(400).json({error: "body فاضي"})
+    
+    const buffer = Buffer.from(file);
+    const key = `uploads/${Date.now()}-debug.jpg`;
+
+    await R2.send(new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: key,
+      Body: buffer,
+    }));
+
+    const baseUrl = process.env.VITE_R2_PUBLIC_URL;
+    return res.status(200).json({ url: `${baseUrl}/${key}`, success: true });
+
+  } catch (err: any) {
+    console.error("FULL ERROR:", err);
+    return res.status(500).json({ error: err.message, stack: err.stack });
+  }
 }
