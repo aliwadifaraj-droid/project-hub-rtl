@@ -1,41 +1,44 @@
-import { uploadToR2, makeKey } from '../lib/r2.server';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+const R2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
+});
 
 export const config = {
-  api: {
-    bodyParser: false, // مهم جدا عشان Vercel ما يخرب الملف
-  },
+  api: { bodyParser: false },
 };
 
 export default async function handler(req: any, res: any) {
-  // 1. نسمح POST بس
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    // 2. نقرا الملف من الـ request
     const chunks: Buffer[] = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
+    for await (const chunk of req) chunks.push(chunk);
     const buffer = Buffer.concat(chunks);
 
-    // 3. نجيب اسم الملف من الهيدر
-    const filename = req.headers['x-filename'] || 'file.bin';
+    const filename = req.headers['x-filename'] || `file-${Date.now()}.bin`;
     const contentType = req.headers['content-type'] || 'application/octet-stream';
-    
-    // 4. نسوي key ونرفع
-    const key = makeKey('uploads', filename);
-    await uploadToR2({ key, body: buffer, contentType });
+    const key = `uploads/${Date.now()}-${filename}`;
 
-    // 5. نرجع الرابط العام - التعديل هنا
+    await R2.send(new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    }));
+
     const baseUrl = process.env.VITE_R2_PUBLIC_URL || `https://${process.env.R2_BUCKET}.r2.dev`;
     const publicUrl = `${baseUrl}/${key}`;
     
     return res.status(200).json({ url: publicUrl, key });
 
   } catch (err: any) {
-    console.error(err);
+    console.error("R2 UPLOAD ERROR:", err);
     return res.status(500).json({ error: err.message });
   }
 }
