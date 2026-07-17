@@ -78,6 +78,54 @@ async function answerProjectQuery(text: string): Promise<string | null> {
   return "المشاريع المتاحة:\n\n" + filtered.slice(0, 20).map((p) => `• ${p.name} — ${p.location ?? "-"} — ${statusMap[p.status] ?? p.status}`).join("\n");
 }
 
+/** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
+async function askGroq(userText: string, opts: {
+  systemInstruction?: string | null;
+  dialect?: string | null;
+  botName?: string | null;
+  scope?: string | null;
+  blockedReplies?: string[] | null;
+}): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const sysParts = [
+    opts.systemInstruction?.trim(),
+    opts.botName ? `اسمك: ${opts.botName}.` : null,
+    opts.dialect ? `اللهجة: ${opts.dialect}.` : null,
+    opts.scope ? `نطاق عملك: ${opts.scope}` : null,
+  ].filter(Boolean);
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.4,
+        max_tokens: 512,
+        messages: [
+          ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
+          { role: "user", content: userText },
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const j: any = await res.json();
+    const text: string | undefined = j?.choices?.[0]?.message?.content?.trim();
+    if (!text) return null;
+    for (const bad of opts.blockedReplies ?? []) {
+      if (bad && text.toLowerCase().includes(bad.toLowerCase())) return null;
+    }
+    return text;
+  } catch {
+    return null;
+  }
+}
+
+
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 /** Returns true when current time (Riyadh, UTC+3) is inside configured work hours. */
@@ -162,7 +210,18 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       else await supportRepo.addSupportMessage(chat.id, "bot", CLARIFY_PROMPT);
       return { ok: true };
     }
-    answer = answer || await answerProjectQuery(data.body) || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
+    const projectAnswer = await answerProjectQuery(data.body);
+    let finalAnswer = answer || projectAnswer;
+    if (!finalAnswer && settings?.groq_enabled !== false) {
+      finalAnswer = await askGroq(data.body, {
+        systemInstruction: settings?.gemini_system_instruction,
+        dialect: settings?.gemini_dialect,
+        botName: settings?.gemini_bot_name,
+        scope: settings?.gemini_scope,
+        blockedReplies: settings?.gemini_blocked_replies,
+      });
+    }
+    answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
     await supportRepo.addSupportMessage(chat.id, "bot", answer);
     return { ok: true };
   });

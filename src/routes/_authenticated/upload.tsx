@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { uploadFile, getFileUrl } from "@/lib/files.functions";
+import { registerUploadedFile } from "@/lib/files.functions";
+import { uploadToR2Browser, makeBrowserKey } from "@/lib/r2-browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,20 +22,10 @@ export const Route = createFileRoute("/_authenticated/upload")({
   }),
 });
 
-type Uploaded = { id: string; key: string; filename: string; url?: string };
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
+type Uploaded = { id: string; key: string; filename: string; url: string };
 
 function UploadPage() {
-  const upload = useServerFn(uploadFile);
-  const signUrl = useServerFn(getFileUrl);
+  const register = useServerFn(registerUploadedFile);
 
   const [file, setFile] = useState<File | null>(null);
   const [purpose, setPurpose] =
@@ -47,19 +38,39 @@ function UploadPage() {
     if (!file) return;
     setBusy(true);
     try {
-      const data = await fileToBase64(file);
-      const res = await upload({
-        data: { filename: file.name, mime: file.type || undefined, purpose, data },
+      const prefix =
+        purpose === "bid-pdf" ? "bids" :
+        purpose === "vip-receipt" ? "vip-receipts" :
+        purpose === "project-image" ? "project-image" : "other";
+      const key = makeBrowserKey(prefix, file.name);
+
+      // 1) Direct browser -> R2 upload (VITE_ keys only, no server touch)
+      const up = await uploadToR2Browser({
+        file,
+        key,
+        contentType: file.type || undefined,
       });
-      const signed = await signUrl({ data: { id: res.id, expiresIn: 3600 } });
+
+      // 2) Send only the resulting URL/metadata to the API to save in Turso
+      const res = await register({
+        data: {
+          key: up.key,
+          filename: file.name,
+          mime: file.type || undefined,
+          size: file.size,
+          purpose,
+          publicUrl: up.publicUrl,
+        },
+      });
+
       setItems((prev) => [
-        { id: res.id, key: res.key, filename: file.name, url: signed.url },
+        { id: res.id, key: up.key, filename: file.name, url: up.publicUrl },
         ...prev,
       ]);
+      const input = document.getElementById("file-input") as HTMLInputElement | null;
+      if (input) input.value = "";
       setFile(null);
-      (document.getElementById("file-input") as HTMLInputElement | null)?.value &&
-        ((document.getElementById("file-input") as HTMLInputElement).value = "");
-      toast.success("تم رفع الملف بنجاح");
+      toast.success("تم الرفع وحفظ الرابط في القاعدة");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "فشل الرفع");
     } finally {
@@ -73,7 +84,7 @@ function UploadPage() {
 
       <form onSubmit={onSubmit} className="space-y-4 bg-card p-6 rounded-lg border">
         <div>
-          <Label htmlFor="file-input">الملف (حتى 20MB)</Label>
+          <Label htmlFor="file-input">الملف</Label>
           <Input
             id="file-input"
             type="file"
@@ -98,7 +109,7 @@ function UploadPage() {
         </div>
 
         <Button type="submit" disabled={!file || busy} className="w-full">
-          {busy ? "جاري الرفع..." : "رفع"}
+          {busy ? "جاري الرفع..." : "رفع مباشرة إلى R2"}
         </Button>
       </form>
 
@@ -109,16 +120,14 @@ function UploadPage() {
             <div key={it.id} className="p-4 border rounded-lg bg-card">
               <div className="font-medium">{it.filename}</div>
               <div className="text-xs text-muted-foreground mt-1 break-all">{it.key}</div>
-              {it.url && (
-                <a
-                  href={it.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary text-sm mt-2 inline-block underline"
-                >
-                  فتح الرابط (صالح ساعة)
-                </a>
-              )}
+              <a
+                href={it.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary text-sm mt-2 inline-block underline break-all"
+              >
+                {it.url}
+              </a>
             </div>
           ))}
         </div>
