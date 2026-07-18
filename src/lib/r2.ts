@@ -6,8 +6,16 @@ let _client: AwsClient | null = null;
 
 function getClient(): AwsClient {
   if (_client) return _client;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const accessKeyId =
+    process.env.R2_ACCESS_KEY_ID ||
+    process.env.R2_ACCESS_KEY ||
+    process.env.VITE_R2_ACCESS_KEY_ID ||
+    process.env.VITE_R2_ACCESS_KEY;
+  const secretAccessKey =
+    process.env.R2_SECRET_ACCESS_KEY ||
+    process.env.R2_SECRET ||
+    process.env.VITE_R2_SECRET_ACCESS_KEY ||
+    process.env.VITE_R2_SECRET;
   if (!accessKeyId || !secretAccessKey) {
     throw new Error("R2 credentials missing (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY)");
   }
@@ -21,16 +29,24 @@ function getClient(): AwsClient {
 }
 
 export function getBucket(): string {
-  const b = process.env.R2_BUCKET || process.env.R2_BUCKET_NAME;
-  if (!b) throw new Error("R2_BUCKET is not set");
+  const b =
+    process.env.R2_BUCKET ||
+    process.env.R2_BUCKET_NAME ||
+    process.env.VITE_R2_BUCKET ||
+    "turso";
   return b;
 }
 
 
 function getEndpoint(): string {
-  const e = process.env.R2_ENDPOINT;
-  if (!e) throw new Error("R2_ENDPOINT is not set");
-  return e.replace(/\/+$/, "");
+  const e = process.env.R2_ENDPOINT || process.env.VITE_R2_ENDPOINT;
+  if (e) return e.replace(/\/+$/, "");
+  const acc =
+    process.env.R2_ACCOUNT_ID ||
+    process.env.VITE_R2_ACCOUNT_ID ||
+    process.env.CF_ACCOUNT_ID;
+  if (acc) return `https://${acc}.r2.cloudflarestorage.com`;
+  throw new Error("R2_ENDPOINT or R2_ACCOUNT_ID is not set");
 }
 
 function encodeKey(key: string) {

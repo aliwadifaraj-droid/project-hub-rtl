@@ -34,6 +34,7 @@ import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/c
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiPublicUploadRouteImport } from './routes/api/public/upload'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin.support'
@@ -177,6 +178,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicUploadRoute = ApiPublicUploadRouteImport.update({
+  id: '/api/public/upload',
+  path: '/api/public/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminVipRoute = AuthenticatedAdminVipRouteImport.update({
@@ -336,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -380,6 +387,7 @@ export interface FileRoutesByTo {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -428,6 +436,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -476,6 +485,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
+    | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/admin/'
     | '/lovable/email/queue/process'
@@ -520,6 +530,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
+    | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/admin'
     | '/lovable/email/queue/process'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
+    | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/lovable/email/queue/process'
@@ -591,6 +603,7 @@ export interface RootRouteChildren {
   VipRoute: typeof VipRouteWithChildren
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
+  ApiPublicUploadRoute: typeof ApiPublicUploadRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -772,6 +785,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/upload': {
+      id: '/api/public/upload'
+      path: '/api/public/upload'
+      fullPath: '/api/public/upload'
+      preLoaderRoute: typeof ApiPublicUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/vip': {
@@ -1019,6 +1039,7 @@ const rootRouteChildren: RootRouteChildren = {
   VipRoute: VipRouteWithChildren,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ProjectIdRoute: ProjectIdRoute,
+  ApiPublicUploadRoute: ApiPublicUploadRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
