@@ -37,20 +37,15 @@ function UploadPage() {
     if (!file) return;
     setBusy(true);
     try {
-      const prefix =
-        purpose === "bid-pdf" ? "bids" :
-        purpose === "vip-receipt" ? "vip-receipts" :
-        purpose === "project-image" ? "project-image" : "other";
-      const key = makeBrowserKey(prefix, file.name);
+      // Upload via server route (runs on Vercel, no CORS issues, supports images + PDF)
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("purpose", purpose);
+      const resp = await fetch("/api/public/upload", { method: "POST", body: fd });
+      const up = await resp.json();
+      if (!resp.ok || !up?.ok) throw new Error(up?.error || `فشل الرفع (${resp.status})`);
 
-      // 1) Direct browser -> R2 upload (VITE_ keys only, no server touch)
-      const up = await uploadToR2Browser({
-        file,
-        key,
-        contentType: file.type || undefined,
-      });
-
-      // 2) Send only the resulting URL/metadata to the API to save in Turso
+      // Save metadata + URL in Turso
       const res = await register({
         data: {
           key: up.key,
@@ -58,12 +53,12 @@ function UploadPage() {
           mime: file.type || undefined,
           size: file.size,
           purpose,
-          publicUrl: up.publicUrl,
+          publicUrl: up.url,
         },
       });
 
       setItems((prev) => [
-        { id: res.id, key: up.key, filename: file.name, url: up.publicUrl },
+        { id: res.id, key: up.key, filename: file.name, url: up.url },
         ...prev,
       ]);
       const input = document.getElementById("file-input") as HTMLInputElement | null;
