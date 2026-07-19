@@ -89,14 +89,7 @@ async function answerProjectQuery(text: string): Promise<string | null> {
     return (name && t.includes(name)) || (loc && t.includes(loc));
   });
   if (match) {
-    const parts = [
-      `المشروع: ${match.name}`,
-      match.location ? `الموقع: ${match.location}` : null,
-      match.duration ? `المدة: ${match.duration}` : null,
-      `الحالة: ${STATUS_MAP[match.status] ?? match.status}`,
-      match.description ? `الوصف: ${match.description.slice(0, 400)}` : null,
-    ].filter(Boolean);
-    return parts.join("\n");
+    return `حالة المشروع: ${STATUS_MAP[match.status] ?? match.status}\nالموقع: ${match.location ?? "-"}`;
   }
 
   // Status-filtered listing
