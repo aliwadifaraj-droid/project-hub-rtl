@@ -184,6 +184,61 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
   return created;
 }
 
+const ALERT_MARKER = "__ALERT_SENT__";
+const BUSY_REPLY = "الموظفين مشغولين حالياً. كيف أقدر أساعدك؟";
+
+async function sendWaitingAlert(chatId: string, visitorName: string | null) {
+  const to = process.env.VITE_ALERT_EMAIL || process.env.ALERT_EMAIL;
+  const key = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
+  if (!to || !key) { console.error("alert email/key missing"); return; }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        from: "alamran <send@alamran.online>",
+        to: [to],
+        subject: "🚨 عميل ينتظر",
+        html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>`,
+      }),
+    });
+    if (!res.ok) console.error("waiting alert failed", res.status, await res.text());
+  } catch (e) { console.error("waiting alert exception", e); }
+}
+
+async function agentRepliedSince(chatId: string, sinceIso: string): Promise<boolean> {
+  const msgs = await supportRepo.listMessages(chatId, sinceIso);
+  return msgs.some((m) => m.sender === "admin");
+}
+
+async function recentAlertExists(chatId: string): Promise<boolean> {
+  const { db, rowsToObjects } = await import("./db");
+  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const r = await db.execute(
+    `SELECT id FROM support_messages WHERE chat_id = ? AND sender = 'system' AND body = ? AND created_at > ? LIMIT 1`,
+    [chatId, ALERT_MARKER, cutoff],
+  );
+  return rowsToObjects(r).length > 0;
+}
+
+function scheduleEscalationWatchers(chatId: string, visitorName: string | null, startIso: string) {
+  setTimeout(async () => {
+    try {
+      if (await agentRepliedSince(chatId, startIso)) return;
+      if (await recentAlertExists(chatId)) return;
+      await sendWaitingAlert(chatId, visitorName);
+      await supportRepo.addSupportMessage(chatId, "system", ALERT_MARKER);
+    } catch (e) { console.error("watcher-30s", e); }
+  }, 30_000);
+
+  setTimeout(async () => {
+    try {
+      if (await agentRepliedSince(chatId, startIso)) return;
+      await supportRepo.addSupportMessage(chatId, "bot", BUSY_REPLY);
+    } catch (e) { console.error("watcher-60s", e); }
+  }, 60_000);
+}
+
 async function escalateOrOffHours(chatId: string) {
   const settings = await getBotSettingsRow();
   const offHours = settings ? !isInWorkHours(settings) : false;
@@ -193,6 +248,8 @@ async function escalateOrOffHours(chatId: string) {
   }
   await supportRepo.updateChatStatus(chatId, "escalated");
   await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
+  const chat = await supportRepo.getChatById(chatId);
+  scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
   return { escalated: true };
 }
 
@@ -237,8 +294,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       answer = m?.answer ?? null;
     }
     if (triggerEscalate) {
-      if (await supportRepo.botAlreadyAsked(chat.id, CLARIFY_PROMPT)) await escalateOrOffHours(chat.id);
-      else await supportRepo.addSupportMessage(chat.id, "bot", CLARIFY_PROMPT);
+      await escalateOrOffHours(chat.id);
       return { ok: true };
     }
     const projectAnswer = await answerProjectQuery(data.body);
