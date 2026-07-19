@@ -37,70 +37,117 @@ function matchQa(qas: Array<{ question: string; answer: string; keywords: string
 
 const STATUS_MAP: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
 
+const STOP_WORDS = new Set([
+  "مشروع", "المشروع", "مشاريع", "المشاريع", "project", "projects",
+  "حالة", "حاله", "وضع", "status", "معلومات", "تفاصيل", "عن", "بخصوص",
+  "ايش", "ما", "هو", "هي", "كم", "عدد", "count", "how", "many",
+  "في", "من", "الى", "على", "the", "a", "an", "is", "what", "tell", "me", "about",
+  "لو", "سمحت", "ممكن", "please",
+]);
+
+function normalizeAr(s: string): string {
+  return (s ?? "")
+    .toLowerCase()
+    .replace(/[?؟.!،,:;()"'`]/g, " ")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokens(s: string): string[] {
+  return normalizeAr(s).split(" ").filter((w) => w && !STOP_WORDS.has(w));
+}
+
+function projectDetails(p: { name: string; status: string; location: string | null; description: string | null; duration: string | null }): string {
+  const lines = [
+    `📌 ${p.name}`,
+    `الحالة: ${STATUS_MAP[p.status] ?? p.status}`,
+    `الموقع: ${p.location ?? "-"}`,
+  ];
+  if (p.duration) lines.push(`المدة: ${p.duration}`);
+  if (p.description) lines.push(`الوصف: ${p.description.slice(0, 300)}`);
+  return lines.join("\n");
+}
+
+function findProjectByQuery(rows: Array<{ name: string; location: string | null }>, query: string): number {
+  const qTokens = tokens(query);
+  if (!qTokens.length) return -1;
+  let bestIdx = -1;
+  let bestScore = 0;
+  rows.forEach((r, i) => {
+    const nameNorm = normalizeAr(r.name);
+    const locNorm = normalizeAr(r.location ?? "");
+    let score = 0;
+    // Full-name substring in either direction
+    const qJoined = qTokens.join(" ");
+    if (nameNorm && (nameNorm === qJoined || nameNorm.includes(qJoined) || qJoined.includes(nameNorm))) score += 10;
+    // Per-token matches
+    for (const t of qTokens) {
+      if (t.length < 2) continue;
+      if (nameNorm.includes(t)) score += 3;
+      else if (locNorm && locNorm.includes(t)) score += 1;
+    }
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
+  });
+  return bestScore >= 3 ? bestIdx : -1;
+}
+
 async function answerProjectQuery(text: string): Promise<string | null> {
   const raw = (text ?? "").trim();
-  const t = raw.toLowerCase();
-  if (!t) return null;
-  const projectKeywords = ["مشروع", "المشاريع", "مشاريع", "project", "projects"];
-  if (!projectKeywords.some((k) => t.includes(k))) return null;
+  if (!raw) return null;
+  const tNorm = normalizeAr(raw);
+  const projectKeywords = ["مشروع", "مشاريع", "project"];
+  const hasProjectWord = projectKeywords.some((k) => tNorm.includes(normalizeAr(k)));
 
   const rows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
-  if (!rows.length) return "لا توجد مشاريع متاحة حالياً.";
+  if (!rows.length) return hasProjectWord ? "لا توجد مشاريع متاحة حالياً." : null;
 
-  // 1) Status query: "حالة مشروع [الاسم]"
-  const statusRe = /(?:حال[ةه]|وضع|status)\s*(?:مشروع|project)?\s*[:\-]?\s*(.+)$/i;
-  const sm = raw.match(statusRe);
-  if (sm && sm[1]) {
-    const q = sm[1].trim().toLowerCase().replace(/[?؟.!،]+$/g, "").trim();
-    if (q) {
-      const p = rows.find((r) => {
-        const n = (r.name ?? "").toLowerCase();
-        return n === q || n.includes(q) || q.includes(n);
-      });
-      if (p) return `حالة مشروع ${p.name}: ${STATUS_MAP[p.status] ?? p.status}`;
-      return `لم أجد مشروعاً باسم "${sm[1].trim()}".`;
-    }
+  // 1) Count queries first
+  if (hasProjectWord && (tNorm.includes("كم") || tNorm.includes("عدد") || tNorm.includes("count") || tNorm.includes("how many"))) {
+    const active = rows.filter((r) => r.status === "active").length;
+    const delivered = rows.filter((r) => r.status === "delivered").length;
+    return `عدد المشاريع المعتمدة: ${rows.length}\n• مفتوح للعروض: ${active}\n• تم التسليم: ${delivered}`;
   }
 
   // 2) City query: "مشاريع [المدينة]"
   const cityRe = /^\s*(?:مشاريع|projects)\s+(?:في|by|in)?\s*(.+)$/i;
   const cm = raw.match(cityRe);
   if (cm && cm[1]) {
-    const city = cm[1].trim().toLowerCase().replace(/[?؟.!،]+$/g, "").trim();
-    if (city && !["المعتمدة", "المتاحة", "المفتوحة", "كلها", "الكل"].includes(city)) {
+    const cityRaw = cm[1].trim();
+    const city = normalizeAr(cityRaw);
+    if (city && !["المعتمده", "المتاحه", "المفتوحه", "كلها", "الكل"].includes(city)) {
       const matches = rows.filter((r) => {
-        const c = ((r as any).city ?? r.location ?? "").toString().toLowerCase();
+        const c = normalizeAr(((r as any).city ?? r.location ?? "").toString());
         return c && (c.includes(city) || city.includes(c));
       });
-      if (!matches.length) return `لا توجد مشاريع في "${cm[1].trim()}".`;
-      return `مشاريع ${cm[1].trim()}:\n\n` + matches.slice(0, 20).map((p) => `• ${p.name} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
+      if (matches.length) {
+        return `مشاريع ${cityRaw}:\n\n` + matches.slice(0, 20).map((p) => `• ${p.name} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
+      }
+      // fall through: maybe user asked about specific project name, try name match
     }
   }
 
-  // Count queries
-  if (t.includes("كم") || t.includes("عدد") || t.includes("count") || t.includes("how many")) {
-    return `عدد المشاريع المعتمدة حالياً: ${rows.length}`;
+  // 3) Specific project match by fuzzy tokens
+  const idx = findProjectByQuery(rows, raw);
+  if (idx >= 0) {
+    return projectDetails(rows[idx]);
   }
 
-  // Try to find a specific project by name/location match
-  const match = rows.find((p) => {
-    const name = (p.name ?? "").toLowerCase();
-    const loc = (p.location ?? "").toLowerCase();
-    return (name && t.includes(name)) || (loc && t.includes(loc));
-  });
-  if (match) {
-    return `حالة المشروع: ${STATUS_MAP[match.status] ?? match.status}\nالموقع: ${match.location ?? "-"}`;
-  }
+  // 4) If not clearly a project query, don't answer
+  if (!hasProjectWord) return null;
 
-  // Status-filtered listing
+  // 5) Status-filtered listing
   let filtered = rows;
-  if (t.includes("مفتوح") || t.includes("متاح")) filtered = rows.filter((p) => p.status === "active");
-  else if (t.includes("مسلم") || t.includes("تسليم") || t.includes("منجز")) filtered = rows.filter((p) => p.status === "delivered");
-  else if (t.includes("ملغ")) filtered = rows.filter((p) => p.status === "cancelled");
+  if (tNorm.includes("مفتوح") || tNorm.includes("متاح")) filtered = rows.filter((p) => p.status === "active");
+  else if (tNorm.includes("مسلم") || tNorm.includes("تسليم") || tNorm.includes("منجز")) filtered = rows.filter((p) => p.status === "delivered");
+  else if (tNorm.includes("ملغ")) filtered = rows.filter((p) => p.status === "cancelled");
 
   if (!filtered.length) return "لا توجد مشاريع مطابقة لطلبك.";
   return "المشاريع المتاحة:\n\n" + filtered.slice(0, 20).map((p) => `• ${p.name} — ${p.location ?? "-"} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
 }
+
 
 /** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
