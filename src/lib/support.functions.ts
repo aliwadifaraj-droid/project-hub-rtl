@@ -294,8 +294,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       answer = m?.answer ?? null;
     }
     if (triggerEscalate) {
-      if (await supportRepo.botAlreadyAsked(chat.id, CLARIFY_PROMPT)) await escalateOrOffHours(chat.id);
-      else await supportRepo.addSupportMessage(chat.id, "bot", CLARIFY_PROMPT);
+      await escalateOrOffHours(chat.id);
       return { ok: true };
     }
     const projectAnswer = await answerProjectQuery(data.body);
