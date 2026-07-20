@@ -65,7 +65,33 @@ export const searchRequests = createServerFn({ method: "GET" })
     return withProj;
   });
 
-export const checkOrderStatus = createServerFn({method:"GET"}).inputValidator((d:{q:string})=>z.object({q:z.string().min(1).max(200)}).parse(d)).handler(async({data})=>{const r=await requestsRepo.searchRequestsByCompany(data.q);const s=r[0]?.status;return s==='new'?'#0d6efd🆕 "تم استلام طلبكم ✅ وجاري المراجعة وسنعلمكم بالنتيجة"':s==='accepted'?'#fd7e14🟠 "تم قبول طلبكم 🎉 وسيتم التواصل معكم قريباً"':s==='rejected'?'#dc3545❌ "نأسف تم رفض طلبكم 🙏 للاستفسار تواصل معنا"':'عذراً لم نجد طلب بهذه البيانات 🙏 تأكد من الايميل او اسم المؤسسة'});
+// ---------- جديد: فحص حالة الطلب للبوت ----------
+export const checkOrderStatus = createServerFn({method:"GET"})
+ .inputValidator((d:{q:string})=>z.object({q:z.string().min(1).max(200)}).parse(d))
+ .handler(async({data})=>{
+    const r=await requestsRepo.searchRequestsByCompany(data.q);
+    const s=r[0]?.status;
+    if(s==='new') return '#0d6efd🆕 تم استلام طلبكم ✅ وجاري المراجعة وسنعلمكم بالنتيجة';
+    if(s==='accepted') return '#fd7e14🟠 تم قبول طلبكم 🎉 وسيتم التواصل معكم قريباً';
+    if(s==='rejected') return '#dc3545❌ نأسف تم رفض طلبكم 🙏 للاستفسار تواصل معنا';
+    return 'عذراً لم نجد طلب بهذه البيانات 🙏 تأكد من الايميل او اسم المؤسسة';
+  });
+
+// ---------- جديد: منطق البوت ----------
+export const chatbotHandleMessage = createServerFn({ method: "POST" })
+ .inputValidator((d: { message: string }) => z.object({ message: z.string().min(1).max(500) }).parse(d))
+ .handler(async ({ data }) => {
+    const msg = data.message.trim().toLowerCase();
+    if(msg.includes("حالة طلبي") || msg.includes("حاله طلبي")){
+      return { type: "ask_email", reply: "تمام 👍 ارسل لي الايميل او اسم الشركة اللي قدمت بيه الطلب" }
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if(emailRegex.test(data.message)){
+      const result = await checkOrderStatus({q: data.message});
+      return { type: "status", reply: result }
+    }
+    return { type: "default", reply: "حسناً، ما عندي تفصيل هذا. تقدر تشوفه في قسم المشاريع على الموقع." }
+  });
 
 // ---------- Admin: signed URL for bid PDF ----------
 export const getBidPdfUrl = createServerFn({ method: "POST" })
