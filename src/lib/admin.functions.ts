@@ -148,7 +148,7 @@ export const sendTestEmail = createServerFn({ method: "POST" })
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        from: "alamran <send@ali-alhaddad.com>",
+        from: "Alamran <send@ali-alhaddad.com>",
         to: [data.to],
         subject: "بريد تجريبي من لوحة الإدارة",
         html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً 👋</h2><p>هذا بريد تجريبي للتأكد من عمل إرسال البريد عبر Resend من نطاق <strong>alamran.online</strong>.</p><p>الوقت: ${new Date().toLocaleString("ar")}</p></div>`,
