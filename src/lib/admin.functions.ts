@@ -129,7 +129,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
           await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ from: "alamran <send@alamran.online>", to: [req.email], subject: "تحديث حالة طلبك في منصة العمران", html }),
+            body: JSON.stringify({ from: "Alamran <send@ali-alhaddad.com>", to: [req.email], subject: "تحديث حالة طلبك في منصة العمران", html }),
           });
         } catch (e) { console.error("Resend send exception", e); }
       }
