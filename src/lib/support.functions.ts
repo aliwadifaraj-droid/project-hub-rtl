@@ -236,7 +236,7 @@ async function sendWaitingAlert(chatId: string, visitorName: string | null) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
-        from: "alamran <send@alamran.online>",
+        from: "Alamran <send@ali-alhaddad.com>",
         to: [to],
         subject: "🚨 عميل ينتظر",
         html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>`,
