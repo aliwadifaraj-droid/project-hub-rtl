@@ -151,7 +151,7 @@ export const sendTestEmail = createServerFn({ method: "POST" })
         from: "Alamran <send@ali-alhaddad.com>",
         to: [data.to],
         subject: "بريد تجريبي من لوحة الإدارة",
-        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً 👋</h2><p>هذا بريد تجريبي للتأكد من عمل إرسال البريد عبر Resend من نطاق <strong>alamran.online</strong>.</p><p>الوقت: ${new Date().toLocaleString("ar")}</p></div>`,
+        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً 👋</h2><p>هذا بريد تجريبي للتأكد من عمل إرسال البريد عبر Resend من نطاق <strong>ali-alhaddad.com</strong>.</p><p>الوقت: ${new Date().toLocaleString("ar")}</p></div>`,
       }),
     });
     const bodyText = await res.text();
