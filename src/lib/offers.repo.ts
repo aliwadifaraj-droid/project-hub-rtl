@@ -51,10 +51,10 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
     [
       id,
       project.id,
-      project.name.trim(), // الاسم الرسمي من قاعدة البيانات
-      o.company_name.trim().slice(0, 255), // قص و نظف
+      project.name.trim(),
+      o.company_name.trim().slice(0, 255),
       o.email.trim().toLowerCase(),
-      Number(o.amount), // تأكد انه رقم
+      Number(o.amount),
       project.duration ?? null,
       o.pdf_key ?? null,
       o.pdf_filename?.slice(0, 255) ?? null,
