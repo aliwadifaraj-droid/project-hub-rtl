@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { adminListRequests, updateRequestStatus, getBidPdfUrl, getMyRoles } from "@/lib/admin.functions";
-import { FileDown, Loader2, Bell } from "lucide-react";
+import { useState } from "react";
+import { adminListRequests, updateRequestStatus, getBidPdfUrl, getMyRoles, sendRequestMessage } from "@/lib/admin.functions";
+import { FileDown, Loader2, Bell, Mail, X } from "lucide-react";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/admin/requests")({
   component: RequestsPage,
@@ -27,6 +29,8 @@ function RequestsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["admin-requests"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = roles?.includes("admin");
+  const [msgTarget, setMsgTarget] = useState<{ email: string; company: string } | null>(null);
+
 
   const mut = useMutation({
     mutationFn: (v: { id: string; status: Status }) => update({ data: v }),
@@ -121,6 +125,7 @@ function RequestsPage() {
                     )}
                   </td>
                   <td className="p-3">
+                    <div className="flex items-center gap-2">
                     {(isAdmin || r.can_manage) ? (
                       <button onClick={() => openPdf(r.pdf_url ?? "")} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-600">
                         <FileDown className="h-4 w-4" /> فتح PDF
@@ -130,7 +135,14 @@ function RequestsPage() {
                         <FileDown className="h-4 w-4" /> غير مصرح
                       </span>
                     )}
+                    {(isAdmin || r.can_manage) && r.email ? (
+                      <button onClick={() => setMsgTarget({ email: String(r.email), company: String(r.company_name ?? "") })} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500">
+                        <Mail className="h-4 w-4" /> رسالة خاصة
+                      </button>
+                    ) : null}
+                    </div>
                   </td>
+
                 </tr>
               ))}
               {rows.length === 0 && (
@@ -184,13 +196,24 @@ function RequestsPage() {
                   </span>
                 )}
               </div>
+              {(isAdmin || r.can_manage) && r.email ? (
+                <button
+                  onClick={() => setMsgTarget({ email: String(r.email), company: String(r.company_name ?? "") })}
+                  className="inline-flex w-full items-center justify-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500"
+                >
+                  <Mail className="h-4 w-4" /> رسالة خاصة
+                </button>
+              ) : null}
             </div>
           ))}
           {rows.length === 0 && <div className="p-8 text-center text-slate-400">لا توجد طلبات بعد</div>}
         </div>
       </div>
+
+      {msgTarget && <MessageModal target={msgTarget} onClose={() => setMsgTarget(null)} />}
     </div>
   );
+
 }
 
 function SubmitterBadge({ type }: { type: "guest" | "user" }) {
@@ -205,5 +228,63 @@ function SubmitterBadge({ type }: { type: "guest" | "user" }) {
     >
       {isUser ? "👤 مستخدم" : "🔔 زائر"}
     </span>
+  );
+}
+
+function MessageModal({ target, onClose }: { target: { email: string; company: string }; onClose: () => void }) {
+  const send = useServerFn(sendRequestMessage);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!message.trim()) {
+      toast.error("اكتب نص الرسالة");
+      return;
+    }
+    setSending(true);
+    try {
+      await send({ data: { to: target.email, message: message.trim() } });
+      toast.success("تم إرسال الرسالة");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر إرسال الرسالة");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" dir="rtl" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">رسالة خاصة</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {target.company} — <span dir="ltr">{target.email}</span>
+            </p>
+          </div>
+          <button aria-label="إغلاق" onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={6}
+            maxLength={3000}
+            placeholder="اكتب رسالتك هنا..."
+            className="w-full resize-y rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="rounded-md border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800">إلغاء</button>
+            <button type="submit" disabled={sending} className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} إرسال
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
