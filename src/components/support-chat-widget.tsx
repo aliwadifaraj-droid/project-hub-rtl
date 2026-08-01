@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, X, Send, Headphones, PowerOff } from "lucide-react";
+import { MessageCircle, X, Send, Headphones, PowerOff, FileUp, CheckCircle2 } from "lucide-react";
 import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
   visitorSendMessage, visitorEndSession,
 } from "@/lib/support.functions";
 import { getBotSettings } from "@/lib/bot-settings.functions";
+import { submitOffer } from "@/lib/offers.functions";
 
 
 const TOKEN_KEY = "support_visitor_token_v1";
 const IDLE_MS = 5 * 60 * 1000;
+const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
+
 
 function generateUuid(): string {
   const browserCrypto = globalThis.crypto;
