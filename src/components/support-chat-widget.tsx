@@ -44,12 +44,22 @@ export function SupportChatWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Offer (price quote) wizard state
+  const [offerMsgId, setOfferMsgId] = useState<string | null>(null);
+  const [offerStep, setOfferStep] = useState<"terms" | "form" | "done" | null>(null);
+  const [offerForm, setOfferForm] = useState({ projectName: "", companyName: "", email: "", amount: "" });
+  const [offerFile, setOfferFile] = useState<File | null>(null);
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [offerError, setOfferError] = useState<string | null>(null);
+
   const listQa = useServerFn(listBotQuestions);
   const startFn = useServerFn(startVisitorChat);
   const getMsgs = useServerFn(visitorGetMessages);
   const sendFn = useServerFn(visitorSendMessage);
   const endFn = useServerFn(visitorEndSession);
   const getSettings = useServerFn(getBotSettings);
+  const submitOfferFn = useServerFn(submitOffer);
+
 
   useEffect(() => { setMounted(true); }, []);
 
