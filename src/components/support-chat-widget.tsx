@@ -136,6 +136,69 @@ export function SupportChatWidget() {
   const lastMsg = messages[messages.length - 1];
   const showEndAfterBot = !!lastMsg && (lastMsg.sender === "bot" || lastMsg.sender === "admin");
 
+  // Detect the latest offer-flow trigger from the bot and open the wizard
+  const offerTriggerId = useMemo(() => {
+    const m = [...messages].reverse().find((x) => x.sender === "bot" && x.body.includes(OFFER_FLOW_MARKER));
+    return m?.id ?? null;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!offerTriggerId) return;
+    if (offerMsgId === offerTriggerId) return;
+    setOfferMsgId(offerTriggerId);
+    setOfferStep("terms");
+    setOfferError(null);
+    setOfferFile(null);
+    setOfferForm({ projectName: "", companyName: "", email: "", amount: "" });
+  }, [offerTriggerId, offerMsgId]);
+
+  async function handleOfferSubmit() {
+    if (offerBusy) return;
+    const { projectName, companyName, email, amount } = offerForm;
+    if (!projectName.trim() || !companyName.trim() || !email.trim() || !amount.trim()) {
+      setOfferError("يرجى إكمال جميع الحقول.");
+      return;
+    }
+    if (!offerFile) {
+      setOfferError("يرجى رفع ملف العرض بصيغة PDF.");
+      return;
+    }
+    const isPdf = offerFile.type === "application/pdf" || offerFile.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      setOfferError("الملف يجب أن يكون PDF.");
+      return;
+    }
+    setOfferBusy(true);
+    setOfferError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", offerFile);
+      fd.append("purpose", "bid-pdf");
+      const res = await fetch("/api/public/upload", { method: "POST", body: fd });
+      const json = (await res.json()) as { key?: string; error?: string };
+      if (!res.ok || !json.key) throw new Error(json.error || "تعذر رفع الملف");
+      await submitOfferFn({
+        data: {
+          projectName: projectName.trim(),
+          companyName: companyName.trim(),
+          email: email.trim(),
+          amount: amount.trim(),
+          pdfKey: json.key,
+          pdfFilename: offerFile.name,
+          visitorToken: token || null,
+        },
+      });
+      setOfferStep("done");
+      qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
+    } catch (e) {
+      setOfferError(e instanceof Error ? e.message : "تعذر إرسال العرض، حاول مرة أخرى.");
+    } finally {
+      setOfferBusy(false);
+    }
+  }
+
+
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, open]);
