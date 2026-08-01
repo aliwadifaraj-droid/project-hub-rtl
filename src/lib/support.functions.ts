@@ -186,6 +186,32 @@ async function answerRequestStatus(query: string): Promise<string | null> {
     .join("\n\n");
 }
 
+/* ---------- نية تقديم عرض سعر ---------- */
+
+export const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
+
+const OFFER_KEYWORDS = [
+  "كيف اقدم عرض سعر", "كيف أقدم عرض سعر", "عرض سعر", "تقديم عرض", "اقدم عرض", "أقدم عرض",
+  "ارفع عرض", "أرفع عرض", "تسعير", "quote", "price offer", "submit offer",
+];
+
+const OFFER_TERMS = [
+  "وعليكم السلام 👋",
+  "لتقديم عرض سعر، وافق على الشروط أولاً:",
+  "",
+  "1) العرض يجب أن يكون بصيغة PDF واضحة ومختومة.",
+  "2) السعر المقدم نهائي وساري لمدة 30 يوماً على الأقل.",
+  "3) الالتزام بمدة تنفيذ المشروع المعلنة في تفاصيل المشروع.",
+  "4) صحة البيانات (اسم الشركة والبريد الإلكتروني) مسؤولية مقدّم العرض.",
+  "5) تقديم العرض لا يعني قبوله، وسيتم إشعاركم بأي تحديث.",
+].join("\n");
+
+function asksAboutOffer(text: string): boolean {
+  const t = normalizeAr(text);
+  return OFFER_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
+}
+
+
 
 
 /** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
@@ -376,7 +402,13 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       await escalateOrOffHours(chat.id);
       return { ok: true };
     }
+    // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
+    if (!answer && asksAboutOffer(data.body)) {
+      await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+      return { ok: true };
+    }
     // استعلام حالة الطلب من الطلبات الواردة
+
     let requestAnswer: string | null = null;
     if (!answer) {
       const prev = await supportRepo.listMessages(chat.id);

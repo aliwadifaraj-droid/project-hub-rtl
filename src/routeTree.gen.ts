@@ -43,6 +43,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authenticated/admin.requests'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin.projects'
 import { Route as AuthenticatedAdminPendingProjectsRouteImport } from './routes/_authenticated/admin.pending-projects'
+import { Route as AuthenticatedAdminOffersRouteImport } from './routes/_authenticated/admin.offers'
 import { Route as AuthenticatedAdminMyProjectsRouteImport } from './routes/_authenticated/admin.my-projects'
 import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
 import { Route as AuthenticatedAdminGroqSettingsRouteImport } from './routes/_authenticated/admin.groq-settings'
@@ -231,6 +232,12 @@ const AuthenticatedAdminPendingProjectsRoute =
     path: '/pending-projects',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminOffersRoute =
+  AuthenticatedAdminOffersRouteImport.update({
+    id: '/offers',
+    path: '/offers',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminMyProjectsRoute =
   AuthenticatedAdminMyProjectsRouteImport.update({
     id: '/my-projects',
@@ -334,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/admin/groq-settings': typeof AuthenticatedAdminGroqSettingsRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
+  '/admin/offers': typeof AuthenticatedAdminOffersRoute
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
@@ -379,6 +387,7 @@ export interface FileRoutesByTo {
   '/admin/groq-settings': typeof AuthenticatedAdminGroqSettingsRoute
   '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
+  '/admin/offers': typeof AuthenticatedAdminOffersRoute
   '/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
@@ -428,6 +437,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/groq-settings': typeof AuthenticatedAdminGroqSettingsRoute
   '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/my-projects': typeof AuthenticatedAdminMyProjectsRoute
+  '/_authenticated/admin/offers': typeof AuthenticatedAdminOffersRoute
   '/_authenticated/admin/pending-projects': typeof AuthenticatedAdminPendingProjectsRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/_authenticated/admin/requests': typeof AuthenticatedAdminRequestsRoute
@@ -477,6 +487,7 @@ export interface FileRouteTypes {
     | '/admin/groq-settings'
     | '/admin/messages'
     | '/admin/my-projects'
+    | '/admin/offers'
     | '/admin/pending-projects'
     | '/admin/projects'
     | '/admin/requests'
@@ -522,6 +533,7 @@ export interface FileRouteTypes {
     | '/admin/groq-settings'
     | '/admin/messages'
     | '/admin/my-projects'
+    | '/admin/offers'
     | '/admin/pending-projects'
     | '/admin/projects'
     | '/admin/requests'
@@ -570,6 +582,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/groq-settings'
     | '/_authenticated/admin/messages'
     | '/_authenticated/admin/my-projects'
+    | '/_authenticated/admin/offers'
     | '/_authenticated/admin/pending-projects'
     | '/_authenticated/admin/projects'
     | '/_authenticated/admin/requests'
@@ -850,6 +863,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPendingProjectsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/offers': {
+      id: '/_authenticated/admin/offers'
+      path: '/offers'
+      fullPath: '/admin/offers'
+      preLoaderRoute: typeof AuthenticatedAdminOffersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/my-projects': {
       id: '/_authenticated/admin/my-projects'
       path: '/my-projects'
@@ -947,6 +967,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminGroqSettingsRoute: typeof AuthenticatedAdminGroqSettingsRoute
   AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminMyProjectsRoute: typeof AuthenticatedAdminMyProjectsRoute
+  AuthenticatedAdminOffersRoute: typeof AuthenticatedAdminOffersRoute
   AuthenticatedAdminPendingProjectsRoute: typeof AuthenticatedAdminPendingProjectsRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
   AuthenticatedAdminRequestsRoute: typeof AuthenticatedAdminRequestsRoute
@@ -968,6 +989,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminGroqSettingsRoute: AuthenticatedAdminGroqSettingsRoute,
   AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminMyProjectsRoute: AuthenticatedAdminMyProjectsRoute,
+  AuthenticatedAdminOffersRoute: AuthenticatedAdminOffersRoute,
   AuthenticatedAdminPendingProjectsRoute:
     AuthenticatedAdminPendingProjectsRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
