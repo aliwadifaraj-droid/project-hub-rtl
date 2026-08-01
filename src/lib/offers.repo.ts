@@ -40,23 +40,24 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
   if(!proj) throw new Error("المشروع غير موجود")
 
   const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+
   await db.execute(
     `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?))`, 
-     
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
     [
       id,
       proj.id,
-      o.project_name,
-      o.company_name,
-      o.email,
-      o.amount,
-      proj.duration ?? o.duration ?? "",
-      o.pdf_key ?? "",
-      o.pdf_filename ?? "",
-      o.status ?? "new",
-      o.visitor_token ?? "",
-      new Date().toISOString(),
+      o.project_name || "",
+      o.company_name || "",
+      o.email || "",
+      String(o.amount || 0),
+      proj.duration || o.duration || "",
+      o.pdf_key || "",
+      o.pdf_filename || "",
+      o.status || "new",
+      o.visitor_token || "",
+      createdAt,
     ],
   );
   return id;
