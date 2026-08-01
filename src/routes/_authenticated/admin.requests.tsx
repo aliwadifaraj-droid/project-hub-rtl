@@ -29,6 +29,8 @@ function RequestsPage() {
   const { data, isLoading } = useQuery({ queryKey: ["admin-requests"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = roles?.includes("admin");
+  const [msgTarget, setMsgTarget] = useState<{ email: string; company: string } | null>(null);
+
 
   const mut = useMutation({
     mutationFn: (v: { id: string; status: Status }) => update({ data: v }),
