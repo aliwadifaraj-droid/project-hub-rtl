@@ -42,7 +42,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
   const id = crypto.randomUUID();
   await db.execute(
     `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),`
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?))`, 
      
     [
       id,
