@@ -125,6 +125,7 @@ function RequestsPage() {
                     )}
                   </td>
                   <td className="p-3">
+                    <div className="flex items-center gap-2">
                     {(isAdmin || r.can_manage) ? (
                       <button onClick={() => openPdf(r.pdf_url ?? "")} className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-600">
                         <FileDown className="h-4 w-4" /> فتح PDF
@@ -134,7 +135,14 @@ function RequestsPage() {
                         <FileDown className="h-4 w-4" /> غير مصرح
                       </span>
                     )}
+                    {(isAdmin || r.can_manage) && r.email ? (
+                      <button onClick={() => setMsgTarget({ email: r.email!, company: r.company_name })} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500">
+                        <Mail className="h-4 w-4" /> رسالة خاصة
+                      </button>
+                    ) : null}
+                    </div>
                   </td>
+
                 </tr>
               ))}
               {rows.length === 0 && (
