@@ -41,6 +41,14 @@ export async function searchRequestsByCompany(q: string): Promise<ProjectRequest
   return rowsToObjects(r).map(decode);
 }
 
+export async function searchRequestsByEmail(email: string): Promise<ProjectRequestRow[]> {
+  const r = await db.execute(
+    `SELECT ${COLS} FROM project_requests WHERE lower(email) = lower(?) ORDER BY created_at DESC LIMIT 10`,
+    [email.trim()],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
 export async function getRequestById(id: string): Promise<ProjectRequestRow | null> {
   const r = await db.execute(`SELECT ${COLS} FROM project_requests WHERE id = ? LIMIT 1`, [id]);
   const rows = rowsToObjects(r);
