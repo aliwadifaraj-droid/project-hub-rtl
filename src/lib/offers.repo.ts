@@ -36,10 +36,10 @@ function decode(r: any): OfferRow {
 export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status"> & { status?: string };
 
 export async function insertOffer(o: OfferInsert): Promise<string> {
-  // 1. دور على المشروع بالاسم
-  const project = await findProjectForOffer(o.project_name);
+  // 1. دور على المشروع بالاسم اول
+  const project = await findProjectForOffer(o.project_name.trim());
 
-  // 2. لو ما لقاه وقف وارمي خطأ
+  // 2. لو ما لقاه وقف
   if (!project) {
     throw new Error(`المشروع "${o.project_name}" غير موجود`);
   }
@@ -47,16 +47,24 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
   const id = crypto.randomUUID();
   await db.execute(
     `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, // 12 علامة
     [
       id,
-      project.id, // نحفظ ال id الصح
-      project.name, // والاسم الرسمي من قاعدة البيانات
-      o.company_name,
-      o.email,
-      o.amount,
-      project.duration ?? null, // وناخذ المدة من المشروع
+      project.id,
+      project.name.trim(), // الاسم الرسمي من قاعدة البيانات
+      o.company_name.trim().slice(0, 255), // قص و نظف
+      o.email.trim().toLowerCase(),
+      Number(o.amount), // تأكد انه رقم
+      project.duration ?? null,
       o.pdf_key ?? null,
+      o.pdf_filename?.slice(0, 255) ?? null,
+      o.status ?? "new",
+      o.visitor_token ?? null,
+      new Date().toISOString(),
+    ],
+  );
+  return id;
+}
       o.pdf_filename ?? null,
       o.status ?? "new",
       o.visitor_token ?? null,
