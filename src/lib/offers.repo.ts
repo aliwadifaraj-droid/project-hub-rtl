@@ -44,7 +44,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
 
   await db.execute(
     `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
     [
       id,
       proj.id,
@@ -61,6 +61,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
     ],
   );
   return id;
+}
 }
 
 export async function listOffers(limit = 200): Promise<OfferRow[]> {
