@@ -136,7 +136,7 @@ function RequestsPage() {
                       </span>
                     )}
                     {(isAdmin || r.can_manage) && r.email ? (
-                      <button onClick={() => setMsgTarget({ email: String(r.email), company: r.company_name })} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500">
+                      <button onClick={() => setMsgTarget({ email: String(r.email), company: String(r.company_name ?? "") })} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500">
                         <Mail className="h-4 w-4" /> رسالة خاصة
                       </button>
                     ) : null}
