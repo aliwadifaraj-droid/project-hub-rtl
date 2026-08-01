@@ -287,3 +287,19 @@ INSERT OR IGNORE INTO roles (id, name, label) VALUES
   (lower(hex(randomblob(16))), 'admin', 'مدير'),
   (lower(hex(randomblob(16))), 'moderator', 'مشرف'),
   (lower(hex(randomblob(16))), 'user', 'مستخدم');
+
+CREATE TABLE IF NOT EXISTS offers (
+  id TEXT PRIMARY KEY,
+  project_id TEXT,
+  project_name TEXT NOT NULL,
+  company_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  amount TEXT NOT NULL,
+  duration TEXT,
+  pdf_key TEXT,
+  pdf_filename TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  visitor_token TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_offers_created ON offers(created_at DESC);
