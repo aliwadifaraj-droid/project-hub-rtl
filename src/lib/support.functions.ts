@@ -148,6 +148,45 @@ async function answerProjectQuery(text: string): Promise<string | null> {
   return "المشاريع المتاحة:\n\n" + filtered.slice(0, 20).map((p) => `• ${p.name} — ${p.location ?? "-"} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
 }
 
+/* ---------- استعلام حالة الطلب من "الطلبات الواردة" ---------- */
+
+const ASK_REQUEST_PROMPT = "للاستعلام عن حالة طلبكم، أرسل البريد الإلكتروني أو اسم الشركة المستخدم في الطلب 🙏";
+const REQUEST_NOT_FOUND = "عذراً لم نجد طلب بهذه البيانات 🙏";
+
+const REQUEST_STATUS_REPLY: Record<string, string> = {
+  new: "🆕 تم استلام طلبكم وشكرا لثقتكم بنا ✅",
+  reviewing: "🆕 طلبكم قيد المراجعة حالياً",
+  accepted: "🟠 تم قبول طلبكم 🎉",
+  rejected: "❌ نأسف تم رفض طلبكم. يمكنكم مراسلتنا عبر بوابة تواصل بنا لمعرفة التفاصيل 🙏",
+};
+
+const REQUEST_KEYWORDS = ["طلبي", "طلبنا", "حالة طلب", "حالة الطلب", "استعلام عن طلب", "وين طلبي", "وش صار على طلبي", "متابعة طلب", "request status", "my request"];
+
+function asksAboutRequest(text: string): boolean {
+  const t = normalizeAr(text);
+  return REQUEST_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
+}
+
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/;
+
+async function answerRequestStatus(query: string): Promise<string | null> {
+  const raw = (query ?? "").trim();
+  if (!raw) return null;
+  const repo = await import("./project-requests.repo");
+  const emailMatch = raw.match(EMAIL_RE);
+  let rows = emailMatch ? await repo.searchRequestsByEmail(emailMatch[0]) : [];
+  if (!rows.length && !emailMatch) {
+    const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
+    rows = await repo.searchRequestsByCompany(name);
+  }
+  if (!rows.length) return REQUEST_NOT_FOUND;
+  return rows
+    .slice(0, 5)
+    .map((r) => `📄 ${r.company_name ?? "طلب"}\n${REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new}`)
+    .join("\n\n");
+}
+
+
 
 /** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
