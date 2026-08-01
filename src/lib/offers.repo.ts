@@ -36,26 +36,18 @@ function decode(r: any): OfferRow {
 export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status"> & { status?: string };
 
 export async function insertOffer(o: OfferInsert): Promise<string> {
-  // 1. دور على المشروع اول
-  const project = await findProjectForOffer(o.project_name);
-
-  // 2. لو ما لقاه ارمي خطأ ووقف
-  if (!project) {
-    throw new Error(`المشروع "${o.project_name}" غير موجود. الرجاء اختيار مشروع من القائمة`);
-  }
-
   const id = crypto.randomUUID();
   await db.execute(
     `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
-      project.id, // هنا نحط id الصح من قاعدة البيانات
-      project.name, // والاسم الرسمي
+      o.project_id ?? null,
+      o.project_name,
       o.company_name,
       o.email,
       o.amount,
-      project.duration ?? o.duration ?? null, // نستخدم مدة المشروع لو موجودة
+      o.duration ?? null,
       o.pdf_key ?? null,
       o.pdf_filename ?? null,
       o.status ?? "new",
