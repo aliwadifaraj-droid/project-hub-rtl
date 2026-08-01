@@ -196,13 +196,24 @@ function RequestsPage() {
                   </span>
                 )}
               </div>
+              {(isAdmin || r.can_manage) && r.email ? (
+                <button
+                  onClick={() => setMsgTarget({ email: String(r.email), company: String(r.company_name ?? "") })}
+                  className="inline-flex w-full items-center justify-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500"
+                >
+                  <Mail className="h-4 w-4" /> رسالة خاصة
+                </button>
+              ) : null}
             </div>
           ))}
           {rows.length === 0 && <div className="p-8 text-center text-slate-400">لا توجد طلبات بعد</div>}
         </div>
       </div>
+
+      {msgTarget && <MessageModal target={msgTarget} onClose={() => setMsgTarget(null)} />}
     </div>
   );
+
 }
 
 function SubmitterBadge({ type }: { type: "guest" | "user" }) {
