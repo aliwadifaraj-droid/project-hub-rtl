@@ -376,8 +376,23 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       await escalateOrOffHours(chat.id);
       return { ok: true };
     }
-    const projectAnswer = await answerProjectQuery(data.body);
-    let finalAnswer = answer || projectAnswer;
+    // استعلام حالة الطلب من الطلبات الواردة
+    let requestAnswer: string | null = null;
+    if (!answer) {
+      const prev = await supportRepo.listMessages(chat.id);
+      const lastBot = [...prev].reverse().find((m) => m.sender === "bot");
+      const awaitingData = lastBot?.body?.trim() === ASK_REQUEST_PROMPT;
+      if (awaitingData) {
+        requestAnswer = await answerRequestStatus(data.body);
+      } else if (asksAboutRequest(data.body)) {
+        requestAnswer = EMAIL_RE.test(data.body) || data.body.trim().split(/\s+/).length > 2
+          ? (await answerRequestStatus(data.body)) ?? ASK_REQUEST_PROMPT
+          : ASK_REQUEST_PROMPT;
+        if (requestAnswer === REQUEST_NOT_FOUND && !EMAIL_RE.test(data.body)) requestAnswer = ASK_REQUEST_PROMPT;
+      }
+    }
+    const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
+    let finalAnswer = answer || requestAnswer || projectAnswer;
     if (!finalAnswer && settings?.groq_enabled !== false) {
       finalAnswer = await askGroq(data.body, {
         systemInstruction: settings?.gemini_system_instruction,
