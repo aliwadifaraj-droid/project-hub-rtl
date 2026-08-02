@@ -93,9 +93,26 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]) }).parse(d))
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
+    if (data.status === "accepted") {
+      const offer = await offersRepo.getOfferById(data.id);
+      if (!offer) return { ok: false as const, message: "العرض غير موجود" };
+      const requests = await import("./project-requests.repo");
+      const requestId = await requests.insertRequest({
+        project_id: offer.project_id ?? "",
+        company_name: offer.company_name,
+        facility_location: offer.project_name,
+        email: offer.email,
+        pdf_url: offer.pdf_key ?? "",
+        submitter_type: "offer",
+      });
+      await requests.updateRequestStatus(requestId, "new");
+      await offersRepo.deleteOffer(offer.id);
+      return { ok: true as const, moved: true, requestId };
+    }
     await offersRepo.updateOfferStatus(data.id, data.status);
-    return { ok: true };
+    return { ok: true as const };
   });
+
 
 export const adminDeleteOffer = createServerFn({ method: "POST" })
   .middleware([requireAuth])
