@@ -386,18 +386,28 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string; sinceIso?: string | null }) =>
     z.object({ visitorToken: uuid, sinceIso: z.string().nullable().optional() }).parse(d))
   .handler(async ({ data }) => {
-    const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
-    if (!chat) return { chat: null, messages: [] };
-    return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
+    const load = async () => {
+      const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
+      if (!chat) return { chat: null, messages: [] };
+      return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
+    };
+    // cached: chat_{customerId}, 10 min (full history reads only)
+    if (data.sinceIso) return load();
+    return cached(cacheKeys.chat(data.visitorToken), TTL_CHAT, load);
   });
 
 export const visitorSendMessage = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string; body: string; qaId?: string | number | null }) =>
     z.object({ visitorToken: uuid, body: z.string().trim().min(1).max(2000), qaId: z.preprocess((v) => (v == null || v === "" ? null : String(v)), z.string().nullable()).optional() }).parse(d))
   .handler(async ({ data }) => {
+    await invalidateChat(data.visitorToken);
     const chat = await getOrCreateVisitorChat(data.visitorToken);
     await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
-    if (chat.status !== "bot") return { ok: true };
+    if (chat.status !== "bot") {
+      await invalidateChat(data.visitorToken);
+      return { ok: true };
+    }
+
 
     const settings = await getBotSettingsRow();
     const botQa = await import("./bot-qa.repo");
