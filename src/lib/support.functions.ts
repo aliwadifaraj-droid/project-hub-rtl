@@ -151,7 +151,9 @@ async function answerProjectQuery(text: string): Promise<string | null> {
 /* ---------- استعلام حالة الطلب من "الطلبات الواردة" ---------- */
 
 const ASK_REQUEST_PROMPT = "للاستعلام عن حالة طلبكم، أرسل البريد الإلكتروني أو اسم الشركة المستخدم في الطلب 🙏";
-const REQUEST_NOT_FOUND = "عذراً لم نجد طلب بهذه البيانات 🙏";
+const REQUEST_NOT_FOUND = "لم يتم العثور على طلب";
+const OFFER_PENDING_REPLY = "تم ارسال طلبكم وبانتظار موافقة الادارة";
+
 
 const REQUEST_STATUS_REPLY: Record<string, string> = {
   new: "🆕 تم استلام طلبكم وشكرا لثقتكم بنا ✅",
