@@ -66,7 +66,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       }
     }
 
-    return { ok: true, id, message: OFFER_SUCCESS_MESSAGE };
+    return { ok: true as const, id, message: OFFER_SUCCESS_MESSAGE };
   });
 
 function assertStaff(roles: string[]) {
