@@ -18,21 +18,27 @@ const submitSchema = z.object({
   visitorToken: z.string().uuid().optional().nullable(),
 });
 
+export const OFFER_PROJECT_NOT_FOUND = "المشروع غير موجود";
+
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
     const project = await offersRepo.findProjectForOffer(data.projectName);
+    if (!project) {
+      return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND };
+    }
     const id = await offersRepo.insertOffer({
-      project_id: project?.id ?? null,
-      project_name: project?.name ?? data.projectName,
+      project_id: project.id,
+      project_name: project.name,
       company_name: data.companyName,
       email: data.email,
       amount: data.amount,
-      duration: project?.duration ?? null,
+      duration: project.duration ?? null,
       pdf_key: data.pdfKey,
       pdf_filename: data.pdfFilename,
       visitor_token: data.visitorToken ?? null,
     });
+
 
     try {
       const staff = await offersRepo.listAdminUserIds();
