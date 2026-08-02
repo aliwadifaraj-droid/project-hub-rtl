@@ -463,6 +463,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
     answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
     await supportRepo.addSupportMessage(chat.id, "bot", answer);
+    await invalidateChat(data.visitorToken);
     return { ok: true };
   });
 
@@ -471,15 +472,19 @@ export const visitorEscalate = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
     if (!chat) throw new Error("جلسة الشات غير موجودة");
-    return { ok: true, ...(await escalateOrOffHours(chat.id)) };
+    const res = await escalateOrOffHours(chat.id);
+    await invalidateChat(data.visitorToken);
+    return { ok: true, ...res };
   });
 
 export const visitorEndSession = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
   .handler(async ({ data }) => {
     await supportRepo.deleteVisitorChat(data.visitorToken);
+    await invalidateChat(data.visitorToken);
     return { ok: true };
   });
+
 
 export const adminListChats = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertStaff(context.roles);
