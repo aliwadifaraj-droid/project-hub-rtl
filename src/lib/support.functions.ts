@@ -175,18 +175,28 @@ async function answerRequestStatus(query: string): Promise<string | null> {
   const raw = (query ?? "").trim();
   if (!raw) return null;
   const repo = await import("./project-requests.repo");
+  const offersRepo = await import("./offers.repo");
   const emailMatch = raw.match(EMAIL_RE);
+  const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
+
+  // 1) project_requests أولاً
   let rows = emailMatch ? await repo.searchRequestsByEmail(emailMatch[0]) : [];
-  if (!rows.length && !emailMatch) {
-    const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
-    rows = await repo.searchRequestsByCompany(name);
+  if (!rows.length && !emailMatch) rows = await repo.searchRequestsByCompany(name);
+  if (rows.length) {
+    return rows
+      .slice(0, 5)
+      .map((r) => `📄 ${r.company_name ?? "طلب"}\n${REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new}`)
+      .join("\n\n");
   }
-  if (!rows.length) return REQUEST_NOT_FOUND;
-  return rows
-    .slice(0, 5)
-    .map((r) => `📄 ${r.company_name ?? "طلب"}\n${REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new}`)
-    .join("\n\n");
+
+  // 2) offers (لم تُقبل بعد)
+  let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
+  if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
+  if (offers.length) return OFFER_PENDING_REPLY;
+
+  return REQUEST_NOT_FOUND;
 }
+
 
 /* ---------- نية تقديم عرض سعر ---------- */
 
