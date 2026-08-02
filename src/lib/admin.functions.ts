@@ -195,6 +195,8 @@ export const upsertProject = createServerFn({ method: "POST" })
         duration: data.duration, cover_image: data.cover_image, images: data.images,
         pdf_file: data.pdf_file ?? null,
       });
+      await invalidateProjectsAll();
+      await invalidateQuotes(existing.created_by);
       return { id: data.id };
     }
     const id = await projectsRepo.insertProject({
@@ -204,6 +206,8 @@ export const upsertProject = createServerFn({ method: "POST" })
       created_by: context.userId,
       admin_approval: "approved",
     });
+    await invalidateProjectsAll();
+    await invalidateQuotes(context.userId);
     return { id, admin_approval: "approved" };
   });
 
@@ -216,6 +220,8 @@ export const deleteProject = createServerFn({ method: "POST" })
     if (!existing) throw new Error("المشروع غير موجود");
     if (!isAdmin && existing.created_by !== context.userId) throw new Error("غير مصرح بالحذف");
     await projectsRepo.deleteProject(data.id);
+    await invalidateProjectsAll();
+    await invalidateQuotes(existing.created_by);
     return { ok: true };
   });
 
@@ -227,9 +233,13 @@ export const updateProjectStatus = createServerFn({ method: "POST" })
       status: z.enum(["active", "delivered", "cancelled"]),
     }).parse(d))
   .handler(async ({ data }) => {
+    const existing = await projectsRepo.getById(data.id);
     await projectsRepo.updateProject(data.id, { status: data.status });
+    await invalidateProjectsAll();
+    await invalidateQuotes(existing?.created_by);
     return { ok: true };
   });
+
 
 // ---------- Admin: employees management ----------
 export const listEmployees = createServerFn({ method: "GET" })
