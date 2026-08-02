@@ -30,6 +30,9 @@ export const approveProject = createServerFn({ method: "POST" })
     const row = await projectsRepo.getById(data.id);
     if (!row) throw new Error("المشروع غير موجود");
     await projectsRepo.updateProject(data.id, { admin_approval: "approved" });
+    await invalidateProjectsAll();
+    await invalidateQuotes(row.created_by);
+
 
     if (row.created_by) {
       const { insertOne } = await import("./notifications.repo");
