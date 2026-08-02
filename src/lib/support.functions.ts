@@ -506,6 +506,8 @@ export const adminReplyChat = createServerFn({ method: "POST" })
     assertStaff(context.roles);
     await supportRepo.addSupportMessage(data.chatId, "admin", data.body);
     await supportRepo.updateChatStatus(data.chatId, "escalated");
+    const chat = await supportRepo.getChatById(data.chatId);
+    if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
   });
 
@@ -515,14 +517,19 @@ export const adminCloseChat = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     await supportRepo.updateChatStatus(data.chatId, "closed");
+    const chat = await supportRepo.getChatById(data.chatId);
+    if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
   });
 
 export const adminDeleteAllSupport = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertAdmin(context.roles);
+  const chats = await supportRepo.listSupportChats();
   await supportRepo.deleteAllSupport();
+  await invalidate(...chats.map((c) => (c.visitor_token ? cacheKeys.chat(c.visitor_token) : null)));
   return { ok: true };
 });
+
 
 export const adminListBotQa = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertAdmin(context.roles);
