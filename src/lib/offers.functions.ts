@@ -47,7 +47,7 @@ export const submitOffer = createServerFn({ method: "POST" })
           staff.map((uid) => ({
             user_id: uid,
             title: "عرض سعر جديد",
-            body: `${data.companyName} — ${project?.name ?? data.projectName} — ${data.amount}`,
+            body: `${data.companyName} — ${project.name} — ${data.amount}`,
             link: "/admin/offers",
           })),
         );
