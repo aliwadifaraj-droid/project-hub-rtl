@@ -4,6 +4,8 @@ import { requireAuth } from "./auth-middleware.server";
 import * as supportRepo from "./support.repo";
 import * as projectsRepo from "./projects.repo";
 import { getBotSettingsRow } from "./bot-settings.repo";
+import { cached, cacheKeys, TTL_CHAT, invalidateChat, invalidate } from "./cache";
+
 
 const uuid = z.string().uuid();
 const CLARIFY_PROMPT = "ممكن توضح مشكلتك أحاول أساعدك؟";
