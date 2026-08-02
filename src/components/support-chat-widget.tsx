@@ -177,7 +177,7 @@ export function SupportChatWidget() {
       const res = await fetch("/api/public/upload", { method: "POST", body: fd });
       const json = (await res.json()) as { key?: string; error?: string };
       if (!res.ok || !json.key) throw new Error(json.error || "تعذر رفع الملف");
-      await submitOfferFn({
+      const result = await submitOfferFn({
         data: {
           projectName: projectName.trim(),
           companyName: companyName.trim(),
@@ -188,8 +188,13 @@ export function SupportChatWidget() {
           visitorToken: token || null,
         },
       });
+      if (!result?.ok) {
+        setOfferError(result?.message ?? "المشروع غير موجود");
+        return;
+      }
       setOfferStep("done");
       qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
+
     } catch (e) {
       setOfferError(e instanceof Error ? e.message : "تعذر إرسال العرض، حاول مرة أخرى.");
     } finally {
