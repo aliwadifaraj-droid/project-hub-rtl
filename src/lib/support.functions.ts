@@ -4,6 +4,8 @@ import { requireAuth } from "./auth-middleware.server";
 import * as supportRepo from "./support.repo";
 import * as projectsRepo from "./projects.repo";
 import { getBotSettingsRow } from "./bot-settings.repo";
+import { cached, cacheKeys, TTL_CHAT, invalidateChat, invalidate } from "./cache";
+
 
 const uuid = z.string().uuid();
 const CLARIFY_PROMPT = "ممكن توضح مشكلتك أحاول أساعدك؟";
@@ -384,18 +386,28 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string; sinceIso?: string | null }) =>
     z.object({ visitorToken: uuid, sinceIso: z.string().nullable().optional() }).parse(d))
   .handler(async ({ data }) => {
-    const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
-    if (!chat) return { chat: null, messages: [] };
-    return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
+    const load = async () => {
+      const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
+      if (!chat) return { chat: null, messages: [] };
+      return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
+    };
+    // cached: chat_{customerId}, 10 min (full history reads only)
+    if (data.sinceIso) return load();
+    return cached(cacheKeys.chat(data.visitorToken), TTL_CHAT, load);
   });
 
 export const visitorSendMessage = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string; body: string; qaId?: string | number | null }) =>
     z.object({ visitorToken: uuid, body: z.string().trim().min(1).max(2000), qaId: z.preprocess((v) => (v == null || v === "" ? null : String(v)), z.string().nullable()).optional() }).parse(d))
   .handler(async ({ data }) => {
+    await invalidateChat(data.visitorToken);
     const chat = await getOrCreateVisitorChat(data.visitorToken);
     await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
-    if (chat.status !== "bot") return { ok: true };
+    if (chat.status !== "bot") {
+      await invalidateChat(data.visitorToken);
+      return { ok: true };
+    }
+
 
     const settings = await getBotSettingsRow();
     const botQa = await import("./bot-qa.repo");
@@ -412,13 +424,16 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
     if (triggerEscalate) {
       await escalateOrOffHours(chat.id);
+      await invalidateChat(data.visitorToken);
       return { ok: true };
     }
     // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
     if (!answer && asksAboutOffer(data.body)) {
       await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+      await invalidateChat(data.visitorToken);
       return { ok: true };
     }
+
     // استعلام حالة الطلب من الطلبات الواردة
 
     let requestAnswer: string | null = null;
@@ -448,6 +463,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
     answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
     await supportRepo.addSupportMessage(chat.id, "bot", answer);
+    await invalidateChat(data.visitorToken);
     return { ok: true };
   });
 
@@ -456,15 +472,19 @@ export const visitorEscalate = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
     if (!chat) throw new Error("جلسة الشات غير موجودة");
-    return { ok: true, ...(await escalateOrOffHours(chat.id)) };
+    const res = await escalateOrOffHours(chat.id);
+    await invalidateChat(data.visitorToken);
+    return { ok: true, ...res };
   });
 
 export const visitorEndSession = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
   .handler(async ({ data }) => {
     await supportRepo.deleteVisitorChat(data.visitorToken);
+    await invalidateChat(data.visitorToken);
     return { ok: true };
   });
+
 
 export const adminListChats = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertStaff(context.roles);
@@ -486,6 +506,8 @@ export const adminReplyChat = createServerFn({ method: "POST" })
     assertStaff(context.roles);
     await supportRepo.addSupportMessage(data.chatId, "admin", data.body);
     await supportRepo.updateChatStatus(data.chatId, "escalated");
+    const chat = await supportRepo.getChatById(data.chatId);
+    if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
   });
 
@@ -495,14 +517,19 @@ export const adminCloseChat = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     await supportRepo.updateChatStatus(data.chatId, "closed");
+    const chat = await supportRepo.getChatById(data.chatId);
+    if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
   });
 
 export const adminDeleteAllSupport = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertAdmin(context.roles);
+  const chats = await supportRepo.listSupportChats();
   await supportRepo.deleteAllSupport();
+  await invalidate(...chats.map((c) => (c.visitor_token ? cacheKeys.chat(c.visitor_token) : null)));
   return { ok: true };
 });
+
 
 export const adminListBotQa = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertAdmin(context.roles);

@@ -8,28 +8,32 @@ import * as requestsRepo from "./project-requests.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import { resolveStoredFileUrl } from "./storage-url";
+import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
-// ---------- Public: list projects ----------
+// ---------- Public: list projects (cached: projects_all, 5 min) ----------
 export const listProjects = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const rows = await projectsRepo.listAllProjects();
-    return Promise.all(rows.map(async (p) => ({
-      id: p.id, name: p.name, description: p.description, location: p.location,
-      duration: p.duration, cover_image: p.cover_image, images: p.images,
-      pdf_file: p.pdf_file, created_by: p.created_by, status: p.status,
-      admin_approval: p.admin_approval,
-      cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
-      pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
-    })));
+    return await cached(cacheKeys.projectsAll(), TTL_PROJECTS, async () => {
+      const rows = await projectsRepo.listAllProjects();
+      return Promise.all(rows.map(async (p) => ({
+        id: p.id, name: p.name, description: p.description, location: p.location,
+        duration: p.duration, cover_image: p.cover_image, images: p.images,
+        pdf_file: p.pdf_file, created_by: p.created_by, status: p.status,
+        admin_approval: p.admin_approval,
+        cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
+        pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
+      })));
+    });
   } catch (e) {
     console.error("[listProjects] unexpected error:", e);
     return [];
   }
 });
+
 
 export const getProject = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
@@ -191,6 +195,8 @@ export const upsertProject = createServerFn({ method: "POST" })
         duration: data.duration, cover_image: data.cover_image, images: data.images,
         pdf_file: data.pdf_file ?? null,
       });
+      await invalidateProjectsAll();
+      await invalidateQuotes(existing.created_by);
       return { id: data.id };
     }
     const id = await projectsRepo.insertProject({
@@ -200,6 +206,8 @@ export const upsertProject = createServerFn({ method: "POST" })
       created_by: context.userId,
       admin_approval: "approved",
     });
+    await invalidateProjectsAll();
+    await invalidateQuotes(context.userId);
     return { id, admin_approval: "approved" };
   });
 
@@ -212,6 +220,8 @@ export const deleteProject = createServerFn({ method: "POST" })
     if (!existing) throw new Error("المشروع غير موجود");
     if (!isAdmin && existing.created_by !== context.userId) throw new Error("غير مصرح بالحذف");
     await projectsRepo.deleteProject(data.id);
+    await invalidateProjectsAll();
+    await invalidateQuotes(existing.created_by);
     return { ok: true };
   });
 
@@ -223,9 +233,13 @@ export const updateProjectStatus = createServerFn({ method: "POST" })
       status: z.enum(["active", "delivered", "cancelled"]),
     }).parse(d))
   .handler(async ({ data }) => {
+    const existing = await projectsRepo.getById(data.id);
     await projectsRepo.updateProject(data.id, { status: data.status });
+    await invalidateProjectsAll();
+    await invalidateQuotes(existing?.created_by);
     return { ok: true };
   });
+
 
 // ---------- Admin: employees management ----------
 export const listEmployees = createServerFn({ method: "GET" })
