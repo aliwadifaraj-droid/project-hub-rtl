@@ -424,13 +424,16 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
     if (triggerEscalate) {
       await escalateOrOffHours(chat.id);
+      await invalidateChat(data.visitorToken);
       return { ok: true };
     }
     // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
     if (!answer && asksAboutOffer(data.body)) {
       await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+      await invalidateChat(data.visitorToken);
       return { ok: true };
     }
+
     // استعلام حالة الطلب من الطلبات الواردة
 
     let requestAnswer: string | null = null;
