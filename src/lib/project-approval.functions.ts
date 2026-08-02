@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as projectsRepo from "./projects.repo";
 import { findUserById } from "./users.repo";
+import { invalidateProjectsAll, invalidateQuotes } from "./cache";
+
 
 export const listPendingProjects = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
