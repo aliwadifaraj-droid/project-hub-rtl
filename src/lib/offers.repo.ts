@@ -92,3 +92,25 @@ export async function listAdminUserIds(): Promise<string[]> {
   const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
   return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
 }
+
+export async function getOfferById(id: string): Promise<OfferRow | null> {
+  const r = await db.execute(`SELECT * FROM offers WHERE id = ? LIMIT 1`, [id]);
+  const row = rowsToObjects<any>(r)[0];
+  return row ? decode(row) : null;
+}
+
+export async function searchOffersByEmail(email: string): Promise<OfferRow[]> {
+  const r = await db.execute(
+    `SELECT * FROM offers WHERE lower(email) = lower(?) ORDER BY created_at DESC LIMIT 10`,
+    [email.trim()],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
+export async function searchOffersByCompany(q: string): Promise<OfferRow[]> {
+  const r = await db.execute(
+    `SELECT * FROM offers WHERE company_name LIKE ? ORDER BY created_at DESC LIMIT 10`,
+    [`%${q}%`],
+  );
+  return rowsToObjects(r).map(decode);
+}

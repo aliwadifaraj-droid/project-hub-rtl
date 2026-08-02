@@ -18,21 +18,27 @@ const submitSchema = z.object({
   visitorToken: z.string().uuid().optional().nullable(),
 });
 
+export const OFFER_PROJECT_NOT_FOUND = "المشروع غير موجود";
+
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
     const project = await offersRepo.findProjectForOffer(data.projectName);
+    if (!project) {
+      return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND };
+    }
     const id = await offersRepo.insertOffer({
-      project_id: project?.id ?? null,
-      project_name: project?.name ?? data.projectName,
+      project_id: project.id,
+      project_name: project.name,
       company_name: data.companyName,
       email: data.email,
       amount: data.amount,
-      duration: project?.duration ?? null,
+      duration: project.duration ?? null,
       pdf_key: data.pdfKey,
       pdf_filename: data.pdfFilename,
       visitor_token: data.visitorToken ?? null,
     });
+
 
     try {
       const staff = await offersRepo.listAdminUserIds();
@@ -41,7 +47,7 @@ export const submitOffer = createServerFn({ method: "POST" })
           staff.map((uid) => ({
             user_id: uid,
             title: "عرض سعر جديد",
-            body: `${data.companyName} — ${project?.name ?? data.projectName} — ${data.amount}`,
+            body: `${data.companyName} — ${project.name} — ${data.amount}`,
             link: "/admin/offers",
           })),
         );
@@ -60,7 +66,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       }
     }
 
-    return { ok: true, id, message: OFFER_SUCCESS_MESSAGE };
+    return { ok: true as const, id, message: OFFER_SUCCESS_MESSAGE };
   });
 
 function assertStaff(roles: string[]) {
@@ -87,9 +93,26 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]) }).parse(d))
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
+    if (data.status === "accepted") {
+      const offer = await offersRepo.getOfferById(data.id);
+      if (!offer) return { ok: false as const, message: "العرض غير موجود" };
+      const requests = await import("./project-requests.repo");
+      const requestId = await requests.insertRequest({
+        project_id: offer.project_id ?? "",
+        company_name: offer.company_name,
+        facility_location: offer.project_name,
+        email: offer.email,
+        pdf_url: offer.pdf_key ?? "",
+        submitter_type: "offer",
+      });
+      await requests.updateRequestStatus(requestId, "new");
+      await offersRepo.deleteOffer(offer.id);
+      return { ok: true as const, moved: true, requestId };
+    }
     await offersRepo.updateOfferStatus(data.id, data.status);
-    return { ok: true };
+    return { ok: true as const };
   });
+
 
 export const adminDeleteOffer = createServerFn({ method: "POST" })
   .middleware([requireAuth])
