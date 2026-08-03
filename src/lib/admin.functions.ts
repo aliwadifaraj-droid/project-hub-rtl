@@ -48,6 +48,7 @@ export const getProject = createServerFn({ method: "GET" })
         id: p.id, name: p.name, description: p.description, location: p.location,
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
+        offers_enabled: p.offers_enabled,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {
@@ -367,6 +368,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
 
     const proj = await projectsRepo.getById(data.project_id);
     if (!proj) throw new Error("المشروع غير موجود");
+    if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
 
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
@@ -503,4 +505,38 @@ export const sendRequestMessage = createServerFn({ method: "POST" })
     const bodyText = await res.text();
     if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
     return { ok: true };
+  });
+
+// ---------- Admin/Staff: toggle "submit offer" availability per project ----------
+function assertStaffRoles(roles: string[]) {
+  if (!roles.includes("admin") && !roles.includes("employee")) throw new Error("Forbidden");
+}
+
+export const adminListProjectOfferToggles = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    assertStaffRoles(context.roles);
+    const rows = await projectsRepo.listAllProjects();
+    return rows.map((p) => ({ id: p.id, name: p.name, offers_enabled: p.offers_enabled }));
+  });
+
+export const adminSetProjectOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertStaffRoles(context.roles);
+    await projectsRepo.setOffersEnabled(data.id, data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
+
+export const adminSetAllProjectOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertStaffRoles(context.roles);
+    await projectsRepo.setAllOffersEnabled(data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true as const };
   });

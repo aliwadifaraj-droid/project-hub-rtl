@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS projects (
   status         TEXT NOT NULL DEFAULT 'active',   -- active | delivered | cancelled
   admin_approval TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected
   reject_reason  TEXT,
+  offers_enabled INTEGER NOT NULL DEFAULT 1,   -- 1 = زر "ارسال عرض سعر" مفعّل
   metadata       TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))

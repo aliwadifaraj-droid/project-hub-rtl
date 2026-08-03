@@ -77,15 +77,22 @@ export async function deleteOffer(id: string): Promise<void> {
 }
 
 /** Find a project by (fuzzy) name to attach its id + duration to the offer. */
-export async function findProjectForOffer(name: string): Promise<{ id: string; name: string; duration: string | null } | null> {
+export async function findProjectForOffer(name: string): Promise<{ id: string; name: string; duration: string | null; offers_enabled: boolean } | null> {
   const n = (name ?? "").trim();
   if (!n) return null;
   const r = await db.execute(
-    `SELECT id, name, duration FROM projects WHERE name = ? OR name LIKE ? ORDER BY LENGTH(name) ASC LIMIT 1`,
+    `SELECT id, name, duration, offers_enabled FROM projects WHERE name = ? OR name LIKE ? ORDER BY LENGTH(name) ASC LIMIT 1`,
     [n, `%${n}%`],
   );
   const row = rowsToObjects<any>(r)[0];
-  return row ? { id: String(row.id), name: String(row.name), duration: row.duration ?? null } : null;
+  return row
+    ? {
+        id: String(row.id),
+        name: String(row.name),
+        duration: row.duration ?? null,
+        offers_enabled: Number(row.offers_enabled ?? 1) !== 0,
+      }
+    : null;
 }
 
 export async function listAdminUserIds(): Promise<string[]> {
