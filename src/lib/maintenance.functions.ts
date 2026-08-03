@@ -17,10 +17,10 @@ export const getMaintenance = createServerFn({ method: "GET" }).handler(async ()
       enabled = false;
       try {
         await db.execute(
-          `INSERT INTO site_settings (id, key, value, updated_at)
-           VALUES (?, ?, ?, ?)
+          `INSERT INTO site_settings (key, value, updated_at)
+           VALUES (?, ?, ?)
            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-          [crypto.randomUUID(), key, JSON.stringify({ enabled: false, endAt }), new Date().toISOString()],
+          [key, JSON.stringify({ enabled: false, endAt }), new Date().toISOString()],
         );
       } catch {
         // best-effort; still return disabled to the client
@@ -44,10 +44,10 @@ export const setMaintenance = createServerFn({ method: "POST" })
       ? null
       : data.endAt;
     await db.execute(
-      `INSERT INTO site_settings (id, key, value, updated_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO site_settings (key, value, updated_at)
+       VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      [crypto.randomUUID(), key, JSON.stringify({ enabled: data.enabled, endAt: normalizedEndAt }), new Date().toISOString()],
+      [key, JSON.stringify({ enabled: data.enabled, endAt: normalizedEndAt }), new Date().toISOString()],
     );
     return { ok: true, enabled: data.enabled, endAt: normalizedEndAt };
   });

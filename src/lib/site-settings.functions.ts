@@ -15,10 +15,10 @@ export const setVipMaintenance = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
   .handler(async ({ data }) => {
     await db.execute(
-      `INSERT INTO site_settings (id, key, value, updated_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO site_settings (key, value, updated_at)
+       VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      [crypto.randomUUID(), "vip_maintenance", JSON.stringify({ enabled: data.enabled }), new Date().toISOString()],
+      ["vip_maintenance", JSON.stringify({ enabled: data.enabled }), new Date().toISOString()],
     );
     return { ok: true, enabled: data.enabled };
   });
@@ -35,10 +35,10 @@ export const setHideSupportChat = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
   .handler(async ({ data }) => {
     await db.execute(
-      `INSERT INTO site_settings (id, key, value, updated_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO site_settings (key, value, updated_at)
+       VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      [crypto.randomUUID(), "hide_support_chat", JSON.stringify({ enabled: data.enabled }), new Date().toISOString()],
+      ["hide_support_chat", JSON.stringify({ enabled: data.enabled }), new Date().toISOString()],
     );
     return { ok: true, enabled: data.enabled };
   });
