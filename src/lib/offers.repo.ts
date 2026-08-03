@@ -80,6 +80,8 @@ export async function deleteOffer(id: string): Promise<void> {
 export async function findProjectForOffer(name: string): Promise<{ id: string; name: string; duration: string | null; offers_enabled: boolean } | null> {
   const n = (name ?? "").trim();
   if (!n) return null;
+  const { ensureOffersEnabledColumn } = await import("./projects.repo");
+  await ensureOffersEnabledColumn();
   const r = await db.execute(
     `SELECT id, name, duration, offers_enabled FROM projects WHERE name = ? OR name LIKE ? ORDER BY LENGTH(name) ASC LIMIT 1`,
     [n, `%${n}%`],
