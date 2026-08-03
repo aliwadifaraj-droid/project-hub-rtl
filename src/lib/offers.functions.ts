@@ -19,6 +19,7 @@ const submitSchema = z.object({
 });
 
 export const OFFER_PROJECT_NOT_FOUND = "المشروع غير موجود";
+export const OFFER_DISABLED_MESSAGE = "تقديم عروض الأسعار متوقف حالياً لهذا المشروع";
 
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
@@ -26,6 +27,9 @@ export const submitOffer = createServerFn({ method: "POST" })
     const project = await offersRepo.findProjectForOffer(data.projectName);
     if (!project) {
       return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND };
+    }
+    if (!project.offers_enabled) {
+      return { ok: false as const, message: OFFER_DISABLED_MESSAGE };
     }
     const id = await offersRepo.insertOffer({
       project_id: project.id,

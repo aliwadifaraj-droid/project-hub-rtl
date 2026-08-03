@@ -179,6 +179,13 @@ function ProjectDetail() {
           </aside>
         </div>
 
+        {(project as { offers_enabled?: boolean }).offers_enabled === false ? (
+          <section className="mt-16 max-w-3xl mx-auto">
+            <div className="rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              تقديم عروض الأسعار متوقف حالياً لهذا المشروع.
+            </div>
+          </section>
+        ) : (
         <section id="apply" className="mt-16 max-w-3xl mx-auto">
           <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
             <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
@@ -249,6 +256,7 @@ function ProjectDetail() {
             </form>
           </div>
         </section>
+        )}
       </article>
 
       <SiteFooter />
