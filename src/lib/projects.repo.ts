@@ -15,6 +15,7 @@ export type ProjectRow = {
   admin_approval: string;
   ad_id: string | null;
   domain: string | null;
+  offers_enabled: boolean;
   created_at: string;
 };
 
@@ -35,6 +36,7 @@ function decode(r: any): ProjectRow {
     admin_approval: String(r.admin_approval ?? "pending"),
     ad_id: r.ad_id ?? null,
     domain: r.domain ?? null,
+    offers_enabled: Number(r.offers_enabled ?? 1) !== 0,
     created_at: String(r.created_at ?? ""),
   };
 }
@@ -54,6 +56,7 @@ export function ensureOffersEnabledColumn(): Promise<void> {
 }
 
 export async function listAllProjects(): Promise<ProjectRow[]> {
+  await ensureOffersEnabledColumn();
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects ORDER BY created_at DESC`);
   return rowsToObjects(r).map(decode);
@@ -85,6 +88,7 @@ export async function isOffersEnabled(id: string): Promise<boolean> {
 
 
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
+  await ensureOffersEnabledColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM projects WHERE created_by = ? ORDER BY created_at DESC`,
     [userId],
@@ -93,6 +97,7 @@ export async function listByOwner(userId: string): Promise<ProjectRow[]> {
 }
 
 export async function listPending(): Promise<ProjectRow[]> {
+  await ensureOffersEnabledColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM projects WHERE admin_approval = 'pending' ORDER BY created_at DESC`,
   );
@@ -105,6 +110,7 @@ export async function countPending(): Promise<number> {
 }
 
 export async function getById(id: string): Promise<ProjectRow | null> {
+  await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE id = ? LIMIT 1`, [id]);
   const rows = rowsToObjects(r);
   return rows[0] ? decode(rows[0]) : null;
