@@ -57,7 +57,6 @@ export function ensureOffersEnabledColumn(): Promise<void> {
 
 export async function listAllProjects(): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
-  await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects ORDER BY created_at DESC`);
   return rowsToObjects(r).map(decode);
 }
