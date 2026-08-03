@@ -39,12 +39,50 @@ function decode(r: any): ProjectRow {
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled";
+
+/** Idempotent: makes sure the `offers_enabled` column exists (older databases). */
+let _offersColReady: Promise<void> | null = null;
+export function ensureOffersEnabledColumn(): Promise<void> {
+  if (!_offersColReady) {
+    _offersColReady = db
+      .execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`)
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+  return _offersColReady;
+}
 
 export async function listAllProjects(): Promise<ProjectRow[]> {
+  await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects ORDER BY created_at DESC`);
   return rowsToObjects(r).map(decode);
 }
+
+export async function setOffersEnabled(id: string, enabled: boolean): Promise<void> {
+  await ensureOffersEnabledColumn();
+  await db.execute(`UPDATE projects SET offers_enabled = ?, updated_at = ? WHERE id = ?`, [
+    enabled ? 1 : 0,
+    new Date().toISOString(),
+    id,
+  ]);
+}
+
+export async function setAllOffersEnabled(enabled: boolean): Promise<void> {
+  await ensureOffersEnabledColumn();
+  await db.execute(`UPDATE projects SET offers_enabled = ?, updated_at = ?`, [
+    enabled ? 1 : 0,
+    new Date().toISOString(),
+  ]);
+}
+
+export async function isOffersEnabled(id: string): Promise<boolean> {
+  await ensureOffersEnabledColumn();
+  const r = await db.execute(`SELECT offers_enabled FROM projects WHERE id = ? LIMIT 1`, [id]);
+  const row = rowsToObjects<any>(r)[0];
+  return row ? Number(row.offers_enabled ?? 1) !== 0 : false;
+}
+
 
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
   const r = await db.execute(
