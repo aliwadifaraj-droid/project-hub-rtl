@@ -256,6 +256,7 @@ function ProjectDetail() {
             </form>
           </div>
         </section>
+        )}
       </article>
 
       <SiteFooter />
