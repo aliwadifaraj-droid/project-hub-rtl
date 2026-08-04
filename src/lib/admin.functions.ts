@@ -105,10 +105,11 @@ export const adminListRequests = createServerFn({ method: "GET" })
 
 export const updateRequestStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: { id: string; status: string }) =>
+  .inputValidator((d: { id: string; status: string; note?: string }) =>
     z.object({
       id: z.string().uuid(),
       status: z.enum(["new", "reviewing", "accepted", "rejected"]),
+      note: z.string().trim().max(2000).optional(),
     }).parse(d))
   .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
@@ -118,7 +119,9 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       const proj = req.project_id ? await projectsRepo.getById(req.project_id) : null;
       if (!proj || proj.created_by !== context.userId) throw new Error("غير مصرح بتغيير حالة هذا الطلب");
     }
-    await requestsRepo.updateRequestStatus(data.id, data.status);
+    const note = (data.note ?? "").trim();
+    if (!isAdmin && !note) throw new Error("الملاحظة إجبارية للموظف عند تغيير الحالة");
+    await requestsRepo.updateRequestStatus(data.id, data.status, note ? note : undefined);
 
     if (req.email) {
       const apiKey = process.env.RESEND_API_KEY;
