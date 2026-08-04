@@ -38,20 +38,25 @@ function decode(r: any): ProjectRow {
     ad_id: r.ad_id ?? null,
     domain: r.domain ?? null,
     offers_enabled: Number(r.offers_enabled ?? 1) !== 0,
+    bot_offers_enabled: Number(r.bot_offers_enabled ?? 1) !== 0,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled";
 
-/** Idempotent: makes sure the `offers_enabled` column exists (older databases). */
+/** Idempotent: makes sure the offer-toggle columns exist (older databases). */
 let _offersColReady: Promise<void> | null = null;
 export function ensureOffersEnabledColumn(): Promise<void> {
   if (!_offersColReady) {
-    _offersColReady = db
-      .execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`)
-      .then(() => undefined)
-      .catch(() => undefined);
+    _offersColReady = Promise.all([
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`)
+        .catch(() => undefined),
+    ]).then(() => undefined);
   }
   return _offersColReady;
 }
