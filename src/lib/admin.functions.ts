@@ -517,7 +517,33 @@ export const adminListProjectOfferToggles = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     assertStaffRoles(context.roles);
     const rows = await projectsRepo.listAllProjects();
-    return rows.map((p) => ({ id: p.id, name: p.name, offers_enabled: p.offers_enabled }));
+    return rows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      offers_enabled: p.offers_enabled,
+      bot_offers_enabled: p.bot_offers_enabled,
+    }));
+  });
+
+export const adminSetProjectBotOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertStaffRoles(context.roles);
+    await projectsRepo.setBotOffersEnabled(data.id, data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
+
+export const adminSetAllProjectBotOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertStaffRoles(context.roles);
+    await projectsRepo.setAllBotOffersEnabled(data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true as const };
   });
 
 export const adminSetProjectOffersEnabled = createServerFn({ method: "POST" })
