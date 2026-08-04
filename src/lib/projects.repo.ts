@@ -91,6 +91,23 @@ export async function isOffersEnabled(id: string): Promise<boolean> {
   return row ? Number(row.offers_enabled ?? 1) !== 0 : false;
 }
 
+export async function setBotOffersEnabled(id: string, enabled: boolean): Promise<void> {
+  await ensureOffersEnabledColumn();
+  await db.execute(`UPDATE projects SET bot_offers_enabled = ?, updated_at = ? WHERE id = ?`, [
+    enabled ? 1 : 0,
+    new Date().toISOString(),
+    id,
+  ]);
+}
+
+export async function setAllBotOffersEnabled(enabled: boolean): Promise<void> {
+  await ensureOffersEnabledColumn();
+  await db.execute(`UPDATE projects SET bot_offers_enabled = ?, updated_at = ?`, [
+    enabled ? 1 : 0,
+    new Date().toISOString(),
+  ]);
+}
+
 
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
