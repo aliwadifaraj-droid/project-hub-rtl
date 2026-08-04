@@ -11,8 +11,10 @@ import {
   adminListProjectOfferToggles,
   adminSetProjectOffersEnabled,
   adminSetAllProjectOffersEnabled,
+  adminSetProjectBotOffersEnabled,
+  adminSetAllProjectBotOffersEnabled,
 } from "@/lib/admin.functions";
-import { FileDown, Loader2, Bell, Mail, X, ToggleLeft, ToggleRight } from "lucide-react";
+import { FileDown, Loader2, Bell, Mail, X, ToggleLeft, ToggleRight, Bot, BotOff } from "lucide-react";
 import { toast } from "sonner";
 
 
