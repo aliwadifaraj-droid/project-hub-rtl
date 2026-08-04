@@ -28,7 +28,7 @@ export const submitOffer = createServerFn({ method: "POST" })
     if (!project) {
       return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND };
     }
-    if (!project.offers_enabled) {
+    if (!project.bot_offers_enabled) {
       return { ok: false as const, message: OFFER_DISABLED_MESSAGE };
     }
     const id = await offersRepo.insertOffer({
