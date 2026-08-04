@@ -43,10 +43,13 @@ function RequestsPage() {
   const [msgTarget, setMsgTarget] = useState<{ email: string; company: string } | null>(null);
 
 
+  const [noteTarget, setNoteTarget] = useState<{ id: string; status: Status; note: string } | null>(null);
+
   const mut = useMutation({
-    mutationFn: (v: { id: string; status: Status }) => update({ data: v }),
+    mutationFn: (v: { id: string; status: Status; note?: string }) => update({ data: v }),
     onSuccess: () => {
       toast.success("تم تحديث الحالة");
+      setNoteTarget(null);
       qc.invalidateQueries({ queryKey: ["admin-requests"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -116,13 +119,16 @@ function RequestsPage() {
                       <a href={`mailto:${r.email}`} className="text-blue-300 hover:underline">{r.email}</a>
                     ) : "-"}
                   </td>
-                  <td className="p-3 text-slate-300">{r.facility_location}</td>
+                  <td className="p-3 text-slate-300">
+                    <div>{r.facility_location}</div>
+                    {r.note ? <div className="mt-1 text-xs text-amber-300">📝 {r.note}</div> : null}
+                  </td>
                   <td className="p-3 text-slate-400 text-xs">{new Date(r.created_at).toLocaleDateString("ar")}</td>
                   <td className="p-3">
                     {(isAdmin || r.can_manage) ? (
                       <select
                         value={r.status}
-                        onChange={(e) => mut.mutate({ id: r.id, status: e.target.value as Status })}
+                        onChange={(e) => setNoteTarget({ id: r.id, status: e.target.value as Status, note: r.note ?? "" })}
                         className={`rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs font-medium ${STATUS[r.status as Status].cls}`}
                       >
                         {Object.entries(STATUS).map(([k, v]) => (
@@ -176,7 +182,7 @@ function RequestsPage() {
                 {(isAdmin || r.can_manage) ? (
                   <select
                     value={r.status}
-                    onChange={(e) => mut.mutate({ id: r.id, status: e.target.value as Status })}
+                    onChange={(e) => setNoteTarget({ id: r.id, status: e.target.value as Status, note: r.note ?? "" })}
                     className={`shrink-0 rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs font-medium ${STATUS[r.status as Status].cls}`}
                   >
                     {Object.entries(STATUS).map(([k, v]) => (
@@ -190,6 +196,7 @@ function RequestsPage() {
                 )}
               </div>
               <div className="text-sm text-slate-300">📍 {r.facility_location}</div>
+              {r.note ? <div className="text-xs text-amber-300">📝 {r.note}</div> : null}
               {r.email && (
                 <div className="text-xs text-slate-300 ltr text-left" dir="ltr">
                   ✉️ <a href={`mailto:${r.email}`} className="text-blue-300 hover:underline">{r.email}</a>
@@ -224,10 +231,91 @@ function RequestsPage() {
       <OfferTogglesPanel />
       <BotOfferTogglesPanel />
 
+      {noteTarget && (
+        <NoteModal
+          target={noteTarget}
+          required={!isAdmin}
+          pending={mut.isPending}
+          onClose={() => setNoteTarget(null)}
+          onSubmit={(note) => mut.mutate({ id: noteTarget.id, status: noteTarget.status, note })}
+        />
+      )}
+
       {msgTarget && <MessageModal target={msgTarget} onClose={() => setMsgTarget(null)} />}
     </div>
   );
 
+}
+
+function NoteModal({
+  target,
+  required,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  target: { status: Status; note: string };
+  required: boolean;
+  pending: boolean;
+  onClose: () => void;
+  onSubmit: (note: string) => void;
+}) {
+  const [note, setNote] = useState(target.note ?? "");
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (required && !note.trim()) {
+      toast.error("الملاحظة إجبارية");
+      return;
+    }
+    onSubmit(note.trim());
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" dir="rtl" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">ملاحظة تغيير الحالة</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              الحالة الجديدة: <span className="font-semibold">{STATUS[target.status].label}</span>
+              {" — "}
+              {required ? "الملاحظة إجبارية" : "الملاحظة اختيارية"}
+            </p>
+          </div>
+          <button aria-label="إغلاق" onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={5}
+            maxLength={2000}
+            placeholder="اكتب الملاحظة..."
+            className="w-full resize-y rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-xs text-slate-500">الملاحظة تظهر للإدارة وفي رد البوت فقط، ولا تُرسل في بريد العميل.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="rounded-md border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800">
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={pending}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+            >
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} حفظ الحالة
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function OfferTogglesPanel() {
