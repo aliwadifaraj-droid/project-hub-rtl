@@ -10,6 +10,7 @@ export type ProjectRequestRow = {
   pdf_url: string | null;
   status: string;
   submitter_type: string | null;
+  note: string | null;
   created_at: string;
 };
 
@@ -23,17 +24,31 @@ function decode(r: any): ProjectRequestRow {
     pdf_url: r.pdf_url ?? null,
     status: String(r.status ?? "new"),
     submitter_type: r.submitter_type ?? null,
+    note: r.note ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
-const COLS = "id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,created_at";
+const COLS = "id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,note,created_at";
+
+let _noteColReady: Promise<void> | null = null;
+export function ensureNoteColumn(): Promise<void> {
+  if (!_noteColReady) {
+    _noteColReady = db
+      .execute(`ALTER TABLE project_requests ADD COLUMN note TEXT`)
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+  return _noteColReady;
+}
 
 export async function listAllRequests(): Promise<ProjectRequestRow[]> {
+  await ensureNoteColumn();
   const r = await db.execute(`SELECT ${COLS} FROM project_requests ORDER BY created_at DESC`);
   return rowsToObjects(r).map(decode);
 }
 
 export async function searchRequestsByCompany(q: string): Promise<ProjectRequestRow[]> {
+  await ensureNoteColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM project_requests WHERE company_name LIKE ? ORDER BY created_at DESC LIMIT 50`,
     [`%${q}%`],
@@ -42,6 +57,7 @@ export async function searchRequestsByCompany(q: string): Promise<ProjectRequest
 }
 
 export async function searchRequestsByEmail(email: string): Promise<ProjectRequestRow[]> {
+  await ensureNoteColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM project_requests WHERE lower(email) = lower(?) ORDER BY created_at DESC LIMIT 10`,
     [email.trim()],
@@ -50,12 +66,14 @@ export async function searchRequestsByEmail(email: string): Promise<ProjectReque
 }
 
 export async function getRequestById(id: string): Promise<ProjectRequestRow | null> {
+  await ensureNoteColumn();
   const r = await db.execute(`SELECT ${COLS} FROM project_requests WHERE id = ? LIMIT 1`, [id]);
   const rows = rowsToObjects(r);
   return rows[0] ? decode(rows[0]) : null;
 }
 
 export async function getRequestByPdfPath(path: string): Promise<ProjectRequestRow | null> {
+  await ensureNoteColumn();
   const r = await db.execute(`SELECT ${COLS} FROM project_requests WHERE pdf_url = ? LIMIT 1`, [path]);
   const rows = rowsToObjects(r);
   return rows[0] ? decode(rows[0]) : null;
@@ -69,6 +87,7 @@ export async function insertRequest(input: {
   pdf_url: string;
   submitter_type: string;
 }): Promise<string> {
+  await ensureNoteColumn();
   const id = crypto.randomUUID();
   await db.execute(
     `INSERT INTO project_requests (id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,created_at,updated_at)
@@ -82,9 +101,20 @@ export async function insertRequest(input: {
   return id;
 }
 
-export async function updateRequestStatus(id: string, status: string): Promise<void> {
-  await db.execute(
-    `UPDATE project_requests SET status = ?, updated_at = ? WHERE id = ?`,
-    [status, new Date().toISOString(), id],
-  );
+export async function updateRequestStatus(id: string, status: string, note?: string | null): Promise<void> {
+  await ensureNoteColumn();
+  if (note === undefined) {
+    await db.execute(`UPDATE project_requests SET status = ?, updated_at = ? WHERE id = ?`, [
+      status,
+      new Date().toISOString(),
+      id,
+    ]);
+    return;
+  }
+  await db.execute(`UPDATE project_requests SET status = ?, note = ?, updated_at = ? WHERE id = ?`, [
+    status,
+    note,
+    new Date().toISOString(),
+    id,
+  ]);
 }

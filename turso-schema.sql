@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS project_requests (
   pdf_url           TEXT,
   submitter_type    TEXT,
   status            TEXT NOT NULL DEFAULT 'new',
+  note              TEXT,
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_project_requests_project ON project_requests(project_id);

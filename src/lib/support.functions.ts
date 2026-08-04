@@ -164,6 +164,13 @@ const REQUEST_STATUS_REPLY: Record<string, string> = {
   rejected: "❌ نأسف تم رفض طلبكم. يمكنكم مراسلتنا عبر بوابة تواصل بنا لمعرفة التفاصيل 🙏",
 };
 
+const REQUEST_STATUS_LABEL: Record<string, string> = {
+  new: "جديد",
+  reviewing: "قيد المراجعة",
+  accepted: "مقبول",
+  rejected: "مرفوض",
+};
+
 const REQUEST_KEYWORDS = ["طلبي", "طلبنا", "حالة طلب", "حالة الطلب", "استعلام عن طلب", "وين طلبي", "وش صار على طلبي", "متابعة طلب", "request status", "my request"];
 
 function asksAboutRequest(text: string): boolean {
@@ -187,7 +194,13 @@ async function answerRequestStatus(query: string): Promise<string | null> {
   if (rows.length) {
     return rows
       .slice(0, 5)
-      .map((r) => `📄 ${r.company_name ?? "طلب"}\n${REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new}`)
+      .map((r) => {
+        const label = REQUEST_STATUS_LABEL[r.status] ?? r.status;
+        const lines = [`📄 ${r.company_name ?? "طلب"}`, `حالة الطلب: ${label}`];
+        if (r.note && r.note.trim()) lines.push(`الملاحظة: ${r.note.trim()}`);
+        else lines.push(REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new);
+        return lines.join("\n");
+      })
       .join("\n\n");
   }
 
