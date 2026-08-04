@@ -323,6 +323,101 @@ function OfferTogglesPanel() {
   );
 }
 
+function BotOfferTogglesPanel() {
+  const listFn = useServerFn(adminListProjectOfferToggles);
+  const setOneFn = useServerFn(adminSetProjectBotOffersEnabled);
+  const setAllFn = useServerFn(adminSetAllProjectBotOffersEnabled);
+  const qc = useQueryClient();
+  const { data: projects = [], isLoading } = useQuery({
+    queryKey: ["project-offer-toggles"],
+    queryFn: () => listFn(),
+  });
+
+  function refresh() {
+    qc.invalidateQueries({ queryKey: ["project-offer-toggles"] });
+  }
+
+  const toggleOne = useMutation({
+    mutationFn: (v: { id: string; enabled: boolean }) => setOneFn({ data: v }),
+    onSuccess: (_d, v) => {
+      toast.success(v.enabled ? "تم تفعيل استلام البوت للعروض" : "تم تعطيل استلام البوت للعروض");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleAll = useMutation({
+    mutationFn: (enabled: boolean) => setAllFn({ data: { enabled } }),
+    onSuccess: (_d, enabled) => {
+      toast.success(enabled ? "تم تفعيل الكل - البوت" : "تم تعطيل الكل - البوت");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const busy = toggleOne.isPending || toggleAll.isPending;
+
+  return (
+    <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-lg">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base md:text-lg font-bold">تحكم البوت في استلام عروض الأسعار</h2>
+        <div className="flex gap-2">
+          <button
+            disabled={busy}
+            onClick={() => toggleAll.mutate(true)}
+            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+          >
+            <Bot className="h-4 w-4" /> تفعيل الكل - البوت
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => toggleAll.mutate(false)}
+            className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-60"
+          >
+            <BotOff className="h-4 w-4" /> تعطيل الكل - البوت
+          </button>
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-slate-400">
+        هذا التحكم مستقل عن زر العميل: عند تعطيل مشروع يرفض البوت استلام أي عرض سعر له، وعند «تعطيل الكل» يرفض البوت كل العروض.
+      </p>
+
+      {isLoading ? (
+        <div className="grid place-items-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : projects.length === 0 ? (
+        <div className="py-6 text-center text-sm text-slate-400">لا توجد مشاريع</div>
+      ) : (
+        <ul className="mt-3 divide-y divide-slate-800">
+          {projects.map((p) => (
+            <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
+              <span className="text-sm font-medium">{p.name}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={p.bot_offers_enabled}
+                aria-label={`تشغيل أو إطفاء استلام البوت للعروض لمشروع ${p.name}`}
+                disabled={busy}
+                onClick={() => toggleOne.mutate({ id: p.id, enabled: !p.bot_offers_enabled })}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-60 ${
+                  p.bot_offers_enabled ? "bg-emerald-600" : "bg-slate-600"
+                }`}
+              >
+                <span
+                  className={`absolute h-5 w-5 rounded-full bg-white transition-all ${
+                    p.bot_offers_enabled ? "start-[2px]" : "start-[22px]"
+                  }`}
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function SubmitterBadge({ type }: { type: "guest" | "user" }) {
   const isUser = type === "user";
   return (
