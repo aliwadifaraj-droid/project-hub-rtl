@@ -220,6 +220,7 @@ function RequestsPage() {
       </div>
 
       <OfferTogglesPanel />
+      <BotOfferTogglesPanel />
 
       {msgTarget && <MessageModal target={msgTarget} onClose={() => setMsgTarget(null)} />}
     </div>
