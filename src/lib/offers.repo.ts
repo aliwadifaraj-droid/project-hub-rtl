@@ -77,13 +77,13 @@ export async function deleteOffer(id: string): Promise<void> {
 }
 
 /** Find a project by (fuzzy) name to attach its id + duration to the offer. */
-export async function findProjectForOffer(name: string): Promise<{ id: string; name: string; duration: string | null; offers_enabled: boolean } | null> {
+export async function findProjectForOffer(name: string): Promise<{ id: string; name: string; duration: string | null; offers_enabled: boolean; bot_offers_enabled: boolean } | null> {
   const n = (name ?? "").trim();
   if (!n) return null;
   const { ensureOffersEnabledColumn } = await import("./projects.repo");
   await ensureOffersEnabledColumn();
   const r = await db.execute(
-    `SELECT id, name, duration, offers_enabled FROM projects WHERE name = ? OR name LIKE ? ORDER BY LENGTH(name) ASC LIMIT 1`,
+    `SELECT id, name, duration, offers_enabled, bot_offers_enabled FROM projects WHERE name = ? OR name LIKE ? ORDER BY LENGTH(name) ASC LIMIT 1`,
     [n, `%${n}%`],
   );
   const row = rowsToObjects<any>(r)[0];
@@ -93,6 +93,7 @@ export async function findProjectForOffer(name: string): Promise<{ id: string; n
         name: String(row.name),
         duration: row.duration ?? null,
         offers_enabled: Number(row.offers_enabled ?? 1) !== 0,
+        bot_offers_enabled: Number(row.bot_offers_enabled ?? 1) !== 0,
       }
     : null;
 }
