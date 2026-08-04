@@ -16,6 +16,7 @@ export type ProjectRow = {
   ad_id: string | null;
   domain: string | null;
   offers_enabled: boolean;
+  bot_offers_enabled: boolean;
   created_at: string;
 };
 
