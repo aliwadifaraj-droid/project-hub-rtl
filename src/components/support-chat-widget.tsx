@@ -88,6 +88,14 @@ export function SupportChatWidget() {
     setOpen(true);
   }, [dismissBubble]);
 
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    if (typeof window !== "undefined") {
+      window.addEventListener("open-support-chat", handler);
+      return () => window.removeEventListener("open-support-chat", handler);
+    }
+  }, []);
+
   const endSession = useCallback(async (opts?: { silent?: boolean }) => {
     if (idleTimer.current) { clearTimeout(idleTimer.current); idleTimer.current = null; }
     const t = token;

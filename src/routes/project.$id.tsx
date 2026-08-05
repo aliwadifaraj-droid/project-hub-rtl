@@ -181,8 +181,24 @@ function ProjectDetail() {
 
         {(project as { offers_enabled?: boolean }).offers_enabled === false ? (
           <section className="mt-16 max-w-3xl mx-auto">
-            <div className="rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-              تقديم عروض الأسعار متوقف حالياً لهذا المشروع.
+            <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
+              <p className="text-sm font-semibold text-orange-900">
+                تقديم عروض الأسعار متوقف حالياً لهذا المشروع.
+              </p>
+              <p className="mt-1 text-xs text-orange-800/80">
+                يمكنك تقديم عرضك بسرعة عبر المساعد الآلي.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("open-support-chat"));
+                  }
+                }}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-orange-700"
+              >
+                قدم الآن عبر البوت
+              </button>
             </div>
           </section>
         ) : (
