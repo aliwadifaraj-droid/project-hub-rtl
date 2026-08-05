@@ -265,13 +265,31 @@ export function SupportChatWidget() {
   return (
     <>
       {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="افتح شات الدعم"
-          className="fixed bottom-5 right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground shadow-[var(--shadow-elegant)] transition hover:scale-105"
-        >
-          <MessageCircle className="h-6 w-6" />
-        </button>
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
+          {showBubble && (
+            <button
+              onClick={openFromBubble}
+              className="relative mb-1 mr-1 max-w-[260px] rounded-2xl rounded-br-md bg-background px-4 py-2.5 text-sm font-medium text-foreground shadow-[var(--shadow-elegant)] ring-1 ring-border animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
+              <span className="block pr-5">تحتاج مساعدة؟ 👋</span>
+              <span
+                onClick={(e) => { e.stopPropagation(); dismissBubble(); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="إغلاق"
+                role="button"
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            </button>
+          )}
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="افتح شات الدعم"
+            className="grid h-14 w-14 place-items-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground shadow-[var(--shadow-elegant)] transition hover:scale-105"
+          >
+            <MessageCircle className="h-6 w-6" />
+          </button>
+        </div>
       )}
 
       {open && (
