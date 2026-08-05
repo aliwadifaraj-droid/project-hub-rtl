@@ -20,6 +20,7 @@ const submitSchema = z.object({
 
 export const OFFER_PROJECT_NOT_FOUND = "المشروع غير موجود";
 export const OFFER_DISABLED_MESSAGE = "تقديم عروض الأسعار متوقف حالياً لهذا المشروع";
+export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
 
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
@@ -30,6 +31,10 @@ export const submitOffer = createServerFn({ method: "POST" })
     }
     if (!project.bot_offers_enabled) {
       return { ok: false as const, message: OFFER_DISABLED_MESSAGE };
+    }
+    const duplicate = await offersRepo.existsDuplicateOffer(project.name, data.email, data.companyName);
+    if (duplicate) {
+      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
     const id = await offersRepo.insertOffer({
       project_id: project.id,
