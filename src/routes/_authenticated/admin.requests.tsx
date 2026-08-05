@@ -228,8 +228,12 @@ function RequestsPage() {
         </div>
       </div>
 
-      <OfferTogglesPanel />
-      <BotOfferTogglesPanel />
+      {isAdmin && (
+        <>
+          <OfferTogglesPanel />
+          <BotOfferTogglesPanel />
+        </>
+      )}
 
       {noteTarget && (
         <NoteModal
