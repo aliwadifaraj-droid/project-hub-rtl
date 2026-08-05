@@ -37,12 +37,15 @@ export function SupportChatWidget() {
   const qc = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  const [showBubble, setShowBubble] = useState(false);
+  const [bubbleDismissed, setBubbleDismissed] = useState(false);
   const [token, setToken] = useState<string>("");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bubbleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Offer (price quote) wizard state
   const [offerMsgId, setOfferMsgId] = useState<string | null>(null);
