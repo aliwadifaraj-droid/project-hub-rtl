@@ -97,9 +97,11 @@ export const adminListRequests = createServerFn({ method: "GET" })
       return {
         ...r,
         email: isAdmin || canManage ? r.email : null,
+        note: isAdmin || canManage ? r.note : null,
         projects: proj ? { name: proj.name } : null,
         can_manage: canManage,
       };
+
     }));
   });
 
