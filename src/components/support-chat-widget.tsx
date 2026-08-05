@@ -66,6 +66,28 @@ export function SupportChatWidget() {
 
   useEffect(() => { setMounted(true); }, []);
 
+  useEffect(() => {
+    if (!mounted || bubbleDismissed) return;
+    const showTimer = setTimeout(() => setShowBubble(true), 1500);
+    const hideTimer = setTimeout(() => setShowBubble(false), 61500); // 1 min after show
+    bubbleTimer.current = hideTimer;
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [mounted, bubbleDismissed]);
+
+  const dismissBubble = useCallback(() => {
+    setShowBubble(false);
+    setBubbleDismissed(true);
+    if (bubbleTimer.current) { clearTimeout(bubbleTimer.current); bubbleTimer.current = null; }
+  }, []);
+
+  const openFromBubble = useCallback(() => {
+    dismissBubble();
+    setOpen(true);
+  }, [dismissBubble]);
+
   const endSession = useCallback(async (opts?: { silent?: boolean }) => {
     if (idleTimer.current) { clearTimeout(idleTimer.current); idleTimer.current = null; }
     const t = token;
