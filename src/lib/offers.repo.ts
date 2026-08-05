@@ -124,3 +124,36 @@ export async function searchOffersByCompany(q: string): Promise<OfferRow[]> {
   );
   return rowsToObjects(r).map(decode);
 }
+
+/** True when an offer/request already exists for the same project + (email or company). */
+export async function existsDuplicateOffer(
+  projectName: string,
+  email: string,
+  companyName: string,
+): Promise<boolean> {
+  const p = (projectName ?? "").trim().toLowerCase();
+  const e = (email ?? "").trim().toLowerCase();
+  const c = (companyName ?? "").trim().toLowerCase();
+
+  const o = await db.execute(
+    `SELECT 1 FROM offers
+     WHERE LOWER(TRIM(project_name)) = ?
+       AND (LOWER(TRIM(email)) = ? OR LOWER(TRIM(company_name)) = ?)
+     LIMIT 1`,
+    [p, e, c],
+  );
+  if (rowsToObjects(o).length > 0) return true;
+
+  try {
+    const r = await db.execute(
+      `SELECT 1 FROM project_requests
+       WHERE LOWER(TRIM(COALESCE(facility_location,''))) = ?
+         AND (LOWER(TRIM(COALESCE(email,''))) = ? OR LOWER(TRIM(COALESCE(company_name,''))) = ?)
+       LIMIT 1`,
+      [p, e, c],
+    );
+    return rowsToObjects(r).length > 0;
+  } catch {
+    return false;
+  }
+}
