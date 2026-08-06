@@ -29,7 +29,7 @@ export const Route = createFileRoute("/vip/")({
   head: () => ({
     meta: [
       { title: "العملاء المميزون — باقات الاشتراك" },
-      { name: "description", content: "اختر باقة الاشتراك المناسبة وادفع عبر PayPal." },
+      { name: "description", content: "اختر باقة الاشتراك المناسبة وحول المبلغ بنكي، ثم ارفع إيصال الدفع." },
     ],
   }),
   component: VipPage,
