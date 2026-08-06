@@ -20,9 +20,9 @@ const BANK_INFO = {
 };
 
 const PLANS = [
-  { id: "شهر", label: "اشتراك شهر", price: 125, duration: "30 يوم" },
-  { id: "شهرين", label: "اشتراك شهرين", price: 250, duration: "60 يوم" },
-  { id: "3 شهور", label: "اشتراك 3 شهور", price: 350, duration: "90 يوم" },
+  { id: "شهر", label: "اشتراك شهر", price: 100, duration: "30 يوم" },
+  { id: "شهرين", label: "اشتراك شهرين", price: 200, duration: "60 يوم" },
+  { id: "3 شهور", label: "اشتراك 3 شهور", price: 300, duration: "90 يوم" },
 ];
 
 export const Route = createFileRoute("/vip/")({
