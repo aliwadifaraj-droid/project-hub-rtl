@@ -106,7 +106,7 @@ function VipPage() {
                 <Star className="h-6 w-6" />
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">العملاء المميزون</h1>
-              <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وادفع عبر PayPal، ثم ارفع إيصال الدفع.</p>
+              <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وحول المبلغ بنكي، ثم ارفع إيصال الدفع.</p>
             </div>
 
             {isAdmin && (
