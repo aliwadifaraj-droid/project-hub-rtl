@@ -11,6 +11,7 @@ import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
+import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 const BANK_INFO = {
   name: "البنك الأهلي",
@@ -42,6 +43,7 @@ function VipPage() {
   const [selectedPlan, setSelectedPlan] = useState<string>(PLANS[0].id);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [city, setCity] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -77,12 +79,13 @@ function VipPage() {
     if (!file) return toast.error("ارفع صورة الإيصال");
     if (!name.trim()) return toast.error("أدخل الاسم");
     if (!email.trim()) return toast.error("أدخل البريد الإلكتروني");
+    if (!city) return toast.error("اختر المدينة");
     if (!selectedPlan) return toast.error("اختر الباقة");
     setLoading(true);
     try {
       const data = await fileToBase64(file);
       const res = await upload({ data: { filename: file.name, mime: file.type, purpose: "vip-receipt", data } });
-      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan } });
+      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan, city } });
       navigate({ to: "/subscribe-success" });
     } catch (err) {
       toast.error("حصل خطأ: " + (err as Error).message);
@@ -223,6 +226,18 @@ function VipPage() {
                 placeholder="البريد الإلكتروني"
                 className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
               />
+              <label className="text-sm font-medium">المدينة</label>
+              <select
+                required
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">اختر المدينة</option>
+                {SAUDI_CITIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
               <label className="text-sm font-medium">رفع صورة الإيصال (صورة أو PDF)</label>
               <input
                 type="file"

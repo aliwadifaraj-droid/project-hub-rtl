@@ -212,6 +212,13 @@ export const upsertProject = createServerFn({ method: "POST" })
       created_by: context.userId,
       admin_approval: "approved",
     });
+    {
+      const { notifyVipSubscribersOfNewProject } = await import("./vip-notify.server");
+      await notifyVipSubscribersOfNewProject({
+        id, name: data.name, description: data.description,
+        location: data.location, duration: data.duration,
+      });
+    }
     await invalidateProjectsAll();
     await invalidateQuotes(context.userId);
     return { id, admin_approval: "approved" };
@@ -454,6 +461,12 @@ export const approveSubmission = createServerFn({ method: "POST" })
       admin_approval: "approved",
     });
     await submissionsRepo.markSubmissionApproved(data.id, newId);
+    {
+      const { notifyVipSubscribersOfNewProject } = await import("./vip-notify.server");
+      await notifyVipSubscribersOfNewProject({
+        id: newId, name: sub.name, description: sub.description, location: sub.location,
+      });
+    }
     return { id: newId };
   });
 

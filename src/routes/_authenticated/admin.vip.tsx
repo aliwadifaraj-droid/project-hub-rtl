@@ -57,6 +57,7 @@ function AdminVipPage() {
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
                 <TableHead>الباقة</TableHead>
+                <TableHead>المدينة</TableHead>
                 <TableHead>الحالة</TableHead>
                 <TableHead>الإيصال</TableHead>
                 <TableHead>التاريخ</TableHead>
@@ -69,6 +70,7 @@ function AdminVipPage() {
                   <TableCell className="font-medium">{s.name}</TableCell>
                   <TableCell>{s.email}</TableCell>
                   <TableCell className="whitespace-nowrap">{(s as { plan?: string | null }).plan ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap">{(s as { city?: string | null }).city ?? "—"}</TableCell>
                   <TableCell>{statusBadge(s.status)}</TableCell>
                   <TableCell>
                     {s.receipt_url ? (
