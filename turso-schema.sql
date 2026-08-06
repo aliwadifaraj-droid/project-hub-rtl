@@ -209,6 +209,7 @@ CREATE TABLE IF NOT EXISTS vip_subscribers (
   user_id      TEXT,
   email        TEXT,
   plan         TEXT,
+  city         TEXT,
   status       TEXT NOT NULL DEFAULT 'pending',
   receipt_key  TEXT,          -- R2 object key
   starts_at    TEXT,
