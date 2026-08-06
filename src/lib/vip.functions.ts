@@ -21,11 +21,12 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
   });
 
 export const submitVipSubscription = createServerFn({ method: "POST" })
-  .inputValidator((data: { name: string; email: string; receipt_path: string; plan: string }) => {
+  .inputValidator((data: { name: string; email: string; receipt_path: string; plan: string; city: string }) => {
     if (!data?.name?.trim() || !data?.email?.trim()) throw new Error("الاسم والبريد مطلوبان");
     if (!data?.receipt_path?.trim()) throw new Error("إيصال التحويل مطلوب");
     if (!data?.plan?.trim()) throw new Error("اختر الباقة");
-    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim() };
+    if (!data?.city?.trim()) throw new Error("اختر المدينة");
+    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim(), city: data.city.trim() };
   })
   .handler(async ({ data }) => {
     const id = await vipRepo.insertVipSubscriber(data);
