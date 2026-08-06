@@ -4,12 +4,7 @@ import { SAUDI_CITIES } from "./saudi-cities";
 import { sendResendEmail } from "./resend-send.server";
 
 function siteUrl(): string {
-  return (
-    process.env.VERCEL_URL ||
-    process.env.SITE_URL ||
-    process.env.VITE_SITE_URL ||
-    "https://project-hub-rtl.vercel.app"
-  ).replace(/\/$/, "");
+  return "https://ali-alhaddad.com".replace(/\/$/, "");
 }
 
 /** Extracts a known Saudi city from a free-text project location. */
