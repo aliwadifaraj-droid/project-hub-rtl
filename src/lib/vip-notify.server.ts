@@ -5,9 +5,10 @@ import { sendResendEmail } from "./resend-send.server";
 
 function siteUrl(): string {
   return (
+    process.env.VERCEL_URL ||
     process.env.SITE_URL ||
     process.env.VITE_SITE_URL ||
-    "https://project-hub-rtl.lovable.app"
+    "https://project-hub-rtl.vercel.app"
   ).replace(/\/$/, "");
 }
 
