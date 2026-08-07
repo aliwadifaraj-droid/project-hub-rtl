@@ -197,7 +197,7 @@ function ProjectDetail() {
                 }}
                 className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-orange-700"
               >
-                قدم الآن عبر البوت
+                قدم الآن
               </button>
             </div>
           </section>
