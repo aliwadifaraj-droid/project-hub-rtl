@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Settings2, Save, MessageCircleOff, Database, AlertTriangle } from "lucide-react";
+import { Settings2, Save, MessageCircleOff, Database, AlertTriangle, Star } from "lucide-react";
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
-import { getHideSupportChat, setHideSupportChat } from "@/lib/site-settings.functions";
+import { getHideSupportChat, setHideSupportChat, getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
 import { getDatabaseSize } from "@/lib/db-stats.functions";
 import { hasAdminRole } from "@/lib/role-label";
@@ -40,6 +40,8 @@ function AdminSettings() {
 
   const fetchHideChat = useServerFn(getHideSupportChat);
   const saveHideChat = useServerFn(setHideSupportChat);
+  const fetchVipMx = useServerFn(getVipMaintenance);
+  const saveVipMx = useServerFn(setVipMaintenance);
   const fetchDbSize = useServerFn(getDatabaseSize);
 
   const { data: dbSize, isLoading: dbSizeLoading } = useQuery({
@@ -59,9 +61,15 @@ function AdminSettings() {
     queryFn: () => fetchHideChat(),
   });
 
+  const { data: vipMxData, isLoading: vipMxLoading } = useQuery({
+    queryKey: ["vip-maintenance-admin"],
+    queryFn: () => fetchVipMx(),
+  });
+
   const [enabled, setEnabled] = useState(false);
   const [endAt, setEndAt] = useState("");
   const [hideChat, setHideChat] = useState(false);
+  const [vipMx, setVipMx] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -77,6 +85,12 @@ function AdminSettings() {
     }
   }, [hideChatData]);
 
+  useEffect(() => {
+    if (vipMxData) {
+      setVipMx(!!vipMxData.enabled);
+    }
+  }, [vipMxData]);
+
   if (!isAdmin) {
     return <div className="text-sm text-muted-foreground">هذه الصفحة للأدمن فقط.</div>;
   }
@@ -88,10 +102,13 @@ function AdminSettings() {
       const iso = fromLocalInput(endAt);
       await saveMaintenance({ data: { enabled, endAt: iso } });
       await saveHideChat({ data: { enabled: hideChat } });
+      await saveVipMx({ data: { enabled: vipMx } });
       await qc.invalidateQueries({ queryKey: ["maintenance-admin"] });
       await qc.invalidateQueries({ queryKey: ["maintenance-public"] });
       await qc.invalidateQueries({ queryKey: ["hide-support-chat-admin"] });
       await qc.invalidateQueries({ queryKey: ["hide-support-chat-public"] });
+      await qc.invalidateQueries({ queryKey: ["vip-maintenance-admin"] });
+      await qc.invalidateQueries({ queryKey: ["vip-maintenance"] });
       toast.success("تم الحفظ", { id: tId });
     } catch (e: any) {
       toast.error(`فشل الحفظ: ${e?.message ?? "خطأ غير معروف"}`, { id: tId });
@@ -183,6 +200,29 @@ function AdminSettings() {
             disabled={isLoading}
           />
           <p className="mt-1 text-xs text-muted-foreground">اتركه فارغًا لعرض صفحة الصيانة بدون عدّاد.</p>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <div className="mb-3">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <Star className="h-4 w-4" />
+              صيانة العملاء المميزون
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              عند التفعيل، تظهر صفحة "العملاء المميزون" تحت الصيانة للزوار العاديين، ويمنع تقديم طلبات اشتراك جديدة.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={vipMx}
+              onChange={(e) => setVipMx(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+              disabled={vipMxLoading}
+            />
+            <span className="text-sm font-medium">تفعيل صيانة صفحة العملاء المميزون</span>
+          </label>
         </div>
 
         <div className="border-t border-border pt-4">

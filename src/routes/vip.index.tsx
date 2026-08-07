@@ -1,15 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 import { Star, Check, Wrench } from "lucide-react";
-import { getMe } from "@/lib/auth.functions";
 import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
-import { getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
+import { getVipMaintenance } from "@/lib/site-settings.functions";
+import { getMyRoles } from "@/lib/admin.functions";
+import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
@@ -39,35 +40,18 @@ function VipPage() {
   const navigate = useNavigate();
   const subscribe = useServerFn(submitVipSubscription);
   const upload = useServerFn(uploadPublicFile);
-  const meFn = useServerFn(getMe);
   const [selectedPlan, setSelectedPlan] = useState<string>(PLANS[0].id);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const getMx = useServerFn(getVipMaintenance);
-  const setMx = useServerFn(setVipMaintenance);
-  const qc = useQueryClient();
+  const getRoles = useServerFn(getMyRoles);
   const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
-  const toggleMx = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      if (!isAdmin) throw new Error("هذه العملية للأدمن فقط");
-      await setMx({ data: { enabled } });
-      return { enabled };
-    },
-    onSuccess: (r) => { toast.success(r.enabled ? "تم تفعيل الصيانة" : "تم إلغاء الصيانة"); qc.setQueryData(["vip-maintenance"], { enabled: r.enabled }); qc.invalidateQueries({ queryKey: ["vip-maintenance"] }); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
-  useEffect(() => {
-    (async () => {
-      const me = await meFn();
-      setIsAdmin(!!me?.roles.includes("admin"));
-    })();
-  }, [meFn]);
+  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const isAdmin = hasAdminRole(roles);
 
   const maintenance = !!mx?.enabled;
 
@@ -108,23 +92,6 @@ function VipPage() {
               <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">العملاء المميزون</h1>
               <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وحول المبلغ بنكي، ثم ارفع إيصال الدفع.</p>
             </div>
-
-            {isAdmin && (
-              <div className="mx-auto mt-6 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card p-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <Wrench className="h-4 w-4" />
-                  <span>وضع الصيانة: {maintenance ? "مفعّل" : "متوقف"}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => toggleMx.mutate(!maintenance)}
-                  disabled={toggleMx.isPending}
-                  className={`rounded-lg px-4 py-2 text-sm font-bold text-background transition disabled:opacity-60 ${maintenance ? "bg-destructive" : "bg-foreground hover:bg-foreground/90"}`}
-                >
-                  {maintenance ? "إلغاء الصيانة" : "تفعيل الصيانة"}
-                </button>
-              </div>
-            )}
 
             {maintenance && !isAdmin ? (
               <div className="mx-auto mt-10 max-w-xl rounded-xl border border-border bg-card p-10 text-center">
