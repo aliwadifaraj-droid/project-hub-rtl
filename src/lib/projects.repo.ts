@@ -17,6 +17,10 @@ export type ProjectRow = {
   domain: string | null;
   offers_enabled: boolean;
   bot_offers_enabled: boolean;
+  is_exclusive: boolean;
+  exclusive_hours: number;
+  exclusive_until: string | null;
+  city: string | null;
   created_at: string;
 };
 
@@ -39,13 +43,21 @@ function decode(r: any): ProjectRow {
     domain: r.domain ?? null,
     offers_enabled: Number(r.offers_enabled ?? 1) !== 0,
     bot_offers_enabled: Number(r.bot_offers_enabled ?? 1) !== 0,
+    is_exclusive: Number(r.is_exclusive ?? 0) !== 0,
+    exclusive_hours: Number(r.exclusive_hours ?? 6),
+    exclusive_until: r.exclusive_until ?? null,
+    city: r.city ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,is_exclusive,exclusive_hours,exclusive_until,city";
 
-/** Idempotent: makes sure the offer-toggle columns exist (older databases). */
+/**
+ * Idempotent: makes sure the offer-toggle AND exclusivity columns exist
+ * (older databases). Every read/write path awaits this, so the new
+ * "المشاريع الحصرية" columns are guaranteed before any query uses them.
+ */
 let _offersColReady: Promise<void> | null = null;
 export function ensureOffersEnabledColumn(): Promise<void> {
   if (!_offersColReady) {
@@ -56,10 +68,25 @@ export function ensureOffersEnabledColumn(): Promise<void> {
       db
         .execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`)
         .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN city TEXT`)
+        .catch(() => undefined),
     ]).then(() => undefined);
   }
   return _offersColReady;
 }
+
+/** Alias for readability at exclusivity call-sites. */
+export const ensureExclusiveColumns = ensureOffersEnabledColumn;
 
 export async function listAllProjects(): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
@@ -166,12 +193,17 @@ export async function insertProject(input: {
   status?: string;
   admin_approval?: string;
   ad_id?: string | null;
+  city?: string | null;
+  is_exclusive?: boolean | number;
+  exclusive_hours?: number;
+  exclusive_until?: string | null;
 }): Promise<string> {
+  await ensureExclusiveColumns();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.execute(
-    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,city,is_exclusive,exclusive_hours,exclusive_until,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id,
       input.name,
@@ -185,6 +217,10 @@ export async function insertProject(input: {
       input.status ?? "active",
       input.admin_approval ?? "approved",
       input.ad_id ?? null,
+      input.city ?? null,
+      input.is_exclusive ? 1 : 0,
+      Number.isFinite(input.exclusive_hours as number) ? Number(input.exclusive_hours) : 6,
+      input.exclusive_until ?? null,
       now,
       now,
     ],
@@ -202,13 +238,20 @@ export async function updateProject(id: string, patch: Partial<{
   pdf_file: string | null;
   status: string;
   admin_approval: string;
+  city: string | null;
+  is_exclusive: boolean | number;
+  exclusive_hours: number;
+  exclusive_until: string | null;
 }>): Promise<void> {
+  await ensureExclusiveColumns();
   const sets: string[] = [];
   const args: any[] = [];
   for (const [k, v] of Object.entries(patch)) {
     if (v === undefined) continue;
     sets.push(`${k} = ?`);
-    args.push(k === "images" ? JSON.stringify(v ?? []) : v as any);
+    if (k === "images") args.push(JSON.stringify(v ?? []));
+    else if (k === "is_exclusive") args.push(v ? 1 : 0);
+    else args.push(v as any);
   }
   if (!sets.length) return;
   sets.push(`updated_at = ?`);

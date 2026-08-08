@@ -1,14 +1,14 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getProject, submitBidRequest, getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-react";
+import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown, Lock, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
@@ -136,6 +136,11 @@ function ProjectDetail() {
               <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-sm">
                 <Clock className="h-4 w-4 text-accent" /> المدة المتوقعة: {project.duration}
               </span>
+              {(project as ExclusiveProject).exclusive_active && (project as ExclusiveProject).can_apply ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-4 py-1.5 text-sm font-semibold text-amber-900">
+                  <Crown className="h-4 w-4" /> وصول حصري VIP
+                </span>
+              ) : null}
             </div>
             <p className="mt-6 text-lg leading-loose text-foreground/85">{project.description}</p>
             {project.pdf_url ? (
@@ -200,6 +205,13 @@ function ProjectDetail() {
                 قدم الآن
               </button>
             </div>
+          </section>
+        ) : (project as ExclusiveProject).exclusive_active && (project as ExclusiveProject).can_apply === false ? (
+          <section className="mt-16 max-w-3xl mx-auto">
+            <ExclusiveLockedCard
+              exclusiveUntil={(project as ExclusiveProject).exclusive_until ?? null}
+              city={(project as ExclusiveProject).city ?? null}
+            />
           </section>
         ) : (
         <section id="apply" className="mt-16 max-w-3xl mx-auto">
@@ -287,6 +299,76 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label} <span className="text-destructive">*</span>
       </label>
       {children}
+    </div>
+  );
+}
+
+type ExclusiveProject = {
+  is_exclusive?: boolean;
+  exclusive_active?: boolean;
+  exclusive_until?: string | null;
+  can_apply?: boolean;
+  city?: string | null;
+};
+
+function formatRemaining(ms: number): string {
+  if (ms <= 0) return "";
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const seconds = Math.floor((ms % 60000) / 1000);
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours} ساعة`);
+  if (minutes > 0) parts.push(`${minutes} دقيقة`);
+  if (hours === 0) parts.push(`${seconds} ثانية`);
+  return parts.join(" و ");
+}
+
+function ExclusiveLockedCard({
+  exclusiveUntil,
+  city,
+}: {
+  exclusiveUntil: string | null;
+  city: string | null;
+}) {
+  const target = exclusiveUntil ? new Date(exclusiveUntil).getTime() : 0;
+  const [remaining, setRemaining] = useState<number>(() => Math.max(0, target - Date.now()));
+
+  useEffect(() => {
+    if (!target) return;
+    const tick = () => setRemaining(Math.max(0, target - Date.now()));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [target]);
+
+  // Window just elapsed → reload so the server re-evaluates access.
+  useEffect(() => {
+    if (target && remaining === 0 && typeof window !== "undefined") {
+      const t = setTimeout(() => window.location.reload(), 800);
+      return () => clearTimeout(t);
+    }
+  }, [remaining, target]);
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-amber-700">
+        <Lock className="h-7 w-7" />
+      </div>
+      <h2 className="mt-4 text-xl font-bold text-amber-950">مشروع حصري لمشتركي VIP</h2>
+      <p className="mt-2 text-sm text-amber-900/80">
+        هذا المشروع متاح حالياً لمشتركي VIP{city ? ` في ${city}` : ""} فقط. سيُفتح التقديم للجميع بعد:
+      </p>
+      <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-lg font-extrabold text-amber-800 shadow-sm" dir="rtl">
+        <Clock className="h-5 w-5" />
+        {remaining > 0 ? formatRemaining(remaining) : "يُفتح الآن..."}
+      </div>
+      <p className="mt-5 text-xs text-amber-900/70">
+        هل أنت مشترك VIP؟{" "}
+        <Link to="/vip" className="font-semibold underline hover:text-amber-800">
+          سجّل الدخول أو اشترك للوصول المبكر
+        </Link>
+      </p>
     </div>
   );
 }

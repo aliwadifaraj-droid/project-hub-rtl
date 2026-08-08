@@ -1,12 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
+import { useState, useEffect } from "react";
+import {
+  upsertProject,
+  deleteProject,
+  listProjects,
+  getMyRoles,
+  getMyUserId,
+  getExclusiveSettings,
+  setExclusiveDefaults,
+  setProjectExclusiveHours,
+  clearProjectExclusivity,
+} from "@/lib/admin.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 
@@ -27,6 +37,8 @@ type ProjectRow = {
   created_by?: string | null;
   status?: string | null;
   admin_approval?: string | null;
+  city?: string | null;
+  exclusive_hours?: number;
 };
 
 
@@ -43,6 +55,16 @@ function ProjectsAdminPage() {
   const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
   const isAdmin = hasAdminRole(roles);
   const myId = me?.userId ?? null;
+
+  const exclusiveSettings = useServerFn(getExclusiveSettings);
+  const { data: exclusive } = useQuery({
+    queryKey: ["exclusive-settings"],
+    queryFn: () => exclusiveSettings(),
+    enabled: isAdmin,
+  });
+  const exclusiveById = new Map(
+    (exclusive?.projects ?? []).map((p) => [p.id, p] as const),
+  );
 
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
@@ -81,6 +103,8 @@ function ProjectsAdminPage() {
           <Plus className="h-4 w-4" /> مشروع جديد
         </button>
       </div>
+
+      {isAdmin ? <ExclusiveDefaultsBar defaultHours={exclusive?.default_hours} /> : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {(data ?? []).map((p) => (
@@ -122,6 +146,14 @@ function ProjectsAdminPage() {
                   projectId={p.id}
                   currentStatus={(p as { status?: string }).status}
                   queryKey={["admin-projects"]}
+                />
+              ) : null}
+
+              {isAdmin ? (
+                <ExclusiveProjectControl
+                  projectId={p.id}
+                  info={exclusiveById.get(p.id)}
+                  fallbackHours={exclusive?.default_hours}
                 />
               ) : null}
 
@@ -204,6 +236,17 @@ function ProjectModal({
               <input className="inp" value={form.duration ?? ""} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
             </Field>
           </div>
+          <Field label="المدينة (لمطابقة مشتركي VIP للحصرية)">
+            <input
+              className="inp"
+              placeholder="مثال: الرياض"
+              value={form.city ?? ""}
+              onChange={(e) => setForm({ ...form, city: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              إذا وُجد مشتركو VIP نشطون في نفس المدينة، يصبح المشروع حصرياً لهم مؤقتاً عند إنشائه.
+            </p>
+          </Field>
           <Field label="صورة الغلاف">
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
               <Upload className="h-4 w-4" />
@@ -247,6 +290,147 @@ function ProjectModal({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="mb-1.5 block text-sm font-semibold">{label}</label>{children}</div>;
+}
+
+// Global default exclusive-hours setting (admin only).
+function ExclusiveDefaultsBar({ defaultHours }: { defaultHours?: number }) {
+  const save = useServerFn(setExclusiveDefaults);
+  const qc = useQueryClient();
+  const [hours, setHours] = useState<string>("");
+  useEffect(() => {
+    if (defaultHours != null) setHours(String(defaultHours));
+  }, [defaultHours]);
+
+  const mut = useMutation({
+    mutationFn: () => save({ data: { hours: Number(hours) } }),
+    onSuccess: () => {
+      toast.success("تم حفظ الإعداد العام للحصرية");
+      qc.invalidateQueries({ queryKey: ["exclusive-settings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <span className="inline-flex items-center gap-2 text-sm font-semibold text-amber-900">
+        <Crown className="h-4 w-4" /> إعدادات المشاريع الحصرية
+      </span>
+      <span className="text-sm text-amber-900/80">عدد ساعات الحصرية الافتراضي للمشاريع الجديدة:</span>
+      <input
+        type="number"
+        min={1}
+        max={240}
+        value={hours}
+        onChange={(e) => setHours(e.target.value)}
+        className="w-24 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-amber-400"
+      />
+      <button
+        onClick={() => mut.mutate()}
+        disabled={mut.isPending || !hours}
+        className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+      >
+        {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} حفظ
+      </button>
+    </div>
+  );
+}
+
+type ExclusiveInfo = {
+  id: string;
+  name: string;
+  city: string | null;
+  is_exclusive: boolean;
+  exclusive_hours: number;
+  exclusive_until: string | null;
+  exclusive_active: boolean;
+};
+
+// Per-project exclusivity control (admin only).
+function ExclusiveProjectControl({
+  projectId,
+  info,
+  fallbackHours,
+}: {
+  projectId: string;
+  info?: ExclusiveInfo;
+  fallbackHours?: number;
+}) {
+  const setHoursFn = useServerFn(setProjectExclusiveHours);
+  const clearFn = useServerFn(clearProjectExclusivity);
+  const qc = useQueryClient();
+  const [hours, setHours] = useState<string>(String(info?.exclusive_hours ?? fallbackHours ?? 6));
+  useEffect(() => {
+    setHours(String(info?.exclusive_hours ?? fallbackHours ?? 6));
+  }, [info?.exclusive_hours, fallbackHours]);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["exclusive-settings"] });
+    qc.invalidateQueries({ queryKey: ["admin-projects"] });
+  };
+  const applyMut = useMutation({
+    mutationFn: () => setHoursFn({ data: { id: projectId, hours: Number(hours) } }),
+    onSuccess: (res: { is_exclusive?: 0 | 1 }) => {
+      toast.success(res?.is_exclusive ? "تم تفعيل الحصرية لهذا المشروع" : "تم الحفظ (لا يوجد مشتركو VIP في هذه المدينة)");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const clearMut = useMutation({
+    mutationFn: () => clearFn({ data: { id: projectId } }),
+    onSuccess: () => { toast.success("تم إيقاف الحصرية"); invalidate(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const activeUntil = info?.exclusive_active ? info?.exclusive_until : null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-secondary/30 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
+          <Lock className="h-3.5 w-3.5 text-amber-600" /> الحصرية
+        </span>
+        {activeUntil ? (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+            نشطة حتى {new Date(activeUntil).toLocaleString("ar")}
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">غير مفعّلة</span>
+        )}
+      </div>
+      {info?.city ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">المدينة: {info.city}</p>
+      ) : (
+        <p className="mt-1 text-[11px] text-muted-foreground">لا توجد مدينة محددة (لن تُفعّل الحصرية تلقائياً)</p>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="number"
+          min={1}
+          max={240}
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          className="w-20 rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-ring"
+        />
+        <span className="text-[11px] text-muted-foreground">ساعة</span>
+        <button
+          onClick={() => applyMut.mutate()}
+          disabled={applyMut.isPending || !hours}
+          className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+        >
+          {applyMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} تفعيل الآن
+        </button>
+        {activeUntil ? (
+          <button
+            onClick={() => clearMut.mutate()}
+            disabled={clearMut.isPending}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-secondary disabled:opacity-60"
+          >
+            إيقاف
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function fileToBase64(file: File): Promise<string> {

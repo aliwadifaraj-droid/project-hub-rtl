@@ -44,11 +44,33 @@ export const getProject = createServerFn({ method: "GET" })
       const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
       const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
       const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "";
+
+      // Exclusivity gating: during an active exclusive window only active VIP
+      // subscribers in the same city may apply; everyone else sees a countdown.
+      const { isExclusiveActive, isViewerEligibleForExclusive } = await import("./exclusive.server");
+      const exclusive_active = isExclusiveActive(p.is_exclusive, p.exclusive_until);
+      let can_apply = true;
+      if (exclusive_active) {
+        can_apply = false;
+        try {
+          const { getSessionClaims } = await import("./auth.server");
+          const claims = await getSessionClaims();
+          can_apply = await isViewerEligibleForExclusive(claims?.email, p.city);
+        } catch {
+          can_apply = false;
+        }
+      }
+
       return {
         id: p.id, name: p.name, description: p.description, location: p.location,
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
+        is_exclusive: p.is_exclusive,
+        exclusive_until: p.exclusive_until,
+        exclusive_active,
+        city: p.city,
+        can_apply,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {
@@ -181,6 +203,8 @@ const projectSchema = z.object({
   cover_image: z.string().trim().min(1).max(500),
   images: z.array(z.string().max(500)).max(20).default([]),
   pdf_file: z.string().trim().max(500).nullable().optional(),
+  city: z.string().trim().max(120).optional(),
+  exclusive_hours: z.coerce.number().int().min(1).max(240).optional(),
 });
 
 export const upsertProject = createServerFn({ method: "POST" })
@@ -192,25 +216,39 @@ export const upsertProject = createServerFn({ method: "POST" })
       const dup = await projectsRepo.findByOwnerAndName(context.userId, data.name, data.id);
       if (dup) throw new Error("لديك مشروع بنفس الاسم بالفعل");
     }
+    // Source city used to match active VIP subscribers (falls back to location).
+    const cityForMatch = (data.city ?? data.location ?? "").trim();
     if (data.id) {
       const existing = await projectsRepo.getById(data.id);
       if (!existing) throw new Error("المشروع غير موجود");
       if (!isAdmin && existing.created_by !== context.userId) throw new Error("غير مصرح بالتعديل");
-      await projectsRepo.updateProject(data.id, {
+      const patch: Parameters<typeof projectsRepo.updateProject>[1] = {
         name: data.name, description: data.description, location: data.location,
         duration: data.duration, cover_image: data.cover_image, images: data.images,
         pdf_file: data.pdf_file ?? null,
-      });
+      };
+      // Only admins may (re)configure exclusivity when editing.
+      if (isAdmin && data.city !== undefined) patch.city = data.city || null;
+      await projectsRepo.updateProject(data.id, patch);
       await invalidateProjectsAll();
       await invalidateQuotes(existing.created_by);
       return { id: data.id };
     }
+    const { computeExclusivity } = await import("./exclusive.server");
+    const exclusivity = await computeExclusivity(
+      cityForMatch,
+      isAdmin ? data.exclusive_hours : undefined,
+    );
     const id = await projectsRepo.insertProject({
       name: data.name, description: data.description, location: data.location,
       duration: data.duration, cover_image: data.cover_image, images: data.images,
       pdf_file: data.pdf_file ?? null,
       created_by: context.userId,
       admin_approval: "approved",
+      city: data.city ?? null,
+      is_exclusive: exclusivity.is_exclusive,
+      exclusive_hours: exclusivity.exclusive_hours,
+      exclusive_until: exclusivity.exclusive_until,
     });
     {
       const { notifyVipSubscribersOfNewProject } = await import("./vip-notify.server");
@@ -381,6 +419,20 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     const proj = await projectsRepo.getById(data.project_id);
     if (!proj) throw new Error("المشروع غير موجود");
     if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
+
+    // Enforce exclusivity: during the active window only active VIP subscribers
+    // in the same city may submit an offer.
+    {
+      const { isExclusiveActive, isViewerEligibleForExclusive } = await import("./exclusive.server");
+      if (isExclusiveActive(proj.is_exclusive, proj.exclusive_until)) {
+        const { getSessionClaims } = await import("./auth.server");
+        const claims = await getSessionClaims().catch(() => null);
+        const eligible = await isViewerEligibleForExclusive(claims?.email, proj.city);
+        if (!eligible) {
+          throw new Error("هذا المشروع حصري حالياً لمشتركي VIP في نفس المدينة");
+        }
+      }
+    }
 
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
@@ -581,6 +633,77 @@ export const adminSetAllProjectOffersEnabled = createServerFn({ method: "POST" }
   .handler(async ({ data, context }) => {
     assertStaffRoles(context.roles);
     await projectsRepo.setAllOffersEnabled(data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
+
+// ---------- Admin: exclusive projects ("المشاريع الحصرية") ----------
+
+/** Read the global default number of exclusive hours + per-project exclusivity. */
+export const getExclusiveSettings = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { getDefaultExclusiveHours } = await import("./app-settings.repo");
+    const default_hours = await getDefaultExclusiveHours();
+    const rows = await projectsRepo.listAllProjects();
+    const projects = rows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      city: p.city,
+      is_exclusive: p.is_exclusive,
+      exclusive_hours: p.exclusive_hours,
+      exclusive_until: p.exclusive_until,
+      exclusive_active: !!p.is_exclusive && !!p.exclusive_until && new Date(p.exclusive_until).getTime() > Date.now(),
+    }));
+    return { default_hours, projects };
+  });
+
+/** Admin-only: update the global default exclusive hours. */
+export const setExclusiveDefaults = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ hours: z.coerce.number().int().min(1).max(240) }).parse(d))
+  .handler(async ({ data }) => {
+    const { setDefaultExclusiveHours } = await import("./app-settings.repo");
+    await setDefaultExclusiveHours(data.hours);
+    return { ok: true as const, hours: data.hours };
+  });
+
+/**
+ * Admin-only: set a specific project's exclusive_hours and (re)open the
+ * exclusive window from now, matching active VIP subscribers by the project's
+ * city (falls back to its location when no city is set).
+ */
+export const setProjectExclusiveHours = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), hours: z.coerce.number().int().min(1).max(240) }).parse(d))
+  .handler(async ({ data }) => {
+    const existing = await projectsRepo.getById(data.id);
+    if (!existing) throw new Error("المشروع غير موجود");
+    const { computeExclusivity } = await import("./exclusive.server");
+    const cityForMatch = (existing.city ?? existing.location ?? "").trim();
+    const exclusivity = await computeExclusivity(cityForMatch, data.hours);
+    await projectsRepo.updateProject(data.id, {
+      exclusive_hours: exclusivity.exclusive_hours,
+      is_exclusive: exclusivity.is_exclusive,
+      exclusive_until: exclusivity.exclusive_until,
+    });
+    await invalidateProjectsAll();
+    return {
+      ok: true as const,
+      is_exclusive: exclusivity.is_exclusive,
+      exclusive_until: exclusivity.exclusive_until,
+    };
+  });
+
+/** Admin-only: turn off exclusivity for a project immediately. */
+export const clearProjectExclusivity = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const existing = await projectsRepo.getById(data.id);
+    if (!existing) throw new Error("المشروع غير موجود");
+    await projectsRepo.updateProject(data.id, { is_exclusive: 0, exclusive_until: null });
     await invalidateProjectsAll();
     return { ok: true as const };
   });
