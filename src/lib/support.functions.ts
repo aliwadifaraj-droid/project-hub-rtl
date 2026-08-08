@@ -201,7 +201,7 @@ async function answerRequestStatus(query: string): Promise<string | null> {
     return rows
       .slice(0, 5)
       .map((r) => {
-        const label = REQUEST_STATUS_LABEL[r.status] ?? r.status;
+        const label = r.status==='new' ? `<span style="background:#17a2b8;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">📥 جديد</span>` : r.status==='reviewing' ? `<span style="background:#fd7e14;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">⏳ قيد المراجعة</span>` : r.status==='accepted' ? `<span style="background:#28a745;color:white;font-weight:bold;padding:8px 16px;border-radius:50px;display:inline-block;font-size:14px">● ✅ مقبول</span>` : r.status==='rejected' ? `<span style="background:#dc3545;color:white;font-weight:bold;padding:12px 24px;border-radius:8px;display:inline-block;font-size:16px">❌ مرفوض</span>` : r.status;
         const lines = [`📄 ${r.company_name ?? "طلب"}`, `حالة الطلب: ${label}`];
         if (r.note && r.note.trim()) lines.push(`الملاحظة: ${r.note.trim()}`);
         else lines.push(REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new);
