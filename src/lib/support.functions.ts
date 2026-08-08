@@ -201,7 +201,7 @@ async function answerRequestStatus(query: string): Promise<string | null> {
     return rows
       .slice(0, 5)
       .map((r) => {
-        const badge = r.status==='active' ? `🟡 مفتوح للعروض` : r.status==='delivered' ? `✅ تم التسليم` : r.status==='rejected' ? `❌ مرفوض` : `❌ ملغي`;
+        const badge = r.status==='active' ? `🟡 مفتوح للعروض` : r.status==='delivered' ? `✅ تم التسليم` : `❌ ملغي`;
         const lines = [`📄 ${r.company_name ?? "طلب"}`, `حالة الطلب: ${badge}`];
         if (r.note && r.note.trim()) lines.push(`الملاحظة: ${r.note.trim()}`);
         else lines.push(REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new);
