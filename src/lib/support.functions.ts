@@ -202,7 +202,7 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       .slice(0, 5)
       .map((r) => {
         const label = REQUEST_STATUS_LABEL[r.status] ?? r.status;
-        const lines = [`📄 ${r.company_name ?? "طلب"}`, `حالة الطلب: ${badge}`];
+        const lines = [`📄 ${r.company_name ?? "طلب"}`, `حالة الطلب: ${label}`];
         if (r.note && r.note.trim()) lines.push(`الملاحظة: ${r.note.trim()}`);
         else lines.push(REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new);
         return lines.join("\n");
