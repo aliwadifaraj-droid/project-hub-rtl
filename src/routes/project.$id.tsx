@@ -183,7 +183,7 @@ function ProjectDetail() {
           <section className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
               <p className="text-sm font-semibold text-orange-900">
-                تقديم عروض الأسعار متوقف حالياً لهذا المشروع.
+                تقديم عروض الاسعار عبر النموذج متوقف حاليا
               </p>
               <p className="mt-1 text-xs text-orange-800/80">
                 يمكنك تقديم عرضك بسرعة عبر المساعد الآلي.
