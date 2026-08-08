@@ -8,7 +8,6 @@ import {
 } from "@/lib/support.functions";
 import { getBotSettings } from "@/lib/bot-settings.functions";
 import { submitOffer } from "@/lib/offers.functions";
-import { BotMessageBody } from "@/components/bot-message-body";
 
 
 const TOKEN_KEY = "support_visitor_token_v1";
@@ -45,359 +44,436 @@ export function SupportChatWidget() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bubbleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [offerStep, setOfferStep] = useState<"none" | "terms" | "form">("none");
-  const [offerData, setOfferData] = useState({ projectName: "", companyId: "", facilityLocation: "", email: "", pdfFile: null as File | null });
+  // Offer (price quote) wizard state
+  const [offerMsgId, setOfferMsgId] = useState<string | null>(null);
+  const [offerStep, setOfferStep] = useState<"terms" | "form" | "done" | null>(null);
+  const [offerForm, setOfferForm] = useState({ projectName: "", companyName: "", email: "", amount: "" });
+  const [offerFile, setOfferFile] = useState<File | null>(null);
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [offerError, setOfferError] = useState<string | null>(null);
 
-  const listBotQuestionsFn = useServerFn(listBotQuestions);
-  const startChatFn = useServerFn(startVisitorChat);
-  const getMsgsFn = useServerFn(visitorGetMessages);
-  const sendMsgFn = useServerFn(visitorSendMessage);
-  const endSessionFn = useServerFn(visitorEndSession);
-  const getBotSettingsFn = useServerFn(getBotSettings);
+  const listQa = useServerFn(listBotQuestions);
+  const startFn = useServerFn(startVisitorChat);
+  const getMsgs = useServerFn(visitorGetMessages);
+  const sendFn = useServerFn(visitorSendMessage);
+  const endFn = useServerFn(visitorEndSession);
+  const getSettings = useServerFn(getBotSettings);
   const submitOfferFn = useServerFn(submitOffer);
 
-  const { data: botSettings } = useQuery({
-    queryKey: ["bot-settings"],
-    queryFn: () => getBotSettingsFn(),
-  });
-
-  const visitorName = botSettings?.visitor_name || "زائر";
-
-  const { data: messages = [], refetch } = useQuery({
-    queryKey: ["visitor-messages", token],
-    queryFn: () => getMsgsFn({ data: { token } }),
-    enabled: !!token,
-    refetchInterval: 3000,
-  });
-
-  const scrollToBottom = useCallback(() => {
-    requestAnimationFrame(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    });
-  }, []);
 
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    if (!open) return;
-    const stored = localStorage.getItem(TOKEN_KEY);
-    if (stored) {
-      setToken(stored);
-    } else {
-      (async () => {
-        try {
-          const res = await startChatFn({ data: { name: visitorName } });
-          if (res?.token) {
-            setToken(res.token);
-            localStorage.setItem(TOKEN_KEY, res.token);
-          }
-        } catch {}
-      })();
-    }
-  }, [open]);
+    if (!mounted || bubbleDismissed) return;
+    const showTimer = setTimeout(() => setShowBubble(true), 1500);
+    const hideTimer = setTimeout(() => setShowBubble(false), 61500); // 1 min after show
+    bubbleTimer.current = hideTimer;
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [mounted, bubbleDismissed]);
+
+  const dismissBubble = useCallback(() => {
+    setShowBubble(false);
+    setBubbleDismissed(true);
+    if (bubbleTimer.current) { clearTimeout(bubbleTimer.current); bubbleTimer.current = null; }
+  }, []);
+
+  const openFromBubble = useCallback(() => {
+    dismissBubble();
+    setOpen(true);
+  }, [dismissBubble]);
 
   useEffect(() => {
-    if (open && !bubbleDismissed) setShowBubble(false);
-  }, [open, bubbleDismissed]);
+    const handler = () => setOpen(true);
+    if (typeof window !== "undefined") {
+      window.addEventListener("open-support-chat", handler);
+      return () => window.removeEventListener("open-support-chat", handler);
+    }
+  }, []);
+
+  const endSession = useCallback(async (opts?: { silent?: boolean }) => {
+    if (idleTimer.current) { clearTimeout(idleTimer.current); idleTimer.current = null; }
+    const t = token;
+    setToken("");
+    setInput("");
+    setSendError(null);
+    if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+    if (t) {
+      try { await endFn({ data: { visitorToken: t } }); } catch {}
+      qc.removeQueries({ queryKey: ["support-visitor-chat", t] });
+    }
+    if (!opts?.silent) {
+      // stay open on welcome screen (token cleared → welcome view renders)
+    }
+  }, [token, endFn, qc]);
+
+  const resetIdle = useCallback(() => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (!open || !token) return;
+    idleTimer.current = setTimeout(() => { endSession({ silent: true }); }, IDLE_MS);
+  }, [open, token, endSession]);
+
+  // When widget opens: always start a FRESH session
+  useEffect(() => {
+    if (!open || !mounted) return;
+    if (token) return;
+    const t = generateUuid();
+    if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+    startFn({ data: { visitorToken: t } }).catch(() => {});
+  }, [open, mounted, token, startFn]);
+
+  // End session when tab closes
+  useEffect(() => {
+    if (!token) return;
+    const onUnload = () => {
+      try {
+        if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+          // best-effort; server fn RPC doesn't accept beacon, so just clear local
+        }
+      } catch {}
+      if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [token]);
+
+  const { data: qaList = [] } = useQuery({
+    queryKey: ["bot-qa-public"],
+    queryFn: () => listQa(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const { data: botSettings } = useQuery({
+    queryKey: ["bot-settings-public"],
+    queryFn: () => getSettings(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const { data: chatData } = useQuery({
+    queryKey: ["support-visitor-chat", token],
+    queryFn: () => getMsgs({ data: { visitorToken: token, sinceIso: null } }),
+    enabled: open && !!token,
+    refetchInterval: open && !!token ? 3000 : false,
+  });
+
+  const messages = chatData?.messages ?? [];
+  const status = chatData?.chat?.status ?? "bot";
+  const lastMsg = messages[messages.length - 1];
+  const showEndAfterBot = !!lastMsg && (lastMsg.sender === "bot" || lastMsg.sender === "admin");
+
+  // Detect the latest offer-flow trigger from the bot and open the wizard
+  const offerTriggerId = useMemo(() => {
+    const m = [...messages].reverse().find((x) => x.sender === "bot" && x.body.includes(OFFER_FLOW_MARKER));
+    return m?.id ?? null;
+  }, [messages]);
 
   useEffect(() => {
-    if (!open) {
-      const t = setTimeout(() => {
-        if (!bubbleDismissed) setShowBubble(true);
-      }, 4000);
-      return () => clearTimeout(t);
+    if (!offerTriggerId) return;
+    if (offerMsgId === offerTriggerId) return;
+    setOfferMsgId(offerTriggerId);
+    setOfferStep("terms");
+    setOfferError(null);
+    setOfferFile(null);
+    setOfferForm({ projectName: "", companyName: "", email: "", amount: "" });
+  }, [offerTriggerId, offerMsgId]);
+
+  async function handleOfferSubmit() {
+    if (offerBusy) return;
+    const { projectName, companyName, email, amount } = offerForm;
+    if (!projectName.trim() || !companyName.trim() || !email.trim() || !amount.trim()) {
+      setOfferError("يرجى إكمال جميع الحقول.");
+      return;
     }
-  }, [open, bubbleDismissed]);
+    if (!offerFile) {
+      setOfferError("يرجى رفع ملف العرض بصيغة PDF.");
+      return;
+    }
+    const isPdf = offerFile.type === "application/pdf" || offerFile.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      setOfferError("الملف يجب أن يكون PDF.");
+      return;
+    }
+    setOfferBusy(true);
+    setOfferError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", offerFile);
+      fd.append("purpose", "bid-pdf");
+      const res = await fetch("/api/public/upload", { method: "POST", body: fd });
+      const json = (await res.json()) as { key?: string; error?: string };
+      if (!res.ok || !json.key) throw new Error(json.error || "تعذر رفع الملف");
+      const result = await submitOfferFn({
+        data: {
+          projectName: projectName.trim(),
+          companyName: companyName.trim(),
+          email: email.trim(),
+          amount: amount.trim(),
+          pdfKey: json.key,
+          pdfFilename: offerFile.name,
+          visitorToken: token || null,
+        },
+      });
+      if (!result?.ok) {
+        setOfferError(result?.message ?? "المشروع غير موجود");
+        return;
+      }
+      setOfferStep("done");
+      qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
 
-  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+    } catch (e) {
+      setOfferError(e instanceof Error ? e.message : "تعذر إرسال العرض، حاول مرة أخرى.");
+    } finally {
+      setOfferBusy(false);
+    }
+  }
 
-  const askBot = useCallback(async (text: string) => {
-    if (!text.trim() || sending) return;
+
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages.length, open]);
+
+  // Reset idle timer on any message change or user activity
+  useEffect(() => { resetIdle(); }, [messages.length, resetIdle]);
+  useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current); }, []);
+
+  async function handleSend(text: string, qaId?: string | null) {
+    if (!token || !text.trim() || sending) return;
+    const body = text.trim();
     setSending(true);
     setSendError(null);
     try {
-      await sendMsgFn({ data: { token, message: text } });
+      await startFn({ data: { visitorToken: token } });
+      await sendFn({ data: { visitorToken: token, body, qaId: qaId != null ? String(qaId) : null } });
       setInput("");
-      await refetch();
-      scrollToBottom();
-    } catch (e: any) {
-      setSendError(e?.message ?? "تعذر الإرسال");
+      qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
+      resetIdle();
+    } catch {
+      setSendError("تعذر إرسال الرسالة، حاول مرة أخرى.");
     } finally {
       setSending(false);
     }
-  }, [token, sending, sendMsgFn, refetch, scrollToBottom]);
-
-  useEffect(() => {
-    const onOpen = () => setOpen(true);
-    window.addEventListener("open-support-chat", onOpen);
-    return () => window.removeEventListener("open-support-chat", onOpen);
-  }, []);
-
-  const quickQuestions = useMemo(() => {
-    const list = botSettings?.quick_questions ?? [];
-    return list.slice(0, 4);
-  }, [botSettings]);
-
-  const currentOfferProject = useMemo(() => {
-    if (!offerData.projectName) return null;
-    return { name: offerData.projectName, id: offerData.companyId };
-  }, [offerData.projectName, offerData.companyId]);
-
-  async function handleSend() {
-    const text = input.trim();
-    if (!text || sending) return;
-
-    const lower = text.toLowerCase().trim();
-    if (lower === "عرض سعر" || lower === "تقديم عرض" || lower.includes("تقديم عرض سعر")) {
-      setOfferStep("terms");
-      return;
-    }
-
-    await askBot(text);
   }
+
+  const canShowQuickQuestions = useMemo(
+    () => status === "bot" && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
+    [status, qaList.length, botSettings?.show_suggested_questions],
+  );
 
   if (!mounted) return null;
 
   return (
     <>
-      {showBubble && !open && (
-        <div
-          className="fixed bottom-6 left-6 z-50 max-w-xs rounded-2xl bg-foreground px-4 py-3 text-sm text-background shadow-lg animate-in fade-in slide-in-from-bottom-2"
-          onClick={() => { setOpen(true); setShowBubble(false); }}
-        >
-          <div className="flex items-start gap-2">
-            <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-            <div className="flex-1">
-              <div className="font-semibold">{botSettings?.bubble_text || "محتاج مساعدة؟"}</div>
-              <div className="mt-0.5 text-xs opacity-80">{botSettings?.bubble_subtext || "اسألني عن المشاريع أو الخدمات"}</div>
-            </div>
+      {!open && (
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
+          {showBubble && (
             <button
-              onClick={(e) => { e.stopPropagation(); setBubbleDismissed(true); setShowBubble(false); }}
-              className="shrink-0 opacity-60 hover:opacity-100"
-              aria-label="إغلاق"
+              onClick={openFromBubble}
+              className="relative mb-1 mr-1 max-w-[260px] rounded-2xl rounded-br-md bg-background px-4 py-2.5 text-sm font-medium text-foreground shadow-[var(--shadow-elegant)] ring-1 ring-border animate-in fade-in slide-in-from-bottom-2 duration-300"
             >
-              <X className="h-3.5 w-3.5" />
+              <span className="block pr-5">تحتاج مساعدة؟ 👋</span>
+              <span
+                onClick={(e) => { e.stopPropagation(); dismissBubble(); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="إغلاق"
+                role="button"
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
             </button>
-          </div>
+          )}
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="افتح شات الدعم"
+            className="grid h-14 w-14 place-items-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground shadow-[var(--shadow-elegant)] transition hover:scale-105"
+          >
+            <MessageCircle className="h-6 w-6" />
+          </button>
         </div>
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-start sm:bottom-6 sm:left-6 sm:items-stretch sm:max-w-sm">
-          <div className="absolute inset-0 bg-black/30 sm:hidden" onClick={() => setOpen(false)} />
-          <div className="relative flex h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl bg-card shadow-xl sm:h-[600px] sm:rounded-2xl border border-border">
-            {/* Header */}
-            <div className="flex items-center justify-between bg-[image:var(--gradient-accent)] px-4 py-3 text-accent-foreground">
-              <div className="flex items-center gap-2">
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-white/20">
-                  <MessageCircle className="h-5 w-5" />
+        <div
+          onMouseMove={resetIdle}
+          onKeyDown={resetIdle}
+          className="fixed bottom-5 right-5 z-50 flex h-[560px] max-h-[85vh] w-[360px] max-w-[95vw] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--shadow-elegant)]"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-border bg-[image:var(--gradient-hero)] px-4 py-3 text-primary-foreground">
+            <div className="flex items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15">
+                <Headphones className="h-4 w-4" />
+              </span>
+              <div>
+                <div className="text-sm font-bold">دعم العمران</div>
+                <div className="text-[11px] opacity-80">
+                  {status === "escalated" ? "متصل مع موظف" : status === "closed" ? "المحادثة مغلقة" : "المساعد الآلي"}
                 </div>
-                <div>
-                  <div className="text-sm font-bold">دعم العمران</div>
-                  <div className="text-[11px] opacity-80">
-                    {status === "escalated" ? "متصل مع موظف" : status === "closed" ? "المحادثة مغلقة" : "المساعد الآلي"}
+              </div>
+            </div>
+            <button onClick={() => setOpen(false)} className="rounded-md p-1 hover:bg-white/10" aria-label="إغلاق">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-secondary/30 p-3">
+            {messages.map((m) => {
+              const mine = m.sender === "visitor";
+              const isSystem = m.sender === "system";
+              if (isSystem) {
+                return (
+                  <div key={m.id} className="mx-auto max-w-[85%] rounded-md bg-accent/15 px-3 py-1.5 text-center text-[11px] text-foreground/70">
+                    {m.body}
+                  </div>
+                );
+              }
+              return (
+                <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
+                    mine ? "bg-primary text-primary-foreground"
+                         : m.sender === "admin" ? "bg-accent text-accent-foreground"
+                         : "bg-background border border-border"
+                  }`}>
+                    {m.sender === "admin" && (
+                      <div className="mb-0.5 text-[10px] font-semibold opacity-80">موظف الدعم</div>
+                    )}
+                    <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body.replace(OFFER_FLOW_MARKER, "").trim() }} />
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-1">
-                {status === "escalated" && (
-                  <button
-                    onClick={async () => {
-                      try { await endSessionFn({ data: { token } }); } catch {}
-                      localStorage.removeItem(TOKEN_KEY);
-                      setToken("");
-                      setOpen(false);
-                    }}
-                    className="rounded-md p-1.5 hover:bg-white/20"
-                    aria-label="إنهاء"
-                  >
-                    <PowerOff className="h-4 w-4" />
-                  </button>
-                )}
-                <button onClick={() => setOpen(false)} className="rounded-md p-1.5 hover:bg-white/20" aria-label="إغلاق">
-                  <X className="h-4 w-4" />
+              );
+            })}
+
+            {/* Offer (price quote) wizard */}
+            {offerStep === "terms" && (
+              <div className="rounded-xl border border-border bg-background p-3">
+                <button
+                  onClick={() => setOfferStep("form")}
+                  className="w-full rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+                >
+                  أوافق على الشروط
                 </button>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-3">
-              {messages.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                  <MessageCircle className="mb-2 h-8 w-8 opacity-40" />
-                  <p>مرحباً! كيف أقدر أساعدك اليوم؟</p>
-                </div>
-              ) : (
-                messages.map((m) => {
-                  const mine = m.sender === "visitor";
-                  return (
-                    <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
-                        mine ? "bg-primary text-primary-foreground"
-                             : m.sender === "admin" ? "bg-accent text-accent-foreground"
-                             : "bg-background border border-border"
-                      }`}>
-                        {m.sender === "admin" && (
-                          <div className="mb-0.5 text-[10px] font-semibold opacity-80">موظف الدعم</div>
-                        )}
-                        <div className="whitespace-pre-wrap break-words"><BotMessageBody body={m.body.replace(OFFER_FLOW_MARKER, "").trim()} /></div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-
-              {/* Offer (price quote) wizard */}
-              {offerStep === "terms" && (
-                <div className="rounded-xl border border-border bg-background p-3">
-                  <button
-                    onClick={() => setOfferStep("form")}
-                    className="w-full rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
-                  >
-                    أوافق على الشروط
-                  </button>
-                </div>
-              )}
-
-              {offerStep === "form" && (
-                <div className="space-y-2 rounded-xl border border-border bg-background p-3">
-                  <div className="text-[11px] font-semibold text-muted-foreground">بيانات عرض السعر:</div>
-                  <input
-                    type="text"
-                    placeholder="اسم المشروع"
-                    value={offerData.projectName}
-                    onChange={(e) => setOfferData((d) => ({ ...d, projectName: e.target.value }))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <input
-                    type="text"
-                    placeholder="رقم السجل التجاري / الهوية"
-                    value={offerData.companyId}
-                    onChange={(e) => setOfferData((d) => ({ ...d, companyId: e.target.value }))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <input
-                    type="text"
-                    placeholder="موقع المنشأة"
-                    value={offerData.facilityLocation}
-                    onChange={(e) => setOfferData((d) => ({ ...d, facilityLocation: e.target.value }))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <input
-                    type="email"
-                    placeholder="البريد الإلكتروني"
-                    value={offerData.email}
-                    onChange={(e) => setOfferData((d) => ({ ...d, email: e.target.value }))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <label className="flex cursor-pointer items-center gap-2 rounded-md border-2 border-dashed border-border px-3 py-2 text-xs hover:bg-secondary/50">
-                    <FileUp className="h-4 w-4 text-accent" />
-                    <span className="flex-1 text-muted-foreground">
-                      {offerData.pdfFile ? offerData.pdfFile.name : "اضغط لاختيار ملف PDF"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      onChange={(e) => setOfferData((d) => ({ ...d, pdfFile: e.target.files?.[0] ?? null }))}
-                      className="hidden"
-                    />
-                  </label>
-                  <button
-                    onClick={async () => {
-                      if (!offerData.projectName || !offerData.companyId || !offerData.facilityLocation || !offerData.email || !offerData.pdfFile) {
-                        setSendError("جميع الحقول إجبارية");
-                        return;
-                      }
-                      setSending(true);
-                      try {
-                        const buf = await offerData.pdfFile.arrayBuffer();
-                        let binary = "";
-                        const bytes = new Uint8Array(buf);
-                        const chunk = 0x8000;
-                        for (let i = 0; i < bytes.length; i += chunk) {
-                          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-                        }
-                        const file_base64 = btoa(binary);
-                        await submitOfferFn({ data: {
-                          project_name: offerData.projectName,
-                          company_id: offerData.companyId,
-                          facility_location: offerData.facilityLocation,
-                          email: offerData.email,
-                          file_name: offerData.pdfFile.name,
-                          file_base64,
-                        }});
-                        setOfferStep("none");
-                        setOfferData({ projectName: "", companyId: "", facilityLocation: "", email: "", pdfFile: null });
-                        setSendError(null);
-                        await refetch();
-                        scrollToBottom();
-                      } catch (e: any) {
-                        setSendError(e?.message ?? "تعذر إرسال العرض");
-                      } finally {
-                        setSending(false);
-                      }
-                    }}
-                    disabled={sending}
-                    className="w-full rounded-md bg-[image:var(--gradient-accent)] px-3 py-2 text-xs font-bold text-accent-foreground hover:opacity-90 disabled:opacity-60"
-                  >
-                    {sending ? "جاري الإرسال…" : "إرسال العرض"}
-                  </button>
-                </div>
-              )}
-
-              {sendError && (
-                <div className="text-center text-xs text-destructive">{sendError}</div>
-              )}
-            </div>
-
-            {/* Quick questions */}
-            {quickQuestions.length > 0 && offerStep === "none" && (
-              <div className="flex flex-wrap gap-1.5 px-3 pb-2">
-                {quickQuestions.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => askBot(q)}
-                    className="rounded-full border border-border bg-secondary/50 px-2.5 py-1 text-[11px] hover:bg-secondary"
-                  >
-                    {q}
-                  </button>
-                ))}
               </div>
             )}
 
-            {/* Input */}
-            <div className="border-t border-border p-3">
-              {status === "closed" ? (
-                <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4" />
-                  المحادثة مغلقة. ابدأ محادثة جديدة.
-                </div>
-              ) : (
-                <div className="flex items-end gap-2">
+            {offerStep === "form" && (
+              <div className="space-y-2 rounded-xl border border-border bg-background p-3">
+                <div className="text-[11px] font-semibold text-muted-foreground">بيانات عرض السعر:</div>
+                {([
+                  ["projectName", "اسم المشروع"],
+                  ["companyName", "اسم الشركة"],
+                  ["email", "البريد الإلكتروني"],
+                  ["amount", "قيمة العرض"],
+                ] as const).map(([field, label]) => (
                   <input
-                    ref={inputRef}
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder="اكتب رسالتك…"
-                    className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    key={field}
+                    value={offerForm[field]}
+                    onChange={(e) => setOfferForm((f) => ({ ...f, [field]: e.target.value }))}
+                    placeholder={label}
+                    type={field === "email" ? "email" : "text"}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
                   />
+                ))}
+                <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-secondary/40 px-3 py-2 text-[11px] font-medium hover:bg-secondary">
+                  <FileUp className="h-3.5 w-3.5" />
+                  {offerFile ? offerFile.name : "رفع ملف العرض (PDF)"}
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={(e) => setOfferFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {offerError && <div className="text-[11px] text-destructive">{offerError}</div>}
+                <div className="flex gap-2">
                   <button
-                    onClick={handleSend}
-                    disabled={sending || !input.trim()}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
-                    aria-label="إرسال"
+                    onClick={handleOfferSubmit}
+                    disabled={offerBusy}
+                    className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {offerBusy ? "جارٍ الإرسال…" : "إرسال العرض"}
+                  </button>
+                  <button
+                    onClick={() => { setOfferStep(null); setOfferError(null); }}
+                    className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
+                  >
+                    إلغاء
                   </button>
                 </div>
-              )}
+              </div>
+            )}
+
+            {offerStep === "done" && (
+              <div className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background p-3 text-[11px] font-semibold text-foreground/80">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث
+              </div>
+            )}
+
+            {showEndAfterBot && token && !offerStep && (
+              <div className="flex justify-start pt-1">
+                <button
+                  onClick={() => endSession()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-[11px] font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground transition"
+                >
+                  <PowerOff className="h-3 w-3" />
+                  إنهاء المحادثة
+                </button>
+              </div>
+            )}
+
+          </div>
+
+          {/* Quick questions */}
+          {canShowQuickQuestions && (
+            <div className="border-t border-border bg-background/60 p-2">
+              <div className="mb-1 text-[11px] font-semibold text-muted-foreground">اختر سؤالًا:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {qaList.map((q) => (
+                  <button
+                    key={q.id}
+                    onClick={() => handleSend(q.question, q.id)}
+                    disabled={sending}
+                    className="rounded-full border border-border bg-secondary px-3 py-1 text-[11px] hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                  >
+                    {q.question}
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* Input */}
+          <div className="border-t border-border bg-background p-2">
+            <form
+              onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
+              className="flex items-center gap-1.5"
+            >
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                maxLength={2000}
+                placeholder="اكتب رسالتك…"
+                className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || sending}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-foreground text-background disabled:opacity-50"
+                aria-label="إرسال"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </form>
+            {sendError && <div className="mt-1 text-[11px] text-destructive">{sendError}</div>}
           </div>
         </div>
       )}

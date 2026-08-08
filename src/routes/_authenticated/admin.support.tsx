@@ -150,7 +150,7 @@ function AdminSupportPage() {
                         <div className="mb-0.5 text-[10px] font-semibold opacity-70">
                           {m.sender === "admin" ? "موظف" : m.sender === "bot" ? "بوت" : "عميل"} · {new Date(m.created_at).toLocaleString("ar")}
                         </div>
-                        <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                        <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body }} />
                       </div>
                     </div>
                   );
