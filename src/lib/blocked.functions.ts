@@ -29,9 +29,14 @@ export const adminBlockCompany = createServerFn({ method: "POST" })
   });
 
 export const adminUnblockCompany = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string() }).parse(d))
-  .handler(async ({ data }) => {
-    await blockedRepo.removeBlocked(data.id);
-    return { ok: true };
+.middleware([requireAdmin])
+.inputValidator((d: unknown) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
+.handler(async ({ data }) => {
+    try {
+      await blockedRepo.removeBlocked(String(data.id));
+      return { ok: true };
+    } catch (e: any) {
+      console.error("adminUnblockCompany error:", e);
+      return { ok: false, error: e.message };
+    }
   });
