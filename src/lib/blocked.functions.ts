@@ -1,0 +1,34 @@
+// Server functions for blocking/unblocking companies (admin only).
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireAdmin } from "./auth-middleware.server";
+import * as blockedRepo from "./blocked.repo";
+
+export const BLOCKED_MESSAGE = "تم حظرك من تقديم الطلبات بسبب مخالفة سياسة استخدام المنصة";
+
+export const adminListBlocked = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => blockedRepo.listBlocked());
+
+export const adminBlockCompany = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      company_name: z.string().trim().max(200).optional().default(""),
+      email: z.string().trim().max(255).optional().default(""),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const companyName = data.company_name || null;
+    const email = data.email || null;
+    if (!companyName && !email) throw new Error("يرجى تحديد اسم الشركة أو البريد الإلكتروني");
+    const id = await blockedRepo.insertBlocked({ company_name: companyName, email });
+    return { ok: true, id };
+  });
+
+export const adminUnblockCompany = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    await blockedRepo.removeBlocked(data.id);
+    return { ok: true };
+  });
