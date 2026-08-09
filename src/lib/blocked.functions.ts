@@ -33,7 +33,7 @@ export const adminUnblockCompany = createServerFn({ method: "POST" })
 .inputValidator((d: unknown) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
 .handler(async ({ data }) => {
     try {
-      await blockedRepo.removeBlocked(String(data.id));
+      await blockedRepo.removeBlocked(String(data.id?.id ?? data.id));
     const list = await blockedRepo.listBlocked();
     return list;
   } catch (e: any) {
