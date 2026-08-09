@@ -1,10 +1,13 @@
-// Turso repository for `blocked` companies/emails.
+// Turso repository for `blocked_users` (companies/emails with block_type).
 import { db, rowsToObjects } from "./db";
+
+export type BlockType = "email" | "company" | "both";
 
 export type BlockedRow = {
   id: string;
   company_name: string | null;
   email: string | null;
+  block_type: BlockType;
   created_at: string;
 };
 
@@ -13,58 +16,50 @@ function decode(r: any): BlockedRow {
     id: String(r.id),
     company_name: r.company_name ?? null,
     email: r.email ?? null,
+    block_type: (r.block_type ?? "both") as BlockType,
     created_at: String(r.created_at ?? ""),
   };
-}
-
-let _tableReady: Promise<void> | null = null;
-
-export function ensureBlockedTable(): Promise<void> {
-  if (_tableReady) return _tableReady;
-  _tableReady = db.execute(
-    `CREATE TABLE IF NOT EXISTS blocked (
-      id           TEXT PRIMARY KEY,
-      company_name TEXT,
-      email        TEXT,
-      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-    )`,
-  ).then(() => undefined).catch(() => undefined);
-  return _tableReady;
 }
 
 export async function insertBlocked(input: {
   company_name?: string | null;
   email?: string | null;
+  block_type?: BlockType;
 }): Promise<string> {
-  await ensureBlockedTable();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO blocked (id, company_name, email, created_at) VALUES (?, ?, ?, ?)`,
-    [id, input.company_name ?? null, input.email ?? null, new Date().toISOString()],
+    `INSERT INTO blocked_users (id, company_name, email, block_type, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [
+      id,
+      input.company_name ?? null,
+      input.email ?? null,
+      input.block_type ?? "both",
+      new Date().toISOString(),
+    ],
   );
   return id;
 }
 
 export async function removeBlocked(id: string): Promise<void> {
-  await ensureBlockedTable();
-  await db.execute(`DELETE FROM blocked WHERE id = ?`, [id]);
+  await db.execute(`DELETE FROM blocked_users WHERE id = ?`, [id]);
 }
 
 export async function listBlocked(): Promise<BlockedRow[]> {
-  await ensureBlockedTable();
-  const r = await db.execute(`SELECT * FROM blocked ORDER BY created_at DESC`);
+  const r = await db.execute(`SELECT * FROM blocked_users ORDER BY created_at DESC`);
   return rowsToObjects(r).map(decode);
 }
 
-export async function isBlocked(companyName?: string | null, email?: string | null): Promise<boolean> {
-  await ensureBlockedTable();
+export async function isBlocked(
+  companyName?: string | null,
+  email?: string | null,
+): Promise<boolean> {
   const c = (companyName ?? "").trim().toLowerCase();
   const e = (email ?? "").trim().toLowerCase();
   if (!c && !e) return false;
   const r = await db.execute(
-    `SELECT 1 FROM blocked
-     WHERE (? != '' AND LOWER(TRIM(COALESCE(company_name,''))) = ?)
-        OR (? != '' AND LOWER(TRIM(COALESCE(email,''))) = ?)
+    `SELECT 1 FROM blocked_users
+     WHERE (block_type IN ('company','both') AND ? != '' AND LOWER(TRIM(COALESCE(company_name,''))) = ?)
+        OR (block_type IN ('email','both')   AND ? != '' AND LOWER(TRIM(COALESCE(email,''))) = ?)
      LIMIT 1`,
     [c, c, e, e],
   );
