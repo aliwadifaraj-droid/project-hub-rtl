@@ -26,7 +26,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
         admin_approval: p.admin_approval,
         cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
         pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
-      })));
+      })))
     });
   } catch (e) {
     console.error("[listProjects] unexpected error:", e);
@@ -331,6 +331,51 @@ export const adminDeleteContactMessage = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     await contactRepo.deleteContactMessage(data.id);
+    return { ok: true };
+  });
+
+export const adminReplyContactMessage = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { id: string; reply: string }) =>
+    z.object({
+      id: z.string().uuid(),
+      reply: z.string().trim().min(1).max(5000),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const msg = await contactRepo.getContactMessageById(data.id);
+    if (!msg) throw new Error("الرسالة غير موجودة");
+    if (!msg.email) throw new Error("لا يوجد بريد إلكتروني للرد عليه");
+
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
+
+    const safeReply = data.reply
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br/>");
+
+    const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb">
+<div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+<h2 style="margin:0 0 12px;color:#1e293b">رد من فريق منصة العمران</h2>
+<p style="color:#475569">مرحباً ${msg.name || ""}،</p>
+<p style="color:#1e293b;line-height:1.9">${safeReply}</p>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0"/>
+<p style="color:#94a3b8;font-size:12px">هذا رد على رسالتك في صفحة "تواصل بنا" بمنصة العمران.</p>
+</div></div>`;
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        from: "Alamran <send@ali-alhaddad.com>",
+        to: [msg.email],
+        subject: "رد على رسالتك في منصة العمران",
+        html,
+      }),
+    });
+    const bodyText = await res.text();
+    if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
+
+    await contactRepo.setContactReply(data.id, data.reply.trim());
     return { ok: true };
   });
 

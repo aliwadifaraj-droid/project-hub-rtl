@@ -132,11 +132,13 @@ CREATE TABLE IF NOT EXISTS project_submissions (
 
 -- ============ contact_messages ============
 CREATE TABLE IF NOT EXISTS contact_messages (
-  id         TEXT PRIMARY KEY,
-  name       TEXT,
-  email      TEXT,
-  message    TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  id           TEXT PRIMARY KEY,
+  name         TEXT,
+  email        TEXT,
+  message      TEXT NOT NULL,
+  reply        TEXT,
+  replied_at   TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ site_settings (singleton) ============
