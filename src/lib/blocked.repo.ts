@@ -40,8 +40,8 @@ export async function insertBlocked(input: {
   return id;
 }
 
-export async function removeBlocked(uuid: string): Promise<void> {
-  await db.execute(`DELETE FROM blocked_users WHERE uuid =?`, [uuid]);
+export async function removeBlocked(id: string): Promise<void> {
+  await db.execute('DELETE FROM blocked_users WHERE id =?', [id]);
 }
 }
 
