@@ -41,7 +41,7 @@ export async function insertBlocked(input: {
 }
 
 export async function removeBlocked(id: any): Promise<void> {
-  await db.execute({sql: 'DELETE FROM blocked_users WHERE id =?', args: [id]})
+    await db.execute({sql: 'DELETE FROM blocked_users WHERE id =?', args: [String(id)]})
 }
 
 export async function listBlocked(): Promise<BlockedRow[]> {
