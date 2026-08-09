@@ -82,8 +82,8 @@ function MaintenancePage() {
           <div className="mt-6 text-sm text-primary">انتهى وقت الصيانة، يمكنك تحديث الصفحة الآن.</div>
         )}
       </div>
-      <div className="fixed bottom-5 left-5 z-[9999]">
-  <button className="bg-orange-500 text-white rounded-full px-4 py-3 shadow-lg">👋 تحتاج مساعدة؟</button>
+      <div className="fixed bottom-5 left-5 z-[99999] pointer-events-auto">
+  <button className="bg-orange-500 text-white rounded-full px-4 py-3 shadow-lg pointer-events-auto">👋 تحتاج مساعدة؟</button>
 </div>
     </div>
   );
