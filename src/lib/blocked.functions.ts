@@ -30,7 +30,7 @@ export const adminBlockCompany = createServerFn({ method: "POST" })
 
 export const adminUnblockCompany = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ id: z.string() }).parse(d))
   .handler(async ({ data }) => {
     await blockedRepo.removeBlocked(data.id);
     return { ok: true };
