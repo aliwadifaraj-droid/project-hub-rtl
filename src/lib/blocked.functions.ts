@@ -34,9 +34,10 @@ export const adminUnblockCompany = createServerFn({ method: "POST" })
 .handler(async ({ data }) => {
     try {
       await blockedRepo.removeBlocked(String(data.id));
-      return { ok: true };
-    } catch (e: any) {
-      console.error("adminUnblockCompany error:", e);
-      return { ok: false, error: e.message };
+    const list = await blockedRepo.listBlocked();
+    return list;
+  } catch (e: any) {
+    console.error("adminUnblockCompany error:", e);
+    throw new Error(e.message);
     }
   });
