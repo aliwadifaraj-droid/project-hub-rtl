@@ -107,10 +107,11 @@ function AdminSettings() {
 
   const unblockMut = useMutation({
     mutationFn: (id: string) => unblockFn({ data: { id } }),
-    onSuccess: () => {
-      toast.success("تم رفع الحظر");
-      qc.invalidateQueries({ queryKey: ["admin-blocked"] });
-    },
+    onSuccess: async () => {
+  toast.success("تم رفع الحظر");
+  await qc.invalidateQueries({ queryKey: ["admin-blocked"] });
+  await qc.refetchQueries({ queryKey: ["admin-blocked"] });
+},
     onError: (e: Error) => toast.error(e.message),
   });
 
