@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText } from "lucide-react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { FileText, Ban, Loader2 } from "lucide-react";
 import { adminListOffers, adminUpdateOfferStatus, adminGetOfferPdfUrl } from "@/lib/offers.functions";
+import { adminBlockCompany } from "@/lib/blocked.functions";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/offers")({
   head: () => ({
@@ -27,6 +29,7 @@ function AdminOffersPage() {
   const listFn = useServerFn(adminListOffers);
   const updateFn = useServerFn(adminUpdateOfferStatus);
   const pdfFn = useServerFn(adminGetOfferPdfUrl);
+  const blockFn = useServerFn(adminBlockCompany);
 
   const { data: offers = [], isLoading } = useQuery({
     queryKey: ["admin-offers"],
@@ -42,6 +45,12 @@ function AdminOffersPage() {
     await updateFn({ data: { id, status } });
     qc.invalidateQueries({ queryKey: ["admin-offers"] });
   }
+
+  const blockMut = useMutation({
+    mutationFn: (v: { company_name?: string; email?: string }) => blockFn({ data: v }),
+    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["admin-offers"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -84,6 +93,14 @@ function AdminOffersPage() {
                   {STATUS_LABEL[s]}
                 </button>
               ))}
+              <button
+                disabled={blockMut.isPending}
+                onClick={() => blockMut.mutate({ company_name: o.company_name, email: o.email })}
+                className="inline-flex items-center gap-1.5 rounded-md bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-60"
+              >
+                {blockMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
+                حظر
+              </button>
             </div>
           </div>
         ))}

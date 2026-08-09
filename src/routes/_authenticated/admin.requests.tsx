@@ -14,8 +14,9 @@ import {
   adminSetProjectBotOffersEnabled,
   adminSetAllProjectBotOffersEnabled,
 } from "@/lib/admin.functions";
-import { FileDown, Loader2, Bell, Mail, X, ToggleLeft, ToggleRight, Bot, BotOff } from "lucide-react";
+import { FileDown, Loader2, Bell, Mail, X, ToggleLeft, ToggleRight, Bot, BotOff, Ban } from "lucide-react";
 import { toast } from "sonner";
+import { adminBlockCompany } from "@/lib/blocked.functions";
 
 
 export const Route = createFileRoute("/_authenticated/admin/requests")({
@@ -44,6 +45,12 @@ function RequestsPage() {
 
 
   const [noteTarget, setNoteTarget] = useState<{ id: string; status: Status; note: string } | null>(null);
+  const blockFn = useServerFn(adminBlockCompany);
+  const blockMut = useMutation({
+    mutationFn: (v: { company_name?: string; email?: string }) => blockFn({ data: v }),
+    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["admin-requests"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const mut = useMutation({
     mutationFn: (v: { id: string; status: Status; note?: string }) => update({ data: v }),
@@ -104,6 +111,7 @@ function RequestsPage() {
                 <th className="p-3 font-semibold">التاريخ</th>
                 <th className="p-3 font-semibold">الحالة</th>
                 <th className="p-3 font-semibold">عرض السعر</th>
+                <th className="p-3 font-semibold">حظر</th>
               </tr>
             </thead>
             <tbody>
@@ -159,11 +167,22 @@ function RequestsPage() {
                     ) : null}
                     </div>
                   </td>
+                  <td className="p-3">
+                    {isAdmin ? (
+                      <button
+                        disabled={blockMut.isPending}
+                        onClick={() => blockMut.mutate({ company_name: r.company_name ?? "", email: r.email ?? "" })}
+                        className="inline-flex items-center gap-1 rounded-md bg-red-600/80 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-60"
+                      >
+                        <Ban className="h-4 w-4" /> حظر
+                      </button>
+                    ) : "-"}
+                  </td>
 
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={7} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
+                <tr><td colSpan={8} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
               )}
             </tbody>
           </table>

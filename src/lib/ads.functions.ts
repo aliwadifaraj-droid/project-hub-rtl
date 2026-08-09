@@ -5,6 +5,8 @@ import * as adsRepo from "./ads.repo";
 import * as projectsRepo from "./projects.repo";
 import { findUserById } from "./users.repo";
 import { resolveStoredFileUrl } from "./storage-url";
+import * as blockedRepo from "./blocked.repo";
+import { BLOCKED_MESSAGE } from "./blocked.functions";
 
 function assertStaff(roles: string[]) {
   if (!roles.includes("admin") && !roles.includes("employee")) throw new Error("غير مصرح");
@@ -151,6 +153,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
       contact_email: z.string().trim().max(255).refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "بريد إلكتروني غير صحيح").optional().default(""),
     }).parse(d))
   .handler(async ({ data }) => {
+    if (await blockedRepo.isBlocked(null, data.contact_email)) throw new Error(BLOCKED_MESSAGE);
     const safePath = data.image_path && data.image_path.startsWith("submissions/") ? data.image_path : "";
     const id = await adsRepo.insertAd({
       title: data.title,

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
 import * as offersRepo from "./offers.repo";
 import * as notificationsRepo from "./notifications.repo";
+import * as blockedRepo from "./blocked.repo";
+import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
@@ -31,6 +33,10 @@ export const submitOffer = createServerFn({ method: "POST" })
     }
     if (!project.bot_offers_enabled) {
       return { ok: false as const, message: OFFER_DISABLED_MESSAGE };
+    }
+    const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
+    if (blocked) {
+      return { ok: false as const, message: BLOCKED_MESSAGE };
     }
     const duplicate = await offersRepo.existsDuplicateOffer(project.name, data.email, data.companyName);
     if (duplicate) {

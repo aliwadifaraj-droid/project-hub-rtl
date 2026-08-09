@@ -7,6 +7,8 @@ import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
+import * as blockedRepo from "./blocked.repo";
+import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
 
@@ -464,6 +466,8 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     if (!proj) throw new Error("المشروع غير موجود");
     if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
 
+    if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
@@ -497,6 +501,7 @@ export const submitProjectSuggestion = createServerFn({ method: "POST" })
       images: z.array(imageItemSchema).max(8).default([]),
     }).parse(d))
   .handler(async ({ data }) => {
+    if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
     const uploadedPaths: string[] = [];
     for (const img of data.images) {
       const bytes = Buffer.from(img.file_base64, "base64");
@@ -570,6 +575,7 @@ export const submitProjectWithPaths = createServerFn({ method: "POST" })
       image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
     }).parse(d))
   .handler(async ({ data }) => {
+    if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
     const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
     await submissionsRepo.insertSubmission({
       name: data.name, description: data.description, location: data.location,
