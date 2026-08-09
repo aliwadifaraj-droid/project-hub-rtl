@@ -39,9 +39,9 @@ export async function insertBlocked(input: {
   );
   return id;
 }
-
 export async function removeBlocked(id: any): Promise<void> {
-    await db.execute({sql: 'DELETE FROM blocked_users WHERE id =?', args: [String(id)]})
+  const realId = typeof id === 'object' ? id.id : id;
+  await db.execute({sql: 'DELETE FROM blocked_users WHERE id = ?', args: [String(realId)]})
 }
 
 export async function listBlocked(): Promise<BlockedRow[]> {
