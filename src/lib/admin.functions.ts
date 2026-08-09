@@ -3,10 +3,10 @@ import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import { hashPassword } from "./auth.server";
 import { getRolesForUser, findUserById, findUserByEmail, createUser, grantRole, listUsersWithRoles, getRoleNameById, deleteUser as deleteUserRow } from "./users.repo";
-import * as projectsRepo from "./projects.repo";
-import * as requestsRepo from "./project-requests.repo";
-import * as submissionsRepo from "./project-submissions.repo";
-import * as contactRepo from "./contact-messages.repo";
+import * projectsRepo from "./projects.repo";
+import * requestsRepo from "./project-requests.repo";
+import * submissionsRepo from "./project-submissions.repo";
+import * contactRepo from "./contact-messages.repo";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
 
@@ -171,6 +171,43 @@ export const sendTestEmail = createServerFn({ method: "POST" })
     return { ok: true, id, to: data.to };
   });
 
+// ---------- Admin: send custom email ----------
+export const adminSendCustomEmail = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      to: z.string().trim().email().max(255),
+      subject: z.string().trim().min(1).max(300),
+      message: z.string().trim().min(1).max(10000),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
+    const safe = data.message
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br/>");
+    const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb">
+<div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+<h2 style="margin:0 0 12px;color:#1e293b">${data.subject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h2>
+<p style="color:#1e293b;line-height:1.9">${safe}</p>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0"/>
+<p style="color:#94a3b8;font-size:12px">رسالة من فريق منصة العمران.</p>
+</div></div>`;
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        from: "Alamran <send@ali-alhaddad.com>",
+        to: [data.to],
+        subject: data.subject,
+        html,
+      }),
+    });
+    const bodyText = await res.text();
+    if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
+    return { ok: true };
+  });
+
 // ---------- Admin: project CRUD ----------
 const projectSchema = z.object({
   id: z.string().uuid().optional(),
@@ -298,39 +335,33 @@ export const createEmployee = createServerFn({ method: "POST" })
 
 export const deleteEmployee = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { user_id: string }) => z.object({ user_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    if (data.user_id === context.userId) throw new Error("لا يمكنك حذف نفسك");
-    await deleteUserRow(data.user_id);
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    await deleteUserRow(data.id);
     return { ok: true };
   });
 
-export const getMyRoles = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    const roles = (await getRolesForUser(context.userId)) as ("admin" | "employee")[];
-    return roles.sort((a, b) => (a === "admin" ? -1 : b === "admin" ? 1 : a.localeCompare(b)));
-  });
-
-export const getMyUserId = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => ({ userId: context.userId }));
-
-// ---------- Contact messages ----------
+// ---------- Admin: contact messages ----------
 export const adminListMessages = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async () => contactRepo.listContactMessages());
-
-export const countContactMessages = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ since: z.string().nullable() }).parse(d))
-  .handler(async ({ data }) => ({ count: await contactRepo.countContactMessagesSince(data.since) }));
+  .handler(async () => {
+    const rows = await contactRepo.listMessages();
+    return rows.map((m) => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      message: m.message,
+      reply: m.reply,
+      replied_at: m.replied_at,
+      created_at: m.created_at,
+    }));
+  });
 
 export const adminDeleteContactMessage = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    await contactRepo.deleteContactMessage(data.id);
+    await contactRepo.deleteMessage(data.id);
     return { ok: true };
   });
 
@@ -342,139 +373,23 @@ export const adminReplyContactMessage = createServerFn({ method: "POST" })
       reply: z.string().trim().min(1).max(5000),
     }).parse(d))
   .handler(async ({ data }) => {
-    const msg = await contactRepo.getContactMessageById(data.id);
+    const msg = await contactRepo.getMessageById(data.id);
     if (!msg) throw new Error("الرسالة غير موجودة");
-    if (!msg.email) throw new Error("لا يوجد بريد إلكتروني للرد عليه");
-
+    if (!msg.email) throw new Error("لا يوجد بريد للرد عليه");
     const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
-
+    if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط");
     const safeReply = data.reply
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/\n/g, "<br/>");
-
-    const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb">
-<div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
-<h2 style="margin:0 0 12px;color:#1e293b">رد من فريق منصة العمران</h2>
-<p style="color:#475569">مرحباً ${msg.name || ""}،</p>
-<p style="color:#1e293b;line-height:1.9">${safeReply}</p>
-<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0"/>
-<p style="color:#94a3b8;font-size:12px">هذا رد على رسالتك في صفحة "تواصل بنا" بمنصة العمران.</p>
-</div></div>`;
-
+    const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb"><div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb"><h2 style="margin:0 0 12px;color:#1e293b">رد من فريق منصة العمران</h2><p style="color:#475569">مرحباً ${msg.name || ""}،</p><p style="color:#1e293b;line-height:1.9">${safeReply}</p><hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0"/><p style="color:#94a3b8;font-size:12px">هذا رد على رسالتك في صفحة "تواصل بنا" بمنصة العمران.</p></div></div>`;
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        from: "Alamran <send@ali-alhaddad.com>",
-        to: [msg.email],
-        subject: "رد على رسالتك في منصة العمران",
-        html,
-      }),
+      body: JSON.stringify({ from: "Alamran <send@ali-alhaddad.com>", to: [msg.email], subject: "رد على رسالتك في منصة العمران", html }),
     });
     const bodyText = await res.text();
     if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
-
-    await contactRepo.setContactReply(data.id, data.reply.trim());
-    return { ok: true };
-  });
-
-// ---------- Signup first admin ----------
-const FIRST_ADMIN_EMAIL = "aliwadifaraj@gmail.com";
-export const signupFirstAdmin = createServerFn({ method: "POST" })
-  .inputValidator((d: { email: string; password: string }) =>
-    z.object({ email: z.string().email().max(255), password: z.string().min(6).max(72) }).parse(d))
-  .handler(async ({ data }) => {
-    const email = data.email.trim().toLowerCase();
-    if (email !== FIRST_ADMIN_EMAIL) throw new Error("التسجيل مسموح فقط للحساب المخصص");
-    if (await findUserByEmail(email)) throw new Error("هذا البريد مسجل بالفعل");
-    const id = await createUser(email, await hashPassword(data.password));
-    await grantRole(id, "admin");
-    return { ok: true };
-  });
-
-// ---------- Public: submit a bid ----------
-export const submitBidRequest = createServerFn({ method: "POST" })
-  .inputValidator((d: {
-    project_id: string; company_name: string; facility_location: string;
-    email: string; file_name: string; file_base64: string;
-  }) =>
-    z.object({
-      project_id: z.string().uuid(),
-      company_name: z.string().trim().min(1).max(200),
-      facility_location: z.string().trim().min(1).max(300),
-      email: z.string().trim().email().max(255),
-      file_name: z.string().trim().min(1).max(200),
-      file_base64: z.string().min(8).max(15_000_000),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    const bytes = Buffer.from(data.file_base64, "base64");
-    if (bytes.length === 0) throw new Error("الملف فارغ");
-    if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
-    if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) {
-      throw new Error("الملف ليس PDF صالحاً");
-    }
-
-    // Detect submitter type
-    let submitterType: "guest" | "user" = "guest";
-    try {
-      const { getSessionClaims } = await import("./auth.server");
-      const claims = await getSessionClaims();
-      if (claims) submitterType = "user";
-    } catch { /* ignore */ }
-
-    const proj = await projectsRepo.getById(data.project_id);
-    if (!proj) throw new Error("المشروع غير موجود");
-    if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
-
-    const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
-    const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
-    const { uploadToR2 } = await import("./r2");
-    await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-
-    await requestsRepo.insertRequest({
-      project_id: data.project_id,
-      company_name: data.company_name,
-      facility_location: data.facility_location,
-      email: data.email,
-      pdf_url: path,
-      submitter_type: submitterType,
-    });
-    return { ok: true };
-  });
-
-// ---------- Public: submit project suggestion ----------
-const imageItemSchema = z.object({
-  file_name: z.string().trim().min(1).max(200),
-  file_base64: z.string().min(8).max(8_000_000),
-  content_type: z.string().regex(/^image\/(png|jpe?g|webp|gif)$/),
-});
-
-export const submitProjectSuggestion = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      name: z.string().trim().min(1).max(200),
-      description: z.string().trim().min(1).max(5000),
-      location: z.string().trim().min(1).max(300),
-      contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/),
-      images: z.array(imageItemSchema).max(8).default([]),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    const uploadedPaths: string[] = [];
-    for (const img of data.images) {
-      const bytes = Buffer.from(img.file_base64, "base64");
-      if (bytes.length === 0) continue;
-      if (bytes.length > 5 * 1024 * 1024) throw new Error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
-      const safeName = img.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
-      const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
-      const { uploadToR2 } = await import("./r2");
-      await uploadToR2({ key: path, body: bytes, contentType: img.content_type });
-      uploadedPaths.push(path);
-    }
-    await submissionsRepo.insertSubmission({
-      name: data.name, description: data.description, location: data.location,
-      contact_phone: data.contact_phone, images: uploadedPaths,
-    });
+    await contactRepo.setReply(data.id, data.reply);
     return { ok: true };
   });
 
@@ -485,147 +400,98 @@ export const adminListSubmissions = createServerFn({ method: "GET" })
     const rows = await submissionsRepo.listAllSubmissions();
     return Promise.all(rows.map(async (s) => ({
       ...s,
-      image_urls: await Promise.all((s.images ?? []).map(resolveStoragePath)),
+      cover_url: s.cover_image ? await resolveStoragePath(s.cover_image).catch(() => "") : "",
+      image_urls: await Promise.all((s.images ?? []).map((p) => resolveStoragePath(p).catch(() => ""))),
+      pdf_url: s.pdf_file ? await resolveStoragePath(s.pdf_file).catch(() => "") : "",
     })));
   });
 
-export const approveSubmission = createServerFn({ method: "POST" })
+export const adminApproveSubmission = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d: { id: string; action: string }) =>
+    z.object({
+      id: z.string().uuid(),
+      action: z.enum(["approve", "reject"]),
+    }).parse(d))
   .handler(async ({ data }) => {
     const sub = await submissionsRepo.getSubmissionById(data.id);
     if (!sub) throw new Error("الطلب غير موجود");
-    if (sub.status === "approved" && sub.approved_project_id) {
-      return { id: sub.approved_project_id };
-    }
-    const images = sub.images ?? [];
-    const cover = images[0] ?? "placeholder.jpg";
-    const newId = await projectsRepo.insertProject({
-      name: sub.name, description: sub.description, location: sub.location,
-      duration: "غير محدد", cover_image: cover, images,
-      admin_approval: "approved",
-    });
-    await submissionsRepo.markSubmissionApproved(data.id, newId);
-    {
-      const { notifyVipSubscribersOfNewProject } = await import("./vip-notify.server");
-      await notifyVipSubscribersOfNewProject({
-        id: newId, name: sub.name, description: sub.description, location: sub.location,
+    if (data.action === "approve") {
+      const id = await projectsRepo.insertProject({
+        name: sub.name, description: sub.description, location: sub.location,
+        duration: sub.duration, cover_image: sub.cover_image, images: sub.images,
+        pdf_file: sub.pdf_file, created_by: sub.submitted_by, admin_approval: "approved",
       });
+      await invalidateProjectsAll();
+      await invalidateQuotes(sub.submitted_by);
+      {
+        const { notifyVipSubscribersOfNewProject } = await import("./vip-notify.server");
+        await notifyVipSubscribersOfNewProject({
+          id, name: sub.name, description: sub.description,
+          location: sub.location, duration: sub.duration,
+        });
+      }
     }
-    return { id: newId };
-  });
-
-export const deleteSubmission = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
     await submissionsRepo.deleteSubmission(data.id);
     return { ok: true };
   });
 
-export const submitProjectWithPaths = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      name: z.string().trim().min(1).max(200),
-      description: z.string().trim().min(1).max(5000),
-      location: z.string().trim().min(1).max(300),
-      contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/),
-      image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
-    await submissionsRepo.insertSubmission({
-      name: data.name, description: data.description, location: data.location,
-      contact_phone: data.contact_phone, images: safePaths,
-    });
-    return { ok: true };
-  });
-
-// ---------- Admin: private message to a request's client ----------
-export const sendRequestMessage = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) =>
-    z.object({
-      to: z.string().trim().email().max(255),
-      message: z.string().trim().min(1).max(3000),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
-    const safe = data.message
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/\n/g, "<br/>");
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        from: "Alamran <noreply@ali-alhaddad.com>",
-        to: [data.to],
-        subject: "رسالة من فريق العمران",
-        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;line-height:1.9">${safe}</div>`,
-      }),
-    });
-    const bodyText = await res.text();
-    if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
-    return { ok: true };
-  });
-
-// ---------- Admin/Staff: toggle "submit offer" availability per project ----------
-function assertStaffRoles(roles: string[]) {
-  if (!roles.includes("admin") && !roles.includes("employee")) throw new Error("Forbidden");
-}
-
-export const adminListProjectOfferToggles = createServerFn({ method: "GET" })
+// ---------- Admin: dashboard stats ----------
+export const getMyRoles = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    assertStaffRoles(context.roles);
-    const rows = await projectsRepo.listAllProjects();
-    return rows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      offers_enabled: p.offers_enabled,
-      bot_offers_enabled: p.bot_offers_enabled,
-    }));
+    return context.roles;
   });
 
-export const adminSetProjectBotOffersEnabled = createServerFn({ method: "POST" })
+export const countContactMessages = createServerFn({ method: "GET" })
   .middleware([requireAuth])
+  .inputValidator((d: { since?: string }) =>
+    z.object({ since: z.string().datetime().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const isAdmin = context.roles.includes("admin");
+    if (!isAdmin) return { count: 0 };
+    const count = await contactRepo.countUnread(data.since);
+    return { count };
+  });
+
+export const getDashboardStats = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { db, rowsToObjects } = await import("./db");
+    const [projects, requests, messages, users] = await Promise.all([
+      db.execute(`SELECT COUNT(*) as cnt FROM projects`),
+      db.execute(`SELECT COUNT(*) as cnt FROM project_requests`),
+      db.execute(`SELECT COUNT(*) as cnt FROM contact_messages`),
+      db.execute(`SELECT COUNT(*) as cnt FROM users`),
+    ]);
+    return {
+      projects: Number(rowsToObjects(projects)[0]?.cnt ?? 0),
+      requests: Number(rowsToObjects(requests)[0]?.cnt ?? 0),
+      messages: Number(rowsToObjects(messages)[0]?.cnt ?? 0),
+      users: Number(rowsToObjects(users)[0]?.cnt ?? 0),
+    };
+  });
+
+export const adminUpdateSiteSettings = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(d))
-  .handler(async ({ data, context }) => {
-    assertStaffRoles(context.roles);
-    await projectsRepo.setBotOffersEnabled(data.id, data.enabled);
-    await invalidateProjectsAll();
-    return { ok: true as const };
-  });
-
-export const adminSetAllProjectBotOffersEnabled = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
-  .handler(async ({ data, context }) => {
-    assertStaffRoles(context.roles);
-    await projectsRepo.setAllBotOffersEnabled(data.enabled);
-    await invalidateProjectsAll();
-    return { ok: true as const };
-  });
-
-export const adminSetProjectOffersEnabled = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(d))
-  .handler(async ({ data, context }) => {
-    assertStaffRoles(context.roles);
-    await projectsRepo.setOffersEnabled(data.id, data.enabled);
-    await invalidateProjectsAll();
-    return { ok: true as const };
-  });
-
-export const adminSetAllProjectOffersEnabled = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
-  .handler(async ({ data, context }) => {
-    assertStaffRoles(context.roles);
-    await projectsRepo.setAllOffersEnabled(data.enabled);
-    await invalidateProjectsAll();
-    return { ok: true as const };
+    z.object({
+      site_name: z.string().trim().max(200).optional(),
+      hero_title: z.string().trim().max(500).optional(),
+      hero_subtitle: z.string().trim().max(1000).optional(),
+      contact_email: z.string().trim().email().max(255).optional(),
+      contact_phone: z.string().trim().max(50).optional(),
+      maintenance_mode: z.boolean().optional(),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const { db } = await import("./db");
+    const entries = Object.entries(data).filter(([, v]) => v !== undefined);
+    if (entries.length === 0) return { ok: true };
+    const setClauses = entries.map(([k]) => `${k} = ?`).join(", ");
+    const values = entries.map(([, v]) => v);
+    await db.execute({
+      sql: `UPDATE site_settings SET ${setClauses}`,
+      args: values,
+    });
+    return { ok: true };
   });

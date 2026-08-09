@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { adminListMessages, adminDeleteContactMessage, adminReplyContactMessage } from "@/lib/admin.functions";
+import { adminListMessages, adminDeleteContactMessage, adminReplyContactMessage, adminSendCustomEmail } from "@/lib/admin.functions";
 import { Loader2, Mail, Trash2, Bell, Send, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/admin/messages")({
   component: MessagesPage,
@@ -19,6 +21,25 @@ function MessagesPage() {
 
   const [replyText, setReplyText] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<Record<string, boolean>>({});
+  const [showNewMessageModal, setShowNewMessageModal] = useState(false);
+  const [newMsg, setNewMsg] = useState({ to: "", subject: "", message: "" });
+  const [sendingNew, setSendingNew] = useState(false);
+  const sendNewEmailFn = useServerFn(adminSendCustomEmail);
+
+  async function handleSendNewEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setSendingNew(true);
+    try {
+      await sendNewEmailFn({ data: { to: newMsg.to, subject: newMsg.subject, message: newMsg.message } });
+      toast.success("تم ارسال الايميل بنجاح");
+      setShowNewMessageModal(false);
+      setNewMsg({ to: "", subject: "", message: "" });
+    } catch (err: any) {
+      toast.error(err?.message ?? "تعذر إرسال الإيميل");
+    } finally {
+      setSendingNew(false);
+    }
+  }
 
   async function handleDelete(id: string) {
     if (!confirm("هل تريد حذف هذه الرسالة؟")) return;
@@ -62,7 +83,12 @@ function MessagesPage() {
   return (
     <div dir="rtl">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-xl md:text-2xl font-bold">رسائل التواصل ({rows.length})</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-xl md:text-2xl font-bold">الرسائل</h1>
+          <Button onClick={() => setShowNewMessageModal(true)}>
+            إرسال رسالة جديدة
+          </Button>
+        </div>
         <button
           aria-label="إشعارات الرسائل"
           className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 transition"
@@ -211,6 +237,57 @@ function MessagesPage() {
           {rows.length === 0 && <div className="p-8 text-center text-slate-400">لا توجد رسائل بعد</div>}
         </div>
       </div>
+
+      <Dialog open={showNewMessageModal} onOpenChange={setShowNewMessageModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>إرسال رسالة جديدة</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSendNewEmail} className="space-y-4">
+            <div className="space-y-2">
+              <input
+                type="email"
+                name="to"
+                placeholder="ايميل المستلم"
+                required
+                value={newMsg.to}
+                onChange={(e) => setNewMsg((s) => ({ ...s, to: e.target.value }))}
+                className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <input
+                type="text"
+                name="subject"
+                placeholder="الموضوع"
+                required
+                value={newMsg.subject}
+                onChange={(e) => setNewMsg((s) => ({ ...s, subject: e.target.value }))}
+                className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <textarea
+                name="message"
+                placeholder="نص الرسالة"
+                required
+                rows={5}
+                value={newMsg.message}
+                onChange={(e) => setNewMsg((s) => ({ ...s, message: e.target.value }))}
+                className="w-full resize-y rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowNewMessageModal(false)} disabled={sendingNew}>
+                إلغاء
+              </Button>
+              <Button type="submit" disabled={sendingNew}>
+                {sendingNew ? <><Loader2 className="h-4 w-4 animate-spin" /> جارٍ الإرسال...</> : <><Send className="h-4 w-4" /> إرسال</>}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
