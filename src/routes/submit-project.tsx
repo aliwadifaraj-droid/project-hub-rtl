@@ -68,10 +68,10 @@ function SubmitProjectPage() {
       const result = await submitAd({
         data: {
           title: name.trim(),
-          description: `${description.trim()}\n\n📍 ${location.trim()}`,
+          description: description.trim(),
+          location: location.trim(),
           image_path: uploadedPaths[0] ?? "",
           contact_email: email.trim(),
-          domain: "",
         },
       });
       if (!result?.id) {

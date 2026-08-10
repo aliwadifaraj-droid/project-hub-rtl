@@ -19,6 +19,7 @@ async function resolveImage(path: string | null): Promise<string> {
 const adSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional().default(""),
+  location: z.string().trim().max(300).optional().default(""),
   image_url: z.string().trim().max(1000).optional().default(""),
 });
 
@@ -30,6 +31,7 @@ export const createAd = createServerFn({ method: "POST" })
     const id = await adsRepo.insertAd({
       title: data.title,
       description: data.description || null,
+      location: data.location || null,
       image_url: data.image_url || null,
       status: "pending",
       created_by: context.userId,
@@ -74,7 +76,7 @@ export const approveAd = createServerFn({ method: "POST" })
       await projectsRepo.insertProject({
         name: ad.title,
         description: ad.description ?? "",
-        location: "",
+        location: ad.location ?? "",
         duration: "",
         cover_image: ad.image_url ?? "",
         images: [],
@@ -82,6 +84,9 @@ export const approveAd = createServerFn({ method: "POST" })
         ad_id: ad.id,
         admin_approval: "approved",
       });
+      await projectsRepo.setExclusive((await projectsRepo.findByAdId(ad.id))!.id, true, 6);
+    } else {
+      await projectsRepo.setExclusive(existing.id, true, 6);
     }
     return { ok: true };
   });
@@ -102,12 +107,14 @@ export const updateAd = createServerFn({ method: "POST" })
       id: z.string().uuid(),
       title: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
+      location: z.string().trim().max(300).optional().default(""),
       image_url: z.string().trim().max(1000).optional().default(""),
     }).parse(d))
   .handler(async ({ data }) => {
     await adsRepo.updateAd(data.id, {
       title: data.title,
       description: data.description || null,
+      location: data.location || null,
       image_url: data.image_url || null,
     });
     return { ok: true };
@@ -149,6 +156,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
     z.object({
       title: z.string().trim().min(1).max(200),
       description: z.string().trim().max(2000).optional().default(""),
+      location: z.string().trim().max(300).optional().default(""),
       image_path: z.string().trim().max(500).optional().default(""),
       contact_email: z.string().trim().max(255).refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "بريد إلكتروني غير صحيح").optional().default(""),
     }).parse(d))
@@ -158,6 +166,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
     const id = await adsRepo.insertAd({
       title: data.title,
       description: data.description || null,
+      location: data.location || null,
       image_url: safePath || null,
       contact_email: data.contact_email || null,
       status: "pending",
