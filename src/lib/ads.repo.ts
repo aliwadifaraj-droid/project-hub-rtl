@@ -1,10 +1,13 @@
 // Turso repository for `ads` and `ad_comments`.
 import { db, rowsToObjects } from "./db";
 
+db.execute(`ALTER TABLE ads ADD COLUMN location TEXT`).catch(() => undefined);
+
 export type AdRow = {
   id: string;
   title: string;
   description: string | null;
+  location: string | null;
   image_url: string | null;
   link_url: string | null;
   status: string; // pending | approved | rejected
@@ -19,6 +22,7 @@ function decodeAd(r: any): AdRow {
     id: String(r.id),
     title: String(r.title ?? ""),
     description: r.description ?? null,
+    location: r.location ?? null,
     image_url: r.image_url ?? null,
     link_url: r.link_url ?? null,
     status: String(r.status ?? "pending"),
@@ -28,7 +32,7 @@ function decodeAd(r: any): AdRow {
     created_at: String(r.created_at ?? ""),
   };
 }
-const AD_COLS = "id,title,description,image_url,link_url,status,rejection_reason,contact_email,created_by,created_at";
+const AD_COLS = "id,title,description,location,image_url,link_url,status,rejection_reason,contact_email,created_by,created_at";
 
 export async function listAdsByStatus(status: string): Promise<AdRow[]> {
   const r = await db.execute(
@@ -52,6 +56,7 @@ export async function getAdById(id: string): Promise<AdRow | null> {
 export async function insertAd(input: {
   title: string;
   description?: string | null;
+  location?: string | null;
   image_url?: string | null;
   link_url?: string | null;
   status?: string;
@@ -61,12 +66,13 @@ export async function insertAd(input: {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.execute(
-    `INSERT INTO ads (id,title,description,image_url,link_url,status,contact_email,created_by,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO ads (id,title,description,location,image_url,link_url,status,contact_email,created_by,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id,
       input.title,
       input.description ?? null,
+      input.location ?? null,
       input.image_url ?? null,
       input.link_url ?? null,
       input.status ?? "pending",
@@ -82,6 +88,7 @@ export async function insertAd(input: {
 export async function updateAd(id: string, patch: Partial<{
   title: string;
   description: string | null;
+  location: string | null;
   image_url: string | null;
   link_url: string | null;
   status: string;
