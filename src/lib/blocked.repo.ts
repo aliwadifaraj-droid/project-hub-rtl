@@ -9,26 +9,6 @@ export type BlockedRow = {
   created_at: string;
 };
 
-let _tableReady: Promise<void> | null = null;
-
-function ensureTable(): Promise<void> {
-  if (_tableReady) return _tableReady;
-  _tableReady = db.execute(
-    `DROP TABLE IF EXISTS blocked_users`,
-  ).then(() =>
-    db.execute(
-      `CREATE TABLE blocked_users (
-        id           INTEGER PRIMARY KEY AUTOINCREMENT,
-        email        TEXT UNIQUE NOT NULL,
-        company_name TEXT NOT NULL,
-        block_type   TEXT DEFAULT 'حظر بالبريد والمؤسسة',
-        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-    ),
-  ).then(() => undefined);
-  return _tableReady;
-}
-
 function decode(r: any): BlockedRow {
   return {
     id: Number(r.id),
@@ -44,7 +24,6 @@ export async function addBlockedUser(data: {
   company_name: string;
   block_type?: string;
 }): Promise<number> {
-  await ensureTable();
   const r = await db.execute(
     `INSERT INTO blocked_users (email, company_name, block_type) VALUES (?, ?, ?)
      ON CONFLICT(email) DO UPDATE SET company_name = excluded.company_name, block_type = excluded.block_type`,
@@ -58,12 +37,10 @@ export async function addBlockedUser(data: {
 }
 
 export async function removeBlockedUser(data: { email: string }): Promise<void> {
-  await ensureTable();
   await db.execute(`DELETE FROM blocked_users WHERE email = ?`, [data.email]);
 }
 
 export async function listBlocked(): Promise<BlockedRow[]> {
-  await ensureTable();
   const r = await db.execute(`SELECT * FROM blocked_users ORDER BY created_at DESC`);
   return rowsToObjects(r).map(decode);
 }
@@ -72,7 +49,6 @@ export async function isBlocked(
   companyName?: string | null,
   email?: string | null,
 ): Promise<boolean> {
-  await ensureTable();
   const c = (companyName ?? "").trim().toLowerCase();
   const e = (email ?? "").trim().toLowerCase();
   if (!c && !e) return false;
