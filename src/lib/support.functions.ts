@@ -1,90 +1,152 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAuth } from "./auth-middleware.server";
 import * as supportRepo from "./support.repo";
 import * as projectsRepo from "./projects.repo";
-import { getRolesForUser } from "./users.repo";
-import { requireAuth } from "./auth-middleware.server";
-import { resolveStoredFileUrl } from "./storage-url";
+import { getBotSettingsRow } from "./bot-settings.repo";
+import { cached, cacheKeys, TTL_CHAT, invalidateChat, invalidate } from "./cache";
 
-/* ---------- helpers ---------- */
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const uuid = z.string().uuid();
+const CLARIFY_PROMPT = "ممكن توضح مشكلتك أحاول أساعدك؟";
+const STAFF_KEYWORDS = ["موظف", "موظفة", "خدمة العملاء", "الدعم", "كلم موظف", "أريد موظف", "اريد موظف", "human", "agent", "support"];
 
-const STATUS_MAP: Record<string, string> = {
-  active: "🟢 مفتوح",
-  delivered: "🔵 مسلّم",
-  cancelled: "🔴 ملغي",
-};
-
-const STATUS_BADGE: Record<string, string> = {
-  active: "🟢 مفتوح",
-  delivered: "🔵 مسلّم",
-  cancelled: "🔴 ملغي",
-};
-
-/* ---------- project listing / search ---------- */
-
-function projectDetails(p: { name: string; status: string; location: string | null; description: string | null; duration: string | null }): string {
-  return [
-    `📋 ${p.name}`,
-    `الحالة: ${STATUS_BADGE[p.status] ?? p.status}`,
-    p.location ? `الموقع: ${p.location}` : null,
-    p.duration ? `المدة: ${p.duration}` : null,
-    p.description ? `الوصف: ${p.description}` : null,
-  ].filter(Boolean).join("\n");
+function assertStaff(roles: string[]) {
+  if (!roles.includes("admin") && !roles.includes("employee")) throw new Error("Forbidden");
 }
 
-/* ---------- support chat ---------- */
+function assertAdmin(roles: string[]) {
+  if (!roles.includes("admin")) throw new Error("Forbidden");
+}
 
-export const createSupportChat = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      visitor_token: z.string().uuid(),
-      visitor_name: z.string().trim().max(100).optional().default(""),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    const id = await supportRepo.createChat(data.visitor_token, data.visitor_name || null);
-    return { id };
+function wantsHuman(text: string) {
+  const t = (text ?? "").toLowerCase();
+  return STAFF_KEYWORDS.some((k) => t.includes(k.toLowerCase()));
+}
+
+function matchQa(qas: Array<{ question: string; answer: string; keywords: string[]; action?: string }>, text: string) {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  for (const q of qas) {
+    if (q.question.toLowerCase().includes(t) || t.includes(q.question.toLowerCase())) return q;
+    for (const k of q.keywords ?? []) {
+      const kk = (k ?? "").toLowerCase().trim();
+      if (kk && t.includes(kk)) return q;
+    }
+  }
+  return null;
+}
+
+const STATUS_MAP: Record<string, string> = { active: "مفتوح للعروض", delivered: "تم التسليم", cancelled: "ملغي" };
+
+const STATUS_BADGE: Record<string, string> = {
+  active: `<span style="background:#ffc107;color:white;font-weight:bold;padding:10px 20px;border-radius:8px;display:inline-block">🟡 مفتوح للعروض</span>`,
+  delivered: `<span style="background:#28a745;color:white;font-weight:bold;padding:10px 20px;border-radius:8px;display:inline-block">✅ تم التسليم</span>`,
+  cancelled: `<span style="background:#dc3545;color:white;font-weight:bold;padding:10px 20px;border-radius:8px;display:inline-block">❌ ملغي</span>`,
+};
+
+const STOP_WORDS = new Set([
+  "مشروع", "المشروع", "مشاريع", "المشاريع", "project", "projects",
+  "حالة", "حاله", "وضع", "status", "معلومات", "تفاصيل", "عن", "بخصوص",
+  "ايش", "ما", "هو", "هي", "كم", "عدد", "count", "how", "many",
+  "في", "من", "الى", "على", "the", "a", "an", "is", "what", "tell", "me", "about",
+  "لو", "سمحت", "ممكن", "please",
+]);
+
+function normalizeAr(s: string): string {
+  return (s ?? "")
+    .toLowerCase()
+    .replace(/[?؟.!،,:;()"'`]/g, " ")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokens(s: string): string[] {
+  return normalizeAr(s).split(" ").filter((w) => w && !STOP_WORDS.has(w));
+}
+
+function projectDetails(p: { name: string; status: string; location: string | null; description: string | null; duration: string | null }): string {
+  const lines = [
+    `📌 ${p.name}`,
+    `الحالة: ${STATUS_BADGE[p.status] ?? p.status}`,
+    `الموقع: ${p.location ?? "-"}`,
+  ];
+  if (p.duration) lines.push(`المدة: ${p.duration}`);
+  if (p.description) lines.push(`الوصف: ${p.description.slice(0, 300)}`);
+  return lines.join("\n");
+}
+
+function findProjectByQuery(rows: Array<{ name: string; location: string | null }>, query: string): number {
+  const qTokens = tokens(query);
+  if (!qTokens.length) return -1;
+  let bestIdx = -1;
+  let bestScore = 0;
+  rows.forEach((r, i) => {
+    const nameNorm = normalizeAr(r.name);
+    const locNorm = normalizeAr(r.location ?? "");
+    let score = 0;
+    // Full-name substring in either direction
+    const qJoined = qTokens.join(" ");
+    if (nameNorm && (nameNorm === qJoined || nameNorm.includes(qJoined) || qJoined.includes(nameNorm))) score += 10;
+    // Per-token matches
+    for (const t of qTokens) {
+      if (t.length < 2) continue;
+      if (nameNorm.includes(t)) score += 3;
+      else if (locNorm && locNorm.includes(t)) score += 1;
+    }
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
   });
-
-export const listSupportMessages = createServerFn({ method: "GET" })
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const sendSupportMessage = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      chatId: z.string().uuid(),
-      body: z.string().trim().min(1).max(4000),
-      role: z.enum(["user", "bot", "staff"]).default("user"),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.addSupportMessage(data.chatId, data.role, data.body);
-    return { ok: true };
-  });
-
-/* ---------- bot: project search ---------- */
+  return bestScore >= 3 ? bestIdx : -1;
+}
 
 async function answerProjectQuery(text: string): Promise<string | null> {
-  const rows = await projectsRepo.listAllProjects();
-  if (!rows.length) return null;
+  const raw = (text ?? "").trim();
+  if (!raw) return null;
+  const tNorm = normalizeAr(raw);
+  const projectKeywords = ["مشروع", "مشاريع", "project"];
+  const hasProjectWord = projectKeywords.some((k) => tNorm.includes(normalizeAr(k)));
 
-  const tNorm = text.trim();
+  const rows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
+  if (!rows.length) return hasProjectWord ? "لا توجد مشاريع متاحة حالياً." : null;
 
-  // City-based search
-  const { SAUDI_CITIES } = await import("./saudi-cities");
-  const cityRaw = SAUDI_CITIES.find((c) => tNorm.includes(c));
-  if (cityRaw) {
-    const matches = rows.filter((p) =>
-      (p.location ?? "").toLowerCase().includes(cityRaw.toLowerCase()) ||
-      (p.name + " " + (p.description ?? "")).toLowerCase().includes(cityRaw.toLowerCase()),
-    );
-    if (matches.length) {
-      return `مشاريع ${cityRaw}:\n\n` + matches.slice(0, 20).map((p) => `• ${p.name} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
+  // 1) Count queries first
+  if (hasProjectWord && (tNorm.includes("كم") || tNorm.includes("عدد") || tNorm.includes("count") || tNorm.includes("how many"))) {
+    const active = rows.filter((r) => r.status === "active").length;
+    const delivered = rows.filter((r) => r.status === "delivered").length;
+    return `عدد المشاريع المعتمدة: ${rows.length}\n• مفتوح للعروض: ${active}\n• تم التسليم: ${delivered}`;
+  }
+
+  // 2) City query: "مشاريع [المدينة]"
+  const cityRe = /^\s*(?:مشاريع|projects)\s+(?:في|by|in)?\s*(.+)$/i;
+  const cm = raw.match(cityRe);
+  if (cm && cm[1]) {
+    const cityRaw = cm[1].trim();
+    const city = normalizeAr(cityRaw);
+    if (city && !["المعتمده", "المتاحه", "المفتوحه", "كلها", "الكل"].includes(city)) {
+      const matches = rows.filter((r) => {
+        const c = normalizeAr(((r as any).city ?? r.location ?? "").toString());
+        return c && (c.includes(city) || city.includes(c));
+      });
+      if (matches.length) {
+        return `مشاريع ${cityRaw}:\n\n` + matches.slice(0, 20).map((p) => `• ${p.name} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
+      }
+      // fall through: maybe user asked about specific project name, try name match
     }
   }
 
-  // Status filter
+  // 3) Specific project match by fuzzy tokens
+  const idx = findProjectByQuery(rows, raw);
+  if (idx >= 0) {
+    return projectDetails(rows[idx]);
+  }
+
+  // 4) If not clearly a project query, don't answer
+  if (!hasProjectWord) return null;
+
+  // 5) Status-filtered listing
   let filtered = rows;
   if (tNorm.includes("مفتوح") || tNorm.includes("متاح")) filtered = rows.filter((p) => p.status === "active");
   else if (tNorm.includes("مسلم") || tNorm.includes("تسليم") || tNorm.includes("منجز")) filtered = rows.filter((p) => p.status === "delivered");
@@ -100,6 +162,7 @@ const ASK_REQUEST_PROMPT = "للاستعلام عن حالة طلبكم، أرس
 const REQUEST_NOT_FOUND = "لم يتم العثور على طلب";
 const OFFER_PENDING_REPLY = "تم ارسال طلبكم وبانتظار موافقة الادارة";
 
+
 const REQUEST_STATUS_REPLY: Record<string, string> = {
   new: "🆕 تم استلام طلبكم وشكرا لثقتكم بنا ✅",
   reviewing: "🆕 طلبكم قيد المراجعة حالياً",
@@ -107,24 +170,33 @@ const REQUEST_STATUS_REPLY: Record<string, string> = {
   rejected: "❌ نأسف تم رفض طلبكم. يمكنكم مراسلتنا عبر بوابة تواصل بنا لمعرفة التفاصيل 🙏",
 };
 
+const REQUEST_STATUS_LABEL: Record<string, string> = {
+  new: "جديد",
+  reviewing: "قيد المراجعة",
+  accepted: "مقبول",
+  rejected: "مرفوض",
+};
+
 const REQUEST_KEYWORDS = ["طلبي", "طلبنا", "حالة طلب", "حالة الطلب", "استعلام عن طلب", "وين طلبي", "وش صار على طلبي", "متابعة طلب", "request status", "my request"];
 
-async function answerRequestStatus(raw: string): Promise<string | null> {
+function asksAboutRequest(text: string): boolean {
+  const t = normalizeAr(text);
+  return REQUEST_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
+}
+
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/;
+
+async function answerRequestStatus(query: string): Promise<string | null> {
+  const raw = (query ?? "").trim();
+  if (!raw) return null;
   const repo = await import("./project-requests.repo");
   const offersRepo = await import("./offers.repo");
-
+  const emailMatch = raw.match(EMAIL_RE);
   const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
 
   // 1) project_requests أولاً
-  let rows = await repo.searchRequestsByCompany(name);
-  if (!rows.length && EMAIL_RE.test(raw)) rows = await repo.searchRequestsByEmail(raw);
-
-  // 2) offers (pending)
-  if (!rows.length) {
-    const offers = await offersRepo.searchOffersByEmail(raw).catch(() => []);
-    if (offers.length) return OFFER_PENDING_REPLY;
-  }
-
+  let rows = emailMatch ? await repo.searchRequestsByEmail(emailMatch[0]) : [];
+  if (!rows.length && !emailMatch) rows = await repo.searchRequestsByCompany(name);
   if (rows.length) {
     const rowsToShow = rows.slice(0, 5);
     const projectNames = new Map<string, string>();
@@ -150,469 +222,373 @@ async function answerRequestStatus(raw: string): Promise<string | null> {
       .join("\n\n");
   }
 
+  // 2) offers (لم تُقبل بعد)
+  let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
+  if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
+  if (offers.length) return OFFER_PENDING_REPLY;
+
   return REQUEST_NOT_FOUND;
 }
 
-/* ---------- bot: VIP subscription ---------- */
 
-const VIP_INTENT_KEYWORDS = ["اشترك", "vip", "اريد اشتراك", "اريد اشتراك", "اشتراك", "اشتراك vip", "اشتراك v i p", "نظام اشتراك", "الباقة", "الباقه", "باقة", "باقه"];
-const VIP_ASK_NAME = "من فضلك أرسل اسمك الكامل 🙏";
-const VIP_ASK_EMAIL = "شكراً ${name}! الآن أرسل بريدك الإلكتروني ✉️";
-const VIP_ASK_CITY = "ممتاز! من أي مدينة أنت؟ 🏙️";
-const VIP_ASK_PLAN = "اختر الباقة المناسبة لك:\n\n1️⃣ الباقة الأساسية — 100 ريال/شهر\n2️⃣ الباقة المتقدمة — 200 ريال/شهر\n3️⃣ الباقة المميزة — 300 ريال/شهر\n\nأرسل رقم الباقة (1، 2، أو 3)";
-const VIP_ASK_RECEIPT = "شكراً ${name}! للتفعيل، يرجى تحويل المبلغ إلى:\n\n🏦 البنك الأهلي السعودي\nIBAN: SA12 3456 7890 1234 5678 9012\n\nثم أرسل صورة الإيصال هنا 📎";
-const VIP_DONE = "تم استلام طلبك بنجاح ✅ سيتم تفعيل اشتراكك خلال 24 ساعة. شكراً لثقتك بنا!";
+/* ---------- نية تقديم عرض سعر ---------- */
 
-const VIP_PLANS: Record<string, { name: string; price: number }> = {
-  "1": { name: "الأساسية", price: 100 },
-  "2": { name: "المتقدمة", price: 200 },
-  "3": { name: "المميزة", price: 300 },
-};
+export const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
 
-const VIP_STEPS = ["name", "email", "city", "plan", "receipt"] as const;
-type VipStep = typeof VIP_STEPS[number];
+const OFFER_KEYWORDS = [
+  "كيف اقدم عرض سعر", "كيف أقدم عرض سعر", "عرض سعر", "تقديم عرض", "اقدم عرض", "أقدم عرض",
+  "ارفع عرض", "أرفع عرض", "تسعير", "quote", "price offer", "submit offer",
+];
 
-function vipStepPrompt(step: VipStep, ctx: { name?: string }): string {
-  switch (step) {
-    case "name": return VIP_ASK_NAME;
-    case "email": return VIP_ASK_EMAIL.replace("${name}", ctx.name ?? "");
-    case "city": return VIP_ASK_CITY;
-    case "plan": return VIP_ASK_PLAN;
-    case "receipt": return VIP_ASK_RECEIPT.replace("${name}", ctx.name ?? "");
-  }
+const OFFER_TERMS = [
+  "لتقديم عرض سعر، وافق على الشروط أولاً:",
+  "",
+  "1) العرض يجب أن يكون بصيغة PDF واضحة ومختومة.",
+  "2) السعر المقدم نهائي وساري لمدة 30 يوماً على الأقل.",
+  "3) الالتزام بمدة تنفيذ المشروع المعلنة في تفاصيل المشروع.",
+  "4) صحة البيانات (اسم الشركة والبريد الإلكتروني) مسؤولية مقدّم العرض.",
+  "5) تقديم العرض لا يعني قبوله، وسيتم إشعاركم بأي تحديث.",
+].join("\n");
+
+function asksAboutOffer(text: string): boolean {
+  const t = normalizeAr(text);
+  return OFFER_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
 }
 
-async function handleVipFlow(chatId: string, body: string, chat: { vip_step?: string | null; vip_context?: string | null }): Promise<string | null> {
-  if (!chat.vip_step) return null;
-  const step = chat.vip_step as VipStep;
-  const ctx = chat.vip_context ? JSON.parse(chat.vip_context) : {};
 
-  if (step === "name") {
-    ctx.name = body.trim();
-    await supportRepo.updateVipStep(chatId, "email", ctx);
-    return vipStepPrompt("email", ctx);
-  }
-  if (step === "email") {
-    ctx.email = body.trim();
-    await supportRepo.updateVipStep(chatId, "city", ctx);
-    return vipStepPrompt("city", ctx);
-  }
-  if (step === "city") {
-    ctx.city = body.trim();
-    await supportRepo.updateVipStep(chatId, "plan", ctx);
-    return vipStepPrompt("plan", ctx);
-  }
-  if (step === "plan") {
-    const plan = VIP_PLANS[body.trim()];
-    if (!plan) return "رقم الباقة غير صحيح. أرسل 1، 2، أو 3.";
-    ctx.plan = plan.name;
-    ctx.price = plan.price;
-    await supportRepo.updateVipStep(chatId, "receipt", ctx);
-    return vipStepPrompt("recept", ctx);
-  }
-  if (step === "receipt") {
-    const vipRepo = await import("./vip.repo");
-    await vipRepo.insertVipSubscriber({
-      name: ctx.name ?? "",
-      email: ctx.email ?? "",
-      city: ctx.city ?? "",
-      plan: ctx.plan ?? "",
-      price: ctx.price ?? 0,
-      status: "pending",
+
+
+/** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
+async function askGroq(userText: string, opts: {
+  systemInstruction?: string | null;
+  dialect?: string | null;
+  botName?: string | null;
+  scope?: string | null;
+  blockedReplies?: string[] | null;
+}): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const sysParts = [
+    opts.systemInstruction?.trim(),
+    opts.botName ? `اسمك: ${opts.botName}.` : null,
+    opts.dialect ? `اللهجة: ${opts.dialect}.` : null,
+    opts.scope ? `نطاق عملك: ${opts.scope}` : null,
+  ].filter(Boolean);
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.4,
+        max_tokens: 512,
+        messages: [
+          ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
+          { role: "user", content: userText },
+        ],
+      }),
     });
-    await supportRepo.clearVipStep(chatId);
-    return VIP_DONE;
+    if (!res.ok) return null;
+    const j: any = await res.json();
+    const text: string | undefined = j?.choices?.[0]?.message?.content?.trim();
+    if (!text) return null;
+    for (const bad of opts.blockedReplies ?? []) {
+      if (bad && text.toLowerCase().includes(bad.toLowerCase())) return null;
+    }
+    return text;
+  } catch {
+    return null;
   }
-  return null;
 }
 
-/* ---------- bot: main handler ---------- */
 
-const GREETING = "أهلًا بك في دعم العمران! اختر سؤالًا من الأسفل أو اطلب التحدث مع موظف.";
-const WAITING_ALERT = "تم تحويلك لفريق الدعم. موظفنا سيرد عليك قريبًا 🙏";
-const STAFF_REPLY_NOTE = "رد الموظف:";
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
-export const startSupportChat = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      visitor_token: z.string().uuid(),
-      visitor_name: z.string().trim().max(100).optional().default(""),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    const id = await supportRepo.createChat(data.visitor_token, data.visitor_name || null);
-    await supportRepo.addSupportMessage(id, "bot", GREETING);
-    return { id };
-  });
+/** Returns true when current time (Riyadh, UTC+3) is inside configured work hours. */
+function isInWorkHours(settings: { work_days: Record<string, boolean> | null; work_start: string | null; work_end: string | null }): boolean {
+  if (!settings.work_days || !settings.work_start || !settings.work_end) return true;
+  const now = new Date();
+  // Compute in Asia/Riyadh (UTC+3, no DST).
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const localMinutes = (utcMinutes + 3 * 60) % (24 * 60);
+  const dayIdx = (now.getUTCDay() + Math.floor((utcMinutes + 3 * 60) / (24 * 60))) % 7;
+  const dayKey = DAY_KEYS[dayIdx];
+  if (!settings.work_days[dayKey]) return false;
+  const [sh, sm] = settings.work_start.split(":").map(Number);
+  const [eh, em] = settings.work_end.split(":").map(Number);
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  return localMinutes >= start && localMinutes <= end;
+}
 
-export const endSupportChat = createServerFn({ method: "POST" })
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.updateChatStatus(data.chatId, "ended");
-    return { ok: true };
-  });
+async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string | null) {
+  const existing = await supportRepo.getChatByVisitorToken(visitorToken);
+  if (existing) return existing;
+  const created = await supportRepo.createVisitorChat(visitorToken, visitorName);
+  await supportRepo.addSupportMessage(created.id, "bot", "أهلًا بك في دعم العمران! اختر سؤالًا من الأسفل أو اطلب التحدث مع موظف.");
+  return created;
+}
 
-async function sendWaitingAlert(chatId: string) {
-  await supportRepo.addSupportMessage(chatId, "bot", WAITING_ALERT);
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return;
+const ALERT_MARKER = "__ALERT_SENT__";
+const BUSY_REPLY = "الموظفين مشغولين حالياً. كيف أقدر أساعدك؟";
+
+async function sendWaitingAlert(chatId: string, visitorName: string | null) {
+  const to = process.env.VITE_ALERT_EMAIL || process.env.ALERT_EMAIL;
+  const key = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
+  if (!to || !key) { console.error("alert email/key missing"); return; }
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
         from: "Alamran <send@ali-alhaddad.com>",
-        to: ["aliwadifaraj@gmail.com"],
-        subject: "💬 محادثة دعم جديدة في انتظار موظف",
-        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><p>محادثة جديدة في انتظار رد الموظف.</p><p>رابط اللوحة: /admin/chat</p></div>`,
+        to: [to],
+        subject: "🚨 عميل ينتظر",
+        html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>`,
       }),
     });
     if (!res.ok) console.error("waiting alert failed", res.status, await res.text());
-  } catch (e) {
-    console.error("waiting alert email failed", e);
-  }
+  } catch (e) { console.error("waiting alert exception", e); }
 }
 
-export const botReply = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      chatId: z.string().uuid(),
-      body: z.string().trim().min(1).max(4000),
-    }).parse(d))
+async function agentRepliedSince(chatId: string, sinceIso: string): Promise<boolean> {
+  const msgs = await supportRepo.listMessages(chatId, sinceIso);
+  return msgs.some((m) => m.sender === "admin");
+}
+
+async function recentAlertExists(chatId: string): Promise<boolean> {
+  const { db, rowsToObjects } = await import("./db");
+  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const r = await db.execute(
+    `SELECT id FROM support_messages WHERE chat_id = ? AND sender = 'system' AND body = ? AND created_at > ? LIMIT 1`,
+    [chatId, ALERT_MARKER, cutoff],
+  );
+  return rowsToObjects(r).length > 0;
+}
+
+function scheduleEscalationWatchers(chatId: string, visitorName: string | null, startIso: string) {
+  setTimeout(async () => {
+    try {
+      if (await agentRepliedSince(chatId, startIso)) return;
+      if (await recentAlertExists(chatId)) return;
+      await sendWaitingAlert(chatId, visitorName);
+      await supportRepo.addSupportMessage(chatId, "system", ALERT_MARKER);
+    } catch (e) { console.error("watcher-30s", e); }
+  }, 30_000);
+
+  setTimeout(async () => {
+    try {
+      if (await agentRepliedSince(chatId, startIso)) return;
+      await supportRepo.addSupportMessage(chatId, "bot", BUSY_REPLY);
+    } catch (e) { console.error("watcher-60s", e); }
+  }, 60_000);
+}
+
+async function escalateOrOffHours(chatId: string) {
+  const settings = await getBotSettingsRow();
+  const offHours = settings ? !isInWorkHours(settings) : false;
+  if (offHours || settings?.allow_escalation === false) {
+    await supportRepo.addSupportMessage(chatId, "bot", settings?.off_hours_message?.trim() || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
+    return { escalated: false };
+  }
+  await supportRepo.updateChatStatus(chatId, "escalated");
+  await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
+  const chat = await supportRepo.getChatById(chatId);
+  scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
+  return { escalated: true };
+}
+
+export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
+  const { listActiveForVisitors } = await import("./bot-qa.repo");
+  return listActiveForVisitors();
+});
+
+export const startVisitorChat = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string; visitorName?: string | null }) =>
+    z.object({ visitorToken: uuid, visitorName: z.string().trim().max(80).nullable().optional() }).parse(d))
+  .handler(async ({ data }) => getOrCreateVisitorChat(data.visitorToken, data.visitorName));
+
+export const visitorGetMessages = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string; sinceIso?: string | null }) =>
+    z.object({ visitorToken: uuid, sinceIso: z.string().nullable().optional() }).parse(d))
   .handler(async ({ data }) => {
-    const chat = await supportRepo.getChatById(data.chatId);
-    if (!chat) throw new Error("المحادثة غير موجودة");
+    const load = async () => {
+      const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
+      if (!chat) return { chat: null, messages: [] };
+      return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
+    };
+    // cached: chat_{customerId}, 10 min (full history reads only)
+    if (data.sinceIso) return load();
+    return cached(cacheKeys.chat(data.visitorToken), TTL_CHAT, load);
+  });
 
-    // If staff has taken over, don't bot-reply
+export const visitorSendMessage = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string; body: string; qaId?: string | number | null }) =>
+    z.object({ visitorToken: uuid, body: z.string().trim().min(1).max(2000), qaId: z.preprocess((v) => (v == null || v === "" ? null : String(v)), z.string().nullable()).optional() }).parse(d))
+  .handler(async ({ data }) => {
+    await invalidateChat(data.visitorToken);
+    const chat = await getOrCreateVisitorChat(data.visitorToken);
+    await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
     if (chat.status !== "bot") {
-      return { reply: null };
+      await invalidateChat(data.visitorToken);
+      return { ok: true };
     }
 
-    // VIP flow
-    const vipReply = await handleVipFlow(data.chatId, data.body, chat);
-    if (vipReply) {
-      await supportRepo.addSupportMessage(data.chatId, "bot", vipReply);
-      return { reply: vipReply };
-    }
 
-    // VIP intent detection
-    const tNorm = data.body.trim().toLowerCase();
-    if (VIP_INTENT_KEYWORDS.some((k) => tNorm.includes(k))) {
-      await supportRepo.updateVipStep(data.chatId, "name", {});
-      const prompt = vipStepPrompt("name", {});
-      await supportRepo.addSupportMessage(data.chatId, "bot", prompt);
-      return { reply: prompt };
+    const settings = await getBotSettingsRow();
+    const botQa = await import("./bot-qa.repo");
+    let triggerEscalate = wantsHuman(data.body);
+    let answer: string | null = null;
+    if (data.qaId) {
+      const qa = await botQa.getQaById(data.qaId);
+      triggerEscalate = qa?.action === "escalate";
+      answer = qa?.answer ?? null;
+    } else if (!triggerEscalate && settings?.local_enabled !== false) {
+      const m = matchQa(await botQa.listActiveQa(), data.body);
+      triggerEscalate = m?.action === "escalate";
+      answer = m?.answer ?? null;
+    }
+    if (triggerEscalate) {
+      await escalateOrOffHours(chat.id);
+      await invalidateChat(data.visitorToken);
+      return { ok: true };
+    }
+    // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
+    if (!answer && asksAboutOffer(data.body)) {
+      await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+      await invalidateChat(data.visitorToken);
+      return { ok: true };
     }
 
     // استعلام حالة الطلب من الطلبات الواردة
-    let requestAnswer: string | null = null;
-    const t = data.body.trim();
-    if (REQUEST_KEYWORDS.some((k) => t.includes(k))) {
-      requestAnswer = await answerRequestStatus(t);
-    } else {
-      requestAnswer = EMAIL_RE.test(data.body) || data.body.trim().split(/\s+/).length > 2
-        ? await answerRequestStatus(t)
-        : null;
-    }
-    if (requestAnswer === REQUEST_NOT_FOUND && !EMAIL_RE.test(data.body)) requestAnswer = ASK_REQUEST_PROMPT;
 
+    let requestAnswer: string | null = null;
+    if (!answer) {
+      const prev = await supportRepo.listMessages(chat.id);
+      const lastBot = [...prev].reverse().find((m) => m.sender === "bot");
+      const awaitingData = lastBot?.body?.trim() === ASK_REQUEST_PROMPT;
+      if (awaitingData) {
+        requestAnswer = await answerRequestStatus(data.body);
+      } else if (asksAboutRequest(data.body)) {
+        requestAnswer = EMAIL_RE.test(data.body) || data.body.trim().split(/\s+/).length > 2
+          ? (await answerRequestStatus(data.body)) ?? ASK_REQUEST_PROMPT
+          : ASK_REQUEST_PROMPT;
+        if (requestAnswer === REQUEST_NOT_FOUND && !EMAIL_RE.test(data.body)) requestAnswer = ASK_REQUEST_PROMPT;
+      }
+    }
     const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
     let finalAnswer = answer || requestAnswer || projectAnswer;
-
-    // Staff request
-    if (/موظف|بشر|محادثة|تحدث|وكيل|عون|ساعدني|help|human|agent/i.test(data.body)) {
-      await supportRepo.updateChatStatus(data.chatId, "waiting");
-      await sendWaitingAlert(data.chatId);
-      return { reply: WAITING_ALERT };
+    if (!finalAnswer && settings?.groq_enabled !== false) {
+      finalAnswer = await askGroq(data.body, {
+        systemInstruction: settings?.gemini_system_instruction,
+        dialect: settings?.gemini_dialect,
+        botName: settings?.gemini_bot_name,
+        scope: settings?.gemini_scope,
+        blockedReplies: settings?.gemini_blocked_replies,
+      });
     }
-
-    if (!finalAnswer) finalAnswer = GREETING;
-    await supportRepo.addSupportMessage(data.chatId, "bot", finalAnswer);
-    return { reply: finalAnswer };
-  });
-
-/* ---------- staff actions ---------- */
-
-export const staffTakeOver = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.updateChatStatus(data.chatId, "staff");
+    answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
+    await supportRepo.addSupportMessage(chat.id, "bot", answer);
+    await invalidateChat(data.visitorToken);
     return { ok: true };
   });
 
-export const staffReply = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  inputValidator((d: { chatId: string; body: string }) =>
-    z.object({ chatId: z.string().uuid(), body: z.string().trim().min(1).max(4000) }).parse(d))
+export const visitorEscalate = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
   .handler(async ({ data }) => {
-    await supportRepo.addSupportMessage(data.chatId, "staff", data.body);
+    const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
+    if (!chat) throw new Error("جلسة الشات غير موجودة");
+    const res = await escalateOrOffHours(chat.id);
+    await invalidateChat(data.visitorToken);
+    return { ok: true, ...res };
+  });
+
+export const visitorEndSession = createServerFn({ method: "POST" })
+  .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
+  .handler(async ({ data }) => {
+    await supportRepo.deleteVisitorChat(data.visitorToken);
+    await invalidateChat(data.visitorToken);
     return { ok: true };
   });
 
-export const adminListChats = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async () => supportRepo.listChats());
 
-export const adminListChatMessages = createServerFn({ method: "GET" })
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
+export const adminListChats = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
+  assertStaff(context.roles);
+  return supportRepo.listSupportChats();
+});
 
-export const adminUpdateChatStatus = createServerFn({ method: "POST" })
+export const adminListChatMessages = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; status: string }) =>
-    z.object({ chatId: z.string().uuid(), status: z.enum(["bot", "waiting", "staff", "ended"]) }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.updateChatStatus(data.chatId, data.status);
+  .inputValidator((d: { chatId: string }) => z.object({ chatId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertStaff(context.roles);
+    return supportRepo.listMessages(data.chatId);
+  });
+
+export const adminReplyChat = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: { chatId: string; body: string }) => z.object({ chatId: uuid, body: z.string().trim().min(1).max(4000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertStaff(context.roles);
+    await supportRepo.addSupportMessage(data.chatId, "admin", data.body);
+    await supportRepo.updateChatStatus(data.chatId, "escalated");
+    const chat = await supportRepo.getChatById(data.chatId);
+    if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
   });
 
-export const adminGetChatVisitorToken = createServerFn({ method: "GET" })
+export const adminCloseChat = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => ({ visitor_token: await supportRepo.getChatVisitorToken(data.chatId) }));
-
-export const adminGetChatVisitorName = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => ({ visitor_name: await supportRepo.getChatVisitorName(data.chatId) }));
-
-export const adminGetChatMessages = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const adminGetChatStatus = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => ({ status: await supportRepo.getChatStatus(data.chatId) }));
-
-export const adminSetChatStatus = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; status: string }) =>
-    z.object({ chatId: z.string().uuid(), status: z.enum(["bot", "waiting", "staff", "ended"]) }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.updateChatStatus(data.chatId, data.status);
+  .inputValidator((d: { chatId: string }) => z.object({ chatId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertStaff(context.roles);
+    await supportRepo.updateChatStatus(data.chatId, "closed");
+    const chat = await supportRepo.getChatById(data.chatId);
+    if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
   });
 
-export const adminGetVisitorChats = createServerFn({ method: "GET" })
-  .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.getChatsByVisitorToken(data.visitorToken));
+export const adminDeleteAllSupport = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async ({ context }) => {
+  assertAdmin(context.roles);
+  const chats = await supportRepo.listSupportChats();
+  await supportRepo.deleteAllSupport();
+  await invalidate(...chats.map((c) => (c.visitor_token ? cacheKeys.chat(c.visitor_token) : null)));
+  return { ok: true };
+});
 
-export const adminListSupportMessages = createServerFn({ method: "GET" })
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
 
-export const adminSendSupportMessage = createServerFn({ method: "POST" })
+export const adminListBotQa = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
+  assertAdmin(context.roles);
+  const { listAllQa } = await import("./bot-qa.repo");
+  return listAllQa();
+});
+
+export const adminUpsertBotQa = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; body: string }) =>
-    z.object({ chatId: z.string().uuid(), body: z.string().trim().min(1).max(4000) }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.addSupportMessage(data.chatId, "staff", data.body);
+  .inputValidator((d: { id?: string | null; question: string; answer: string; keywords: string[]; is_active: boolean; sort_order: number; action?: "none" | "escalate" }) =>
+    z.object({ id: z.string().uuid().nullable().optional(), question: z.string().trim().min(1).max(300), answer: z.string().trim().min(1).max(4000), keywords: z.array(z.string().trim().max(60)).max(30), is_active: z.boolean(), sort_order: z.number().int().min(0).max(9999), action: z.enum(["none", "escalate"]).default("none") }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertAdmin(context.roles);
+    const { upsertQa } = await import("./bot-qa.repo");
+    await upsertQa({ ...data, id: data.id ?? null, action: data.action ?? "none" });
     return { ok: true };
   });
 
-export const adminDeleteSupportMessage = createServerFn({ method: "POST" })
+export const adminDeleteBotQa = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: { messageId: string }) => z.object({ messageId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.deleteMessage(data.messageId);
+  .inputValidator((d: { id: string }) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertAdmin(context.roles);
+    const { deleteQa } = await import("./bot-qa.repo");
+    await deleteQa(data.id);
     return { ok: true };
   });
 
-export const adminListSupportChats = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async () => supportRepo.listChats());
-
-export const adminGetSupportChatMessages = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const adminEndSupportChat = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.updateChatStatus(data.chatId, "ended");
-    return { ok: true };
-  });
-
-export const adminAssignSupportChat = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; staffId: string }) =>
-    z.object({ chatId: z.string().uuid(), staffId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.assignChat(data.chatId, data.staffId);
-    return { ok: true };
-  });
-
-export const adminGetSupportChatStatus = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => ({ status: await supportRepo.getChatStatus(data.chatId) }));
-
-export const adminGetSupportChatVisitorToken = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => ({ visitor_token: await supportRepo.getChatVisitorToken(data.chatId) }));
-
-export const adminGetSupportChatVisitorName = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => ({ visitor_name: await supportRepo.getChatVisitorName(data.chatId) }));
-
-export const adminListSupportChatMessages = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const adminSendSupportChatMessage = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; body: string }) =>
-    z.object({ chatId: z.string().uuid(), body: z.string().trim().min(1).max(4000) }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.addSupportMessage(data.chatId, "staff", data.body);
-    return { ok: true };
-  });
-
-export const adminDeleteSupportChatMessage = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { messageId: string }) => z.object({ messageId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.deleteMessage(data.messageId);
-    return { ok: true };
-  });
-
-export const adminGetSupportChatsByVisitor = createServerFn({ method: "GET" })
-  .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.getChatsByVisitorToken(data.visitorToken));
-
-export const adminGetSupportChatById = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.getChatById(data.chatId));
-
-export const adminGetSupportChatMessagesByChat = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const adminSendSupportChatReply = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; body: string }) =>
-    z.object({ chatId: z.string().uuid(), body: z.string().trim().min(1).max(4000) }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.addSupportMessage(data.chatId, "staff", data.body);
-    return { ok: true };
-  });
-
-export const adminDeleteSupportChatReply = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { messageId: string }) => z.object({ messageId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.deleteMessage(data.messageId);
-    return { ok: true };
-  });
-
-export const adminGetSupportChatsByVisitorToken = createServerFn({ method: "GET" })
-  .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.getChatsByVisitorToken(data.visitorToken));
-
-export const adminGetSupportChatMessagesByChatId = createServerFn({ method: "GET" })
-  .inputValidator((d: { chatId: string }) => z.object({ chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const adminSendSupportChatMessageByChatId = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; body: string }) =>
-    z.object({ chatId: z.string().uuid(), body: z.string().trim().min(1).max(4000) }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.addSupportMessage(data.chatId, "staff", data.body);
-    return { ok: true };
-  });
-
-export const adminDeleteSupportChatMessageByMessageId = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { messageId: string }) => z.object({ messageId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.deleteMessage(data.messageId);
-    return { ok: true };
-  });
-
-export const adminGetSupportChatsByVisitorTokenAndId = createServerFn({ method: "GET" })
-  .inputValidator((d: { visitorToken: string; chatId: string }) =>
-    z.object({ visitorToken: z.string().uuid(), chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.getChatsByVisitorToken(data.visitorToken));
-
-export const adminGetSupportChatMessagesByChatIdAndVisitorToken = createServerFn({ method: "GET" })
-  .inputValidator((d: { visitorToken: string; chatId: string }) =>
-    z.object({ visitorToken: z.string().uuid(), chatId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const adminSendSupportChatMessageByChatIdAndVisitorToken = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; body: string; visitorToken: string }) =>
-    z.object({
-      chatId: z.string().uuid(),
-      body: z.string().trim().min(1).max(4000),
-      visitorToken: z.string().uuid(),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.addSupportMessage(data.chatId, "staff", data.body);
-    return { ok: true };
-  });
-
-export const adminDeleteSupportChatMessageByMessageIdAndVisitorToken = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { messageId: string; visitorToken: string }) =>
-    z.object({ messageId: z.string().uuid(), visitorToken: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.deleteMessage(data.messageId);
-    return { ok: true };
-  });
-
-export const adminGetSupportChatsByVisitorTokenAndIdAndStatus = createServerFn({ method: "GET" })
-  .inputValidator((d: { visitorToken: string; chatId: string; status: string }) =>
-    z.object({
-      visitorToken: z.string().uuid(),
-      chatId: z.string().uuid(),
-      status: z.enum(["bot", "waiting", "staff", "ended"]),
-    }).parse(d))
-  .handler(async ({ data }) => supportRepo.getChatsByVisitorToken(data.visitorToken));
-
-export const adminGetSupportChatMessagesByChatIdAndVisitorTokenAndStatus = createServerFn({ method: "GET" })
-  .inputValidator((d: { visitorToken: string; chatId: string; status: string }) =>
-    z      .object({
-        visitorToken: z.string().uuid(),
-        chatId: z.string().uuid(),
-        status: z.enum(["bot", "waiting", "staff", "ended"]),
-      }).parse(d))
-  .handler(async ({ data }) => supportRepo.listMessages(data.chatId));
-
-export const adminSendSupportChatMessageByChatIdAndVisitorTokenAndStatus = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { chatId: string; body: string; visitorToken: string; status: string }) =>
-    z.object({
-      chatId: z.string().uuid(),
-      body: z.string().trim().min(1).max(4000),
-      visitorToken: z.string().uuid(),
-      status: z.enum(["bot", "waiting", "staff", "ended"]),
-    }).parse(d))
-  .handler(async ({ data }) => {
-       await supportRepo.addSupportMessage(data.chatId, "staff", data.body);
-    return { ok: true };
-  });
-
-export const adminDeleteSupportChatMessageByMessageIdAndVisitorTokenAndStatus = createServerFn({ method: 
-"POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { messageId: string; visitorToken: string; status: string }) =>
-    z.object({
-      messageId: z.string().uuid(),
-      visitorToken: z.string().uuid(),
-      status: z.enum(["bot", "waiting", "staff", "ended"]),
-    }).parse(d))
-  .handler(async ({ data }) => {
-    await supportRepo.deleteMessage(data.messageId);
-    return { ok: true };
-  });
+export const adminCountOpenSupportChats = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
+  assertStaff(context.roles);
+  return { count: await supportRepo.countEscalatedChats() };
+});
