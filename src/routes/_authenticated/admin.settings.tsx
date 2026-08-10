@@ -90,28 +90,33 @@ function AdminSettings() {
 
   const [blkEmail, setBlkEmail] = useState("");
   const [blkCompany, setBlkCompany] = useState("");
-  const [blkType, setBlkType] = useState<"email" | "company" | "both">("both");
+  const [blkType, setBlkType] = useState("حظر بالبريد والمؤسسة");
+
+  const BLOCK_TYPE_OPTIONS = [
+    "حظر بالبريد فقط",
+    "حظر بالمؤسسة فقط",
+    "حظر بالبريد والمؤسسة",
+  ] as const;
 
   const blockMut = useMutation({
-    mutationFn: (v: { email?: string; company_name?: string; block_type: "email" | "company" | "both" }) =>
+    mutationFn: (v: { email: string; company_name: string; block_type: string }) =>
       blockFn({ data: v }),
     onSuccess: () => {
       toast.success("تمت الإضافة إلى قائمة الحظر");
       setBlkEmail("");
       setBlkCompany("");
-      setBlkType("both");
+      setBlkType("حظر بالبريد والمؤسسة");
       qc.invalidateQueries({ queryKey: ["admin-blocked"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const unblockMut = useMutation({
-    mutationFn: (id: string) => unblockFn({ data: { id } }),
-    onSuccess: async () => {
-  toast.success("تم رفع الحظر");
-  await qc.invalidateQueries({ queryKey: ["admin-blocked"] });
-  await qc.refetchQueries({ queryKey: ["admin-blocked"] });
-},
+    mutationFn: (email: string) => unblockFn({ data: { email } }),
+    onSuccess: () => {
+      toast.success("تم رفع الحظر");
+      qc.invalidateQueries({ queryKey: ["admin-blocked"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -332,21 +337,21 @@ function AdminSettings() {
           </div>
           <div className="space-y-2">
             <Label>نوع الحظر</Label>
-            <Select value={blkType} onValueChange={(v) => setBlkType(v as "email" | "company" | "both")}>
+            <Select value={blkType} onValueChange={(v) => setBlkType(v)}>
               <SelectTrigger>
                 <SelectValue placeholder="اختر نوع الحظر" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="email">حظر بالبريد فقط</SelectItem>
-                <SelectItem value="company">حظر بالمؤسسة فقط</SelectItem>
-                <SelectItem value="both">حظر بالبريد والمؤسسة</SelectItem>
+                {BLOCK_TYPE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="flex items-end">
             <Button
               className="w-full"
-              disabled={blockMut.isPending || (!blkEmail.trim() && !blkCompany.trim())}
+              disabled={blockMut.isPending || !blkEmail.trim() || !blkCompany.trim()}
               onClick={() =>
                 blockMut.mutate({
                   email: blkEmail.trim(),
@@ -380,25 +385,19 @@ function AdminSettings() {
               </TableHeader>
               <TableBody>
                 {blockedList.map((b) => (
-                  <TableRow key={b.id}>
+                  <TableRow key={b.email}>
                     <TableCell>{b.email || "—"}</TableCell>
                     <TableCell>{b.company_name || "—"}</TableCell>
-                    <TableCell>
-                      {b.block_type === "email"
-                        ? "بالبريد فقط"
-                        : b.block_type === "company"
-                        ? "بالمؤسسة فقط"
-                        : "بالبريد والمؤسسة"}
-                    </TableCell>
+                    <TableCell>{b.block_type}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                      {new Date(b.created_at).toLocaleString("ar")}
+                      {b.created_at ? new Date(b.created_at).toLocaleString("ar") : "—"}
                     </TableCell>
                     <TableCell>
                       <Button
                         size="sm"
                         variant="destructive"
                         disabled={unblockMut.isPending}
-                        onClick={() => unblockMut.mutate(b.id)}
+                        onClick={() => unblockMut.mutate(b.email)}
                       >
                         {unblockMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         رفع الحظر

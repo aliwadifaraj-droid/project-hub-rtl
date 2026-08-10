@@ -3,7 +3,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "./auth-middleware.server";
 import * as blockedRepo from "./blocked.repo";
-import type { BlockType } from "./blocked.repo";
 
 export const BLOCKED_MESSAGE = "تم حظرك من تقديم الطلبات بسبب مخالفة سياسة استخدام المنصة";
 
@@ -15,28 +14,27 @@ export const adminBlockCompany = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) =>
     z.object({
-      company_name: z.string().trim().max(200).optional().default(""),
       email: z.string().trim().max(255).optional().default(""),
-      block_type: z.enum(["email", "company", "both"]).optional().default("both"),
+      company_name: z.string().trim().max(200).optional().default(""),
+      block_type: z.string().trim().max(100).optional().default("حظر بالبريد والمؤسسة"),
     }).parse(d))
   .handler(async ({ data }) => {
-    const companyName = data.company_name || null;
-    const email = data.email || null;
-    const blockType = data.block_type as BlockType;
-    if (!companyName && !email) throw new Error("يرجى تحديد اسم الشركة أو البريد الإلكتروني");
-    const id = await blockedRepo.insertBlocked({ company_name: companyName, email, block_type: blockType });
+    const email = data.email || "";
+    const companyName = data.company_name || "";
+    if (!email) throw new Error("البريد الإلكتروني مطلوب");
+    if (!companyName) throw new Error("اسم المؤسسة مطلوب");
+    const id = await blockedRepo.addBlockedUser({
+      email,
+      company_name: companyName,
+      block_type: data.block_type,
+    });
     return { ok: true, id };
   });
 
 export const adminUnblockCompany = createServerFn({ method: "POST" })
-.middleware([requireAdmin])
-.inputValidator((d: unknown) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
-.handler(async ({ data }) => {
-    try {
-      await blockedRepo.removeBlocked(String(data.id));
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().min(1) }).parse(d))
+  .handler(async ({ data }) => {
+    await blockedRepo.removeBlockedUser({ email: data.email });
     return { ok: true };
-  } catch (e: any) {
-    console.error("adminUnblockCompany error:", e);
-    return { ok: false, error: e.message };
-    }
   });
