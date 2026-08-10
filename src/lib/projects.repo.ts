@@ -17,8 +17,8 @@ export type ProjectRow = {
   domain: string | null;
   offers_enabled: boolean;
   bot_offers_enabled: boolean;
-  is_exclusive: boolean;
   exclusive_hours: number;
+  is_exclusive: boolean;
   exclusive_until: string | null;
   created_at: string;
 };
@@ -42,25 +42,35 @@ function decode(r: any): ProjectRow {
     domain: r.domain ?? null,
     offers_enabled: Number(r.offers_enabled ?? 1) !== 0,
     bot_offers_enabled: Number(r.bot_offers_enabled ?? 1) !== 0,
-    is_exclusive: Number(r.is_exclusive ?? 0) !== 0,
     exclusive_hours: Number(r.exclusive_hours ?? 6),
+    is_exclusive: Number(r.is_exclusive ?? 0) !== 0,
     exclusive_until: r.exclusive_until ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,is_exclusive,exclusive_hours,exclusive_until";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until";
 
 /** Idempotent: makes sure the offer-toggle columns exist (older databases). */
 let _offersColReady: Promise<void> | null = null;
 export function ensureOffersEnabledColumn(): Promise<void> {
   if (!_offersColReady) {
     _offersColReady = Promise.all([
-      db.execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`).catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`)
+        .catch(() => undefined),
+      db
+        .execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`)
+        .catch(() => undefined),
     ]).then(() => undefined);
   }
   return _offersColReady;
@@ -103,28 +113,6 @@ export async function setBotOffersEnabled(id: string, enabled: boolean): Promise
     new Date().toISOString(),
     id,
   ]);
-}
-
-export async function setExclusive(id: string, enabled: boolean, hours: number): Promise<void> {
-  await ensureOffersEnabledColumn();
-  const until = enabled ? new Date(Date.now() + hours * 3600_000).toISOString() : null;
-  await db.execute(
-    `UPDATE projects SET is_exclusive = ?, exclusive_hours = ?, exclusive_until = ?, updated_at = ? WHERE id = ?`,
-    [enabled ? 1 : 0, hours, until, new Date().toISOString(), id],
-  );
-}
-
-export async function refreshExclusiveUntil(id: string): Promise<void> {
-  await ensureOffersEnabledColumn();
-  const r = await db.execute(`SELECT exclusive_hours FROM projects WHERE id = ? LIMIT 1`, [id]);
-  const row = rowsToObjects<any>(r)[0];
-  if (!row) return;
-  const hours = Number(row.exclusive_hours ?? 6);
-  const until = new Date(Date.now() + hours * 3600_000).toISOString();
-  await db.execute(
-    `UPDATE projects SET exclusive_until = ?, updated_at = ? WHERE id = ? AND is_exclusive = 1`,
-    [until, new Date().toISOString(), id],
-  );
 }
 
 export async function setAllBotOffersEnabled(enabled: boolean): Promise<void> {
@@ -176,8 +164,7 @@ export async function findByOwnerAndName(userId: string, name: string, excludeId
 }
 
 export async function findByAdId(adId: string): Promise<ProjectRow | null> {
-  await ensureOffersEnabledColumn();
-  const r = await db.execute(`SELECT ${COLS} FROM projects WHERE ad_id = ? LIMIT 1`, [adId]);
+  const r = await db.execute(`SELECT id FROM projects WHERE ad_id = ? LIMIT 1`, [adId]);
   const rows = rowsToObjects(r);
   return rows[0] ? decode(rows[0]) : null;
 }
@@ -194,12 +181,15 @@ export async function insertProject(input: {
   status?: string;
   admin_approval?: string;
   ad_id?: string | null;
+  exclusive_hours?: number;
+  is_exclusive?: boolean;
+  exclusive_until?: string | null;
 }): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.execute(
-    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at,exclusive_hours,is_exclusive,exclusive_until)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id,
       input.name,
@@ -215,6 +205,9 @@ export async function insertProject(input: {
       input.ad_id ?? null,
       now,
       now,
+      input.exclusive_hours ?? 6,
+      (input.is_exclusive ?? false) ? 1 : 0,
+      input.exclusive_until ?? null,
     ],
   );
   return id;
@@ -230,14 +223,8 @@ export async function updateProject(id: string, patch: Partial<{
   pdf_file: string | null;
   status: string;
   admin_approval: string;
-  is_exclusive?: boolean;
-  exclusive_hours?: number;
+  exclusive_hours: number;
 }>): Promise<void> {
-  if (patch.is_exclusive !== undefined) {
-    await setExclusive(id, patch.is_exclusive, patch.exclusive_hours ?? 6);
-    delete patch.is_exclusive;
-    delete patch.exclusive_hours;
-  }
   const sets: string[] = [];
   const args: any[] = [];
   for (const [k, v] of Object.entries(patch)) {

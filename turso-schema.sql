@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS projects (
   reject_reason  TEXT,
   offers_enabled INTEGER NOT NULL DEFAULT 1,   -- 1 = زر "ارسال عرض سعر" مفعّل
   bot_offers_enabled INTEGER NOT NULL DEFAULT 1, -- 1 = البوت يستلم عروض السعر لهذا المشروع
+  exclusive_hours INTEGER NOT NULL DEFAULT 6,    -- عدد ساعات الحصر قبل التعميم
+  is_exclusive   INTEGER NOT NULL DEFAULT 0,      -- 1 = المشروع حصري للمشتركين VIP
+  exclusive_until TEXT,                          -- تاريخ انتهاء فترة الحصر (ISO)
   metadata       TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
