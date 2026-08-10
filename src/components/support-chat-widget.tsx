@@ -8,11 +8,20 @@ import {
 } from "@/lib/support.functions";
 import { getBotSettings } from "@/lib/bot-settings.functions";
 import { submitOffer } from "@/lib/offers.functions";
+import { submitVipSubscription } from "@/lib/vip.functions";
+import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 
 const TOKEN_KEY = "support_visitor_token_v1";
 const IDLE_MS = 5 * 60 * 1000;
 const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
+const VIP_FLOW_MARKER = "__VIP_FLOW__";
+
+const VIP_PLANS = [
+  { value: "100-30", label: "100 ريال — 30 يوم" },
+  { value: "200-60", label: "200 ريال — 60 يوم" },
+  { value: "300-90", label: "300 ريال — 90 يوم" },
+] as const;
 
 
 function generateUuid(): string {
@@ -55,6 +64,14 @@ export function SupportChatWidget() {
   const [offerBusy, setOfferBusy] = useState(false);
   const [offerError, setOfferError] = useState<string | null>(null);
 
+  // VIP subscription wizard state
+  const [vipMsgId, setVipMsgId] = useState<string | null>(null);
+  const [vipStep, setVipStep] = useState<"terms" | "form" | "done" | null>(null);
+  const [vipForm, setVipForm] = useState({ name: "", email: "", city: "", plan: "" });
+  const [vipFile, setVipFile] = useState<File | null>(null);
+  const [vipBusy, setVipBusy] = useState(false);
+  const [vipError, setVipError] = useState<string | null>(null);
+
   const listQa = useServerFn(listBotQuestions);
   const startFn = useServerFn(startVisitorChat);
   const getMsgs = useServerFn(visitorGetMessages);
@@ -62,6 +79,7 @@ export function SupportChatWidget() {
   const endFn = useServerFn(visitorEndSession);
   const getSettings = useServerFn(getBotSettings);
   const submitOfferFn = useServerFn(submitOffer);
+  const submitVipFn = useServerFn(submitVipSubscription);
 
 
   useEffect(() => { setMounted(true); }, []);
@@ -184,6 +202,60 @@ export function SupportChatWidget() {
     setOfferFile(null);
     setOfferForm({ projectName: "", companyName: "", email: "", amount: "" });
   }, [offerTriggerId, offerMsgId]);
+
+  // Detect the latest VIP-flow trigger from the bot and open the wizard
+  const vipTriggerId = useMemo(() => {
+    const m = [...messages].reverse().find((x) => x.sender === "bot" && x.body.includes(VIP_FLOW_MARKER));
+    return m?.id ?? null;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!vipTriggerId) return;
+    if (vipMsgId === vipTriggerId) return;
+    setVipMsgId(vipTriggerId);
+    setVipStep("terms");
+    setVipError(null);
+    setVipFile(null);
+    setVipForm({ name: "", email: "", city: "", plan: "" });
+  }, [vipTriggerId, vipMsgId]);
+
+  async function handleVipSubmit() {
+    if (vipBusy) return;
+    const { name, email, city, plan } = vipForm;
+    if (!name.trim() || !email.trim() || !city.trim() || !plan.trim()) {
+      setVipError("يرجى إكمال جميع الحقول.");
+      return;
+    }
+    if (!vipFile) {
+      setVipError("يرجى رفع صورة الإيصال.");
+      return;
+    }
+    setVipBusy(true);
+    setVipError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", vipFile);
+      fd.append("purpose", "vip-receipt");
+      const res = await fetch("/api/public/upload", { method: "POST", body: fd });
+      const json = (await res.json()) as { key?: string; error?: string };
+      if (!res.ok || !json.key) throw new Error(json.error || "تعذر رفع الملف");
+      await submitVipFn({
+        data: {
+          name: name.trim(),
+          email: email.trim(),
+          receipt_path: json.key,
+          plan: plan.trim(),
+          city: city.trim(),
+        },
+      });
+      setVipStep("done");
+      qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
+    } catch (e) {
+      setVipError(e instanceof Error ? e.message : "تعذر إرسال الطلب، حاول مرة أخرى.");
+    } finally {
+      setVipBusy(false);
+    }
+  }
 
   async function handleOfferSubmit() {
     if (offerBusy) return;
@@ -346,7 +418,7 @@ export function SupportChatWidget() {
                     {m.sender === "admin" && (
                       <div className="mb-0.5 text-[10px] font-semibold opacity-80">موظف الدعم</div>
                     )}
-                    <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body.replace(OFFER_FLOW_MARKER, "").trim() }} />
+                    <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body.replace(OFFER_FLOW_MARKER, "").replace(VIP_FLOW_MARKER, "").trim() }} />
                   </div>
                 </div>
               );
@@ -418,7 +490,98 @@ export function SupportChatWidget() {
               </div>
             )}
 
-            {showEndAfterBot && token && !offerStep && (
+            {/* VIP subscription wizard */}
+            {vipStep === "terms" && (
+              <div className="rounded-xl border border-border bg-background p-3">
+                <div className="mb-2 space-y-1 text-[11px] text-muted-foreground">
+                  {VIP_PLANS.map((p) => (
+                    <div key={p.value} className="font-semibold text-foreground">{p.label}</div>
+                  ))}
+                  <div className="pt-1">تستقبل مشاريع خاصة عبر الإيميل بلا منافس + دعم فني VIP</div>
+                  <div className="pt-1">IBAN: SA35 1000 0065 5000 4711 0807</div>
+                </div>
+                <button
+                  onClick={() => setVipStep("form")}
+                  className="w-full rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+                >
+                  أرغب بالاشتراك
+                </button>
+              </div>
+            )}
+
+            {vipStep === "form" && (
+              <div className="space-y-2 rounded-xl border border-border bg-background p-3">
+                <div className="text-[11px] font-semibold text-muted-foreground">بيانات الاشتراك:</div>
+                <input
+                  value={vipForm.name}
+                  onChange={(e) => setVipForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="الاسم"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                />
+                <input
+                  value={vipForm.email}
+                  onChange={(e) => setVipForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="البريد الإلكتروني"
+                  type="email"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                />
+                <select
+                  value={vipForm.city}
+                  onChange={(e) => setVipForm((f) => ({ ...f, city: e.target.value }))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">اختر المدينة</option>
+                  {SAUDI_CITIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <select
+                  value={vipForm.plan}
+                  onChange={(e) => setVipForm((f) => ({ ...f, plan: e.target.value }))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">اختر الباقة</option>
+                  {VIP_PLANS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+                <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-secondary/40 px-3 py-2 text-[11px] font-medium hover:bg-secondary">
+                  <FileUp className="h-3.5 w-3.5" />
+                  {vipFile ? vipFile.name : "رفع صورة الإيصال"}
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={(e) => setVipFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {vipError && <div className="text-[11px] text-destructive">{vipError}</div>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleVipSubmit}
+                    disabled={vipBusy}
+                    className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {vipBusy ? "جارٍ الإرسال…" : "إرسال الطلب"}
+                  </button>
+                  <button
+                    onClick={() => { setVipStep(null); setVipError(null); }}
+                    className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {vipStep === "done" && (
+              <div className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background p-3 text-[11px] font-semibold text-foreground/80">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                تم استلام طلبك. سيتم إرسال تأكيد على إيميلك بعد الموافقة
+              </div>
+            )}
+
+            {showEndAfterBot && token && !offerStep && !vipStep && (
               <div className="flex justify-start pt-1">
                 <button
                   onClick={() => endSession()}
