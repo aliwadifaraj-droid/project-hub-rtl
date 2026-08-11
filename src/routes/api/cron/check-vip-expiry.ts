@@ -1,5 +1,5 @@
 // Cron endpoint: expires approved VIP subscribers whose membership has lapsed.
-// Does NOT send emails yet — only marks rows as expired + notified.
+// Marks rows as expired + notified and sends a cancellation email via Resend.
 import { createFileRoute } from "@tanstack/react-router";
 import { db, rowsToObjects } from "@/lib/db";
 
@@ -31,15 +31,40 @@ export const Route = createFileRoute("/api/cron/check-vip-expiry")({
             name: string | null;
           }>(result);
 
+          const resendApiKey = process.env.RESEND_API_KEY;
+          let emailed = 0;
+
           for (const row of rows) {
             await db.execute(
               `UPDATE vip_subscribers SET status = 'expired', notified = 1 WHERE id = ?`,
               [row.id],
             );
+
+            if (resendApiKey && row.email) {
+              try {
+                const displayName = row.name || "عميلنا العزيز";
+                const res = await fetch("https://api.resend.com/emails", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${resendApiKey}`,
+                  },
+                  body: JSON.stringify({
+                    from: "Alamran <send@ali-alhaddad.com>",
+                    to: [row.email],
+                    subject: "تم الغاء اشتراكك المميز",
+                    html: `<p>مرحبا ${displayName}</p><p>تم الغاء اشتراكك المميز لانتهاء المدة.</p><p>لتجديد الاشتراك: <a href="https://ali-alhaddad.com">https://ali-alhaddad.com</a></p>`,
+                  }),
+                });
+                if (res.ok) emailed++;
+              } catch {
+                /* email failure is non-fatal — row already marked */
+              }
+            }
           }
 
           return new Response(
-            JSON.stringify({ processed: rows.length }),
+            JSON.stringify({ processed: rows.length, emailed }),
             {
               status: 200,
               headers: { "Content-Type": "application/json" },
