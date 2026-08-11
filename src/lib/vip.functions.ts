@@ -35,7 +35,7 @@ export const approveVipByProject = createServerFn({ method: "POST" })
         await sendResendEmail({
           to: row.email,
           subject: "تم تفعيل الحصرية VIP ✅",
-          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> الحصرية لمشروعك لمدة 30 يوماً.</p></div>`,
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> الحصرية لمشروعك لمدة 6 ساعات.</p></div>`,
         });
       } catch (e) {
         console.error("vip project approval email error", e);
@@ -132,7 +132,7 @@ export const approveVipSubscriber = createServerFn({ method: "POST" })
         await sendResendEmail({
           to: row.email,
           subject: "تم تفعيل اشتراك VIP ✅",
-          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتك بنا.</p></div>`,
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتكم بنا.</p></div>`,
         });
       } catch (e) {
         console.error("vip approval email error", e);

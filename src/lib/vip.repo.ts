@@ -70,7 +70,7 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
 
 export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
   await ensureColumns();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 3600_000).toISOString();
+  const expiresAt = new Date(Date.now() + 6 * 3600_000).toISOString();
   await db.execute(
     `UPDATE vip_subscribers SET status = 'approved', expires_at = ? WHERE project_id = ?`,
     [expiresAt, projectId],

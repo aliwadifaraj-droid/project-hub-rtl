@@ -31,11 +31,11 @@ function statusBadge(s: string) {
   );
 }
 
-function daysRemaining(expiresAt: string | null): number | null {
+function hoursRemaining(expiresAt: string | null): number | null {
   if (!expiresAt) return null;
   const diff = new Date(expiresAt).getTime() - Date.now();
   if (diff <= 0) return 0;
-  return Math.ceil(diff / (24 * 3600_000));
+  return Math.ceil(diff / 3600_000);
 }
 
 function AdminVipPage() {
@@ -54,7 +54,7 @@ function AdminVipPage() {
   const approveProject = useMutation({
     mutationFn: (projectId: string) => approveProjectFn({ data: { project_id: projectId } }),
     onSuccess: () => {
-      toast.success("تم تفعيل الحصرية لمدة 30 يوماً");
+      toast.success("تم تفعيل الحصرية لمدة 6 ساعات");
       qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
       qc.invalidateQueries({ queryKey: ["admin-projects"] });
     },
@@ -123,7 +123,7 @@ function AdminVipPage() {
             </TableHeader>
             <TableBody>
               {(data ?? []).map((s) => {
-                const days = daysRemaining((s as { expires_at?: string | null }).expires_at ?? null);
+                const hours = hoursRemaining((s as { expires_at?: string | null }).expires_at ?? null);
                 const isApproved = s.status === "approved" || s.status === "active";
                 const hasProject = !!(s as { project_id?: string | null }).project_id;
                 return (
@@ -135,11 +135,11 @@ function AdminVipPage() {
                     </TableCell>
                     <TableCell>{statusBadge(s.status)}</TableCell>
                     <TableCell>
-                      {isApproved && days !== null ? (
+                      {isApproved && hours !== null ? (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          days > 7 ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                          hours > 24 ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
                         }`}>
-                          {days === 0 ? "منتهٍ اليوم" : `${days} يوم`}
+                          {hours === 0 ? "منتهٍ الآن" : `${hours} ساعة`}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
