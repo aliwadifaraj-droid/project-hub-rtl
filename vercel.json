@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/check-vip-expiry",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
