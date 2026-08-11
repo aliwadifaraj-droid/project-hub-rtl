@@ -3,10 +3,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
+import { listAllProjectVipStatus } from "@/lib/vip.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 
@@ -37,12 +38,15 @@ function ProjectsAdminPage() {
   const del = useServerFn(deleteProject);
   const getRoles = useServerFn(getMyRoles);
   const whoami = useServerFn(getMyUserId);
+  const fetchVipStatus = useServerFn(listAllProjectVipStatus);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["admin-projects"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
+  const { data: vipStatuses } = useQuery({ queryKey: ["admin-project-vip"], queryFn: () => fetchVipStatus() });
   const isAdmin = hasAdminRole(roles);
   const myId = me?.userId ?? null;
+  const vipByProject = new Map((vipStatuses ?? []).map((v) => [v.project_id, v]));
 
   const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
@@ -93,6 +97,9 @@ function ProjectsAdminPage() {
                 <h3 className="font-bold">{p.name}</h3>
                 <ProjectStatusBadge status={p.status} />
               </div>
+              <div className="mt-1">
+                <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
+              </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link
@@ -133,6 +140,25 @@ function ProjectsAdminPage() {
       {editing ? <ProjectModal value={editing} onClose={() => setEditing(null)} onSave={(v) => saveMut.mutate(v)} saving={saveMut.isPending} /> : null}
       {sharedId ? <SharedLinkModal id={sharedId} onClose={() => setSharedId(null)} /> : null}
     </div>
+  );
+}
+
+function VipBadge({ expires_at, projectId }: { expires_at: string | null; projectId: string }) {
+  if (!expires_at) {
+    return (
+      <Link
+        to="/admin/vip"
+        className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-400"
+      >
+        <Crown className="h-3 w-3" /> تفعيل الحصرية
+      </Link>
+    );
+  }
+  const days = Math.ceil((new Date(expires_at).getTime() - Date.now()) / 86400000);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+      <Crown className="h-3 w-3" /> مميز - متبقي {days} يوم
+    </span>
   );
 }
 

@@ -55,6 +55,12 @@ export const cancelVipByProject = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const listAllProjectVipStatus = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    return vipRepo.listAllApprovedWithProject();
+  });
+
 export const listVipByProject = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .inputValidator((d: { project_id: string }) => {

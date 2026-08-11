@@ -91,6 +91,19 @@ export async function cancelByProject(projectId: string): Promise<void> {
   );
 }
 
+export async function listAllApprovedWithProject(): Promise<{ project_id: string; expires_at: string | null }[]> {
+  await ensureColumns();
+  const r = await db.execute(
+    `SELECT project_id, expires_at FROM vip_subscribers
+      WHERE status = 'approved' AND project_id IS NOT NULL
+      ORDER BY created_at DESC`,
+  );
+  return rowsToObjects(r).map((row: any) => ({
+    project_id: String(row.project_id),
+    expires_at: row.expires_at ?? null,
+  }));
+}
+
 export async function listApprovedByProject(projectId: string): Promise<VipSubscriberRow[]> {
   await ensureColumns();
   const r = await db.execute(
