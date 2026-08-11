@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   user_id      TEXT NOT NULL UNIQUE,
   display_name TEXT,
   avatar_url   TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ roles (label lookup) ============
@@ -66,9 +66,6 @@ CREATE TABLE IF NOT EXISTS projects (
   reject_reason  TEXT,
   offers_enabled INTEGER NOT NULL DEFAULT 1,   -- 1 = زر "ارسال عرض سعر" مفعّل
   bot_offers_enabled INTEGER NOT NULL DEFAULT 1, -- 1 = البوت يستلم عروض السعر لهذا المشروع
-  exclusive_hours INTEGER NOT NULL DEFAULT 6,    -- عدد ساعات الحصر قبل التعميم
-  is_exclusive   INTEGER NOT NULL DEFAULT 0,      -- 1 = المشروع حصري للمشتركين VIP
-  exclusive_until TEXT,                          -- تاريخ انتهاء فترة الحصر (ISO)
   metadata       TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
@@ -219,6 +216,7 @@ CREATE TABLE IF NOT EXISTS vip_subscribers (
   receipt_key  TEXT,          -- R2 object key
   starts_at    TEXT,
   expires_at   TEXT,
+  notified     INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_vip_user ON vip_subscribers(user_id);
