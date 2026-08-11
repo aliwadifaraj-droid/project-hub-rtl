@@ -1,7 +1,7 @@
 // Cron endpoint: expires approved VIP subscribers whose membership has lapsed.
 // Does NOT send emails yet — only marks rows as expired + notified.
 import { createFileRoute } from "@tanstack/react-router";
-import { db, rowsToObjects } from "@lib/db";
+import { db, rowsToObjects } from "@/lib/db";
 
 export const Route = createFileRoute("/api/cron/check-vip-expiry")({
   server: {

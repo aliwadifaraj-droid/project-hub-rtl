@@ -1,43 +1,26 @@
-// Turso (libSQL) client — server-only.
-// Do NOT import this from client-side code.
-// Used for all non-auth application data. Supabase remains for Auth, RLS,
-// user_roles, profiles-linked-to-auth.users, and Storage.
+import { createClient, type ResultSet, type InStatement } from "@libsql/client";
 
-import { createClient, type Client, type InArgs } from "@libsql/client";
+const url = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
-let _client: Client | null = null;
-
-export function getDb(): Client {
-  if (_client) return _client;
-  const url = process.env.TURSO_DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-  if (!url) throw new Error("TURSO_DATABASE_URL is not set");
-  _client = createClient({ url, authToken });
-  return _client;
+if (!url) {
+  throw new Error("TURSO_DATABASE_URL environment variable is required");
 }
 
-/**
- * Convenience wrapper. Prefer this over `getDb().execute(...)` at call sites.
- * Usage:
- *   const rows = await db.execute("SELECT * FROM projects WHERE id = ?", [id]);
- */
+const client = createClient({ url, authToken });
+
 export const db = {
-  execute(sql: string, args: InArgs = []) {
-    return getDb().execute({ sql, args });
+  execute(sql: string, args?: unknown[]): Promise<ResultSet> {
+    if (args !== undefined) {
+      return client.execute({ sql, args });
+    }
+    return client.execute(sql);
   },
-  batch(statements: Array<{ sql: string; args?: InArgs }>) {
-    return getDb().batch(
-      statements.map((s) => ({ sql: s.sql, args: s.args ?? [] })),
-    );
-  },
-  raw() {
-    return getDb();
+  batch(statements: InStatement[]): Promise<ResultSet[]> {
+    return client.batch(statements);
   },
 };
 
-/** Map libSQL result rows to plain objects (libSQL Rows are already keyed). */
-export function rowsToObjects<T = Record<string, unknown>>(result: {
-  rows: readonly unknown[];
-}): T[] {
-  return (result.rows as unknown[]).map((r) => ({ ...(r as object) })) as T[];
+export function rowsToObjects<T = Record<string, unknown>>(result: ResultSet): T[] {
+  return result.rows as T[];
 }
