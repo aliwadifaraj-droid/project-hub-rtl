@@ -256,6 +256,40 @@ function asksAboutOffer(text: string): boolean {
 }
 
 
+/* ---------- نية الاشتراك في VIP ---------- */
+
+export const VIP_FLOW_MARKER = "__VIP_FLOW__";
+
+const VIP_KEYWORDS = [
+  "اشترك", "اشتراك", "vip", "ابغى اشترك", "اريد اشتراك", "اريد اشترك",
+  "ابغى اشتراك", "الاشتراك", "اشتراك vip", "باقة", "باقه", "العملاء المميزون",
+  "مميز", "اشتراك مميز", "اشترك vip",
+];
+
+const VIP_PLANS_TEXT = [
+  "باقات اشتراك VIP المتاحة:",
+  "",
+  "باقة 100 ريال — 30 يوم",
+  "تستقبل مشاريع خاصة عبر الإيميل بلا منافس + دعم فني VIP",
+  "",
+  "باقة 200 ريال — 60 يوم",
+  "تستقبل مشاريع خاصة عبر الإيميل بلا منافس + دعم فني VIP",
+  "",
+  "باقة 300 ريال — 90 يوم",
+  "تستقبل مشاريع خاصة عبر الإيميل بلا منافس + دعم فني VIP",
+  "",
+  "بيانات التحويل البنكي:",
+  "البنك الأهلي — IBAN: SA35 1000 0065 5000 4711 0807",
+  "",
+  "اختر الباقة التي تناسبك، ثم عبّئ بياناتك وارفع صورة الإيصال.",
+].join("\n");
+
+function asksAboutVip(text: string): boolean {
+  const t = normalizeAr(text);
+  return VIP_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
+}
+
+
 
 
 /** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
@@ -460,6 +494,12 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
     if (!answer && asksAboutOffer(data.body)) {
       await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+      await invalidateChat(data.visitorToken);
+      return { ok: true };
+    }
+
+    if (!answer && asksAboutVip(data.body)) {
+      await supportRepo.addSupportMessage(chat.id, "bot", `${VIP_PLANS_TEXT}\n${VIP_FLOW_MARKER}`);
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
