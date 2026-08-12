@@ -175,7 +175,8 @@ export const adminStopVip = createServerFn({ method: "POST" })
     return { city: data.city.trim() };
   })
   .handler(async ({ data }) => {
-    const count = await vipRepo.stopVipByCity(data.city);
+    const city = detectCity(data.city) ?? data.city;
+    const count = await vipRepo.stopVipByCity(city);
     return { ok: true, count };
   });
 
@@ -188,7 +189,8 @@ export const adminStartVip = createServerFn({ method: "POST" })
     return { city: data.city.trim(), hours };
   })
   .handler(async ({ data }) => {
-    const count = await vipRepo.startVipByCity(data.city, data.hours);
+    const city = detectCity(data.city) ?? data.city;
+    const count = await vipRepo.startVipByCity(city, data.hours);
     return { ok: true, count };
   });
 
@@ -201,6 +203,7 @@ export const adminExtendVip = createServerFn({ method: "POST" })
     return { city: data.city.trim(), hours };
   })
   .handler(async ({ data }) => {
-    const count = await vipRepo.extendVipByCity(data.city, data.hours);
+    const city = detectCity(data.city) ?? data.city;
+    const count = await vipRepo.extendVipByCity(city, data.hours);
     return { ok: true, count };
   });
