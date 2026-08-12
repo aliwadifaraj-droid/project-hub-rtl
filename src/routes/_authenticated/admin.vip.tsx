@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, getVipCountsByCities } from "@/lib/vip.functions";
+import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber } from "@/lib/vip.functions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check, X, Star, Users } from "lucide-react";
+import { Loader2, Check, X, Star } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/vip")({
@@ -44,18 +44,11 @@ function AdminVipPage() {
   const cancelProjectFn = useServerFn(cancelVipByProject);
   const approveFn = useServerFn(approveVipSubscriber);
   const rejectFn = useServerFn(rejectVipSubscriber);
-  const countsFn = useServerFn(getVipCountsByCities);
   const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["vip-subscribers"],
     queryFn: () => fn(),
-  });
-
-  const { data: cityCounts } = useQuery({
-    queryKey: ["vip-city-counts"],
-    queryFn: () => countsFn(),
-    staleTime: 30_000,
   });
 
   const approveProject = useMutation({
@@ -64,7 +57,6 @@ function AdminVipPage() {
       toast.success("تم تفعيل الحصرية لمدة 6 ساعات");
       qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
       qc.invalidateQueries({ queryKey: ["admin-projects"] });
-      qc.invalidateQueries({ queryKey: ["vip-city-counts"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -75,7 +67,6 @@ function AdminVipPage() {
       toast.success("تم إلغاء الحصرية");
       qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
       qc.invalidateQueries({ queryKey: ["admin-projects"] });
-      qc.invalidateQueries({ queryKey: ["vip-city-counts"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -85,7 +76,6 @@ function AdminVipPage() {
     onSuccess: () => {
       toast.success("تم التفعيل");
       qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
-      qc.invalidateQueries({ queryKey: ["vip-city-counts"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -95,12 +85,9 @@ function AdminVipPage() {
     onSuccess: () => {
       toast.success("تم الرفض");
       qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
-      qc.invalidateQueries({ queryKey: ["vip-city-counts"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
-
-  const totalCount = (cityCounts ?? []).reduce((sum: number, c: { count: number }) => sum + c.count, 0);
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -108,28 +95,6 @@ function AdminVipPage() {
         <Star className="h-6 w-6 text-amber-500" />
         <h1 className="text-2xl font-bold">العملاء المميزون — إدارة الحصرية</h1>
       </div>
-
-      {(cityCounts ?? []).length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-5 w-5 text-amber-600" />
-            <h2 className="text-sm font-bold text-amber-900">المشتركون النشطون حسب المدينة</h2>
-            <span className="mr-auto rounded-full bg-amber-200 px-3 py-0.5 text-xs font-bold text-amber-900">
-              الإجمالي: {totalCount}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(cityCounts ?? []).map((c: { city: string; count: number }) => (
-              <span
-                key={c.city}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-amber-900 border border-amber-200"
-              >
-                {c.city}: <span className="font-bold">{c.count}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="grid place-items-center py-20">
