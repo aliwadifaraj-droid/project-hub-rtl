@@ -222,6 +222,19 @@ export async function markExpired(): Promise<{ expired: number }> {
   return { expired: r.rowsAffected ?? 0 };
 }
 
+export async function autoActivateByCity(city: string, hours: number): Promise<{ count: number }> {
+  const projectCity = city.split("-")[0].trim();
+  await ensureCityColumn();
+  const expiresAt = new Date(Date.now() + hours * 3600_000).toISOString();
+  const r = await db.execute(
+    `UPDATE vip_subscribers SET status = 'active', expires_at = ?
+      WHERE city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))
+        AND status IN ('pending', 'approved')`,
+    [expiresAt, projectCity],
+  );
+  return { count: r.rowsAffected ?? 0 };
+}
+
 export async function updateVipReceipt(id: string, receiptPath: string): Promise<void> {
   await db.execute(`UPDATE vip_subscribers SET receipt_key = ? WHERE id = ?`, [receiptPath, id]);
 }
