@@ -103,6 +103,65 @@ export async function autoActivateByCity(city: string, hours = 6): Promise<numbe
   return rows.length;
 }
 
+/** Stop all active VIP subscribers in a city (set status to 'expired'). */
+export async function stopVipByCity(city: string): Promise<number> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `SELECT id FROM vip_subscribers
+      WHERE status = 'active'
+        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
+    [city],
+  );
+  const rows = rowsToObjects<{ id: string }>(r);
+  for (const row of rows) {
+    await db.execute(`UPDATE vip_subscribers SET status = 'expired' WHERE id = ?`, [row.id]);
+  }
+  return rows.length;
+}
+
+/** Start VIP for all pending/expired subscribers in a city for N hours. */
+export async function startVipByCity(city: string, hours: number): Promise<number> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `SELECT id FROM vip_subscribers
+      WHERE status IN ('pending', 'expired')
+        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
+    [city],
+  );
+  const rows = rowsToObjects<{ id: string }>(r);
+  if (rows.length === 0) return 0;
+  const now = new Date();
+  const expires = new Date(now.getTime() + hours * 60 * 60 * 1000);
+  for (const row of rows) {
+    await db.execute(
+      `UPDATE vip_subscribers SET status = 'active', starts_at = ?, expires_at = ? WHERE id = ?`,
+      [now.toISOString(), expires.toISOString(), row.id],
+    );
+  }
+  return rows.length;
+}
+
+/** Extend active VIP subscribers in a city by N hours from now. */
+export async function extendVipByCity(city: string, hours: number): Promise<number> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `SELECT id FROM vip_subscribers
+      WHERE status = 'active'
+        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
+    [city],
+  );
+  const rows = rowsToObjects<{ id: string }>(r);
+  if (rows.length === 0) return 0;
+  const expires = new Date(Date.now() + hours * 60 * 60 * 1000);
+  for (const row of rows) {
+    await db.execute(
+      `UPDATE vip_subscribers SET expires_at = ? WHERE id = ?`,
+      [expires.toISOString(), row.id],
+    );
+  }
+  return rows.length;
+}
+
 export async function updateVipReceipt(id: string, receiptPath: string): Promise<void> {
   await db.execute(`UPDATE vip_subscribers SET receipt_key = ? WHERE id = ?`, [receiptPath, id]);
 }
