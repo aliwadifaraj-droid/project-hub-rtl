@@ -19,6 +19,7 @@ const submitSchema = z.object({
   pdfKey: z.string().trim().min(1).max(500),
   pdfFilename: z.string().trim().min(1).max(200),
   visitorToken: z.string().uuid().optional().nullable(),
+  vipToken: z.string().optional().nullable(),
 });
 
 export const OFFER_PROJECT_NOT_FOUND = "المشروع غير موجود";
@@ -34,7 +35,11 @@ export const submitOffer = createServerFn({ method: "POST" })
     }
     const exclusive = await getProjectExclusive(project.id);
     if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-      return { ok: false as const, message: "المشروع في فترة حصرية" };
+      if (!data.vipToken) return { ok: false as const, message: "المشروع في فترة حصرية" };
+      const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
+      const tokenResult = await validateVipToken(data.vipToken, project.id);
+      if (!tokenResult.valid) return { ok: false as const, message: "رمز الحصرية غير صالح أو منتهي" };
+      await consumeVipToken(data.vipToken);
     }
     if (!project.bot_offers_enabled) {
       return { ok: false as const, message: OFFER_DISABLED_MESSAGE };

@@ -2,6 +2,7 @@
 import * as vipRepo from "./vip.repo";
 import { SAUDI_CITIES } from "./saudi-cities";
 import { sendResendEmail } from "./resend-send.server";
+import { createVipToken } from "./vip-tokens.repo";
 
 function siteUrl(): string {
   return "https://ali-alhaddad.com".replace(/\/$/, "");
@@ -19,6 +20,8 @@ function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
 }
 
+const TOKEN_TTL_MS = 6 * 3600_000;
+
 export async function notifyVipSubscribersOfNewProject(project: {
   id: string;
   name: string;
@@ -32,8 +35,19 @@ export async function notifyVipSubscribersOfNewProject(project: {
     const subs = await vipRepo.listActiveByCity(city);
     if (subs.length === 0) return;
 
-    const link = `${siteUrl()}/project/${project.id}`;
-    const html = `
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+
+    for (const s of subs) {
+      if (!s.email) continue;
+      let token: string;
+      try {
+        token = await createVipToken(project.id, s.email, expiresAt);
+      } catch (e) {
+        console.error("[vip-notify] token creation failed", e);
+        continue;
+      }
+      const link = `${siteUrl()}/project/${project.id}?vip_token=${token}`;
+      const html = `
       <div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;line-height:1.9;background:#fff">
         <h2 style="margin:0 0 12px">مشروع جديد في ${esc(city)} 🎉</h2>
         <p style="margin:0 0 16px">تم إضافة مشروع جديد في مدينتك، وهذه تفاصيله:</p>
@@ -51,8 +65,6 @@ export async function notifyVipSubscribersOfNewProject(project: {
         <p style="margin:0;font-size:12px;color:#888">وصلتك هذه الرسالة لأنك مشترك VIP في مدينة ${esc(city)}.</p>
       </div>`;
 
-    for (const s of subs) {
-      if (!s.email) continue;
       await sendResendEmail({
         to: s.email,
         subject: `مشروع جديد في ${city}: ${project.name}`,
