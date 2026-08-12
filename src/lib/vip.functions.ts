@@ -3,30 +3,6 @@ import { requireAdmin } from "./auth-middleware.server";
 import * as vipRepo from "./vip.repo";
 import { listUsersWithRoles } from "./users.repo";
 
-export const getMyVipStatus = createServerFn({ method: "GET" })
-  .inputValidator((d: { project_id: string }) => {
-    if (!d?.project_id) throw new Error("project_id مطلوب");
-    return d;
-  })
-  .handler(async ({ data }) => {
-    let email: string | null = null;
-    try {
-      const { getSessionClaims } = await import("./auth.server");
-      const claims = await getSessionClaims();
-      if (claims) email = claims.email;
-    } catch { /* not logged in */ }
-    if (!email) return { isVip: false, city: null };
-
-    const sub = await vipRepo.findActiveByEmail(email);
-    if (!sub) return { isVip: false, city: null };
-
-    const isActive = sub.status === "active" && sub.expires_at
-      ? new Date(sub.expires_at).getTime() > Date.now()
-      : false;
-
-    return { isVip: isActive, city: sub.city ?? null };
-  });
-
 export const listVipSubscribers = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
@@ -59,7 +35,7 @@ export const approveVipByProject = createServerFn({ method: "POST" })
         await sendResendEmail({
           to: row.email,
           subject: "تم تفعيل الحصرية VIP ✅",
-          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> الحصرية لمشروعك لمدة 6 ساعات.</p></div>`,
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> الحصرية لمشروعك لمدة 30 يوماً.</p></div>`,
         });
       } catch (e) {
         console.error("vip project approval email error", e);
@@ -83,6 +59,38 @@ export const listAllProjectVipStatus = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     return vipRepo.listAllApprovedWithProject();
+  });
+
+export const adminStopVip = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { city: string }) => {
+    if (!d?.city) throw new Error("city مطلوبة");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    return vipRepo.stopVipByCity(data.city);
+  });
+
+export const adminStartVip = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { city: string; hours: number }) => {
+    if (!d?.city) throw new Error("city مطلوبة");
+    if (!Number.isFinite(d.hours) || d.hours <= 0) throw new Error("hours يجب أن يكون رقماً موجباً");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    return vipRepo.startVipByCity(data.city, data.hours);
+  });
+
+export const adminExtendVip = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { city: string; hours: number }) => {
+    if (!d?.city) throw new Error("city مطلوبة");
+    if (!Number.isFinite(d.hours) || d.hours <= 0) throw new Error("hours يجب أن يكون رقماً موجباً");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    return vipRepo.extendVipByCity(data.city, data.hours);
   });
 
 export const listVipByProject = createServerFn({ method: "GET" })
@@ -156,7 +164,7 @@ export const approveVipSubscriber = createServerFn({ method: "POST" })
         await sendResendEmail({
           to: row.email,
           subject: "تم تفعيل اشتراك VIP ✅",
-          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتكم بنا.</p></div>`,
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتك بنا.</p></div>`,
         });
       } catch (e) {
         console.error("vip approval email error", e);
@@ -171,79 +179,4 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await vipRepo.updateVipStatus(data.id, "rejected");
     return { ok: true };
-  });
-
-export const createTrialVipSubscription = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((data: { email: string; duration_minutes: number }) => {
-    if (!data?.email?.trim()) throw new Error("البريد مطلوب");
-    if (!data?.duration_minutes || data.duration_minutes <= 0) throw new Error("المدة يجب أن تكون أكبر من صفر");
-    return { email: data.email.trim(), duration_minutes: data.duration_minutes };
-  })
-  .handler(async ({ data }) => {
-    const { db } = await import("./db");
-    await db.execute(`ALTER TABLE vip_subscribers ADD COLUMN notified INTEGER NOT NULL DEFAULT 0`).catch(() => undefined);
-    const id = crypto.randomUUID();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + data.duration_minutes * 60 * 1000);
-    await db.execute(
-      `INSERT INTO vip_subscribers (id, name, email, plan, status, starts_at, expires_at, notified, created_at)
-       VALUES (?, ?, ?, ?, 'approved', ?, ?, 0, ?)`,
-      [id, "اختبار", data.email, `تجربة ${data.duration_minutes} دقايق`, now.toISOString(), expiresAt.toISOString(), now.toISOString()],
-    );
-    return { id, email: data.email };
-  });
-
-export const testVipExpiry = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    const { db, rowsToObjects } = await import("./db");
-    const { sendResendEmail } = await import("./resend-send.server");
-
-    type ExpiredVip = { id: string; email: string | null; name: string | null };
-
-    const result = await db.execute(
-      `SELECT id, email, name FROM vip_subscribers
-       WHERE status = 'approved' AND expires_at <= datetime('now') AND notified = 0`,
-    );
-    const rows = rowsToObjects<ExpiredVip>(result);
-
-    let expired = 0;
-    let emailed = 0;
-    const errors: string[] = [];
-
-    for (const row of rows) {
-      try {
-        await db.execute(
-          `UPDATE vip_subscribers SET status = 'expired', notified = 1 WHERE id = ?`,
-          [row.id],
-        );
-        expired++;
-
-        if (row.email) {
-          const displayName = row.name || "عزيزي المشترك";
-          const html = `
-            <div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;line-height:1.9;background:#fff">
-              <h2 style="margin:0 0 12px">تم إلغاء اشتراكك المميز</h2>
-              <p style="margin:0 0 16px">مرحباً ${displayName}</p>
-              <p style="margin:0 0 16px">تم إلغاء اشتراكك المميز لانتهاء المدة.</p>
-              <p style="margin:24px 0">
-                <a href="https://ali-alhaddad.com" style="background:#111;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block">
-                  لتجديد الاشتراك
-                </a>
-              </p>
-            </div>`;
-          await sendResendEmail({
-            to: row.email,
-            subject: "تم إلغاء اشتراكك المميز",
-            html,
-          });
-          emailed++;
-        }
-      } catch (e) {
-        errors.push(`id=${row.id}: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-
-    return { processed: rows.length, expired, emailed, errors };
   });

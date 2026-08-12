@@ -304,7 +304,7 @@ function ProjectModal({
           <Field label={`معرض الصور (${form.images?.length ?? 0})`}>
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
               <Upload className="h-4 w-4" />
-              <span className="flex-1 text-muted-foreground">إضافة صور</span>
+              <span className="text-muted-foreground">إضافة صور</span>
               <input type="file" accept="image/*" multiple className="hidden" onChange={onGallery} />
             </label>
           </Field>
