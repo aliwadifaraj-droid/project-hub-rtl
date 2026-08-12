@@ -311,6 +311,18 @@ CREATE TABLE IF NOT EXISTS offers (
 );
 CREATE INDEX IF NOT EXISTS idx_offers_created ON offers(created_at DESC);
 
+-- ============ vip_tokens (per-VIP exclusivity bypass tokens) ============
+CREATE TABLE IF NOT EXISTS vip_tokens (
+  id          TEXT PRIMARY KEY,
+  token       TEXT NOT NULL UNIQUE,
+  project_id  TEXT NOT NULL,
+  vip_email   TEXT NOT NULL,
+  expires_at  TEXT NOT NULL,
+  used        INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_vip_tokens_token ON vip_tokens(token);
+
 -- ============ project_exclusive (time-based exclusivity) ============
 CREATE TABLE IF NOT EXISTS project_exclusive (
   id           TEXT PRIMARY KEY,

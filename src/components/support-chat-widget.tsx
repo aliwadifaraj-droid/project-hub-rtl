@@ -87,7 +87,7 @@ export function SupportChatWidget() {
   useEffect(() => {
     if (!mounted || bubbleDismissed) return;
     const showTimer = setTimeout(() => setShowBubble(true), 1500);
-    const hideTimer = setTimeout(() => setShowBubble(false), 61500); // 1 min after show
+    const hideTimer = setTimeout(() => setShowBubble(false), 61500);
     bubbleTimer.current = hideTimer;
     return () => {
       clearTimeout(showTimer);
@@ -126,7 +126,6 @@ export function SupportChatWidget() {
       qc.removeQueries({ queryKey: ["support-visitor-chat", t] });
     }
     if (!opts?.silent) {
-      // stay open on welcome screen (token cleared → welcome view renders)
     }
   }, [token, endFn, qc]);
 
@@ -136,7 +135,6 @@ export function SupportChatWidget() {
     idleTimer.current = setTimeout(() => { endSession({ silent: true }); }, IDLE_MS);
   }, [open, token, endSession]);
 
-  // When widget opens: always start a FRESH session
   useEffect(() => {
     if (!open || !mounted) return;
     if (token) return;
@@ -146,13 +144,11 @@ export function SupportChatWidget() {
     startFn({ data: { visitorToken: t } }).catch(() => {});
   }, [open, mounted, token, startFn]);
 
-  // End session when tab closes
   useEffect(() => {
     if (!token) return;
     const onUnload = () => {
       try {
         if (typeof navigator !== "undefined" && "sendBeacon" in navigator) {
-          // best-effort; server fn RPC doesn't accept beacon, so just clear local
         }
       } catch {}
       if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
@@ -187,7 +183,6 @@ export function SupportChatWidget() {
   const lastMsg = messages[messages.length - 1];
   const showEndAfterBot = !!lastMsg && (lastMsg.sender === "bot" || lastMsg.sender === "admin");
 
-  // Detect the latest offer-flow trigger from the bot and open the wizard
   const offerTriggerId = useMemo(() => {
     const m = [...messages].reverse().find((x) => x.sender === "bot" && x.body.includes(OFFER_FLOW_MARKER));
     return m?.id ?? null;
@@ -203,7 +198,6 @@ export function SupportChatWidget() {
     setOfferForm({ projectName: "", companyName: "", email: "", amount: "" });
   }, [offerTriggerId, offerMsgId]);
 
-  // Detect the latest VIP-flow trigger from the bot and open the wizard
   const vipTriggerId = useMemo(() => {
     const m = [...messages].reverse().find((x) => x.sender === "bot" && x.body.includes(VIP_FLOW_MARKER));
     return m?.id ?? null;
@@ -282,6 +276,9 @@ export function SupportChatWidget() {
       const res = await fetch("/api/public/upload", { method: "POST", body: fd });
       const json = (await res.json()) as { key?: string; error?: string };
       if (!res.ok || !json.key) throw new Error(json.error || "تعذر رفع الملف");
+      const vipToken = typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("vip_token")
+        : null;
       const result = await submitOfferFn({
         data: {
           projectName: projectName.trim(),
@@ -291,6 +288,7 @@ export function SupportChatWidget() {
           pdfKey: json.key,
           pdfFilename: offerFile.name,
           visitorToken: token || null,
+          vipToken: vipToken || null,
         },
       });
       if (!result?.ok) {
@@ -299,7 +297,6 @@ export function SupportChatWidget() {
       }
       setOfferStep("done");
       qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
-
     } catch (e) {
       setOfferError(e instanceof Error ? e.message : "تعذر إرسال العرض، حاول مرة أخرى.");
     } finally {
@@ -313,7 +310,6 @@ export function SupportChatWidget() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, open]);
 
-  // Reset idle timer on any message change or user activity
   useEffect(() => { resetIdle(); }, [messages.length, resetIdle]);
   useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current); }, []);
 
@@ -378,7 +374,6 @@ export function SupportChatWidget() {
           onKeyDown={resetIdle}
           className="fixed bottom-5 right-5 z-50 flex h-[560px] max-h-[85vh] w-[360px] max-w-[95vw] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--shadow-elegant)]"
         >
-          {/* Header */}
           <div className="flex items-center justify-between border-b border-border bg-[image:var(--gradient-hero)] px-4 py-3 text-primary-foreground">
             <div className="flex items-center gap-2">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15">
@@ -396,7 +391,6 @@ export function SupportChatWidget() {
             </button>
           </div>
 
-          {/* Messages */}
           <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-secondary/30 p-3">
             {messages.map((m) => {
               const mine = m.sender === "visitor";
@@ -424,7 +418,6 @@ export function SupportChatWidget() {
               );
             })}
 
-            {/* Offer (price quote) wizard */}
             {offerStep === "terms" && (
               <div className="rounded-xl border border-border bg-background p-3">
                 <button
@@ -490,7 +483,6 @@ export function SupportChatWidget() {
               </div>
             )}
 
-            {/* VIP subscription wizard */}
             {vipStep === "terms" && (
               <div className="rounded-xl border border-border bg-background p-3">
                 <div className="mb-2 space-y-1 text-[11px] text-muted-foreground">
@@ -595,7 +587,6 @@ export function SupportChatWidget() {
 
           </div>
 
-          {/* Quick questions */}
           {canShowQuickQuestions && (
             <div className="border-t border-border bg-background/60 p-2">
               <div className="mb-1 text-[11px] font-semibold text-muted-foreground">اختر سؤالًا:</div>
@@ -614,7 +605,6 @@ export function SupportChatWidget() {
             </div>
           )}
 
-          {/* Input */}
           <div className="border-t border-border bg-background p-2">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
