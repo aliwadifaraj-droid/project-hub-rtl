@@ -51,7 +51,6 @@ export const getProject = createServerFn({ method: "GET" })
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
-        exclusive_until: p.exclusive_until ?? null,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {

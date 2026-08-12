@@ -17,9 +17,6 @@ export type ProjectRow = {
   domain: string | null;
   offers_enabled: boolean;
   bot_offers_enabled: boolean;
-  exclusive_hours: number;
-  is_exclusive: boolean;
-  exclusive_until: string | null;
   created_at: string;
 };
 
@@ -42,14 +39,11 @@ function decode(r: any): ProjectRow {
     domain: r.domain ?? null,
     offers_enabled: Number(r.offers_enabled ?? 1) !== 0,
     bot_offers_enabled: Number(r.bot_offers_enabled ?? 1) !== 0,
-    exclusive_hours: Number(r.exclusive_hours ?? 6),
-    is_exclusive: Number(r.is_exclusive ?? 0) !== 0,
-    exclusive_until: r.exclusive_until ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled";
 
 let _offersColReady: Promise<void> | null = null;
 export function ensureOffersEnabledColumn(): Promise<void> {
@@ -57,9 +51,6 @@ export function ensureOffersEnabledColumn(): Promise<void> {
     _offersColReady = Promise.all([
       db.execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
       db.execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`).catch(() => undefined),
     ]).then(() => undefined);
   }
   return _offersColReady;
@@ -148,16 +139,13 @@ export async function insertProject(input: {
   status?: string;
   admin_approval?: string;
   ad_id?: string | null;
-  exclusive_hours?: number;
-  is_exclusive?: boolean;
-  exclusive_until?: string | null;
 }): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.execute(
-    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at,exclusive_hours,is_exclusive,exclusive_until)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, input.name, input.description ?? null, input.location ?? null, input.duration ?? null, input.cover_image ?? null, JSON.stringify(input.images ?? []), input.pdf_file ?? null, input.created_by ?? null, input.status ?? "active", input.admin_approval ?? "approved", input.ad_id ?? null, now, now, input.exclusive_hours ?? 6, (input.is_exclusive ?? false) ? 1 : 0, input.exclusive_until ?? null],
+    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, input.name, input.description ?? null, input.location ?? null, input.duration ?? null, input.cover_image ?? null, JSON.stringify(input.images ?? []), input.pdf_file ?? null, input.created_by ?? null, input.status ?? "active", input.admin_approval ?? "approved", input.ad_id ?? null, now, now],
   );
   return id;
 }
@@ -172,7 +160,6 @@ export async function updateProject(id: string, patch: Partial<{
   pdf_file: string | null;
   status: string;
   admin_approval: string;
-  exclusive_hours: number;
 }>): Promise<void> {
   const sets: string[] = [];
   const args: any[] = [];
