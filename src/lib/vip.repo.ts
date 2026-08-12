@@ -171,6 +171,19 @@ export async function insertVipSubscriber(input: {
   return id;
 }
 
+export async function getActiveVipByEmail(email: string): Promise<VipSubscriberRow | null> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `SELECT * FROM vip_subscribers
+      WHERE email IS NOT NULL AND TRIM(LOWER(email)) = TRIM(LOWER(?))
+        AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1`,
+    [email],
+  );
+  const row = rowsToObjects(r)[0];
+  return row ? decode(row) : null;
+}
+
 export async function updateVipReceipt(id: string, receiptPath: string): Promise<void> {
   await db.execute(`UPDATE vip_subscribers SET receipt_key = ? WHERE id = ?`, [receiptPath, id]);
 }
