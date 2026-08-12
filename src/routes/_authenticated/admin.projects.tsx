@@ -96,7 +96,7 @@ function ProjectsAdminPage() {
                 <ProjectStatusBadge status={p.status} />
               </div>
               <div className="mt-1">
-                <VipBadge expires_at={vipByProject.get(p.id)?.exclusive_until ?? null} projectId={p.id} />
+                <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
