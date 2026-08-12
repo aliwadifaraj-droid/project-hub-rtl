@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as vipRepo from "./vip.repo";
+import { db, rowsToObjects } from "./db";
 
 export const listVipSubscribers = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
@@ -20,6 +21,15 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await vipRepo.updateVipStatus(data.id, "rejected");
     return { ok: true };
+  });
+
+export const listAllProjectVipStatus = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async () => {
+    const r = await db.execute(
+      `SELECT id AS project_id, exclusive_until FROM projects WHERE exclusive_until IS NOT NULL`,
+    );
+    return rowsToObjects<{ project_id: string; exclusive_until: string }>(r);
   });
 
 export const adminStopVip = createServerFn({ method: "POST" })

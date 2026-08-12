@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
-import { listAllProjectVipStatus } from "@/lib/vip.functions";
+import { listAllProjectVipStatus, adminStopVip, adminStartVip, adminExtendVip } from "@/lib/vip.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
@@ -29,8 +29,6 @@ type ProjectRow = {
   status?: string | null;
   admin_approval?: string | null;
 };
-
-
 
 function ProjectsAdminPage() {
   const list = useServerFn(listProjects);
@@ -98,7 +96,7 @@ function ProjectsAdminPage() {
                 <ProjectStatusBadge status={p.status} />
               </div>
               <div className="mt-1">
-                <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
+                <VipBadge expires_at={vipByProject.get(p.id)?.exclusive_until ?? null} projectId={p.id} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -131,7 +129,9 @@ function ProjectsAdminPage() {
                   queryKey={["admin-projects"]}
                 />
               ) : null}
-
+              {isAdmin && p.location ? (
+                <VipControls city={p.location} />
+              ) : null}
             </div>
           </div>
         ))}
@@ -159,6 +159,71 @@ function VipBadge({ expires_at, projectId }: { expires_at: string | null; projec
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
       <Crown className="h-3 w-3" /> مميز - متبقي {days} يوم
     </span>
+  );
+}
+
+function VipControls({ city }: { city: string }) {
+  const stopFn = useServerFn(adminStopVip);
+  const startFn = useServerFn(adminStartVip);
+  const extendFn = useServerFn(adminExtendVip);
+  const [hours, setHours] = useState("6");
+
+  const h = () => {
+    const n = Number(hours);
+    if (!Number.isFinite(n) || n <= 0) return 6;
+    return n;
+  };
+
+  const stopMut = useMutation({
+    mutationFn: () => stopFn({ data: { city } }),
+    onSuccess: (r: { count: number }) => toast.success(`تم إيقاف VIP (${r.count} مشترك)`),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const startMut = useMutation({
+    mutationFn: () => startFn({ data: { city, hours: h() } }),
+    onSuccess: (r: { count: number }) => toast.success(`تم تشغيل VIP (${r.count} مشترك)`),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const extendMut = useMutation({
+    mutationFn: () => extendFn({ data: { city, hours: h() } }),
+    onSuccess: (r: { count: number }) => toast.success(`تم تمديد VIP (${r.count} مشترك)`),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-50/50 p-2">
+      <input
+        type="number"
+        min={1}
+        max={720}
+        value={hours}
+        onChange={(e) => setHours(e.target.value)}
+        className="w-16 rounded-md border border-border bg-background px-2 py-1 text-xs"
+        placeholder="ساعات"
+      />
+      <span className="text-xs text-muted-foreground">تعديل الساعات</span>
+      <button
+        onClick={() => startMut.mutate()}
+        disabled={startMut.isPending}
+        className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+      >
+        تشغيل
+      </button>
+      <button
+        onClick={() => stopMut.mutate()}
+        disabled={stopMut.isPending}
+        className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+      >
+        إيقاف
+      </button>
+      <button
+        onClick={() => extendMut.mutate()}
+        disabled={extendMut.isPending}
+        className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+      >
+        تمديد
+      </button>
+    </div>
   );
 }
 
@@ -207,7 +272,6 @@ function ProjectModal({
     finally { setUploading(false); }
   }
 
-
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-2xl bg-card p-6 shadow-xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
@@ -254,7 +318,6 @@ function ProjectModal({
               <button type="button" onClick={() => setForm((s) => ({ ...s, pdf_file: null }))} className="mt-1 text-xs text-destructive hover:underline">إزالة الملف</button>
             ) : null}
           </Field>
-
         </div>
         <div className="mt-6 flex gap-2">
           <button
