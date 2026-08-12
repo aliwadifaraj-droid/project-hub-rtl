@@ -493,6 +493,19 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
     // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
     if (!answer && asksAboutOffer(data.body)) {
+      const allRows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
+      const pIdx = findProjectByQuery(allRows, data.body);
+      if (pIdx >= 0) {
+        const excl = await projectsRepo.getProjectExclusive(allRows[pIdx].id);
+        if (excl && Date.now() < new Date(excl.vip_end_at).getTime()) {
+          const remainingMs = new Date(excl.vip_end_at).getTime() - Date.now();
+          const hrs = Math.floor(remainingMs / 3_600_000);
+          const mins = Math.floor((remainingMs % 3_600_000) / 60_000);
+          await supportRepo.addSupportMessage(chat.id, "bot", `هذا المشروع في فترة حصرية. المتبقي: ${hrs} ساعة و ${mins} دقيقة`);
+          await invalidateChat(data.visitorToken);
+          return { ok: true };
+        }
+      }
       await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
       await invalidateChat(data.visitorToken);
       return { ok: true };

@@ -7,6 +7,7 @@ import * as notificationsRepo from "./notifications.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
+import { getProjectExclusive } from "./projects.repo";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 
@@ -30,6 +31,10 @@ export const submitOffer = createServerFn({ method: "POST" })
     const project = await offersRepo.findProjectForOffer(data.projectName);
     if (!project) {
       return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND };
+    }
+    const exclusive = await getProjectExclusive(project.id);
+    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+      return { ok: false as const, message: "المشروع في فترة حصرية" };
     }
     if (!project.bot_offers_enabled) {
       return { ok: false as const, message: OFFER_DISABLED_MESSAGE };
