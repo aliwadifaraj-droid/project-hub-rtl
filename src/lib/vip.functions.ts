@@ -195,3 +195,39 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
     await vipRepo.updateVipStatus(data.id, "rejected");
     return { ok: true };
   });
+
+export const createTrialVipSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((data: { email: string; duration_minutes: number }) => {
+    if (!data?.email?.trim()) throw new Error("البريد الإلكتروني مطلوب");
+    if (!Number.isFinite(data.duration_minutes) || data.duration_minutes <= 0)
+      throw new Error("مدة التجربة يجب أن تكون رقماً موجباً");
+    return { email: data.email.trim(), duration_minutes: data.duration_minutes };
+  })
+  .handler(async ({ data }) => {
+    const row = await vipRepo.createTrialVip(data.email, data.duration_minutes);
+    return { id: row.id, email: row.email ?? data.email };
+  });
+
+export const testVipExpiry = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { expired } = await vipRepo.markExpired();
+    const soon = await vipRepo.findExpiringSoon(24);
+    let emailed = 0;
+    for (const row of soon) {
+      if (!row.email) continue;
+      try {
+        const { sendResendEmail } = await import("./resend-send.server");
+        await sendResendEmail({
+          to: row.email,
+          subject: "تذكير: اشتراك VIP ينتهي قريباً",
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>ينتهي اشتراكك خلال 24 ساعة.</p></div>`,
+        });
+        emailed++;
+      } catch (e) {
+        console.error("vip expiry email error", e);
+      }
+    }
+    return { processed: soon.length, expired, emailed };
+  });
