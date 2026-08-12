@@ -70,9 +70,13 @@ function ProjectDetail() {
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles(), retry: false });
   const isAdmin = hasAdminRole(roles);
 
+  const vipToken = (typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("vip_token")
+    : null) as string | null;
+
   const { data: exclusive } = useQuery({
-    queryKey: ["exclusive-status", id],
-    queryFn: () => getExclusive({ data: { projectId: id } }),
+    queryKey: ["exclusive-status", id, vipToken],
+    queryFn: () => getExclusive({ data: { projectId: id, vip_token: vipToken } }),
     refetchInterval: 10_000,
     retry: false,
   });
@@ -100,7 +104,7 @@ function ProjectDetail() {
       const chunk = 0x8000;
       for (let i = 0; i < bytes.length; i += chunk) { binary += String.fromCharCode(...bytes.subarray(i, i + chunk)); }
       const file_base64 = btoa(binary);
-      await submit({ data: { project_id: project.id, company_name: companyName.trim().slice(0, 200), facility_location: facilityLocation.trim().slice(0, 300), email: email.trim().slice(0, 255), file_name: pdfFile.name, file_base64 } });
+      await submit({ data: { project_id: project.id, company_name: companyName.trim().slice(0, 200), facility_location: facilityLocation.trim().slice(0, 300), email: email.trim().slice(0, 255), file_name: pdfFile.name, file_base64, vip_token: vipToken } });
       navigate({ to: "/thank-you" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "حدث خطأ أثناء إرسال الطلب";

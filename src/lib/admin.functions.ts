@@ -317,8 +317,8 @@ export const signupFirstAdmin = createServerFn({ method: "POST" })
   });
 
 export const submitBidRequest = createServerFn({ method: "POST" })
-  .inputValidator((d: { project_id: string; company_name: string; facility_location: string; email: string; file_name: string; file_base64: string }) =>
-    z.object({ project_id: z.string().uuid(), company_name: z.string().trim().min(1).max(200), facility_location: z.string().trim().min(1).max(300), email: z.string().trim().email().max(255), file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(15_000_000) }).parse(d))
+  .inputValidator((d: { project_id: string; company_name: string; facility_location: string; email: string; file_name: string; file_base64: string; vip_token?: string | null }) =>
+    z.object({ project_id: z.string().uuid(), company_name: z.string().trim().min(1).max(200), facility_location: z.string().trim().min(1).max(300), email: z.string().trim().email().max(255), file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(15_000_000), vip_token: z.string().optional().nullable() }).parse(d))
   .handler(async ({ data }) => {
     const bytes = Buffer.from(data.file_base64, "base64");
     if (bytes.length === 0) throw new Error("الملف فارغ");
@@ -329,6 +329,14 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     const proj = await projectsRepo.getById(data.project_id);
     if (!proj) throw new Error("المشروع غير موجود");
     if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
+    const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
+    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+      if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
+      const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
+      const tokenResult = await validateVipToken(data.vip_token, data.project_id);
+      if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
+      await consumeVipToken(data.vip_token);
+    }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
@@ -468,12 +476,19 @@ export const adminSetAllProjectOffersEnabled = createServerFn({ method: "POST" }
   });
 
 export const getExclusiveStatus = createServerFn({ method: "GET" })
-  .inputValidator((d: { projectId: string }) => z.object({ projectId: z.string().min(1) }).parse(d))
+  .inputValidator((d: { projectId: string; vip_token?: string | null }) =>
+    z.object({ projectId: z.string().min(1), vip_token: z.string().optional().nullable() }).parse(d))
   .handler(async ({ data }) => {
     const row = await projectsRepo.getProjectExclusive(data.projectId);
     if (!row) return { showForm: true as const, vipEndAt: null, vipStartAt: null };
     const now = Date.now();
     const endTime = new Date(row.vip_end_at).getTime();
     const showForm = now >= endTime;
-    return { showForm, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
+    if (showForm) return { showForm, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
+    if (data.vip_token) {
+      const { validateVipToken } = await import("./vip-tokens.repo");
+      const result = await validateVipToken(data.vip_token, data.projectId);
+      if (result.valid) return { showForm: true as const, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at, vipBypass: true as const };
+    }
+    return { showForm: false as const, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
   });
