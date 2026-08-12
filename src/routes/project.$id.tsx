@@ -2,14 +2,13 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { getProject, submitBidRequest, getMyRoles } from "@/lib/admin.functions";
-import { getVipCountByCity } from "@/lib/vip.functions";
+import { getProject, submitBidRequest, getMyRoles, getMyVipStatus } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown, Lock } from "lucide-react";
+import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
@@ -46,7 +45,7 @@ function ProjectDetail() {
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
   const getRoles = useServerFn(getMyRoles);
-  const fetchVipCount = useServerFn(getVipCountByCity);
+  const getVipStatus = useServerFn(getMyVipStatus);
   const navigate = Route.useNavigate();
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
@@ -55,18 +54,19 @@ function ProjectDetail() {
   });
   const isAdmin = hasAdminRole(roles);
 
-  const exclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until;
-  const isExclusiveActive = !!exclusiveUntil && new Date(exclusiveUntil).getTime() > Date.now();
-  const exclusiveCity = project.location ?? "";
-
-  const { data: vipCountData } = useQuery({
-    queryKey: ["vip-count", exclusiveCity],
-    queryFn: () => fetchVipCount({ data: { location: exclusiveCity } }),
-    enabled: isExclusiveActive && !!exclusiveCity,
-    staleTime: 60_000,
+  const { data: vipStatus } = useQuery({
+    queryKey: ["my-vip-status"],
+    queryFn: () => getVipStatus(),
+    retry: false,
   });
-  const vipCount = vipCountData?.count ?? 0;
-  const vipCity = vipCountData?.city ?? exclusiveCity;
+
+  const exclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until;
+  const isExclusive = exclusiveUntil ? new Date(exclusiveUntil).getTime() > Date.now() : false;
+  const userCity = vipStatus?.city ?? null;
+  const userIsVip = vipStatus?.is_vip ?? false;
+  const cityMatches = userCity != null && project.location != null
+    && userCity.trim().toLowerCase() === project.location.trim().toLowerCase();
+  const canBid = !isExclusive || (userIsVip && cityMatches);
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -194,22 +194,7 @@ function ProjectDetail() {
           </aside>
         </div>
 
-        {isExclusiveActive ? (
-          <section className="mt-16 max-w-3xl mx-auto">
-            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-8 text-center shadow-sm">
-              <Lock className="mx-auto h-10 w-10 text-amber-600" />
-              <p className="mt-4 text-lg font-bold text-amber-900">
-                حصري لمشتركي {vipCity}
-              </p>
-              <p className="mt-2 text-sm text-amber-800/80">
-                تقديم العروض لهذا المشروع متاح حصرياً لمشتركي VIP في {vipCity}.
-              </p>
-              <p className="mt-1 text-sm font-semibold text-amber-900">
-                عدد المشتركين النشطين: {vipCount}
-              </p>
-            </div>
-          </section>
-        ) : (project as { offers_enabled?: boolean }).offers_enabled === false ? (
+        {(project as { offers_enabled?: boolean }).offers_enabled === false ? (
           <section className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
               <p className="text-sm font-semibold text-orange-900">
@@ -231,81 +216,97 @@ function ProjectDetail() {
               </button>
             </div>
           </section>
+        ) : isExclusive ? (
+          <section id="apply" className="mt-16 max-w-3xl mx-auto">
+            {canBid ? (
+              <BidForm
+                companyName={companyName}
+                setCompanyName={setCompanyName}
+                facilityLocation={facilityLocation}
+                setFacilityLocation={setFacilityLocation}
+                email={email}
+                setEmail={setEmail}
+                pdfFile={pdfFile}
+                setPdfFile={setPdfFile}
+                submitting={submitting}
+                handleSubmit={handleSubmit}
+              />
+            ) : (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
+                <p className="text-sm font-semibold text-amber-900">
+                  حصري لمشتركي {project.location} حتى {new Date(exclusiveUntil!).toLocaleDateString("ar")}
+                </p>
+                <p className="mt-1 text-xs text-amber-800/80">
+                  هذا المشروع متاح حالياً فقط لمشتركي VIP في {project.location}.
+                </p>
+              </div>
+            )}
+          </section>
         ) : (
-        <section id="apply" className="mt-16 max-w-3xl mx-auto">
-          <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
-            <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              املأ النموذج التالي وأرفق ملف PDF لعرض السعر الخاص بك.
-            </p>
-            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-              <Field label="اسم الشركة / المؤسسة">
-                <input
-                  type="text"
-                  required
-                  maxLength={200}
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="مثال: شركة البناء الحديث للمقاولات"
-                />
-              </Field>
-
-              <Field label="موقع المنشأة">
-                <input
-                  type="text"
-                  required
-                  maxLength={300}
-                  value={facilityLocation}
-                  onChange={(e) => setFacilityLocation(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="مثال: الرياض - حي العليا - شارع الملك فهد"
-                />
-              </Field>
-
-              <Field label="البريد الإلكتروني">
-                <input
-                  type="email"
-                  required
-                  maxLength={255}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="example@company.com"
-                />
-              </Field>
-
-              <Field label="ملف PDF لعرض السعر">
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-4 py-5 text-sm hover:bg-secondary transition">
-                  <Upload className="h-5 w-5 text-accent" />
-                  <span className="flex-1 text-muted-foreground">
-                    {pdfFile ? pdfFile.name : "اضغط لاختيار ملف PDF (الحد الأقصى 10 ميغابايت)"}
-                  </span>
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    required
-                    onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
-                    className="hidden"
-                  />
-                </label>
-              </Field>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[image:var(--gradient-accent)] px-6 py-3 text-base font-bold text-accent-foreground transition hover:opacity-90 disabled:opacity-60"
-              >
-                {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-                تقديم الطلب
-              </button>
-            </form>
-          </div>
-        </section>
+          <section id="apply" className="mt-16 max-w-3xl mx-auto">
+            <BidForm
+              companyName={companyName}
+              setCompanyName={setCompanyName}
+              facilityLocation={facilityLocation}
+              setFacilityLocation={setFacilityLocation}
+              email={email}
+              setEmail={setEmail}
+              pdfFile={pdfFile}
+              setPdfFile={setPdfFile}
+              submitting={submitting}
+              handleSubmit={handleSubmit}
+            />
+          </section>
         )}
       </article>
 
       <SiteFooter />
+    </div>
+  );
+}
+
+type BidFormProps = {
+  companyName: string;
+  setCompanyName: (value: string) => void;
+  facilityLocation: string;
+  setFacilityLocation: (value: string) => void;
+  email: string;
+  setEmail: (value: string) => void;
+  pdfFile: File | null;
+  setPdfFile: (value: File | null) => void;
+  submitting: boolean;
+  handleSubmit: (event: React.FormEvent) => Promise<void>;
+};
+
+function BidForm({ companyName, setCompanyName, facilityLocation, setFacilityLocation, email, setEmail, pdfFile, setPdfFile, submitting, handleSubmit }: BidFormProps) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
+      <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        املأ النموذج التالي وأرفق ملف PDF لعرض السعر الخاص بك.
+      </p>
+      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <Field label="اسم الشركة / المؤسسة">
+          <input type="text" required maxLength={200} value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="مثال: شركة البناء الحديث للمقاولات" />
+        </Field>
+        <Field label="موقع المنشأة">
+          <input type="text" required maxLength={300} value={facilityLocation} onChange={(e) => setFacilityLocation(e.target.value)} className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="مثال: الرياض - حي العليا - شارع الملك فهد" />
+        </Field>
+        <Field label="البريد الإلكتروني">
+          <input type="email" required maxLength={255} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="example@company.com" />
+        </Field>
+        <Field label="ملف PDF لعرض السعر">
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-4 py-5 text-sm hover:bg-secondary transition">
+            <Upload className="h-5 w-5 text-accent" />
+            <span className="flex-1 text-muted-foreground">{pdfFile ? pdfFile.name : "اضغط لاختيار ملف PDF (الحد الأقصى 10 ميغابايت)"}</span>
+            <input type="file" accept="application/pdf" required onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)} className="hidden" />
+          </label>
+        </Field>
+        <button type="submit" disabled={submitting} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[image:var(--gradient-accent)] px-6 py-3 text-base font-bold text-accent-foreground transition hover:opacity-90 disabled:opacity-60">
+          {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          تقديم الطلب
+        </button>
+      </form>
     </div>
   );
 }
