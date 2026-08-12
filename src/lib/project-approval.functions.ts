@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as projectsRepo from "./projects.repo";
 import { findUserById } from "./users.repo";
 import { invalidateProjectsAll, invalidateQuotes } from "./cache";
+import { autoActivateByCity } from "./vip.repo";
 
 
 export const listPendingProjects = createServerFn({ method: "GET" })
@@ -32,6 +33,15 @@ export const approveProject = createServerFn({ method: "POST" })
     await projectsRepo.updateProject(data.id, { admin_approval: "approved" });
     await invalidateProjectsAll();
     await invalidateQuotes(row.created_by);
+
+    // Auto-start VIP for 6 hours if the project's city has pending subscribers.
+    if (row.location) {
+      try {
+        await autoActivateByCity(row.location, 6);
+      } catch (e) {
+        console.error("auto vip activation error", e);
+      }
+    }
 
 
     if (row.created_by) {
