@@ -1,3 +1,0 @@
-[build]
-publish = ".output/public"
-command = "npm run build"
