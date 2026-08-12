@@ -211,12 +211,13 @@ export async function stopVipByCity(city: string): Promise<number> {
   return rows.length;
 }
 
-/** Start VIP for all pending/expired subscribers in a city for N hours. */
+/** Start VIP for all pending/expired/active subscribers in a city for N hours.
+ *  Includes active subscribers so re-activating counts them. */
 export async function startVipByCity(city: string, hours: number): Promise<number> {
   await ensureCityColumn();
   const r = await db.execute(
     `SELECT id FROM vip_subscribers
-      WHERE status IN ('pending', 'expired')
+      WHERE status IN ('pending', 'expired', 'active')
         AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
     [city],
   );

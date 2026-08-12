@@ -9,6 +9,7 @@ import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
 import * as vipRepo from "./vip.repo";
+import { detectCity } from "./vip-notify.server";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
@@ -105,7 +106,6 @@ export const adminListRequests = createServerFn({ method: "GET" })
         projects: proj ? { name: proj.name } : null,
         can_manage: canManage,
       };
-
     }));
   });
 
@@ -329,9 +329,12 @@ export const getMyVipStatus = createServerFn({ method: "GET" })
     const match = subs.find(
       (s) => s.email?.toLowerCase() === user.email.toLowerCase(),
     );
+    if (!match) return { is_vip: false, city: null as string | null };
+    const now = Date.now();
+    const expired = match.expires_at ? new Date(match.expires_at).getTime() < now : false;
     return {
-      is_vip: match?.status === "active",
-      city: match?.city ?? null,
+      is_vip: match.status === "active" && !expired,
+      city: match.city ?? null,
     };
   });
 
@@ -471,7 +474,6 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       throw new Error("الملف ليس PDF صالحاً");
     }
 
-    // Detect submitter type
     let submitterType: "guest" | "user" = "guest";
     try {
       const { getSessionClaims } = await import("./auth.server");
