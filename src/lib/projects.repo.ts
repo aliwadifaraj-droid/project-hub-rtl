@@ -156,7 +156,7 @@ export async function insertProject(input: {
   const now = new Date().toISOString();
   await db.execute(
     `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at,exclusive_hours,is_exclusive,exclusive_until)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, input.name, input.description ?? null, input.location ?? null, input.duration ?? null, input.cover_image ?? null, JSON.stringify(input.images ?? []), input.pdf_file ?? null, input.created_by ?? null, input.status ?? "active", input.admin_approval ?? "approved", input.ad_id ?? null, now, now, input.exclusive_hours ?? 6, (input.is_exclusive ?? false) ? 1 : 0, input.exclusive_until ?? null],
   );
   return id;
@@ -200,11 +200,12 @@ function ensureExclusiveTable(): Promise<void> {
   if (_exclReady) return _exclReady;
   _exclReady = db.execute(
     `CREATE TABLE IF NOT EXISTS project_exclusive (
-       id           TEXT PRIMARY KEY,
-       project_id   TEXT NOT NULL UNIQUE,
-       vip_start_at TEXT NOT NULL,
-       vip_end_at   TEXT NOT NULL,
-       created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+       id            TEXT PRIMARY KEY,
+       project_id    TEXT NOT NULL UNIQUE,
+       vip_start_at  TEXT NOT NULL,
+       vip_end_at    TEXT NOT NULL,
+       duration_hours INTEGER NOT NULL DEFAULT 6,
+       created_at    TEXT NOT NULL DEFAULT (datetime('now'))
      )`,
   ).then(() => undefined).catch(() => undefined);
   return _exclReady;
@@ -214,22 +215,39 @@ export async function setProjectExclusive(
   projectId: string,
   vipStartAt: string,
   vipEndAt: string,
+  durationHours = 6,
 ): Promise<void> {
   await ensureExclusiveTable();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO project_exclusive (id, project_id, vip_start_at, vip_end_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT(project_id) DO UPDATE SET vip_start_at = excluded.vip_start_at, vip_end_at = excluded.vip_end_at`,
-    [id, projectId, vipStartAt, vipEndAt],
+    `INSERT INTO project_exclusive (id, project_id, vip_start_at, vip_end_at, duration_hours) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(project_id) DO UPDATE SET vip_start_at = excluded.vip_start_at, vip_end_at = excluded.vip_end_at, duration_hours = excluded.duration_hours`,
+    [id, projectId, vipStartAt, vipEndAt, durationHours],
   );
 }
 
 export async function getProjectExclusive(projectId: string): Promise<{
   vip_start_at: string;
   vip_end_at: string;
+  duration_hours: number;
 } | null> {
   await ensureExclusiveTable();
-  const r = await db.execute(`SELECT vip_start_at, vip_end_at FROM project_exclusive WHERE project_id = ? LIMIT 1`, [projectId]);
+  const r = await db.execute(`SELECT vip_start_at, vip_end_at, duration_hours FROM project_exclusive WHERE project_id = ? LIMIT 1`, [projectId]);
   const row = rowsToObjects<any>(r)[0];
-  return row ? { vip_start_at: String(row.vip_start_at), vip_end_at: String(row.vip_end_at) } : null;
+  return row ? { vip_start_at: String(row.vip_start_at), vip_end_at: String(row.vip_end_at), duration_hours: Number(row.duration_hours ?? 6) } : null;
+}
+
+export async function updateProjectExclusivity(
+  projectId: string,
+  durationHours: number,
+): Promise<void> {
+  await ensureExclusiveTable();
+  const row = await getProjectExclusive(projectId);
+  if (!row) throw new Error("لا يوجد سجل حصرية لهذا المشروع");
+  const start = new Date(row.vip_start_at);
+  const end = durationHours <= 0 ? start : new Date(start.getTime() + durationHours * 3600_000);
+  await db.execute(
+    `UPDATE project_exclusive SET duration_hours = ?, vip_end_at = ? WHERE project_id = ?`,
+    [durationHours, end.toISOString(), projectId],
+  );
 }

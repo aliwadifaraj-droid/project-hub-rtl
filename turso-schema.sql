@@ -325,11 +325,12 @@ CREATE INDEX IF NOT EXISTS idx_vip_tokens_token ON vip_tokens(token);
 
 -- ============ project_exclusive (time-based exclusivity) ============
 CREATE TABLE IF NOT EXISTS project_exclusive (
-  id           TEXT PRIMARY KEY,
-  project_id   TEXT NOT NULL UNIQUE,
-  vip_start_at TEXT NOT NULL,
-  vip_end_at   TEXT NOT NULL,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  id            TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL UNIQUE,
+  vip_start_at  TEXT NOT NULL,
+  vip_end_at    TEXT NOT NULL,
+  duration_hours INTEGER NOT NULL DEFAULT 6,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_project ON project_exclusive(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_end ON project_exclusive(vip_end_at);

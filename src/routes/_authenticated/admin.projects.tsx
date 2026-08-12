@@ -7,7 +7,7 @@ import { listAllProjectVipStatus, adminStopVip, adminStartVip, adminExtendVip } 
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 
@@ -95,8 +95,17 @@ function ProjectsAdminPage() {
                 <h3 className="font-bold">{p.name}</h3>
                 <ProjectStatusBadge status={p.status} />
               </div>
-              <div className="mt-1">
+              <div className="mt-1 flex items-center gap-2">
                 <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
+                {isAdmin && vipByProject.get(p.id)?.expires_at ? (
+                  <Link
+                    to="/admin/exclusivity/$id"
+                    params={{ id: p.id }}
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] hover:bg-secondary"
+                  >
+                    <Clock className="h-3 w-3" /> تعديل المدة
+                  </Link>
+                ) : null}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -311,7 +320,7 @@ function ProjectModal({
           <Field label="ملف PDF (اختياري)">
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
               <Upload className="h-4 w-4" />
-              <span className="flex-1 text-muted-foreground truncate">{form.pdf_file || "اختر ملف PDF"}</span>
+              <span className="text-muted-foreground truncate">{form.pdf_file || "اختر ملف PDF"}</span>
               <input type="file" accept="application/pdf" className="hidden" onChange={onPdf} />
             </label>
             {form.pdf_file ? (

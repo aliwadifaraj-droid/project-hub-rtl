@@ -492,3 +492,22 @@ export const getExclusiveStatus = createServerFn({ method: "GET" })
     }
     return { showForm: false as const, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
   });
+
+export const getExclusivityConfig = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { projectId: string }) => z.object({ projectId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const row = await projectsRepo.getProjectExclusive(data.projectId);
+    if (!row) return null;
+    return { vipStartAt: row.vip_start_at, vipEndAt: row.vip_end_at, durationHours: row.duration_hours };
+  });
+
+export const updateExclusivity = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { projectId: string; durationHours: number }) =>
+    z.object({ projectId: z.string().uuid(), durationHours: z.number().int().min(0).max(720) }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.updateProjectExclusivity(data.projectId, data.durationHours);
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
