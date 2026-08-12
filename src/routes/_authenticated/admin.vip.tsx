@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber } from "@/lib/vip.functions";
+import { useState } from "react";
+import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, testVipExpiry, createTrialVipSubscription } from "@/lib/vip.functions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, X, Star } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/vip")({
@@ -89,11 +92,77 @@ function AdminVipPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const testFn = useServerFn(testVipExpiry);
+  const testExpiry = useMutation({
+    mutationFn: () => testFn(),
+    onSuccess: (res) => {
+      toast.success(`تم فحص اشعارات انتهاء VIP — تمت معالجة ${res.processed}، انتهاء ${res.expired}، إرسال ${res.emailed}`);
+      qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const trialFn = useServerFn(createTrialVipSubscription);
+  const [trialEmail, setTrialEmail] = useState("");
+  const [trialMinutes, setTrialMinutes] = useState("5");
+  const createTrial = useMutation({
+    mutationFn: () => trialFn({ data: { email: trialEmail, duration_minutes: Number(trialMinutes) } }),
+    onSuccess: (res) => {
+      toast.success(`تم انشاء اشتراك تجربة. بيوصل ايميل بعد ${trialMinutes} دقايق على ${res.email}`);
+      setTrialEmail("");
+      setTrialMinutes("5");
+      qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center gap-2">
         <Star className="h-6 w-6 text-amber-500" />
         <h1 className="text-2xl font-bold">العملاء المميزون — إدارة الحصرية</h1>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="rounded-lg border border-border bg-card p-4 flex-1">
+          <h2 className="mb-3 text-lg font-semibold">انشاء اشتراك تجربة</h2>
+          <form
+            className="flex flex-wrap items-end gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (trialEmail.trim() && Number(trialMinutes) > 0) createTrial.mutate();
+            }}
+          >
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="test_email">الايميل</Label>
+              <Input
+                id="test_email"
+                type="email"
+                value={trialEmail}
+                onChange={(e) => setTrialEmail(e.target.value)}
+                placeholder="test@example.com"
+                className="w-64"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="trial_minutes">مدة التجربة (دقائق)</Label>
+              <Input
+                id="trial_minutes"
+                type="number"
+                min="1"
+                value={trialMinutes}
+                onChange={(e) => setTrialMinutes(e.target.value)}
+                className="w-32"
+              />
+            </div>
+            <Button type="submit" disabled={createTrial.isPending}>
+              {createTrial.isPending ? "جارٍ الانشاء..." : "انشاء اشتراك تجربة"}
+            </Button>
+          </form>
+        </div>
+        <Button onClick={() => testExpiry.mutate()} disabled={testExpiry.isPending}>
+          {testExpiry.isPending ? "جارٍ الفحص..." : "اختبار اشعارات VIP"}
+        </Button>
       </div>
 
       {isLoading ? (

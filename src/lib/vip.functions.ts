@@ -172,3 +172,78 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
     await vipRepo.updateVipStatus(data.id, "rejected");
     return { ok: true };
   });
+
+export const createTrialVipSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((data: { email: string; duration_minutes: number }) => {
+    if (!data?.email?.trim()) throw new Error("البريد مطلوب");
+    if (!data?.duration_minutes || data.duration_minutes <= 0) throw new Error("المدة يجب أن تكون أكبر من صفر");
+    return { email: data.email.trim(), duration_minutes: data.duration_minutes };
+  })
+  .handler(async ({ data }) => {
+    const { db } = await import("./db");
+    await db.execute(`ALTER TABLE vip_subscribers ADD COLUMN notified INTEGER NOT NULL DEFAULT 0`).catch(() => undefined);
+    const id = crypto.randomUUID();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + data.duration_minutes * 60 * 1000);
+    await db.execute(
+      `INSERT INTO vip_subscribers (id, name, email, plan, status, starts_at, expires_at, notified, created_at)
+       VALUES (?, ?, ?, ?, 'approved', ?, ?, 0, ?)`,
+      [id, "اختبار", data.email, `تجربة ${data.duration_minutes} دقايق`, now.toISOString(), expiresAt.toISOString(), now.toISOString()],
+    );
+    return { id, email: data.email };
+  });
+
+export const testVipExpiry = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { db, rowsToObjects } = await import("./db");
+    const { sendResendEmail } = await import("./resend-send.server");
+
+    type ExpiredVip = { id: string; email: string | null; name: string | null };
+
+    const result = await db.execute(
+      `SELECT id, email, name FROM vip_subscribers
+       WHERE status = 'approved' AND expires_at <= datetime('now') AND notified = 0`,
+    );
+    const rows = rowsToObjects<ExpiredVip>(result);
+
+    let expired = 0;
+    let emailed = 0;
+    const errors: string[] = [];
+
+    for (const row of rows) {
+      try {
+        await db.execute(
+          `UPDATE vip_subscribers SET status = 'expired', notified = 1 WHERE id = ?`,
+          [row.id],
+        );
+        expired++;
+
+        if (row.email) {
+          const displayName = row.name || "عزيزي المشترك";
+          const html = `
+            <div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;line-height:1.9;background:#fff">
+              <h2 style="margin:0 0 12px">تم إلغاء اشتراكك المميز</h2>
+              <p style="margin:0 0 16px">مرحباً ${displayName}</p>
+              <p style="margin:0 0 16px">تم إلغاء اشتراكك المميز لانتهاء المدة.</p>
+              <p style="margin:24px 0">
+                <a href="https://ali-alhaddad.com" style="background:#111;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block">
+                  لتجديد الاشتراك
+                </a>
+              </p>
+            </div>`;
+          await sendResendEmail({
+            to: row.email,
+            subject: "تم إلغاء اشتراكك المميز",
+            html,
+          });
+          emailed++;
+        }
+      } catch (e) {
+        errors.push(`id=${row.id}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    return { processed: rows.length, expired, emailed, errors };
+  });
