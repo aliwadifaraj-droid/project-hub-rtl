@@ -68,9 +68,9 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
   }));
 }
 
-export async function approveByProject(projectId: string, hours = 6): Promise<VipSubscriberRow | null> {
+export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
   await ensureColumns();
-  const expiresAt = new Date(Date.now() + hours * 3600_000).toISOString();
+  const expiresAt = new Date(Date.now() + 30 * 24 * 3600_000).toISOString();
   await db.execute(
     `UPDATE vip_subscribers SET status = 'approved', expires_at = ? WHERE project_id = ?`,
     [expiresAt, projectId],
@@ -81,72 +81,6 @@ export async function approveByProject(projectId: string, hours = 6): Promise<Vi
   );
   const row = rowsToObjects(r)[0];
   return row ? decode(row) : null;
-}
-
-export async function extendByProject(projectId: string, hours: number): Promise<VipSubscriberRow | null> {
-  await ensureColumns();
-  const r = await db.execute(
-    `SELECT * FROM vip_subscribers WHERE project_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1`,
-    [projectId],
-  );
-  const row = rowsToObjects(r)[0];
-  if (!row) return null;
-  const currentExpiry = row.expires_at ? new Date(row.expires_at).getTime() : Date.now();
-  const base = Math.max(currentExpiry, Date.now());
-  const newExpiry = new Date(base + hours * 3600_000).toISOString();
-  await db.execute(
-    `UPDATE vip_subscribers SET status = 'approved', expires_at = ? WHERE project_id = ? AND status = 'approved'`,
-    [newExpiry, projectId],
-  );
-  await db.execute(
-    `UPDATE projects SET is_exclusive = 1, exclusive_until = ? WHERE id = ?`,
-    [newExpiry, projectId],
-  );
-  return decode(row);
-}
-
-export async function stopByProject(projectId: string): Promise<void> {
-  await ensureColumns();
-  await db.execute(
-    `UPDATE vip_subscribers SET status = 'rejected', expires_at = NULL WHERE project_id = ?`,
-    [projectId],
-  );
-  await db.execute(
-    `UPDATE projects SET is_exclusive = 0, exclusive_until = NULL WHERE id = ?`,
-    [projectId],
-  );
-}
-
-export async function setVipHours(projectId: string, hours: number): Promise<VipSubscriberRow | null> {
-  await ensureColumns();
-  const expiresAt = new Date(Date.now() + hours * 3600_000).toISOString();
-  await db.execute(
-    `UPDATE vip_subscribers SET status = 'approved', expires_at = ? WHERE project_id = ?`,
-    [expiresAt, projectId],
-  );
-  await db.execute(
-    `UPDATE projects SET is_exclusive = 1, exclusive_hours = ?, exclusive_until = ? WHERE id = ?`,
-    [hours, expiresAt, projectId],
-  );
-  const r = await db.execute(
-    `SELECT * FROM vip_subscribers WHERE project_id = ? ORDER BY created_at DESC LIMIT 1`,
-    [projectId],
-  );
-  const row = rowsToObjects(r)[0];
-  return row ? decode(row) : null;
-}
-
-export async function countActiveByCity(city: string): Promise<number> {
-  await ensureCityColumn();
-  const r = await db.execute(
-    `SELECT COUNT(*) AS cnt FROM vip_subscribers
-      WHERE status = 'active'
-        AND email IS NOT NULL AND TRIM(email) <> ''
-        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
-    [city],
-  );
-  const row = rowsToObjects(r)[0] as any;
-  return Number(row?.cnt ?? 0);
 }
 
 export async function cancelByProject(projectId: string): Promise<void> {
@@ -168,6 +102,34 @@ export async function listAllApprovedWithProject(): Promise<{ project_id: string
     project_id: String(row.project_id),
     expires_at: row.expires_at ?? null,
   }));
+}
+
+export async function stopVipByCity(city: string): Promise<{ count: number }> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `UPDATE vip_subscribers SET status = 'rejected' WHERE city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
+    [city],
+  );
+  return { count: r.rowsAffected ?? 0 };
+}
+
+export async function startVipByCity(city: string, hours: number): Promise<{ count: number }> {
+  await ensureCityColumn();
+  const expiresAt = new Date(Date.now() + hours * 3600_000).toISOString();
+  const r = await db.execute(
+    `UPDATE vip_subscribers SET status = 'active', expires_at = ? WHERE city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
+    [expiresAt, city],
+  );
+  return { count: r.rowsAffected ?? 0 };
+}
+
+export async function extendVipByCity(city: string, hours: number): Promise<{ count: number }> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `UPDATE vip_subscribers SET expires_at = datetime(expires_at, '+' || ? || ' hours') WHERE city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?)) AND status = 'active' AND expires_at IS NOT NULL`,
+    [String(hours), city],
+  );
+  return { count: r.rowsAffected ?? 0 };
 }
 
 export async function listApprovedByProject(projectId: string): Promise<VipSubscriberRow[]> {
@@ -207,6 +169,70 @@ export async function insertVipSubscriber(input: {
     [id, input.name, input.email, input.plan, input.city, input.receipt_path, new Date().toISOString()],
   );
   return id;
+}
+
+export async function getActiveVipByEmail(email: string): Promise<VipSubscriberRow | null> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `SELECT * FROM vip_subscribers
+      WHERE email IS NOT NULL AND TRIM(LOWER(email)) = TRIM(LOWER(?))
+        AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1`,
+    [email],
+  );
+  const row = rowsToObjects(r)[0];
+  return row ? decode(row) : null;
+}
+
+export async function createTrialVip(email: string, durationMinutes: number): Promise<VipSubscriberRow> {
+  await ensureCityColumn();
+  const id = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + durationMinutes * 60_000).toISOString();
+  await db.execute(
+    `INSERT INTO vip_subscribers (id, name, email, plan, city, status, expires_at, receipt_key, created_at)
+     VALUES (?, ?, ?, 'trial', NULL, 'active', ?, NULL, ?)`,
+    [id, email, email, expiresAt, new Date().toISOString()],
+  );
+  const r = await db.execute(`SELECT * FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
+  const row = rowsToObjects(r)[0];
+  return decode(row);
+}
+
+export async function findExpiringSoon(hoursWithin: number): Promise<VipSubscriberRow[]> {
+  await ensureCityColumn();
+  const threshold = new Date(Date.now() + hoursWithin * 3600_000).toISOString();
+  const r = await db.execute(
+    `SELECT * FROM vip_subscribers
+      WHERE status = 'active'
+        AND expires_at IS NOT NULL
+        AND expires_at > datetime('now')
+        AND expires_at <= ?
+      ORDER BY expires_at ASC`,
+    [threshold],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
+export async function markExpired(): Promise<{ expired: number }> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `UPDATE vip_subscribers SET status = 'rejected'
+      WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= datetime('now')`,
+  );
+  return { expired: r.rowsAffected ?? 0 };
+}
+
+export async function autoActivateByCity(city: string, hours: number): Promise<{ count: number }> {
+  const projectCity = city.split("-")[0].trim();
+  await ensureCityColumn();
+  const expiresAt = new Date(Date.now() + hours * 3600_000).toISOString();
+  const r = await db.execute(
+    `UPDATE vip_subscribers SET status = 'active', expires_at = ?
+      WHERE city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))
+        AND status IN ('pending', 'approved')`,
+    [expiresAt, projectCity],
+  );
+  return { count: r.rowsAffected ?? 0 };
 }
 
 export async function updateVipReceipt(id: string, receiptPath: string): Promise<void> {

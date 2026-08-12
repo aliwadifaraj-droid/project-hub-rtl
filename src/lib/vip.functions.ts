@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAdmin } from "./auth-middleware.server";
+import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as vipRepo from "./vip.repo";
 import { listUsersWithRoles } from "./users.repo";
 
@@ -22,13 +22,12 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
 
 export const approveVipByProject = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { project_id: string; hours?: number }) => {
+  .inputValidator((d: { project_id: string }) => {
     if (!d?.project_id) throw new Error("project_id مطلوب");
     return d;
   })
   .handler(async ({ data }) => {
-    const hours = data.hours ?? 6;
-    const row = await vipRepo.approveByProject(data.project_id, hours);
+    const row = await vipRepo.approveByProject(data.project_id);
     if (!row) throw new Error("لا يوجد مشترك مرتبط بهذا المشروع");
     if (row.email) {
       try {
@@ -36,60 +35,13 @@ export const approveVipByProject = createServerFn({ method: "POST" })
         await sendResendEmail({
           to: row.email,
           subject: "تم تفعيل الحصرية VIP ✅",
-          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> الحصرية لمشروعك لمدة ${hours} ساعة.</p></div>`,
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> الحصرية لمشروعك لمدة 30 يوماً.</p></div>`,
         });
       } catch (e) {
         console.error("vip project approval email error", e);
       }
     }
     return { ok: true };
-  });
-
-export const startVipByProject = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: { project_id: string; hours?: number }) => {
-    if (!d?.project_id) throw new Error("project_id مطلوب");
-    return d;
-  })
-  .handler(async ({ data }) => {
-    const hours = data.hours ?? 6;
-    const row = await vipRepo.setVipHours(data.project_id, hours);
-    if (!row) throw new Error("لا يوجد مشترك مرتبط بهذا المشروع");
-    return { ok: true };
-  });
-
-export const stopVipByProject = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: { project_id: string }) => {
-    if (!d?.project_id) throw new Error("project_id مطلوب");
-    return d;
-  })
-  .handler(async ({ data }) => {
-    await vipRepo.stopByProject(data.project_id);
-    return { ok: true };
-  });
-
-export const extendVipByProject = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: { project_id: string; hours: number }) => {
-    if (!d?.project_id) throw new Error("project_id مطلوب");
-    if (!d.hours || d.hours <= 0) throw new Error("الساعات مطلوبة");
-    return d;
-  })
-  .handler(async ({ data }) => {
-    const row = await vipRepo.extendByProject(data.project_id, data.hours);
-    if (!row) throw new Error("لا يوجد اشتراك VIP مفعّل لهذا المشروع");
-    return { ok: true };
-  });
-
-export const checkCityHasSubscribers = createServerFn({ method: "GET" })
-  .inputValidator((d: { city: string }) => {
-    if (!d?.city) throw new Error("city مطلوبة");
-    return d;
-  })
-  .handler(async ({ data }) => {
-    const count = await vipRepo.countActiveByCity(data.city);
-    return { hasSubscribers: count > 0, count };
   });
 
 export const cancelVipByProject = createServerFn({ method: "POST" })
@@ -107,6 +59,53 @@ export const listAllProjectVipStatus = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     return vipRepo.listAllApprovedWithProject();
+  });
+
+export const adminStopVip = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { city: string }) => {
+    if (!d?.city) throw new Error("city مطلوبة");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    return vipRepo.stopVipByCity(data.city);
+  });
+
+export const adminStartVip = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { city: string; hours: number }) => {
+    if (!d?.city) throw new Error("city مطلوبة");
+    if (!Number.isFinite(d.hours) || d.hours <= 0) throw new Error("hours يجب أن يكون رقماً موجباً");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    return vipRepo.startVipByCity(data.city, data.hours);
+  });
+
+export const adminExtendVip = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { city: string; hours: number }) => {
+    if (!d?.city) throw new Error("city مطلوبة");
+    if (!Number.isFinite(d.hours) || d.hours <= 0) throw new Error("hours يجب أن يكون رقماً موجباً");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    return vipRepo.extendVipByCity(data.city, data.hours);
+  });
+
+export const getMyVipStatus = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator((d: { project_id: string }) => {
+    if (!d?.project_id) throw new Error("project_id مطلوب");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const email = context.email;
+    if (!email) return { isVip: false, city: null } as const;
+    const row = await vipRepo.getActiveVipByEmail(email);
+    if (!row) return { isVip: false, city: null } as const;
+    const expired = row.expires_at ? new Date(row.expires_at).getTime() < Date.now() : false;
+    return { isVip: !expired, city: row.city ?? null } as const;
   });
 
 export const listVipByProject = createServerFn({ method: "GET" })
@@ -195,4 +194,40 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await vipRepo.updateVipStatus(data.id, "rejected");
     return { ok: true };
+  });
+
+export const createTrialVipSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((data: { email: string; duration_minutes: number }) => {
+    if (!data?.email?.trim()) throw new Error("البريد الإلكتروني مطلوب");
+    if (!Number.isFinite(data.duration_minutes) || data.duration_minutes <= 0)
+      throw new Error("مدة التجربة يجب أن تكون رقماً موجباً");
+    return { email: data.email.trim(), duration_minutes: data.duration_minutes };
+  })
+  .handler(async ({ data }) => {
+    const row = await vipRepo.createTrialVip(data.email, data.duration_minutes);
+    return { id: row.id, email: row.email ?? data.email };
+  });
+
+export const testVipExpiry = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { expired } = await vipRepo.markExpired();
+    const soon = await vipRepo.findExpiringSoon(24);
+    let emailed = 0;
+    for (const row of soon) {
+      if (!row.email) continue;
+      try {
+        const { sendResendEmail } = await import("./resend-send.server");
+        await sendResendEmail({
+          to: row.email,
+          subject: "تذكير: اشتراك VIP ينتهي قريباً",
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>ينتهي اشتراكك خلال 24 ساعة.</p></div>`,
+        });
+        emailed++;
+      } catch (e) {
+        console.error("vip expiry email error", e);
+      }
+    }
+    return { processed: soon.length, expired, emailed };
   });
