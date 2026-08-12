@@ -8,7 +8,7 @@ import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-react";
+import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
@@ -52,6 +52,10 @@ function ProjectDetail() {
     retry: false,
   });
   const isAdmin = hasAdminRole(roles);
+
+  const exclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until;
+  const isExclusiveActive = !!exclusiveUntil && new Date(exclusiveUntil).getTime() > Date.now();
+  const exclusiveCity = project.location ?? "";
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -179,7 +183,19 @@ function ProjectDetail() {
           </aside>
         </div>
 
-        {(project as { offers_enabled?: boolean }).offers_enabled === false ? (
+        {isExclusiveActive ? (
+          <section className="mt-16 max-w-3xl mx-auto">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-8 text-center shadow-sm">
+              <Lock className="mx-auto h-10 w-10 text-amber-600" />
+              <p className="mt-4 text-lg font-bold text-amber-900">
+                حصري لمشتركي {exclusiveCity}
+              </p>
+              <p className="mt-2 text-sm text-amber-800/80">
+                تقديم العروض لهذا المشروع متاح حصرياً لمشتركي VIP في {exclusiveCity}.
+              </p>
+            </div>
+          </section>
+        ) : (project as { offers_enabled?: boolean }).offers_enabled === false ? (
           <section className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
               <p className="text-sm font-semibold text-orange-900">
