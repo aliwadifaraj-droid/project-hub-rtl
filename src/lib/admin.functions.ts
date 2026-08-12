@@ -11,6 +11,8 @@ import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
+import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
+import { listActiveByCity } from "./vip.repo";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
@@ -169,9 +171,14 @@ export const upsertProject = createServerFn({ method: "POST" })
       return { id: data.id };
     }
     const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved" });
-    const now = new Date();
-    const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
-    await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
+    const city = detectCity(data.location);
+    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+    if (hasVip) {
+      const now = new Date();
+      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+      await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
+    }
+    notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
     await invalidateProjectsAll();
     await invalidateQuotes(context.userId);
     return { id, admin_approval: "approved" };
@@ -369,9 +376,14 @@ export const approveSubmission = createServerFn({ method: "POST" })
     const images = sub.images ?? [];
     const cover = images[0] ?? "placeholder.jpg";
     const newId = await projectsRepo.insertProject({ name: sub.name, description: sub.description, location: sub.location, duration: "غير محدد", cover_image: cover, images, admin_approval: "approved" });
-    const now = new Date();
-    const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
-    await projectsRepo.setProjectExclusive(newId, now.toISOString(), vipEndAt.toISOString());
+    const city = detectCity(sub.location);
+    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+    if (hasVip) {
+      const now = new Date();
+      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+      await projectsRepo.setProjectExclusive(newId, now.toISOString(), vipEndAt.toISOString());
+    }
+    notifyVipSubscribersOfNewProject({ id: newId, name: sub.name, description: sub.description, location: sub.location }).catch((e) => console.error("[vip-notify]", e));
     await submissionsRepo.markSubmissionApproved(data.id, newId);
     return { id: newId };
   });
