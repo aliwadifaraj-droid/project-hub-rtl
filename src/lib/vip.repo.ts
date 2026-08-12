@@ -113,6 +113,18 @@ export async function listApprovedByProject(projectId: string): Promise<VipSubsc
   return rowsToObjects(r).map(decode);
 }
 
+export async function findActiveByEmail(email: string): Promise<VipSubscriberRow | null> {
+  await ensureColumns();
+  const r = await db.execute(
+    `SELECT * FROM vip_subscribers
+      WHERE email IS NOT NULL AND TRIM(LOWER(email)) = TRIM(LOWER(?))
+      ORDER BY created_at DESC LIMIT 1`,
+    [email],
+  );
+  const row = rowsToObjects(r)[0];
+  return row ? decode(row) : null;
+}
+
 /** Active subscribers whose city matches (case/space-insensitive). */
 export async function listActiveByCity(city: string): Promise<VipSubscriberRow[]> {
   await ensureCityColumn();
@@ -124,34 +136,6 @@ export async function listActiveByCity(city: string): Promise<VipSubscriberRow[]
     [city],
   );
   return rowsToObjects(r).map(decode);
-}
-
-/** Count active VIP subscribers whose city matches (case/space-insensitive). */
-export async function countActiveByCity(city: string): Promise<number> {
-  await ensureCityColumn();
-  const r = await db.execute(
-    `SELECT COUNT(*) AS cnt FROM vip_subscribers
-      WHERE status = 'active'
-        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
-    [city],
-  );
-  const row = rowsToObjects(r)[0] as { cnt?: number } | undefined;
-  return Number(row?.cnt ?? 0);
-}
-
-/** Count active VIP subscribers grouped by city. */
-export async function countActiveByCityAll(): Promise<{ city: string; count: number }[]> {
-  await ensureCityColumn();
-  const r = await db.execute(
-    `SELECT TRIM(city) AS city, COUNT(*) AS cnt FROM vip_subscribers
-      WHERE status = 'active' AND city IS NOT NULL AND TRIM(city) <> ''
-      GROUP BY TRIM(LOWER(city))
-      ORDER BY cnt DESC`,
-  );
-  return rowsToObjects(r).map((row: any) => ({
-    city: String(row.city ?? ""),
-    count: Number(row.cnt ?? 0),
-  }));
 }
 
 export async function insertVipSubscriber(input: {
@@ -169,90 +153,6 @@ export async function insertVipSubscriber(input: {
     [id, input.name, input.email, input.plan, input.city, input.receipt_path, new Date().toISOString()],
   );
   return id;
-}
-
-/** Auto-activate pending subscribers in a city for N hours. Returns count activated. */
-export async function autoActivateByCity(city: string, hours = 6): Promise<number> {
-  await ensureCityColumn();
-  const r = await db.execute(
-    `SELECT id FROM vip_subscribers
-      WHERE status = 'pending'
-        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
-    [city],
-  );
-  const rows = rowsToObjects<{ id: string }>(r);
-  if (rows.length === 0) return 0;
-
-  const now = new Date();
-  const expires = new Date(now.getTime() + hours * 60 * 60 * 1000);
-
-  for (const row of rows) {
-    await db.execute(
-      `UPDATE vip_subscribers SET status = 'active', expires_at = ? WHERE id = ?`,
-      [expires.toISOString(), row.id],
-    );
-  }
-  return rows.length;
-}
-
-/** Stop all active VIP subscribers in a city (set status to 'expired'). */
-export async function stopVipByCity(city: string): Promise<number> {
-  await ensureCityColumn();
-  const r = await db.execute(
-    `SELECT id FROM vip_subscribers
-      WHERE status = 'active'
-        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
-    [city],
-  );
-  const rows = rowsToObjects<{ id: string }>(r);
-  for (const row of rows) {
-    await db.execute(`UPDATE vip_subscribers SET status = 'expired', expires_at = NULL WHERE id = ?`, [row.id]);
-  }
-  return rows.length;
-}
-
-/** Start VIP for all pending/expired/active subscribers in a city for N hours.
- *  Includes active subscribers so re-activating counts them. */
-export async function startVipByCity(city: string, hours: number): Promise<number> {
-  await ensureCityColumn();
-  const r = await db.execute(
-    `SELECT id FROM vip_subscribers
-      WHERE status IN ('pending', 'expired', 'active')
-        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
-    [city],
-  );
-  const rows = rowsToObjects<{ id: string }>(r);
-  if (rows.length === 0) return 0;
-  const now = new Date();
-  const expires = new Date(now.getTime() + hours * 60 * 60 * 1000);
-  for (const row of rows) {
-    await db.execute(
-      `UPDATE vip_subscribers SET status = 'active', expires_at = ? WHERE id = ?`,
-      [expires.toISOString(), row.id],
-    );
-  }
-  return rows.length;
-}
-
-/** Extend active VIP subscribers in a city by N hours from now. */
-export async function extendVipByCity(city: string, hours: number): Promise<number> {
-  await ensureCityColumn();
-  const r = await db.execute(
-    `SELECT id FROM vip_subscribers
-      WHERE status = 'active'
-        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
-    [city],
-  );
-  const rows = rowsToObjects<{ id: string }>(r);
-  if (rows.length === 0) return 0;
-  const expires = new Date(Date.now() + hours * 60 * 60 * 1000);
-  for (const row of rows) {
-    await db.execute(
-      `UPDATE vip_subscribers SET expires_at = ? WHERE id = ?`,
-      [expires.toISOString(), row.id],
-    );
-  }
-  return rows.length;
 }
 
 export async function updateVipReceipt(id: string, receiptPath: string): Promise<void> {

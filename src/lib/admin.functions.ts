@@ -8,8 +8,6 @@ import * as requestsRepo from "./project-requests.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
-import * as vipRepo from "./vip.repo";
-import { detectCity } from "./vip-notify.server";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
@@ -53,7 +51,7 @@ export const getProject = createServerFn({ method: "GET" })
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
-        is_exclusive: p.is_exclusive, exclusive_until: p.exclusive_until,
+        exclusive_until: p.exclusive_until ?? null,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {
@@ -106,6 +104,7 @@ export const adminListRequests = createServerFn({ method: "GET" })
         projects: proj ? { name: proj.name } : null,
         can_manage: canManage,
       };
+
     }));
   });
 
@@ -320,24 +319,6 @@ export const getMyUserId = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => ({ userId: context.userId }));
 
-export const getMyVipStatus = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    const user = await findUserById(context.userId);
-    if (!user) return { is_vip: false, city: null as string | null };
-    const subs = await vipRepo.listVipSubscribers();
-    const match = subs.find(
-      (s) => s.email?.toLowerCase() === user.email.toLowerCase(),
-    );
-    if (!match) return { is_vip: false, city: null as string | null };
-    const now = Date.now();
-    const expired = match.expires_at ? new Date(match.expires_at).getTime() < now : false;
-    return {
-      is_vip: match.status === "active" && !expired,
-      city: match.city ?? null,
-    };
-  });
-
 // ---------- Contact messages ----------
 export const adminListMessages = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
@@ -474,6 +455,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       throw new Error("الملف ليس PDF صالحاً");
     }
 
+    // Detect submitter type
     let submitterType: "guest" | "user" = "guest";
     try {
       const { getSessionClaims } = await import("./auth.server");

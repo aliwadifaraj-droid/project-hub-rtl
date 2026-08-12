@@ -1,8 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAuth, requireAdmin } from "./auth-middleware.server";
+import { requireAdmin } from "./auth-middleware.server";
 import * as vipRepo from "./vip.repo";
 import { listUsersWithRoles } from "./users.repo";
-import { detectCity } from "./vip-notify.server";
+
+export const getMyVipStatus = createServerFn({ method: "GET" })
+  .inputValidator((d: { project_id: string }) => {
+    if (!d?.project_id) throw new Error("project_id مطلوب");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    let email: string | null = null;
+    try {
+      const { getSessionClaims } = await import("./auth.server");
+      const claims = await getSessionClaims();
+      if (claims) email = claims.email;
+    } catch { /* not logged in */ }
+    if (!email) return { isVip: false, city: null };
+
+    const sub = await vipRepo.findActiveByEmail(email);
+    if (!sub) return { isVip: false, city: null };
+
+    const isActive = sub.status === "active" && sub.expires_at
+      ? new Date(sub.expires_at).getTime() > Date.now()
+      : false;
+
+    return { isVip: isActive, city: sub.city ?? null };
+  });
 
 export const listVipSubscribers = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
@@ -19,24 +42,6 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
       }),
     );
     return rows;
-  });
-
-export const getVipCountByCity = createServerFn({ method: "GET" })
-  .inputValidator((d: { location: string }) => {
-    if (!d?.location) throw new Error("location مطلوب");
-    return { location: String(d.location) };
-  })
-  .handler(async ({ data }) => {
-    const city = detectCity(data.location);
-    if (!city) return { count: 0, city: null };
-    const count = await vipRepo.countActiveByCity(city);
-    return { count, city };
-  });
-
-export const getVipCountsByCities = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    return vipRepo.countActiveByCityAll();
   });
 
 export const approveVipByProject = createServerFn({ method: "POST" })
@@ -118,7 +123,7 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
 
 export const attachVipReceipt = createServerFn({ method: "POST" })
   .inputValidator((data: { id: string; receipt_path: string }) => {
-    if (!data?.id || !data.receipt_path) throw new Error("بيانات ناقصة");
+    if (!data?.id || !data?.receipt_path) throw new Error("بيانات ناقصة");
     return data;
   })
   .handler(async ({ data }) => {
@@ -166,44 +171,4 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await vipRepo.updateVipStatus(data.id, "rejected");
     return { ok: true };
-  });
-
-export const adminStopVip = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((data: { city: string }) => {
-    if (!data?.city?.trim()) throw new Error("المدينة مطلوبة");
-    return { city: data.city.trim() };
-  })
-  .handler(async ({ data }) => {
-    const city = detectCity(data.city) ?? data.city;
-    const count = await vipRepo.stopVipByCity(city);
-    return { ok: true, count };
-  });
-
-export const adminStartVip = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((data: { city: string; hours: number }) => {
-    if (!data?.city?.trim()) throw new Error("المدينة مطلوبة");
-    const hours = Number(data.hours);
-    if (!Number.isFinite(hours) || hours <= 0 || hours > 720) throw new Error("الساعات غير صالحة");
-    return { city: data.city.trim(), hours };
-  })
-  .handler(async ({ data }) => {
-    const city = detectCity(data.city) ?? data.city;
-    const count = await vipRepo.startVipByCity(city, data.hours);
-    return { ok: true, count };
-  });
-
-export const adminExtendVip = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((data: { city: string; hours: number }) => {
-    if (!data?.city?.trim()) throw new Error("المدينة مطلوبة");
-    const hours = Number(data.hours);
-    if (!Number.isFinite(hours) || hours <= 0 || hours > 720) throw new Error("الساعات غير صالحة");
-    return { city: data.city.trim(), hours };
-  })
-  .handler(async ({ data }) => {
-    const city = detectCity(data.city) ?? data.city;
-    const count = await vipRepo.extendVipByCity(city, data.hours);
-    return { ok: true, count };
   });
