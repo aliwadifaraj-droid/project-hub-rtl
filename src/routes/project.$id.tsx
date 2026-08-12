@@ -3,6 +3,7 @@ import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query"
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { getProject, submitBidRequest, getMyRoles } from "@/lib/admin.functions";
+import { getVipCountByCity } from "@/lib/vip.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
@@ -45,6 +46,7 @@ function ProjectDetail() {
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
   const getRoles = useServerFn(getMyRoles);
+  const fetchVipCount = useServerFn(getVipCountByCity);
   const navigate = Route.useNavigate();
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
@@ -56,6 +58,15 @@ function ProjectDetail() {
   const exclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until;
   const isExclusiveActive = !!exclusiveUntil && new Date(exclusiveUntil).getTime() > Date.now();
   const exclusiveCity = project.location ?? "";
+
+  const { data: vipCountData } = useQuery({
+    queryKey: ["vip-count", exclusiveCity],
+    queryFn: () => fetchVipCount({ data: { location: exclusiveCity } }),
+    enabled: isExclusiveActive && !!exclusiveCity,
+    staleTime: 60_000,
+  });
+  const vipCount = vipCountData?.count ?? 0;
+  const vipCity = vipCountData?.city ?? exclusiveCity;
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -188,10 +199,13 @@ function ProjectDetail() {
             <div className="rounded-2xl border border-amber-300 bg-amber-50 p-8 text-center shadow-sm">
               <Lock className="mx-auto h-10 w-10 text-amber-600" />
               <p className="mt-4 text-lg font-bold text-amber-900">
-                حصري لمشتركي {exclusiveCity}
+                حصري لمشتركي {vipCity}
               </p>
               <p className="mt-2 text-sm text-amber-800/80">
-                تقديم العروض لهذا المشروع متاح حصرياً لمشتركي VIP في {exclusiveCity}.
+                تقديم العروض لهذا المشروع متاح حصرياً لمشتركي VIP في {vipCity}.
+              </p>
+              <p className="mt-1 text-sm font-semibold text-amber-900">
+                عدد المشتركين النشطين: {vipCount}
               </p>
             </div>
           </section>

@@ -126,6 +126,34 @@ export async function listActiveByCity(city: string): Promise<VipSubscriberRow[]
   return rowsToObjects(r).map(decode);
 }
 
+/** Count active VIP subscribers whose city matches (case/space-insensitive). */
+export async function countActiveByCity(city: string): Promise<number> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `SELECT COUNT(*) AS cnt FROM vip_subscribers
+      WHERE status = 'active'
+        AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
+    [city],
+  );
+  const row = rowsToObjects(r)[0] as { cnt?: number } | undefined;
+  return Number(row?.cnt ?? 0);
+}
+
+/** Count active VIP subscribers grouped by city. */
+export async function countActiveByCityAll(): Promise<{ city: string; count: number }[]> {
+  await ensureCityColumn();
+  const r = await db.execute(
+    `SELECT TRIM(city) AS city, COUNT(*) AS cnt FROM vip_subscribers
+      WHERE status = 'active' AND city IS NOT NULL AND TRIM(city) <> ''
+      GROUP BY TRIM(LOWER(city))
+      ORDER BY cnt DESC`,
+  );
+  return rowsToObjects(r).map((row: any) => ({
+    city: String(row.city ?? ""),
+    count: Number(row.cnt ?? 0),
+  }));
+}
+
 export async function insertVipSubscriber(input: {
   name: string;
   email: string;

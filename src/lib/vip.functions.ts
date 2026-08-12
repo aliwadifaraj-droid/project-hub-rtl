@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as vipRepo from "./vip.repo";
 import { listUsersWithRoles } from "./users.repo";
+import { detectCity } from "./vip-notify.server";
 
 export const listVipSubscribers = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
@@ -18,6 +19,24 @@ export const listVipSubscribers = createServerFn({ method: "GET" })
       }),
     );
     return rows;
+  });
+
+export const getVipCountByCity = createServerFn({ method: "GET" })
+  .inputValidator((d: { location: string }) => {
+    if (!d?.location) throw new Error("location مطلوب");
+    return { location: String(d.location) };
+  })
+  .handler(async ({ data }) => {
+    const city = detectCity(data.location);
+    if (!city) return { count: 0, city: null };
+    const count = await vipRepo.countActiveByCity(city);
+    return { count, city };
+  });
+
+export const getVipCountsByCities = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    return vipRepo.countActiveByCityAll();
   });
 
 export const approveVipByProject = createServerFn({ method: "POST" })
@@ -99,7 +118,7 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
 
 export const attachVipReceipt = createServerFn({ method: "POST" })
   .inputValidator((data: { id: string; receipt_path: string }) => {
-    if (!data?.id || !data?.receipt_path) throw new Error("بيانات ناقصة");
+    if (!data?.id || !data.receipt_path) throw new Error("بيانات ناقصة");
     return data;
   })
   .handler(async ({ data }) => {
