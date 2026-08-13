@@ -180,21 +180,39 @@ export async function deleteProject(id: string): Promise<void> {
   await db.execute(`DELETE FROM project_exclusive WHERE project_id = ?`, [id]).catch(() => undefined);
 }
 
-// ---------- project_exclusive (time-based) ----------
+// ---------- project_exclusive (single source of truth) ----------
+
+export type ProjectExclusiveRow = {
+  is_exclusive: boolean;
+  exclusive_until: string | null;
+  vip_start_at: string | null;
+  vip_end_at: string | null;
+  duration_hours: number;
+};
 
 let _exclReady: Promise<void> | null = null;
 function ensureExclusiveTable(): Promise<void> {
   if (_exclReady) return _exclReady;
   _exclReady = db.execute(
     `CREATE TABLE IF NOT EXISTS project_exclusive (
-       id            TEXT PRIMARY KEY,
-       project_id    TEXT NOT NULL UNIQUE,
-       vip_start_at  TEXT NOT NULL,
-       vip_end_at    TEXT NOT NULL,
-       duration_hours INTEGER NOT NULL DEFAULT 6,
-       created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+       id             TEXT PRIMARY KEY,
+       project_id     TEXT NOT NULL UNIQUE,
+       is_exclusive   INTEGER NOT NULL DEFAULT 0,
+       exclusive_until TEXT,
+       vip_start_at    TEXT,
+       vip_end_at      TEXT,
+       duration_hours  INTEGER NOT NULL DEFAULT 6,
+       created_at      TEXT NOT NULL DEFAULT (datetime('now'))
      )`,
-  ).then(() => undefined).catch(() => undefined);
+  )
+    .then(() =>
+      Promise.all([
+        db.execute(`ALTER TABLE project_exclusive ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
+        db.execute(`ALTER TABLE project_exclusive ADD COLUMN exclusive_until TEXT`).catch(() => undefined),
+      ]),
+    )
+    .then(() => undefined)
+    .catch(() => undefined);
   return _exclReady;
 }
 
@@ -207,21 +225,34 @@ export async function setProjectExclusive(
   await ensureExclusiveTable();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO project_exclusive (id, project_id, vip_start_at, vip_end_at, duration_hours) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(project_id) DO UPDATE SET vip_start_at = excluded.vip_start_at, vip_end_at = excluded.vip_end_at, duration_hours = excluded.duration_hours`,
-    [id, projectId, vipStartAt, vipEndAt, durationHours],
+    `INSERT INTO project_exclusive (id, project_id, is_exclusive, exclusive_until, vip_start_at, vip_end_at, duration_hours)
+     VALUES (?, ?, 1, ?, ?, ?, ?)
+     ON CONFLICT(project_id) DO UPDATE SET
+       is_exclusive = 1,
+       exclusive_until = excluded.exclusive_until,
+       vip_start_at = excluded.vip_start_at,
+       vip_end_at = excluded.vip_end_at,
+       duration_hours = excluded.duration_hours`,
+    [id, projectId, vipEndAt, vipStartAt, vipEndAt, durationHours],
   );
 }
 
-export async function getProjectExclusive(projectId: string): Promise<{
-  vip_start_at: string;
-  vip_end_at: string;
-  duration_hours: number;
-} | null> {
+export async function getProjectExclusive(projectId: string): Promise<ProjectExclusiveRow | null> {
   await ensureExclusiveTable();
-  const r = await db.execute(`SELECT vip_start_at, vip_end_at, duration_hours FROM project_exclusive WHERE project_id = ? LIMIT 1`, [projectId]);
+  const r = await db.execute(
+    `SELECT is_exclusive, exclusive_until, vip_start_at, vip_end_at, duration_hours
+     FROM project_exclusive WHERE project_id = ? LIMIT 1`,
+    [projectId],
+  );
   const row = rowsToObjects<any>(r)[0];
-  return row ? { vip_start_at: String(row.vip_start_at), vip_end_at: String(row.vip_end_at), duration_hours: Number(row.duration_hours ?? 6) } : null;
+  if (!row) return null;
+  return {
+    is_exclusive: Number(row.is_exclusive ?? 0) !== 0,
+    exclusive_until: row.exclusive_until ?? null,
+    vip_start_at: row.vip_start_at ?? null,
+    vip_end_at: row.vip_end_at ?? null,
+    duration_hours: Number(row.duration_hours ?? 6),
+  };
 }
 
 export async function updateProjectExclusivity(
@@ -231,10 +262,12 @@ export async function updateProjectExclusivity(
   await ensureExclusiveTable();
   const row = await getProjectExclusive(projectId);
   if (!row) throw new Error("لا يوجد سجل حصرية لهذا المشروع");
-  const start = new Date(row.vip_start_at);
-  const end = durationHours <= 0 ? start : new Date(start.getTime() + durationHours * 3600_000);
+  const start = row.vip_start_at ? new Date(row.vip_start_at) : new Date();
+  const exclusiveUntil = durationHours <= 0 ? start.toISOString() : new Date(start.getTime() + durationHours * 3600_000).toISOString();
   await db.execute(
-    `UPDATE project_exclusive SET duration_hours = ?, vip_end_at = ? WHERE project_id = ?`,
-    [durationHours, end.toISOString(), projectId],
+    `UPDATE project_exclusive
+     SET duration_hours = ?, exclusive_until = ?, vip_end_at = ?, is_exclusive = CASE WHEN ? <= 0 THEN 0 ELSE is_exclusive END
+     WHERE project_id = ?`,
+    [durationHours, exclusiveUntil, exclusiveUntil, durationHours, projectId],
   );
 }

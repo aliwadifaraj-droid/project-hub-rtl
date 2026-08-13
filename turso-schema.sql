@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS bot_settings (
   singleton                   INTEGER NOT NULL DEFAULT 1 UNIQUE,
   work_days                   TEXT NOT NULL DEFAULT '{"sun":true,"mon":true,"tue":true,"wed":true,"thu":true,"fri":false,"sat":false}',
   work_start                  TEXT NOT NULL DEFAULT '09:00:00',
-  work_end                    TEXT NOT NULL DEFAULT '17:00:00',
+  work_end                   TEXT NOT NULL DEFAULT '17:00:00',
   off_hours_message           TEXT NOT NULL DEFAULT '',
   fallback_message            TEXT NOT NULL DEFAULT '',
   allow_escalation            INTEGER NOT NULL DEFAULT 1,
@@ -324,13 +324,18 @@ CREATE TABLE IF NOT EXISTS vip_tokens (
 CREATE INDEX IF NOT EXISTS idx_vip_tokens_token ON vip_tokens(token);
 
 -- ============ project_exclusive (time-based exclusivity) ============
+-- Single source of truth for exclusivity: is_exclusive + exclusive_until.
+-- Legacy vip_start_at / vip_end_at kept for backward reference but no longer
+-- drive the exclusivity decision.
 CREATE TABLE IF NOT EXISTS project_exclusive (
-  id            TEXT PRIMARY KEY,
-  project_id    TEXT NOT NULL UNIQUE,
-  vip_start_at  TEXT NOT NULL,
-  vip_end_at    TEXT NOT NULL,
-  duration_hours INTEGER NOT NULL DEFAULT 6,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  id             TEXT PRIMARY KEY,
+  project_id     TEXT NOT NULL UNIQUE,
+  is_exclusive   INTEGER NOT NULL DEFAULT 0,   -- 1 = المشروع حصري الآن
+  exclusive_until TEXT,                        -- ISO datetime; null = لا نهاية
+  vip_start_at    TEXT,                        -- legacy
+  vip_end_at      TEXT,                        -- legacy
+  duration_hours  INTEGER NOT NULL DEFAULT 6,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_project ON project_exclusive(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_exclusive_end ON project_exclusive(vip_end_at);
+CREATE INDEX IF NOT EXISTS idx_project_exclusive_until ON project_exclusive(exclusive_until);
