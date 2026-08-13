@@ -12,6 +12,7 @@ const ALLOW_PREFIXES = [
   "/reset-password",
   "/lovable/",
   "/api/",
+  "/admin",
 ];
 
 export function MaintenanceGate() {
