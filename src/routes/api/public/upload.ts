@@ -3,7 +3,6 @@
 // { key, url, publicUrl }. Supports images and PDFs. Handles CORS.
 import { createFileRoute } from "@tanstack/react-router";
 import { uploadToR2, signGetUrl, makeKey, getBucket } from "@/lib/r2";
-// NOTE: r2.ts modified to use import.meta.env VITE_ variables for Vercel compatibility.
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -53,8 +52,7 @@ export const Route = createFileRoute("/api/public/upload")({
           const bytes = new Uint8Array(await file.arrayBuffer());
           await uploadToR2({ key, body: bytes, contentType: mime });
 
-          const publicBase =
-            import.meta.env.VITE_R2_PUBLIC_URL || "";
+          const publicBase = process.env.R2_PUBLIC_URL || "";
           const publicUrl = publicBase
             ? `${publicBase.replace(/\/+$/, "")}/${key.split("/").map(encodeURIComponent).join("/")}`
             : "";

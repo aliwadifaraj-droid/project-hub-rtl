@@ -1,28 +1,19 @@
 // Cloudflare R2 client — uses aws4fetch (works on Workers/Node/Vercel).
-// Modified to support both client (VITE_) and server (process.env) env vars.
+// Server-only.
 import { AwsClient } from "aws4fetch";
-
-const accessKeyId =
-  import.meta.env.VITE_R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID;
-const secretAccessKey =
-  import.meta.env.VITE_R2_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY;
-const bucket =
-  import.meta.env.VITE_R2_BUCKET || process.env.R2_BUCKET;
-const endpoint =
-  (import.meta.env.VITE_R2_ENDPOINT || process.env.R2_ENDPOINT || "").replace(/\/+$/, "");
-const publicUrl =
-  (import.meta.env.VITE_R2_PUBLIC_URL || process.env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
 
 let _client: AwsClient | null = null;
 
 function getClient(): AwsClient {
   if (_client) return _client;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("R2 credentials missing (VITE_R2_ACCESS_KEY_ID / R2_ACCESS_KEY_ID)");
+    throw new Error("R2 credentials missing (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY)");
   }
   _client = new AwsClient({
-    accessKeyId: accessKeyId as string,
-    secretAccessKey: secretAccessKey as string,
+    accessKeyId,
+    secretAccessKey,
     service: "s3",
     region: "auto",
   });
@@ -30,19 +21,15 @@ function getClient(): AwsClient {
 }
 
 export function getBucket(): string {
-  return (bucket as string) || "turso";
+  return process.env.R2_BUCKET || "turso";
 }
 
 function getEndpoint(): string {
-  if (endpoint) return endpoint;
-  const acc =
-    import.meta.env.VITE_R2_ACCOUNT_ID || process.env.R2_ACCOUNT_ID;
+  const e = process.env.R2_ENDPOINT;
+  if (e) return e.replace(/\/+$/, "");
+  const acc = process.env.R2_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
   if (acc) return `https://${acc}.r2.cloudflarestorage.com`;
-  throw new Error("VITE_R2_ENDPOINT / R2_ENDPOINT or R2_ACCOUNT_ID is not set");
-}
-
-export function getPublicUrl(): string | null {
-  return publicUrl || null;
+  throw new Error("R2_ENDPOINT or R2_ACCOUNT_ID is not set");
 }
 
 function encodeKey(key: string) {
@@ -78,10 +65,6 @@ export async function uploadToR2(params: {
 
 /** Generate a signed GET URL valid for `expiresIn` seconds (default 1h). */
 export async function signGetUrl(key: string, expiresIn = 60 * 60): Promise<string> {
-  const pub = getPublicUrl();
-  if (pub) {
-    return `${pub}/${encodeKey(key)}`;
-  }
   const url = new URL(objectUrl(key));
   url.searchParams.set("X-Amz-Expires", String(Math.min(Math.max(expiresIn, 1), 60 * 60 * 24 * 7)));
   const signed = await getClient().sign(

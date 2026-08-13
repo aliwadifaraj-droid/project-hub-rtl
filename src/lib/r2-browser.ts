@@ -1,19 +1,19 @@
-// Browser-side direct upload to Cloudflare R2 using VITE_ credentials.
+// Browser-side direct upload to Cloudflare R2.
 // NOTE: exposing R2 keys to the browser is intentional here (per product
 // decision). Use an R2 Access Key restricted to PUT on the target bucket.
 import { AwsClient } from "aws4fetch";
 
-const ACCESS_KEY = import.meta.env.VITE_R2_ACCESS_KEY_ID as string | undefined;
-const SECRET_KEY = import.meta.env.VITE_R2_SECRET_ACCESS_KEY as string | undefined;
-const ENDPOINT = (import.meta.env.VITE_R2_ENDPOINT as string | undefined)?.replace(/\/+$/, "");
-const BUCKET = import.meta.env.VITE_R2_BUCKET as string | undefined;
-const PUBLIC_URL = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/+$/, "");
+const ACCESS_KEY = process.env.R2_ACCESS_KEY_ID as string | undefined;
+const SECRET_KEY = process.env.R2_SECRET_ACCESS_KEY as string | undefined;
+const ENDPOINT = (process.env.R2_ENDPOINT as string | undefined)?.replace(/\/+$/, "");
+const BUCKET = process.env.R2_BUCKET as string | undefined;
+const PUBLIC_URL = (process.env.R2_PUBLIC_URL as string | undefined)?.replace(/\/+$/, "");
 
 let _client: AwsClient | null = null;
 function client(): AwsClient {
   if (_client) return _client;
   if (!ACCESS_KEY || !SECRET_KEY || !ENDPOINT || !BUCKET) {
-    throw new Error("R2 غير مهيأ في المتصفح (VITE_R2_* مفقودة)");
+    throw new Error("R2 غير مهيأ (R2_* مفقودة)");
   }
   _client = new AwsClient({
     accessKeyId: ACCESS_KEY,
