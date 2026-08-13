@@ -114,7 +114,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       throw redirect({ to: "/" });
     }
 
-    const ALLOW_PREFIXES = ["/maintenance", "/auth", "/reset-password", "/api/", "/admin"];
+    const ALLOW_PREFIXES = ["/maintenance", "/auth", "/reset-password", "/api/"];
     const allowed = ALLOW_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
     if (allowed) return;
 
