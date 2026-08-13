@@ -1,6 +1,7 @@
+// Turso repository for `projects`.
 import { db, rowsToObjects } from "./db";
 
-export interface ProjectRow {
+export type ProjectRow = {
   id: string;
   name: string;
   description: string | null;
@@ -14,15 +15,17 @@ export interface ProjectRow {
   admin_approval: string;
   ad_id: string | null;
   domain: string | null;
-  created_at: string;
   offers_enabled: boolean;
   bot_offers_enabled: boolean;
   exclusive_hours: number;
   is_exclusive: boolean;
   exclusive_until: string | null;
-}
+  created_at: string;
+};
 
-function mapRow(r: any): ProjectRow {
+function decode(r: any): ProjectRow {
+  let images: string[] = [];
+  try { images = r.images ? JSON.parse(r.images) : []; } catch { images = []; }
   return {
     id: String(r.id),
     name: String(r.name ?? ""),
@@ -30,64 +33,69 @@ function mapRow(r: any): ProjectRow {
     location: r.location ?? null,
     duration: r.duration ?? null,
     cover_image: r.cover_image ?? null,
-    images: (() => { try { return JSON.parse(r.images ?? "[]"); } catch { return []; } })(),
+    images,
     pdf_file: r.pdf_file ?? null,
     created_by: r.created_by ?? null,
     status: String(r.status ?? "active"),
-    admin_approval: String(r.admin_approval ?? "approved"),
+    admin_approval: String(r.admin_approval ?? "pending"),
     ad_id: r.ad_id ?? null,
     domain: r.domain ?? null,
-    created_at: String(r.created_at ?? ""),
     offers_enabled: Number(r.offers_enabled ?? 1) !== 0,
     bot_offers_enabled: Number(r.bot_offers_enabled ?? 1) !== 0,
     exclusive_hours: Number(r.exclusive_hours ?? 6),
     is_exclusive: Number(r.is_exclusive ?? 0) !== 0,
     exclusive_until: r.exclusive_until ?? null,
+    created_at: String(r.created_at ?? ""),
   };
 }
 
 const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until";
 
+let _offersColReady: Promise<void> | null = null;
 export function ensureOffersEnabledColumn(): Promise<void> {
-  return Promise.all([
-    db.execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
-    db.execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
-    db.execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`).catch(() => undefined),
-    db.execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
-    db.execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`).catch(() => undefined),
-  ]).then(() => undefined);
+  if (!_offersColReady) {
+    _offersColReady = Promise.all([
+      db.execute(`ALTER TABLE projects ADD COLUMN offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
+      db.execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
+      db.execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`).catch(() => undefined),
+      db.execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
+      db.execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`).catch(() => undefined),
+    ]).then(() => undefined);
+  }
+  return _offersColReady;
 }
 
 export async function listAllProjects(): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
-  const r = await db.execute(`SELECT ${COLS} FROM projects WHERE admin_approval = 'approved' ORDER BY created_at DESC`);
-  return rowsToObjects(r).map(mapRow);
+  const r = await db.execute(`SELECT ${COLS} FROM projects ORDER BY created_at DESC`);
+  return rowsToObjects(r).map(decode);
 }
 
 export async function setOffersEnabled(id: string, enabled: boolean): Promise<void> {
   await ensureOffersEnabledColumn();
-  await db.execute(`UPDATE projects SET offers_enabled = ?, updated_at = datetime('now') WHERE id = ?`, [enabled ? 1 : 0, id]);
+  await db.execute(`UPDATE projects SET offers_enabled = ?, updated_at = ? WHERE id = ?`, [enabled ? 1 : 0, new Date().toISOString(), id]);
 }
 
 export async function setAllOffersEnabled(enabled: boolean): Promise<void> {
   await ensureOffersEnabledColumn();
-  await db.execute(`UPDATE projects SET offers_enabled = ?, updated_at = datetime('now')`, [enabled ? 1 : 0]);
+  await db.execute(`UPDATE projects SET offers_enabled = ?, updated_at = ?`, [enabled ? 1 : 0, new Date().toISOString()]);
 }
 
 export async function isOffersEnabled(id: string): Promise<boolean> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT offers_enabled FROM projects WHERE id = ? LIMIT 1`, [id]);
-  return Number((rowsToObjects(r)[0] as any)?.offers_enabled ?? 1) !== 0;
+  const row = rowsToObjects<any>(r)[0];
+  return row ? Number(row.offers_enabled ?? 1) !== 0 : false;
 }
 
 export async function setBotOffersEnabled(id: string, enabled: boolean): Promise<void> {
   await ensureOffersEnabledColumn();
-  await db.execute(`UPDATE projects SET bot_offers_enabled = ?, updated_at = datetime('now') WHERE id = ?`, [enabled ? 1 : 0, id]);
+  await db.execute(`UPDATE projects SET bot_offers_enabled = ?, updated_at = ? WHERE id = ?`, [enabled ? 1 : 0, new Date().toISOString(), id]);
 }
 
 export async function setAllBotOffersEnabled(enabled: boolean): Promise<void> {
   await ensureOffersEnabledColumn();
-  await db.execute(`UPDATE projects SET bot_offers_enabled = ?, updated_at = datetime('now')`, [enabled ? 1 : 0]);
+  await db.execute(`UPDATE projects SET bot_offers_enabled = ?, updated_at = ?`, [enabled ? 1 : 0, new Date().toISOString()]);
 }
 
 export async function searchByName(query: string): Promise<ProjectRow[]> {
@@ -95,19 +103,19 @@ export async function searchByName(query: string): Promise<ProjectRow[]> {
     `SELECT ${COLS} FROM projects WHERE name LIKE ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 50`,
     [`%${query}%`],
   );
-  return rowsToObjects<ProjectRow>(r).map(mapRow);
+  return rowsToObjects<ProjectRow>(r).map(decode);
 }
 
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE created_by = ? ORDER BY created_at DESC`, [userId]);
-  return rowsToObjects(r).map(mapRow);
+  return rowsToObjects(r).map(decode);
 }
 
 export async function listPending(): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE admin_approval = 'pending' ORDER BY created_at DESC`);
-  return rowsToObjects(r).map(mapRow);
+  return rowsToObjects(r).map(decode);
 }
 
 export async function countPending(): Promise<number> {
@@ -119,7 +127,7 @@ export async function getById(id: string): Promise<ProjectRow | null> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE id = ? LIMIT 1`, [id]);
   const rows = rowsToObjects(r);
-  return rows[0] ? mapRow(rows[0]) : null;
+  return rows[0] ? decode(rows[0]) : null;
 }
 
 export async function findByOwnerAndName(userId: string, name: string, excludeId?: string): Promise<ProjectRow | null> {
@@ -127,13 +135,13 @@ export async function findByOwnerAndName(userId: string, name: string, excludeId
   const args = excludeId ? [userId, name, excludeId] : [userId, name];
   const r = await db.execute(sql, args);
   const rows = rowsToObjects(r);
-  return rows[0] ? mapRow(rows[0]) : null;
+  return rows[0] ? decode(rows[0]) : null;
 }
 
 export async function findByAdId(adId: string): Promise<ProjectRow | null> {
   const r = await db.execute(`SELECT id FROM projects WHERE ad_id = ? LIMIT 1`, [adId]);
   const rows = rowsToObjects(r);
-  return rows[0] ? mapRow(rows[0]) : null;
+  return rows[0] ? decode(rows[0]) : null;
 }
 
 export async function insertProject(input: {

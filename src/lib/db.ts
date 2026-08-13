@@ -1,4 +1,4 @@
-import { createClient, type ResultSet, type InStatement } from "@libsql/client";
+import { createClient, type ResultSet, type InStatement, type InArgs } from "@libsql/client";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -10,7 +10,7 @@ if (!url) {
 const client = createClient({ url, authToken });
 
 export const db = {
-  execute(sql: string, args?: unknown[]): Promise<ResultSet> {
+  execute(sql: string, args?: InArgs): Promise<ResultSet> {
     if (args !== undefined) {
       return client.execute({ sql, args });
     }

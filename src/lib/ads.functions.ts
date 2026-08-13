@@ -84,9 +84,14 @@ export const approveAd = createServerFn({ method: "POST" })
         ad_id: ad.id,
         admin_approval: "approved",
       });
-      await projectsRepo.setExclusive((await projectsRepo.findByAdId(ad.id))!.id, true, 6);
+      const projId = (await projectsRepo.findByAdId(ad.id))!.id;
+      const now = new Date();
+      const endAt = new Date(now.getTime() + 6 * 3600_000);
+      await projectsRepo.setProjectExclusive(projId, now.toISOString(), endAt.toISOString());
     } else {
-      await projectsRepo.setExclusive(existing.id, true, 6);
+      const now = new Date();
+      const endAt = new Date(now.getTime() + 6 * 3600_000);
+      await projectsRepo.setProjectExclusive(existing.id, now.toISOString(), endAt.toISOString());
     }
     return { ok: true };
   });
