@@ -16,6 +16,9 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { MaintenanceGate } from "../components/maintenance-gate";
 import { SupportChatWidget } from "../components/support-chat-widget";
 import { getHideSupportChat } from "@/lib/site-settings.functions";
+import { getMaintenance } from "@/lib/maintenance.functions";
+import { getMe } from "@/lib/auth.functions";
+import { hasAdminRole } from "@/lib/role-label";
 
 function NotFoundComponent() {
   return (
@@ -104,11 +107,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" },
     ],
   }),
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ location }) => {
     const p = location.pathname;
     if (p.startsWith("/lovable/") || p === "/email/unsubscribe") return;
     if (p === "/index") {
       throw redirect({ to: "/" });
+    }
+
+    const ALLOW_PREFIXES = ["/maintenance", "/auth", "/reset-password", "/api/"];
+    const allowed = ALLOW_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
+    if (allowed) return;
+
+    const [m, me] = await Promise.all([
+      getMaintenance(),
+      getMe().catch(() => null),
+    ]);
+
+    if (m.enabled && !(me && hasAdminRole(me.roles))) {
+      throw redirect({ to: "/maintenance", replace: true });
     }
   },
   loader: ({ context }) => context.queryClient.ensureQueryData(hideSupportChatQuery),
