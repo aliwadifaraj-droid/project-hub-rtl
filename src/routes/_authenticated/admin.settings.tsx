@@ -3,11 +3,11 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Settings2, Save, MessageCircleOff, Database, AlertTriangle, Star, Ban, Trash2, Loader2, Building2 } from "lucide-react";
+import { Settings2, Save, MessageCircleOff, Database, HardDrive, AlertTriangle, Star, Ban, Trash2, Loader2, Building2, RefreshCw } from "lucide-react";
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
 import { getHideSupportChat, setHideSupportChat, getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
-import { getDatabaseSize } from "@/lib/db-stats.functions";
+import { getDatabaseSize, getR2StorageStats } from "@/lib/db-stats.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { adminListBlocked, adminBlockCompany, adminUnblockCompany } from "@/lib/blocked.functions";
 import { Input } from "@/components/ui/input";
@@ -49,12 +49,19 @@ function AdminSettings() {
   const fetchVipMx = useServerFn(getVipMaintenance);
   const saveVipMx = useServerFn(setVipMaintenance);
   const fetchDbSize = useServerFn(getDatabaseSize);
+  const fetchR2Stats = useServerFn(getR2StorageStats);
 
   const { data: dbSize, isLoading: dbSizeLoading } = useQuery({
     queryKey: ["db-size-admin"],
     queryFn: () => fetchDbSize(),
     enabled: hasAdminRole(roles),
     refetchInterval: 5 * 60_000,
+  });
+
+  const { data: r2Stats, isLoading: r2Loading, refetch: refetchR2, isFetching: r2Fetching } = useQuery({
+    queryKey: ["r2-stats-admin"],
+    queryFn: () => fetchR2Stats(),
+    enabled: hasAdminRole(roles),
   });
 
   const { data, isLoading } = useQuery({
@@ -173,48 +180,114 @@ function AdminSettings() {
       </div>
 
 
-      <div className="mb-6 rounded-lg border border-border bg-card p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Database className="h-5 w-5" />
-          <h2 className="text-base font-semibold">مساحة قاعدة البيانات</h2>
-        </div>
-        {dbSizeLoading || !dbSize ? (
-          <p className="text-sm text-muted-foreground">جارٍ التحميل...</p>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold">{dbSize.sizeMB.toFixed(2)} MB</span>
-              <span className="text-sm text-muted-foreground">
-                من {dbSize.limitMB.toFixed(0)} MB
-              </span>
-            </div>
-            <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
-              <div
-                className={`h-full transition-all ${
-                  dbSize.percent >= 80
-                    ? "bg-destructive"
-                    : dbSize.percent >= 60
-                    ? "bg-yellow-500"
-                    : "bg-primary"
-                }`}
-                style={{ width: `${Math.min(100, dbSize.percent).toFixed(1)}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">نسبة الاستهلاك</span>
-              <span className="font-semibold">{dbSize.percent.toFixed(1)}%</span>
-            </div>
-            {dbSize.percent >= 80 && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                <div>
-                  <div className="font-semibold">تنبيه: تجاوزت مساحة قاعدة البيانات 80%</div>
-                  <div className="mt-1 opacity-90">يُنصح بمراجعة البيانات وحذف غير الضروري أو ترقية الخطة.</div>
-                </div>
-              </div>
-            )}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        {/* Turso DB Card */}
+        <div className="rounded-lg border border-border bg-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            <h2 className="text-base font-semibold">حجم قاعدة بيانات Turso</h2>
           </div>
-        )}
+          {dbSizeLoading || !dbSize ? (
+            <p className="text-sm text-muted-foreground">جارٍ التحميل...</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-bold">{dbSize.sizeMB.toFixed(2)} MB</span>
+                <span className="text-sm text-muted-foreground">
+                  من {dbSize.limitMB.toFixed(0)} MB
+                </span>
+              </div>
+              <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className={`h-full transition-all ${
+                    dbSize.percent >= 80
+                      ? "bg-destructive"
+                      : dbSize.percent >= 60
+                      ? "bg-yellow-500"
+                      : "bg-primary"
+                  }`}
+                  style={{ width: `${Math.min(100, dbSize.percent).toFixed(1)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">نسبة الاستهلاك</span>
+                <span className="font-semibold">{dbSize.percent.toFixed(1)}%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {dbSize.tableCount} جدول · {dbSize.totalRows.toLocaleString("ar-SA")} صف
+              </p>
+              {dbSize.percent >= 80 && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  <div>
+                    <div className="font-semibold">تنبيه: تجاوزت مساحة قاعدة البيانات 80%</div>
+                    <div className="mt-1 opacity-90">يُنصح بمراجعة البيانات وحذف غير الضروري أو ترقية الخطة.</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* R2 Storage Card */}
+        <div className="rounded-lg border border-border bg-card p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              <h2 className="text-base font-semibold">مساحة تخزين R2</h2>
+            </div>
+            <button
+              onClick={() => refetchR2()}
+              disabled={r2Fetching}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${r2Fetching ? "animate-spin" : ""}`} />
+              تحديث
+            </button>
+          </div>
+          {r2Loading || !r2Stats ? (
+            <p className="text-sm text-muted-foreground">جارٍ التحميل...</p>
+          ) : !r2Stats.connected ? (
+            <p className="text-sm text-muted-foreground">غير مربوط</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-bold">{r2Stats.sizeGB.toFixed(4)} GB</span>
+                <span className="text-sm text-muted-foreground">
+                  من {r2Stats.limitGB.toFixed(0)} GB
+                </span>
+              </div>
+              <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className={`h-full transition-all ${
+                    r2Stats.percent >= 80
+                      ? "bg-destructive"
+                      : r2Stats.percent >= 60
+                      ? "bg-yellow-500"
+                      : "bg-primary"
+                  }`}
+                  style={{ width: `${Math.min(100, r2Stats.percent).toFixed(1)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">نسبة الاستهلاك</span>
+                <span className="font-semibold">{r2Stats.percent.toFixed(1)}%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {r2Stats.fileCount.toLocaleString("ar-SA")} ملف
+              </p>
+              {r2Stats.percent >= 80 && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  <div>
+                    <div className="font-semibold">تنبيه: تجاوزت مساحة تخزين R2 80%</div>
+                    <div className="mt-1 opacity-90">يُنصح بمراجعة الملفات وحذف غير الضروري أو ترقية الخطة.</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-card p-6 space-y-6">
