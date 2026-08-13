@@ -1,60 +1,64 @@
-// Cloudflare R2 server-side client — uses AWS SDK (reliable on Vercel/Node).
+// Cloudflare R2 client — uses aws4fetch (works on Workers/Node/Vercel).
 // Server-only.
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { AwsClient } from "aws4fetch";
 
-function firstEnv(...names: string[]): string | undefined {
-  return names.map((name) => process.env[name]).find(Boolean);
-}
+let _client: AwsClient | null = null;
 
-let _client: S3Client | null = null;
-
-function getClient(): S3Client {
+function getClient(): AwsClient {
   if (_client) return _client;
-  const accessKeyId = firstEnv(
-    "R2_ACCESS_KEY_ID",
-    "R2_ACCESS_KEY",
-    "VITE_R2_ACCESS_KEY_ID",
-    "VITE_R2_ACCESS_KEY",
-  );
-  const secretAccessKey = firstEnv(
-    "R2_SECRET_ACCESS_KEY",
-    "R2_SECRET_KEY",
-    "VITE_R2_SECRET_ACCESS_KEY",
-    "VITE_R2_SECRET_KEY",
-  );
+  const accessKeyId =
+    process.env.R2_ACCESS_KEY_ID ||
+    process.env.R2_ACCESS_KEY ||
+    process.env.VITE_R2_ACCESS_KEY_ID ||
+    process.env.VITE_R2_ACCESS_KEY;
+  const secretAccessKey =
+    process.env.R2_SECRET_ACCESS_KEY ||
+    process.env.R2_SECRET ||
+    process.env.VITE_R2_SECRET_ACCESS_KEY ||
+    process.env.VITE_R2_SECRET;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("R2 credentials missing");
+    throw new Error("R2 credentials missing (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY)");
   }
-  const endpoint = firstEnv("R2_ENDPOINT", "VITE_R2_ENDPOINT") || (() => {
-    const acc = firstEnv("R2_ACCOUNT_ID", "CF_ACCOUNT_ID", "VITE_R2_ACCOUNT_ID");
-    if (!acc) throw new Error("R2_ENDPOINT or R2_ACCOUNT_ID is not set");
-    return `https://${acc}.r2.cloudflarestorage.com`;
-  })();
-  _client = new S3Client({
+  _client = new AwsClient({
+    accessKeyId,
+    secretAccessKey,
+    service: "s3",
     region: "auto",
-    endpoint,
-    credentials: { accessKeyId, secretAccessKey },
   });
   return _client;
 }
 
 export function getBucket(): string {
-  return firstEnv("R2_BUCKET", "VITE_R2_BUCKET") || "turso";
+  const b =
+    process.env.R2_BUCKET ||
+    process.env.R2_BUCKET_NAME ||
+    process.env.VITE_R2_BUCKET ||
+    "turso";
+  return b;
 }
 
-export function getPublicUrl(): string | null {
-  const u = firstEnv("R2_PUBLIC_URL", "VITE_R2_PUBLIC_URL");
-  return u ? u.replace(/\/+$/, "") : null;
+
+export function getEndpoint(): string {
+  const e =
+    process.env.R2_ENDPOINT ||
+    process.env.VITE_R2_ENDPOINT ||
+    process.env.R2_S3_ENDPOINT ||
+    process.env.VITE_R2_S3_ENDPOINT;
+  if (e) return e.replace(/\/+$/, "");
+  const acc =
+    process.env.R2_ACCOUNT_ID ||
+    process.env.VITE_R2_ACCOUNT_ID ||
+    process.env.CF_ACCOUNT_ID;
+  if (acc) return `https://${acc}.r2.cloudflarestorage.com`;
+  throw new Error("R2_ENDPOINT or R2_ACCOUNT_ID is not set");
 }
 
 function encodeKey(key: string) {
   return key.split("/").map(encodeURIComponent).join("/");
+}
+
+function objectUrl(key: string): string {
+  return `${getEndpoint()}/${getBucket()}/${encodeKey(key)}`;
 }
 
 /** Upload a file to R2. */
@@ -67,32 +71,35 @@ export async function uploadToR2(params: {
     params.body instanceof Uint8Array
       ? params.body
       : new Uint8Array(params.body as ArrayBuffer);
-  const cmd = new PutObjectCommand({
-    Bucket: getBucket(),
-    Key: params.key,
-    Body: body,
-    ContentType: params.contentType,
+  const url = objectUrl(params.key);
+  const res = await getClient().fetch(url, {
+    method: "PUT",
+    body: body as BodyInit,
+    headers: params.contentType ? { "content-type": params.contentType } : undefined,
   });
-  await getClient().send(cmd);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`R2 PUT ${res.status}: ${text.slice(0, 300)}`);
+  }
   return { key: params.key, bucket: getBucket() };
 }
 
 /** Generate a signed GET URL valid for `expiresIn` seconds (default 1h). */
 export async function signGetUrl(key: string, expiresIn = 60 * 60): Promise<string> {
-  const pub = getPublicUrl();
-  if (pub) {
-    return `${pub}/${encodeKey(key)}`;
-  }
-  const cmd = new GetObjectCommand({ Bucket: getBucket(), Key: key });
-  return awsGetSignedUrl(getClient(), cmd, { expiresIn });
+  const url = new URL(objectUrl(key));
+  url.searchParams.set("X-Amz-Expires", String(Math.min(Math.max(expiresIn, 1), 60 * 60 * 24 * 7)));
+  const signed = await getClient().sign(
+    new Request(url.toString(), { method: "GET" }),
+    { aws: { signQuery: true } },
+  );
+  return signed.url;
 }
 
 export async function deleteFromR2(key: string): Promise<void> {
-  try {
-    const cmd = new DeleteObjectCommand({ Bucket: getBucket(), Key: key });
-    await getClient().send(cmd);
-  } catch (e: any) {
-    if (e?.name !== "NoSuchKey" && e?.$metadata?.httpStatusCode !== 404) throw e;
+  const res = await getClient().fetch(objectUrl(key), { method: "DELETE" });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`R2 DELETE ${res.status}: ${text.slice(0, 300)}`);
   }
 }
 

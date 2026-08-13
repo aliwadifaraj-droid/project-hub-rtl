@@ -48,10 +48,28 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
 export async function resolveStoredFileUrl(raw: string | null | undefined, expiresIn = 60 * 60): Promise<string> {
   if (!raw) return "";
   const { direct, keys } = storageKeyCandidates(raw);
-  if (direct !== undefined) return direct;
+  const { signGetUrl, getBucket, getEndpoint } = await import("./r2");
+
+  if (direct !== undefined) {
+    if (!direct.startsWith("http://") && !direct.startsWith("https://")) return direct;
+    try {
+      const url = new URL(direct);
+      const endpoint = new URL(getEndpoint());
+      const publicBase = process.env.R2_PUBLIC_URL || process.env.VITE_R2_PUBLIC_URL;
+      const isR2Endpoint = url.origin === endpoint.origin;
+      const isR2PublicUrl = publicBase && direct.startsWith(publicBase.replace(/\/+$/, "") + "/");
+      if (isR2Endpoint || isR2PublicUrl) {
+        let key = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+        if (isR2Endpoint) key = key.replace(new RegExp(`^${getBucket()}/`), "");
+        if (key) return await signGetUrl(key, expiresIn);
+      }
+    } catch {
+      return "";
+    }
+    return direct;
+  }
   if (!keys.length) return "";
 
-  const { signGetUrl } = await import("./r2");
   for (const key of keys) {
     try {
       return await signGetUrl(key, expiresIn);
