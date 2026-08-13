@@ -1,23 +1,15 @@
 // Cloudflare R2 client — uses aws4fetch (works on Workers/Node/Vercel).
-// Server-only.
+// Modified to use import.meta.env VITE_ variables for Vercel compatibility.
 import { AwsClient } from "aws4fetch";
 
 let _client: AwsClient | null = null;
 
 function getClient(): AwsClient {
   if (_client) return _client;
-  const accessKeyId =
-    process.env.R2_ACCESS_KEY_ID ||
-    process.env.R2_ACCESS_KEY ||
-    process.env.VITE_R2_ACCESS_KEY_ID ||
-    process.env.VITE_R2_ACCESS_KEY;
-  const secretAccessKey =
-    process.env.R2_SECRET_ACCESS_KEY ||
-    process.env.R2_SECRET ||
-    process.env.VITE_R2_SECRET_ACCESS_KEY ||
-    process.env.VITE_R2_SECRET;
+  const accessKeyId = import.meta.env.VITE_R2_ACCESS_KEY_ID as string | undefined;
+  const secretAccessKey = import.meta.env.VITE_R2_SECRET_ACCESS_KEY as string | undefined;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("R2 credentials missing (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY)");
+    throw new Error("R2 credentials missing (VITE_R2_ACCESS_KEY_ID / VITE_R2_SECRET_ACCESS_KEY)");
   }
   _client = new AwsClient({
     accessKeyId,
@@ -29,24 +21,22 @@ function getClient(): AwsClient {
 }
 
 export function getBucket(): string {
-  const b =
-    process.env.R2_BUCKET ||
-    process.env.R2_BUCKET_NAME ||
-    process.env.VITE_R2_BUCKET ||
-    "turso";
-  return b;
+  const b = import.meta.env.VITE_R2_BUCKET as string | undefined;
+  return b || "turso";
 }
 
-
 function getEndpoint(): string {
-  const e = process.env.R2_ENDPOINT || process.env.VITE_R2_ENDPOINT;
-  if (e) return e.replace(/\/+$/, "");
-  const acc =
-    process.env.R2_ACCOUNT_ID ||
-    process.env.VITE_R2_ACCOUNT_ID ||
-    process.env.CF_ACCOUNT_ID;
+  const e = (import.meta.env.VITE_R2_ENDPOINT as string | undefined)?.replace(/\/+$/, "");
+  if (e) return e;
+  const acc = import.meta.env.VITE_R2_ACCOUNT_ID as string | undefined;
   if (acc) return `https://${acc}.r2.cloudflarestorage.com`;
-  throw new Error("R2_ENDPOINT or R2_ACCOUNT_ID is not set");
+  throw new Error("VITE_R2_ENDPOINT or VITE_R2_ACCOUNT_ID is not set");
+}
+
+// Modified for Vercel compatibility: returns public URL if VITE_R2_PUBLIC_URL is set.
+export function getPublicUrl(): string | null {
+  const u = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/+$/, "");
+  return u || null;
 }
 
 function encodeKey(key: string) {
@@ -82,6 +72,10 @@ export async function uploadToR2(params: {
 
 /** Generate a signed GET URL valid for `expiresIn` seconds (default 1h). */
 export async function signGetUrl(key: string, expiresIn = 60 * 60): Promise<string> {
+  const publicBase = getPublicUrl();
+  if (publicBase) {
+    return `${publicBase}/${encodeKey(key)}`;
+  }
   const url = new URL(objectUrl(key));
   url.searchParams.set("X-Amz-Expires", String(Math.min(Math.max(expiresIn, 1), 60 * 60 * 24 * 7)));
   const signed = await getClient().sign(
