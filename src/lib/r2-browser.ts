@@ -3,11 +3,25 @@
 // decision). Use an R2 Access Key restricted to PUT on the target bucket.
 import { AwsClient } from "aws4fetch";
 
-const ACCESS_KEY = process.env.R2_ACCESS_KEY_ID as string | undefined;
-const SECRET_KEY = process.env.R2_SECRET_ACCESS_KEY as string | undefined;
-const ENDPOINT = (process.env.R2_ENDPOINT as string | undefined)?.replace(/\/+$/, "");
-const BUCKET = process.env.R2_BUCKET as string | undefined;
-const PUBLIC_URL = (process.env.R2_PUBLIC_URL as string | undefined)?.replace(/\/+$/, "");
+function firstEnv(...names: string[]): string | undefined {
+  return names.map((name) => process.env[name]).find(Boolean);
+}
+
+const ACCESS_KEY = firstEnv(
+  "R2_ACCESS_KEY_ID",
+  "R2_ACCESS_KEY",
+  "VITE_R2_ACCESS_KEY_ID",
+  "VITE_R2_ACCESS_KEY",
+) as string | undefined;
+const SECRET_KEY = firstEnv(
+  "R2_SECRET_ACCESS_KEY",
+  "R2_SECRET_KEY",
+  "VITE_R2_SECRET_ACCESS_KEY",
+  "VITE_R2_SECRET_KEY",
+) as string | undefined;
+const ENDPOINT = firstEnv("R2_ENDPOINT", "VITE_R2_ENDPOINT")?.replace(/\/+$/, "");
+const BUCKET = firstEnv("R2_BUCKET", "VITE_R2_BUCKET") as string | undefined;
+const PUBLIC_URL = firstEnv("R2_PUBLIC_URL", "VITE_R2_PUBLIC_URL")?.replace(/\/+$/, "");
 
 let _client: AwsClient | null = null;
 function client(): AwsClient {

@@ -1,19 +1,38 @@
 // Cloudflare R2 server-side client — uses AWS SDK (reliable on Vercel/Node).
 // Server-only.
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+function firstEnv(...names: string[]): string | undefined {
+  return names.map((name) => process.env[name]).find(Boolean);
+}
 
 let _client: S3Client | null = null;
 
 function getClient(): S3Client {
   if (_client) return _client;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const accessKeyId = firstEnv(
+    "R2_ACCESS_KEY_ID",
+    "R2_ACCESS_KEY",
+    "VITE_R2_ACCESS_KEY_ID",
+    "VITE_R2_ACCESS_KEY",
+  );
+  const secretAccessKey = firstEnv(
+    "R2_SECRET_ACCESS_KEY",
+    "R2_SECRET_KEY",
+    "VITE_R2_SECRET_ACCESS_KEY",
+    "VITE_R2_SECRET_KEY",
+  );
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("R2 credentials missing (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY)");
+    throw new Error("R2 credentials missing");
   }
-  const endpoint = process.env.R2_ENDPOINT || (() => {
-    const acc = process.env.R2_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
+  const endpoint = firstEnv("R2_ENDPOINT", "VITE_R2_ENDPOINT") || (() => {
+    const acc = firstEnv("R2_ACCOUNT_ID", "CF_ACCOUNT_ID", "VITE_R2_ACCOUNT_ID");
     if (!acc) throw new Error("R2_ENDPOINT or R2_ACCOUNT_ID is not set");
     return `https://${acc}.r2.cloudflarestorage.com`;
   })();
@@ -26,11 +45,11 @@ function getClient(): S3Client {
 }
 
 export function getBucket(): string {
-  return process.env.R2_BUCKET || "turso";
+  return firstEnv("R2_BUCKET", "VITE_R2_BUCKET") || "turso";
 }
 
 export function getPublicUrl(): string | null {
-  const u = process.env.R2_PUBLIC_URL;
+  const u = firstEnv("R2_PUBLIC_URL", "VITE_R2_PUBLIC_URL");
   return u ? u.replace(/\/+$/, "") : null;
 }
 
