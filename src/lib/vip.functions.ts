@@ -212,7 +212,22 @@ export const createTrialVipSubscription = createServerFn({ method: "POST" })
 export const testVipExpiry = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async () => {
-    const { expired } = await vipRepo.markExpired();
+    const { expired, rows } = await vipRepo.markExpired();
+    let expiredEmailed = 0;
+    for (const row of rows) {
+      if (!row.email) continue;
+      try {
+        const { sendResendEmail } = await import("./resend-send.server");
+        await sendResendEmail({
+          to: row.email,
+          subject: "انتهى اشتراك VIP",
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>نود إعلامك بأن <strong>اشتراكك في باقة VIP قد انتهى</strong>.</p><p>للتجديد أو الاستفسار، يرجى التواصل معنا.</p><p>شكراً لثقتك بمنصة العمران.</p></div>`,
+        });
+        expiredEmailed++;
+      } catch (e) {
+        console.error("vip expired email error", e);
+      }
+    }
     const soon = await vipRepo.findExpiringSoon(24);
     let emailed = 0;
     for (const row of soon) {
@@ -229,5 +244,5 @@ export const testVipExpiry = createServerFn({ method: "POST" })
         console.error("vip expiry email error", e);
       }
     }
-    return { processed: soon.length, expired, emailed };
+    return { processed: soon.length, expired, emailed, expiredEmailed };
   });
