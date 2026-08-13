@@ -32,6 +32,11 @@ function getEndpoint(): string {
   throw new Error("R2_ENDPOINT or R2_ACCOUNT_ID is not set");
 }
 
+export function getPublicUrl(): string | null {
+  const u = process.env.R2_PUBLIC_URL;
+  return u ? u.replace(/\/+$/, "") : null;
+}
+
 function encodeKey(key: string) {
   return key.split("/").map(encodeURIComponent).join("/");
 }
@@ -65,6 +70,10 @@ export async function uploadToR2(params: {
 
 /** Generate a signed GET URL valid for `expiresIn` seconds (default 1h). */
 export async function signGetUrl(key: string, expiresIn = 60 * 60): Promise<string> {
+  const pub = getPublicUrl();
+  if (pub) {
+    return `${pub}/${encodeKey(key)}`;
+  }
   const url = new URL(objectUrl(key));
   url.searchParams.set("X-Amz-Expires", String(Math.min(Math.max(expiresIn, 1), 60 * 60 * 24 * 7)));
   const signed = await getClient().sign(
