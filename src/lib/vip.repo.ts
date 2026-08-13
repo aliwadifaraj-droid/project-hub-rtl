@@ -205,8 +205,8 @@ export async function findExpiringSoon(hoursWithin: number): Promise<VipSubscrib
     `SELECT * FROM vip_subscribers
       WHERE status = 'active'
         AND expires_at IS NOT NULL
-        AND expires_at > datetime('now')
-        AND expires_at <= ?
+        AND datetime(expires_at) > datetime('now')
+        AND datetime(expires_at) <= datetime(?)
       ORDER BY expires_at ASC`,
     [threshold],
   );
@@ -217,13 +217,13 @@ export async function markExpired(): Promise<{ expired: number; rows: VipSubscri
   await ensureCityColumn();
   const sel = await db.execute(
     `SELECT * FROM vip_subscribers
-      WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= datetime('now')`,
+      WHERE status = 'active' AND expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')`,
   );
   const rows = rowsToObjects(sel).map(decode);
   if (rows.length > 0) {
     await db.execute(
       `UPDATE vip_subscribers SET status = 'rejected'
-        WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= datetime('now')`,
+        WHERE status = 'active' AND expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')`,
     );
   }
   return { expired: rows.length, rows };
