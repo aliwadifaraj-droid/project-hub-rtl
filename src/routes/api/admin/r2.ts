@@ -32,10 +32,15 @@ export const Route = createFileRoute("/api/admin/r2")({
 
         const accessKeyId =
           process.env.R2_ACCESS_KEY_ID ||
-          process.env.R2_ACCESS_KEY;
+          process.env.R2_ACCESS_KEY ||
+          process.env.VITE_R2_ACCESS_KEY_ID ||
+          process.env.VITE_R2_ACCESS_KEY;
         const secretAccessKey =
           process.env.R2_SECRET_ACCESS_KEY ||
-          process.env.R2_SECRET;
+          process.env.R2_SECRET_KEY ||
+          process.env.R2_SECRET ||
+          process.env.VITE_R2_SECRET_ACCESS_KEY ||
+          process.env.VITE_R2_SECRET_KEY;
 
         if (!accessKeyId || !secretAccessKey) {
           return json({ connected: false, usedMB: 0, quotaMB: QUOTA_MB, fileCount: 0 });
@@ -44,12 +49,17 @@ export const Route = createFileRoute("/api/admin/r2")({
         const bucket =
           process.env.R2_BUCKET ||
           process.env.R2_BUCKET_NAME ||
+          process.env.VITE_R2_BUCKET ||
           "turso";
         const endpoint =
           process.env.R2_ENDPOINT ||
+          process.env.VITE_R2_ENDPOINT ||
           process.env.R2_S3_ENDPOINT ||
-          (process.env.R2_ACCOUNT_ID
-            ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+          process.env.VITE_R2_S3_ENDPOINT ||
+          (process.env.R2_ACCOUNT_ID ||
+          process.env.VITE_R2_ACCOUNT_ID ||
+          process.env.CF_ACCOUNT_ID
+            ? `https://${process.env.R2_ACCOUNT_ID || process.env.VITE_R2_ACCOUNT_ID || process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`
             : null);
 
         if (!endpoint) {
