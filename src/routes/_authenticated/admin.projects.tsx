@@ -3,11 +3,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
-import { listAllProjectVipStatus, adminStopVip, adminStartVip, adminExtendVip } from "@/lib/vip.functions";
+import { listAllProjectVipStatus } from "@/lib/vip.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
-import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown, Clock } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 
@@ -95,17 +95,8 @@ function ProjectsAdminPage() {
                 <h3 className="font-bold">{p.name}</h3>
                 <ProjectStatusBadge status={p.status} />
               </div>
-              <div className="mt-1 flex items-center gap-2">
+              <div className="mt-1">
                 <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
-                {isAdmin && vipByProject.get(p.id)?.expires_at ? (
-                  <Link
-                    to="/admin/exclusivity/$id"
-                    params={{ id: p.id }}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] hover:bg-secondary"
-                  >
-                    <Clock className="h-3 w-3" /> تعديل المدة
-                  </Link>
-                ) : null}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -138,9 +129,6 @@ function ProjectsAdminPage() {
                   queryKey={["admin-projects"]}
                 />
               ) : null}
-              {isAdmin && p.location ? (
-                <VipControls city={p.location} />
-              ) : null}
             </div>
           </div>
         ))}
@@ -168,71 +156,6 @@ function VipBadge({ expires_at, projectId }: { expires_at: string | null; projec
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
       <Crown className="h-3 w-3" /> مميز - متبقي {days} يوم
     </span>
-  );
-}
-
-function VipControls({ city }: { city: string }) {
-  const stopFn = useServerFn(adminStopVip);
-  const startFn = useServerFn(adminStartVip);
-  const extendFn = useServerFn(adminExtendVip);
-  const [hours, setHours] = useState("6");
-
-  const h = () => {
-    const n = Number(hours);
-    if (!Number.isFinite(n) || n <= 0) return 6;
-    return n;
-  };
-
-  const stopMut = useMutation({
-    mutationFn: () => stopFn({ data: { city } }),
-    onSuccess: (r: { count: number }) => toast.success(`تم إيقاف VIP (${r.count} مشترك)`),
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const startMut = useMutation({
-    mutationFn: () => startFn({ data: { city, hours: h() } }),
-    onSuccess: (r: { count: number }) => toast.success(`تم تشغيل VIP (${r.count} مشترك)`),
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const extendMut = useMutation({
-    mutationFn: () => extendFn({ data: { city, hours: h() } }),
-    onSuccess: (r: { count: number }) => toast.success(`تم تمديد VIP (${r.count} مشترك)`),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-50/50 p-2">
-      <input
-        type="number"
-        min={1}
-        max={720}
-        value={hours}
-        onChange={(e) => setHours(e.target.value)}
-        className="w-16 rounded-md border border-border bg-background px-2 py-1 text-xs"
-        placeholder="ساعات"
-      />
-      <span className="text-xs text-muted-foreground">تعديل الساعات</span>
-      <button
-        onClick={() => startMut.mutate()}
-        disabled={startMut.isPending}
-        className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60"
-      >
-        تشغيل
-      </button>
-      <button
-        onClick={() => stopMut.mutate()}
-        disabled={stopMut.isPending}
-        className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-      >
-        إيقاف
-      </button>
-      <button
-        onClick={() => extendMut.mutate()}
-        disabled={extendMut.isPending}
-        className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-      >
-        تمديد
-      </button>
-    </div>
   );
 }
 
