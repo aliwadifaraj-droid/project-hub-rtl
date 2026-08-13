@@ -28,6 +28,7 @@ function SubmitProjectPage() {
   const [email, setEmail] = useState("");
   
   const [files, setFiles] = useState<File[]>([]);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -57,6 +58,14 @@ function SubmitProjectPage() {
       toast.error("يرجى إدخال بريد إلكتروني صحيح");
       return;
     }
+    if (!pdfFile) {
+      toast.error("الرجاء رفع ملف PDF");
+      return;
+    }
+    if (pdfFile.size > 10 * 1024 * 1024) {
+      toast.error("حجم ملف PDF يجب أن يكون أقل من 10 ميغابايت");
+      return;
+    }
     setSubmitting(true);
     try {
       const uploadedPaths: string[] = [];
@@ -65,12 +74,15 @@ function SubmitProjectPage() {
         const res = await upload({ data: { filename: f.name, mime: f.type, purpose: "project-image", data } });
         uploadedPaths.push(res.key);
       }
+      const pdfData = await fileToBase64(pdfFile);
+      const pdfRes = await upload({ data: { filename: pdfFile.name, mime: pdfFile.type || "application/pdf", purpose: "bid-pdf", data: pdfData } });
       const result = await submitAd({
         data: {
           title: name.trim(),
           description: description.trim(),
           location: location.trim(),
           image_path: uploadedPaths[0] ?? "",
+          pdf_key: pdfRes.key,
           contact_email: email.trim(),
         },
       });
@@ -79,7 +91,7 @@ function SubmitProjectPage() {
       }
       setDone(true);
     } catch (err) {
-      const formData = { name, description, location, email, files: files.map(f => f.name) };
+      const formData = { name, description, location, email, files: files.map(f => f.name), pdf: pdfFile?.name };
       alert(JSON.stringify(formData));
       toast.error(err instanceof Error ? err.message : "تعذر إرسال الطلب");
     } finally {
@@ -182,6 +194,31 @@ function SubmitProjectPage() {
                         </div>
                       ))}
                     </div>
+                  )}
+                </Field>
+
+                <Field label="ملف المشروع PDF">
+                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-4 py-5 text-sm hover:bg-secondary transition">
+                    <Upload className="h-5 w-5 text-accent" />
+                    <span className="flex-1 text-muted-foreground">
+                      {pdfFile ? pdfFile.name : "ارفع ملف PDF واحد اجباري (الحد الأقصى 10 ميغابايت)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      required
+                      onChange={(e) => { setPdfFile(e.target.files?.[0] ?? null); }}
+                      className="hidden"
+                    />
+                  </label>
+                  {pdfFile && (
+                    <button
+                      type="button"
+                      onClick={() => setPdfFile(null)}
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-destructive hover:underline"
+                    >
+                      <X className="h-3.5 w-3.5" /> إزالة الملف
+                    </button>
                   )}
                 </Field>
                 <button

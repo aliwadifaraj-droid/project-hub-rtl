@@ -84,14 +84,9 @@ export const approveAd = createServerFn({ method: "POST" })
         ad_id: ad.id,
         admin_approval: "approved",
       });
-      const projId = (await projectsRepo.findByAdId(ad.id))!.id;
-      const now = new Date();
-      const endAt = new Date(now.getTime() + 6 * 3600_000);
-      await projectsRepo.setProjectExclusive(projId, now.toISOString(), endAt.toISOString());
+      await projectsRepo.setExclusive((await projectsRepo.findByAdId(ad.id))!.id, true, 6);
     } else {
-      const now = new Date();
-      const endAt = new Date(now.getTime() + 6 * 3600_000);
-      await projectsRepo.setProjectExclusive(existing.id, now.toISOString(), endAt.toISOString());
+      await projectsRepo.setExclusive(existing.id, true, 6);
     }
     return { ok: true };
   });
@@ -163,11 +158,13 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
       description: z.string().trim().max(2000).optional().default(""),
       location: z.string().trim().max(300).optional().default(""),
       image_path: z.string().trim().max(500).optional().default(""),
+      pdf_key: z.string().trim().max(500).optional().default(""),
       contact_email: z.string().trim().max(255).refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "بريد إلكتروني غير صحيح").optional().default(""),
     }).parse(d))
   .handler(async ({ data }) => {
     if (await blockedRepo.isBlocked(null, data.contact_email)) throw new Error(BLOCKED_MESSAGE);
     const safePath = data.image_path && data.image_path.startsWith("submissions/") ? data.image_path : "";
+    const safePdf = data.pdf_key && data.pdf_key.startsWith("submissions/") ? data.pdf_key : "";
     const id = await adsRepo.insertAd({
       title: data.title,
       description: data.description || null,
@@ -175,6 +172,7 @@ export const submitVisitorAd = createServerFn({ method: "POST" })
       image_url: safePath || null,
       contact_email: data.contact_email || null,
       status: "pending",
+      pdf_key: safePdf || null,
     });
     await adsRepo.updateAd(id, { link_url: `/ads/${id}` });
     return { id };

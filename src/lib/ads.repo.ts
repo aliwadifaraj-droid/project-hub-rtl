@@ -3,6 +3,8 @@ import { db, rowsToObjects } from "./db";
 
 db.execute(`ALTER TABLE ads ADD COLUMN location TEXT`).catch(() => undefined);
 
+db.execute(`ALTER TABLE ads ADD COLUMN pdf_key TEXT`).catch(() => undefined);
+
 export type AdRow = {
   id: string;
   title: string;
@@ -62,12 +64,13 @@ export async function insertAd(input: {
   status?: string;
   contact_email?: string | null;
   created_by?: string | null;
+  pdf_key?: string | null;
 }): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.execute(
-    `INSERT INTO ads (id,title,description,location,image_url,link_url,status,contact_email,created_by,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO ads (id,title,description,location,image_url,link_url,status,contact_email,created_by,pdf_key,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id,
       input.title,
@@ -78,6 +81,7 @@ export async function insertAd(input: {
       input.status ?? "pending",
       input.contact_email ?? null,
       input.created_by ?? null,
+      input.pdf_key ?? null,
       now,
       now,
     ],

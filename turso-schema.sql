@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   user_id      TEXT NOT NULL UNIQUE,
   display_name TEXT,
   avatar_url   TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ roles (label lookup) ============
@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS projects (
   reject_reason  TEXT,
   offers_enabled INTEGER NOT NULL DEFAULT 1,   -- 1 = زر "ارسال عرض سعر" مفعّل
   bot_offers_enabled INTEGER NOT NULL DEFAULT 1, -- 1 = البوت يستلم عروض السعر لهذا المشروع
+  exclusive_hours INTEGER NOT NULL DEFAULT 6,    -- عدد ساعات الحصر قبل التعميم
+  is_exclusive   INTEGER NOT NULL DEFAULT 0,      -- 1 = المشروع حصري للمشتركين VIP
+  exclusive_until TEXT,                          -- تاريخ انتهاء فترة الحصر (ISO)
   metadata       TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
@@ -80,6 +83,7 @@ CREATE TABLE IF NOT EXISTS ads (
   title        TEXT NOT NULL,
   body         TEXT,
   image_key    TEXT,
+  pdf_key      TEXT,
   link         TEXT,
   is_active    INTEGER NOT NULL DEFAULT 1,
   sort_order   INTEGER NOT NULL DEFAULT 0,
@@ -168,7 +172,7 @@ CREATE TABLE IF NOT EXISTS bot_settings (
   singleton                   INTEGER NOT NULL DEFAULT 1 UNIQUE,
   work_days                   TEXT NOT NULL DEFAULT '{"sun":true,"mon":true,"tue":true,"wed":true,"thu":true,"fri":false,"sat":false}',
   work_start                  TEXT NOT NULL DEFAULT '09:00:00',
-  work_end                   TEXT NOT NULL DEFAULT '17:00:00',
+  work_end                    TEXT NOT NULL DEFAULT '17:00:00',
   off_hours_message           TEXT NOT NULL DEFAULT '',
   fallback_message            TEXT NOT NULL DEFAULT '',
   allow_escalation            INTEGER NOT NULL DEFAULT 1,
@@ -198,10 +202,10 @@ CREATE TABLE IF NOT EXISTS notifications (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL,
   title       TEXT NOT NULL,
-  body        TEXT,
-  link        TEXT,
-  read        INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  body       TEXT,
+  link       TEXT,
+  read       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
 
@@ -216,7 +220,6 @@ CREATE TABLE IF NOT EXISTS vip_subscribers (
   receipt_key  TEXT,          -- R2 object key
   starts_at    TEXT,
   expires_at   TEXT,
-  notified     INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_vip_user ON vip_subscribers(user_id);
@@ -310,32 +313,3 @@ CREATE TABLE IF NOT EXISTS offers (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_offers_created ON offers(created_at DESC);
-
--- ============ vip_tokens (per-VIP exclusivity bypass tokens) ============
-CREATE TABLE IF NOT EXISTS vip_tokens (
-  id          TEXT PRIMARY KEY,
-  token       TEXT NOT NULL UNIQUE,
-  project_id  TEXT NOT NULL,
-  vip_email   TEXT NOT NULL,
-  expires_at  TEXT NOT NULL,
-  used        INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_vip_tokens_token ON vip_tokens(token);
-
--- ============ project_exclusive (time-based exclusivity) ============
--- Single source of truth for exclusivity: is_exclusive + exclusive_until.
--- Legacy vip_start_at / vip_end_at kept for backward reference but no longer
--- drive the exclusivity decision.
-CREATE TABLE IF NOT EXISTS project_exclusive (
-  id             TEXT PRIMARY KEY,
-  project_id     TEXT NOT NULL UNIQUE,
-  is_exclusive   INTEGER NOT NULL DEFAULT 0,   -- 1 = المشروع حصري الآن
-  exclusive_until TEXT,                        -- ISO datetime; null = لا نهاية
-  vip_start_at    TEXT,                        -- legacy
-  vip_end_at      TEXT,                        -- legacy
-  duration_hours  INTEGER NOT NULL DEFAULT 6,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_project_exclusive_project ON project_exclusive(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_exclusive_until ON project_exclusive(exclusive_until);
