@@ -7,7 +7,7 @@ import { Settings2, Save, MessageCircleOff, Database, HardDrive, AlertTriangle, 
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
 import { getHideSupportChat, setHideSupportChat, getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
-import { getDatabaseSize, getR2StorageStats } from "@/lib/db-stats.functions";
+import { getDatabaseSize } from "@/lib/db-stats.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { adminListBlocked, adminBlockCompany, adminUnblockCompany } from "@/lib/blocked.functions";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,6 @@ function AdminSettings() {
   const fetchVipMx = useServerFn(getVipMaintenance);
   const saveVipMx = useServerFn(setVipMaintenance);
   const fetchDbSize = useServerFn(getDatabaseSize);
-  const fetchR2Stats = useServerFn(getR2StorageStats);
 
   const { data: dbSize, isLoading: dbSizeLoading } = useQuery({
     queryKey: ["db-size-admin"],
@@ -60,7 +59,16 @@ function AdminSettings() {
 
   const { data: r2Stats, isLoading: r2Loading, refetch: refetchR2, isFetching: r2Fetching } = useQuery({
     queryKey: ["r2-stats-admin"],
-    queryFn: () => fetchR2Stats(),
+    queryFn: async () => {
+      const res = await fetch("/api/admin/r2");
+      if (!res.ok) throw new Error(`R2 API ${res.status}`);
+      return res.json() as Promise<{
+        connected: boolean;
+        usedMB: number;
+        quotaMB: number;
+        fileCount: number;
+      }>;
+    },
     enabled: hasAdminRole(roles),
   });
 
@@ -249,34 +257,36 @@ function AdminSettings() {
             <p className="text-sm text-muted-foreground">جارٍ التحميل...</p>
           ) : !r2Stats.connected ? (
             <p className="text-sm text-muted-foreground">غير مربوط</p>
-          ) : (
+          ) : (() => {
+            const percent = r2Stats.quotaMB > 0 ? (r2Stats.usedMB / r2Stats.quotaMB) * 100 : 0;
+            return (
             <div className="space-y-3">
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-bold">{r2Stats.sizeGB.toFixed(4)} GB</span>
+                <span className="text-2xl font-bold">مستخدم {r2Stats.usedMB.toFixed(1)} MB</span>
                 <span className="text-sm text-muted-foreground">
-                  من {r2Stats.limitGB.toFixed(0)} GB
+                  من {(r2Stats.quotaMB / 1024).toFixed(0)} GB
                 </span>
               </div>
               <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
                 <div
                   className={`h-full transition-all ${
-                    r2Stats.percent >= 80
+                    percent >= 80
                       ? "bg-destructive"
-                      : r2Stats.percent >= 60
+                      : percent >= 60
                       ? "bg-yellow-500"
                       : "bg-primary"
                   }`}
-                  style={{ width: `${Math.min(100, r2Stats.percent).toFixed(1)}%` }}
+                  style={{ width: `${Math.min(100, percent).toFixed(1)}%` }}
                 />
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">نسبة الاستهلاك</span>
-                <span className="font-semibold">{r2Stats.percent.toFixed(1)}%</span>
+                <span className="font-semibold">{percent.toFixed(1)}%</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {r2Stats.fileCount.toLocaleString("ar-SA")} ملف
+                عدد الملفات: {r2Stats.fileCount.toLocaleString("ar-SA")}
               </p>
-              {r2Stats.percent >= 80 && (
+              {percent >= 80 && (
                 <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                   <div>
@@ -286,7 +296,8 @@ function AdminSettings() {
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 
