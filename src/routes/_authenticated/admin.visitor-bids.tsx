@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
-  adminListVisitorRequests,
+  getAddProjectRequests,
   updateRequestStatus,
   getBidPdfUrl,
   getMyRoles,
@@ -27,12 +27,12 @@ const STATUS = {
 type Status = keyof typeof STATUS;
 
 function VisitorBidsPage() {
-  const list = useServerFn(adminListVisitorRequests);
+  const list = useServerFn(getAddProjectRequests);
   const update = useServerFn(updateRequestStatus);
   const getUrl = useServerFn(getBidPdfUrl);
   const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["admin-visitor-bids"], queryFn: () => list() });
+  const { data, isLoading } = useQuery({ queryKey: ["add-project-requests"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = roles?.includes("admin");
   const [msgTarget, setMsgTarget] = useState<{ email: string; company: string } | null>(null);
@@ -41,7 +41,7 @@ function VisitorBidsPage() {
   const blockFn = useServerFn(adminBlockCompany);
   const blockMut = useMutation({
     mutationFn: (v: { company_name?: string; email?: string }) => blockFn({ data: v }),
-    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["admin-visitor-bids"] }); },
+    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["add-project-requests"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -50,7 +50,7 @@ function VisitorBidsPage() {
     onSuccess: () => {
       toast.success("تم تحديث الحالة");
       setNoteTarget(null);
-      qc.invalidateQueries({ queryKey: ["admin-visitor-bids"] });
+      qc.invalidateQueries({ queryKey: ["add-project-requests"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
