@@ -534,3 +534,62 @@ export const updateExclusivity = createServerFn({ method: "POST" })
     await invalidateProjectsAll();
     return { ok: true as const };
   });
+
+export const searchProjectByName = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator((d: { q: string }) => z.object({ q: z.string().trim().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const rows = await projectsRepo.searchByName(data.q);
+    const results = await Promise.all(rows.map(async (p) => {
+      const exclusive = await projectsRepo.getProjectExclusive(p.id).catch(() => null);
+      const vipEndAt = exclusive?.vip_end_at ?? null;
+      const remainingMs = vipEndAt ? new Date(vipEndAt).getTime() - Date.now() : 0;
+      const remainingHours = remainingMs > 0 ? Math.ceil(remainingMs / 3600_000) : 0;
+      const active = p.is_exclusive || (exclusive ? Date.now() < new Date(exclusive.vip_end_at).getTime() : false);
+      return {
+        id: p.id,
+        name: p.name,
+        location: p.location,
+        exclusive_hours: p.exclusive_hours,
+        is_exclusive: p.is_exclusive,
+        exclusive_until: p.exclusive_until,
+        has_exclusive: !!exclusive,
+        vip_end_at: vipEndAt,
+        remaining_hours: remainingHours,
+        active,
+      };
+    }));
+    return results;
+  });
+
+export const updateExclusivityHours = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { projectId: string; hours: number }) =>
+    z.object({ projectId: z.string().uuid(), hours: z.number().int().min(1).max(720) }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.updateProject(data.projectId, { exclusive_hours: data.hours });
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
+
+export const toggleExclusivityOn = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { projectId: string; hours: number }) =>
+    z.object({ projectId: z.string().uuid(), hours: z.number().int().min(1).max(720) }).parse(d))
+  .handler(async ({ data }) => {
+    const now = new Date();
+    const endAt = new Date(now.getTime() + data.hours * 3600_000);
+    await projectsRepo.setProjectExclusive(data.projectId, now.toISOString(), endAt.toISOString());
+    await projectsRepo.updateProject(data.projectId, { is_exclusive: true, exclusive_until: endAt.toISOString(), exclusive_hours: data.hours });
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
+
+export const toggleExclusivityOff = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { projectId: string }) => z.object({ projectId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.updateProject(data.projectId, { is_exclusive: false, exclusive_until: null });
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
