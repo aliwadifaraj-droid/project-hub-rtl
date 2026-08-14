@@ -128,7 +128,7 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
         facility_location: offer.project_name,
         email: offer.email,
         pdf_url: offer.pdf_key ?? "",
-        submitter_type: "offer",
+        submitter_type: "visitor",
       });
       await requests.updateRequestStatus(requestId, "new");
       await offersRepo.deleteOffer(offer.id);
