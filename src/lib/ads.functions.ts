@@ -84,7 +84,7 @@ export const approveAd = createServerFn({ method: "POST" })
         created_by: ad.created_by,
         ad_id: ad.id,
         admin_approval: "approved",
-        is_customer_request: isCustomerRequest,
+        is_customer_request: true,
       });
       await projectsRepo.setExclusive((await projectsRepo.findByAdId(ad.id))!.id, true, 6);
     } else {
