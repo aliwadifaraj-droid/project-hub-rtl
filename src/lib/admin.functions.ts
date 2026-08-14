@@ -5,6 +5,7 @@ import { hashPassword } from "./auth.server";
 import { getRolesForUser, findUserById, findUserByEmail, createUser, grantRole, listUsersWithRoles, getRoleNameById, deleteUser as deleteUserRow } from "./users.repo";
 import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
+import * as offersRepo from "./offers.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
@@ -112,7 +113,6 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offersRepo = await import("./offers.repo");
     const offers = await offersRepo.listCustomerRequestOffers();
     return offers.map((o) => ({
       id: o.id,
@@ -137,7 +137,6 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
  .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offersRepo = await import("./offers.repo");
 
     let req = await requestsRepo.getRequestById(data.id);
     let isOffer = false;
@@ -380,7 +379,8 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     if (!proj) throw new Error("المشروع غير موجود");
     if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
     const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
-    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+    const isAddProject = data.vip_token === "add_project";
+    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime() && !isAddProject) {
       if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
       const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
       const tokenResult = await validateVipToken(data.vip_token, data.project_id);
@@ -392,7 +392,21 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-    await requestsRepo.insertRequest({ project_id: data.project_id, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, project_type: "platform" });
+    if (isAddProject) {
+      await offersRepo.insertOffer({
+        project_id: data.project_id,
+        project_name: proj.name,
+        company_name: data.company_name,
+        email: data.email,
+        amount: "",
+        duration: null,
+        pdf_key: path,
+        pdf_filename: data.file_name,
+        visitor_token: null,
+      });
+    } else {
+      await requestsRepo.insertRequest({ project_id: data.project_id, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, project_type: "platform" });
+    }
     return { ok: true };
   });
 

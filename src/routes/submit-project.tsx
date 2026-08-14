@@ -132,6 +132,7 @@ function SubmitProjectPage() {
                 املأ التفاصيل وسيتم مراجعة طلبكم قبل النشر.
               </p>
               <form onSubmit={onSubmit} className="mt-6 space-y-5">
+                <input type="hidden" name="vip_token" value="add_project" />
                 <Field label="اسم المشروع">
                   <input
                     required maxLength={200}
