@@ -112,11 +112,22 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const rows = await requestsRepo.listAddProjectRequests();
-    return Promise.all(rows.map(async (r) => {
-      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
-      const canManage = !!proj && proj.created_by === context.userId;
-      return { ...r, email: isAdmin || canManage ? r.email : null, note: isAdmin || canManage ? r.note : null, projects: proj ? { name: proj.name } : null, can_manage: canManage };
+    const offersRepo = await import("./offers.repo");
+    const offers = await offersRepo.listCustomerRequestOffers();
+    return offers.map((o) => ({
+      id: o.id,
+      project_id: o.project_id,
+      company_name: o.company_name,
+      facility_location: null,
+      email: isAdmin ? o.email : null,
+      pdf_url: o.pdf_key,
+      status: o.status,
+      submitter_type: "visitor",
+      project_type: "add_project",
+      note: null,
+      created_at: o.created_at,
+      projects: { name: o.project_name },
+      can_manage: false,
     }));
   });
 
