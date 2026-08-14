@@ -97,6 +97,30 @@ export const adminListRequests = createServerFn({ method: "GET" })
     }));
   });
 
+export const adminListPlatformRequests = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = context.roles.includes("admin");
+    const rows = await requestsRepo.listRequestsBySource("platform");
+    return Promise.all(rows.map(async (r) => {
+      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+      const canManage = !!proj && proj.created_by === context.userId;
+      return { ...r, email: isAdmin || canManage ? r.email : null, note: isAdmin || canManage ? r.note : null, projects: proj ? { name: proj.name } : null, can_manage: canManage };
+    }));
+  });
+
+export const adminListVisitorRequests = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = context.roles.includes("admin");
+    const rows = await requestsRepo.listRequestsBySource("visitor");
+    return Promise.all(rows.map(async (r) => {
+      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+      const canManage = !!proj && proj.created_by === context.userId;
+      return { ...r, email: isAdmin || canManage ? r.email : null, note: isAdmin || canManage ? r.note : null, projects: proj ? { name: proj.name } : null, can_manage: canManage };
+    }));
+  });
+
 export const updateRequestStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d: { id: string; status: string; note?: string }) =>
@@ -342,7 +366,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-    await requestsRepo.insertRequest({ project_id: data.project_id, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType });
+    await requestsRepo.insertRequest({ project_id: data.project_id, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, source: submitterType === "user" ? "platform" : "visitor" });
     return { ok: true };
   });
 
