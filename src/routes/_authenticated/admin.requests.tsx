@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
-  adminListPlatformRequests,
+  getPlatformRequests,
   updateRequestStatus,
   getBidPdfUrl,
   getMyRoles,
@@ -33,12 +33,12 @@ const STATUS = {
 type Status = keyof typeof STATUS;
 
 function RequestsPage() {
-  const list = useServerFn(adminListPlatformRequests);
+  const list = useServerFn(getPlatformRequests);
   const update = useServerFn(updateRequestStatus);
   const getUrl = useServerFn(getBidPdfUrl);
   const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["admin-requests"], queryFn: () => list() });
+  const { data, isLoading } = useQuery({ queryKey: ["platform-requests"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = roles?.includes("admin");
   const [msgTarget, setMsgTarget] = useState<{ email: string; company: string } | null>(null);
@@ -48,7 +48,7 @@ function RequestsPage() {
   const blockFn = useServerFn(adminBlockCompany);
   const blockMut = useMutation({
     mutationFn: (v: { company_name?: string; email?: string }) => blockFn({ data: v }),
-    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["admin-requests"] }); },
+    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["platform-requests"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -57,7 +57,7 @@ function RequestsPage() {
     onSuccess: () => {
       toast.success("تم تحديث الحالة");
       setNoteTarget(null);
-      qc.invalidateQueries({ queryKey: ["admin-requests"] });
+      qc.invalidateQueries({ queryKey: ["platform-requests"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
