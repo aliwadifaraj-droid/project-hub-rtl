@@ -97,6 +97,18 @@ export const adminListVisitorRequests = createServerFn({ method: "GET" })
     }));
   });
 
+export const adminListPlatformRequests = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = context.roles.includes("admin");
+    const rows = await requestsRepo.listRequestsBySource("user");
+    return Promise.all(rows.map(async (r) => {
+      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+      const canManage = !!proj && proj.created_by === context.userId;
+      return { ...r, email: isAdmin || canManage ? r.email : null, note: isAdmin || canManage ? r.note : null, projects: proj ? { name: proj.name } : null, can_manage: canManage };
+    }));
+  });
+
 export const adminListRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
