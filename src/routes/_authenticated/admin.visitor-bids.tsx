@@ -3,24 +3,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
-  adminListPlatformRequests,
+  adminListVisitorRequests,
   updateRequestStatus,
   getBidPdfUrl,
   getMyRoles,
   sendRequestMessage,
-  adminListProjectOfferToggles,
-  adminSetProjectOffersEnabled,
-  adminSetAllProjectOffersEnabled,
-  adminSetProjectBotOffersEnabled,
-  adminSetAllProjectBotOffersEnabled,
 } from "@/lib/admin.functions";
-import { FileDown, Loader2, Bell, Mail, X, ToggleLeft, ToggleRight, Bot, BotOff, Ban } from "lucide-react";
+import { FileDown, Loader2, Bell, Mail, X, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { adminBlockCompany } from "@/lib/blocked.functions";
 
 
-export const Route = createFileRoute("/_authenticated/admin/requests")({
-  component: RequestsPage,
+export const Route = createFileRoute("/_authenticated/admin/visitor-bids")({
+  component: VisitorBidsPage,
 });
 
 const STATUS = {
@@ -32,13 +27,13 @@ const STATUS = {
 
 type Status = keyof typeof STATUS;
 
-function RequestsPage() {
-  const list = useServerFn(adminListPlatformRequests);
+function VisitorBidsPage() {
+  const list = useServerFn(adminListVisitorRequests);
   const update = useServerFn(updateRequestStatus);
   const getUrl = useServerFn(getBidPdfUrl);
   const getRoles = useServerFn(getMyRoles);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["admin-requests"], queryFn: () => list() });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-visitor-bids"], queryFn: () => list() });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const isAdmin = roles?.includes("admin");
   const [msgTarget, setMsgTarget] = useState<{ email: string; company: string } | null>(null);
@@ -48,7 +43,7 @@ function RequestsPage() {
   const blockFn = useServerFn(adminBlockCompany);
   const blockMut = useMutation({
     mutationFn: (v: { company_name?: string; email?: string }) => blockFn({ data: v }),
-    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["admin-requests"] }); },
+    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["admin-visitor-bids"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -57,7 +52,7 @@ function RequestsPage() {
     onSuccess: () => {
       toast.success("تم تحديث الحالة");
       setNoteTarget(null);
-      qc.invalidateQueries({ queryKey: ["admin-requests"] });
+      qc.invalidateQueries({ queryKey: ["admin-visitor-bids"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -84,7 +79,7 @@ function RequestsPage() {
   return (
     <div dir="rtl">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-xl md:text-2xl font-bold">الطلبات الواردة ({rows.length})</h1>
+        <h1 className="text-xl md:text-2xl font-bold">طلبات أضف مشروعك ({rows.length})</h1>
         <button
           aria-label="طلبات جديدة"
           className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 transition"
@@ -247,13 +242,6 @@ function RequestsPage() {
         </div>
       </div>
 
-      {isAdmin && (
-        <>
-          <OfferTogglesPanel />
-          <BotOfferTogglesPanel />
-        </>
-      )}
-
       {noteTarget && (
         <NoteModal
           target={noteTarget}
@@ -338,196 +326,6 @@ function NoteModal({
         </form>
       </div>
     </div>
-  );
-}
-
-function OfferTogglesPanel() {
-  const listFn = useServerFn(adminListProjectOfferToggles);
-  const setOneFn = useServerFn(adminSetProjectOffersEnabled);
-  const setAllFn = useServerFn(adminSetAllProjectOffersEnabled);
-  const qc = useQueryClient();
-  const { data: projects = [], isLoading } = useQuery({
-    queryKey: ["project-offer-toggles"],
-    queryFn: () => listFn(),
-  });
-
-  function refresh() {
-    qc.invalidateQueries({ queryKey: ["project-offer-toggles"] });
-  }
-
-  const toggleOne = useMutation({
-    mutationFn: (v: { id: string; enabled: boolean }) => setOneFn({ data: v }),
-    onSuccess: (_d, v) => {
-      toast.success(v.enabled ? "تم تفعيل إرسال عرض السعر" : "تم تعطيل إرسال عرض السعر");
-      refresh();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const toggleAll = useMutation({
-    mutationFn: (enabled: boolean) => setAllFn({ data: { enabled } }),
-    onSuccess: (_d, enabled) => {
-      toast.success(enabled ? "تم تفعيل الكل" : "تم تعطيل الكل");
-      refresh();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const busy = toggleOne.isPending || toggleAll.isPending;
-
-  return (
-    <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-lg">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base md:text-lg font-bold">التحكم في زر «إرسال عرض سعر»</h2>
-        <div className="flex gap-2">
-          <button
-            disabled={busy}
-            onClick={() => toggleAll.mutate(true)}
-            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
-          >
-            <ToggleRight className="h-4 w-4" /> تفعيل الكل
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => toggleAll.mutate(false)}
-            className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-60"
-          >
-            <ToggleLeft className="h-4 w-4" /> تعطيل الكل
-          </button>
-        </div>
-      </div>
-      <p className="mt-1 text-xs text-slate-400">
-        عند التعطيل يختفي زر «إرسال عرض سعر» للعميل في صفحة المشروع ويرفض البوت استلام العروض لهذا المشروع.
-      </p>
-
-      {isLoading ? (
-        <div className="grid place-items-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin" />
-        </div>
-      ) : projects.length === 0 ? (
-        <div className="py-6 text-center text-sm text-slate-400">لا توجد مشاريع</div>
-      ) : (
-        <ul className="mt-3 divide-y divide-slate-800">
-          {projects.map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
-              <span className="text-sm font-medium">{p.name}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={p.offers_enabled}
-                aria-label={`تشغيل أو إطفاء عرض السعر لمشروع ${p.name}`}
-                disabled={busy}
-                onClick={() => toggleOne.mutate({ id: p.id, enabled: !p.offers_enabled })}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-60 ${
-                  p.offers_enabled ? "bg-emerald-600" : "bg-slate-600"
-                }`}
-              >
-                <span
-                  className={`absolute h-5 w-5 rounded-full bg-white transition-all ${
-                    p.offers_enabled ? "start-[2px]" : "start-[22px]"
-                  }`}
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function BotOfferTogglesPanel() {
-  const listFn = useServerFn(adminListProjectOfferToggles);
-  const setOneFn = useServerFn(adminSetProjectBotOffersEnabled);
-  const setAllFn = useServerFn(adminSetAllProjectBotOffersEnabled);
-  const qc = useQueryClient();
-  const { data: projects = [], isLoading } = useQuery({
-    queryKey: ["project-offer-toggles"],
-    queryFn: () => listFn(),
-  });
-
-  function refresh() {
-    qc.invalidateQueries({ queryKey: ["project-offer-toggles"] });
-  }
-
-  const toggleOne = useMutation({
-    mutationFn: (v: { id: string; enabled: boolean }) => setOneFn({ data: v }),
-    onSuccess: (_d, v) => {
-      toast.success(v.enabled ? "تم تفعيل استلام البوت للعروض" : "تم تعطيل استلام البوت للعروض");
-      refresh();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const toggleAll = useMutation({
-    mutationFn: (enabled: boolean) => setAllFn({ data: { enabled } }),
-    onSuccess: (_d, enabled) => {
-      toast.success(enabled ? "تم تفعيل الكل - البوت" : "تم تعطيل الكل - البوت");
-      refresh();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const busy = toggleOne.isPending || toggleAll.isPending;
-
-  return (
-    <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-lg">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base md:text-lg font-bold">تحكم البوت في استلام عروض الأسعار</h2>
-        <div className="flex gap-2">
-          <button
-            disabled={busy}
-            onClick={() => toggleAll.mutate(true)}
-            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
-          >
-            <Bot className="h-4 w-4" /> تفعيل الكل - البوت
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => toggleAll.mutate(false)}
-            className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-60"
-          >
-            <BotOff className="h-4 w-4" /> تعطيل الكل - البوت
-          </button>
-        </div>
-      </div>
-      <p className="mt-1 text-xs text-slate-400">
-        هذا التحكم مستقل عن زر العميل: عند تعطيل مشروع يرفض البوت استلام أي عرض سعر له، وعند «تعطيل الكل» يرفض البوت كل العروض.
-      </p>
-
-      {isLoading ? (
-        <div className="grid place-items-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin" />
-        </div>
-      ) : projects.length === 0 ? (
-        <div className="py-6 text-center text-sm text-slate-400">لا توجد مشاريع</div>
-      ) : (
-        <ul className="mt-3 divide-y divide-slate-800">
-          {projects.map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
-              <span className="text-sm font-medium">{p.name}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={p.bot_offers_enabled}
-                aria-label={`تشغيل أو إطفاء استلام البوت للعروض لمشروع ${p.name}`}
-                disabled={busy}
-                onClick={() => toggleOne.mutate({ id: p.id, enabled: !p.bot_offers_enabled })}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-60 ${
-                  p.bot_offers_enabled ? "bg-emerald-600" : "bg-slate-600"
-                }`}
-              >
-                <span
-                  className={`absolute h-5 w-5 rounded-full bg-white transition-all ${
-                    p.bot_offers_enabled ? "start-[2px]" : "start-[22px]"
-                  }`}
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 
