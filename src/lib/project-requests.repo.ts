@@ -11,7 +11,6 @@ export type ProjectRequestRow = {
   status: string;
   submitter_type: string | null;
   note: string | null;
-  source: string;
   created_at: string;
 };
 
@@ -26,19 +25,18 @@ function decode(r: any): ProjectRequestRow {
     status: String(r.status ?? "new"),
     submitter_type: r.submitter_type ?? null,
     note: r.note ?? null,
-    source: String(r.source ?? "platform"),
     created_at: String(r.created_at ?? ""),
   };
 }
-const COLS = "id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,note,source,created_at";
+const COLS = "id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,note,created_at";
 
 let _noteColReady: Promise<void> | null = null;
 export function ensureNoteColumn(): Promise<void> {
   if (!_noteColReady) {
-    _noteColReady = Promise.all([
-      db.execute(`ALTER TABLE project_requests ADD COLUMN note TEXT`).then(() => undefined).catch(() => undefined),
-      db.execute(`ALTER TABLE project_requests ADD COLUMN source TEXT NOT NULL DEFAULT 'platform'`).then(() => undefined).catch(() => undefined),
-    ]).then(() => undefined);
+    _noteColReady = db
+      .execute(`ALTER TABLE project_requests ADD COLUMN note TEXT`)
+      .then(() => undefined)
+      .catch(() => undefined);
   }
   return _noteColReady;
 }
@@ -49,9 +47,12 @@ export async function listAllRequests(): Promise<ProjectRequestRow[]> {
   return rowsToObjects(r).map(decode);
 }
 
-export async function listRequestsBySource(source: string): Promise<ProjectRequestRow[]> {
+export async function listRequestsBySource(source: "visitor" | "user"): Promise<ProjectRequestRow[]> {
   await ensureNoteColumn();
-  const r = await db.execute(`SELECT ${COLS} FROM project_requests WHERE source = ? ORDER BY created_at DESC`, [source]);
+  const r = await db.execute(
+    `SELECT ${COLS} FROM project_requests WHERE submitter_type = ? ORDER BY created_at DESC`,
+    [source],
+  );
   return rowsToObjects(r).map(decode);
 }
 
@@ -94,16 +95,15 @@ export async function insertRequest(input: {
   email: string;
   pdf_url: string;
   submitter_type: string;
-  source?: string;
 }): Promise<string> {
   await ensureNoteColumn();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO project_requests (id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,source,created_at,updated_at)
-     VALUES (?,?,?,?,?,?, 'new', ?, ?, ?, ?)`,
+    `INSERT INTO project_requests (id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,created_at,updated_at)
+     VALUES (?,?,?,?,?,?, 'new', ?, ?, ?)`,
     [
       id, input.project_id, input.company_name, input.facility_location,
-      input.email, input.pdf_url, input.submitter_type, input.source ?? "platform",
+      input.email, input.pdf_url, input.submitter_type,
       new Date().toISOString(), new Date().toISOString(),
     ],
   );
