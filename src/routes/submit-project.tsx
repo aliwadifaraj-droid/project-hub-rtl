@@ -84,6 +84,7 @@ function SubmitProjectPage() {
           image_path: uploadedPaths[0] ?? "",
           pdf_key: pdfRes.key,
           contact_email: email.trim(),
+          vip_token: "add_project",
         },
       });
       if (!result?.id) {
