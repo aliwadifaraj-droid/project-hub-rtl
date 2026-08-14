@@ -71,6 +71,7 @@ export const approveAd = createServerFn({ method: "POST" })
     const ad = await adsRepo.getAdById(data.id);
     if (!ad) throw new Error("الإعلان غير موجود");
     await adsRepo.updateAd(data.id, { status: "approved", rejection_reason: null });
+    const isCustomerRequest = !ad.created_by && !!ad.contact_email;
     const existing = await projectsRepo.findByAdId(ad.id);
     if (!existing) {
       await projectsRepo.insertProject({
@@ -83,6 +84,7 @@ export const approveAd = createServerFn({ method: "POST" })
         created_by: ad.created_by,
         ad_id: ad.id,
         admin_approval: "approved",
+        is_customer_request: isCustomerRequest,
       });
       await projectsRepo.setExclusive((await projectsRepo.findByAdId(ad.id))!.id, true, 6);
     } else {

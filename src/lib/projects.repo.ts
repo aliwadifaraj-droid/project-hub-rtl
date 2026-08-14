@@ -20,6 +20,7 @@ export type ProjectRow = {
   exclusive_hours: number;
   is_exclusive: boolean;
   exclusive_until: string | null;
+  is_customer_request: boolean;
   created_at: string;
 };
 
@@ -45,11 +46,12 @@ function decode(r: any): ProjectRow {
     exclusive_hours: Number(r.exclusive_hours ?? 6),
     is_exclusive: Number(r.is_exclusive ?? 0) !== 0,
     exclusive_until: r.exclusive_until ?? null,
+    is_customer_request: Number(r.is_customer_request ?? 0) !== 0,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until,is_customer_request";
 
 let _offersColReady: Promise<void> | null = null;
 export function ensureOffersEnabledColumn(): Promise<void> {
@@ -60,6 +62,7 @@ export function ensureOffersEnabledColumn(): Promise<void> {
       db.execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`).catch(() => undefined),
       db.execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
       db.execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`).catch(() => undefined),
+      db.execute(`ALTER TABLE projects ADD COLUMN is_customer_request INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
     ]).then(() => undefined);
   }
   return _offersColReady;
@@ -159,13 +162,14 @@ export async function insertProject(input: {
   exclusive_hours?: number;
   is_exclusive?: boolean;
   exclusive_until?: string | null;
+  is_customer_request?: boolean;
 }): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.execute(
-    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at,exclusive_hours,is_exclusive,exclusive_until)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, input.name, input.description ?? null, input.location ?? null, input.duration ?? null, input.cover_image ?? null, JSON.stringify(input.images ?? []), input.pdf_file ?? null, input.created_by ?? null, input.status ?? "active", input.admin_approval ?? "approved", input.ad_id ?? null, now, now, input.exclusive_hours ?? 6, (input.is_exclusive ?? false) ? 1 : 0, input.exclusive_until ?? null],
+    `INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,created_at,updated_at,exclusive_hours,is_exclusive,exclusive_until,is_customer_request)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, input.name, input.description ?? null, input.location ?? null, input.duration ?? null, input.cover_image ?? null, JSON.stringify(input.images ?? []), input.pdf_file ?? null, input.created_by ?? null, input.status ?? "active", input.admin_approval ?? "approved", input.ad_id ?? null, now, now, input.exclusive_hours ?? 6, (input.is_exclusive ?? false) ? 1 : 0, input.exclusive_until ?? null, (input.is_customer_request ?? false) ? 1 : 0],
   );
   return id;
 }

@@ -59,7 +59,26 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
 }
 
 export async function listOffers(limit = 200): Promise<OfferRow[]> {
-  const r = await db.execute(`SELECT * FROM offers ORDER BY created_at DESC LIMIT ?`, [limit]);
+  const r = await db.execute(
+    `SELECT o.* FROM offers o
+     LEFT JOIN projects p ON o.project_id = p.id
+     WHERE p.is_customer_request = 0 OR p.is_customer_request IS NULL
+     ORDER BY o.created_at DESC LIMIT ?`,
+    [limit],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
+export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]> {
+  const { ensureOffersEnabledColumn } = await import("./projects.repo");
+  await ensureOffersEnabledColumn();
+  const r = await db.execute(
+    `SELECT o.* FROM offers o
+     INNER JOIN projects p ON o.project_id = p.id
+     WHERE p.is_customer_request = 1
+     ORDER BY o.created_at DESC LIMIT ?`,
+    [limit],
+  );
   return rowsToObjects(r).map(decode);
 }
 
