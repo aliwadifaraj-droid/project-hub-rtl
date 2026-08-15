@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { FileText, Ban, Loader2 } from "lucide-react";
-import { adminListOffers, adminUpdateOfferStatus, adminGetOfferPdfUrl } from "@/lib/offers.functions";
+import { adminListOffers, adminListAddProjectOffers, adminUpdateOfferStatus, adminGetOfferPdfUrl } from "@/lib/offers.functions";
 import { adminBlockCompany } from "@/lib/blocked.functions";
 import { toast } from "sonner";
 
@@ -27,6 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 function AdminOffersPage() {
   const qc = useQueryClient();
   const listFn = useServerFn(adminListOffers);
+  const listAddProjectFn = useServerFn(adminListAddProjectOffers);
   const updateFn = useServerFn(adminUpdateOfferStatus);
   const pdfFn = useServerFn(adminGetOfferPdfUrl);
   const blockFn = useServerFn(adminBlockCompany);
@@ -34,6 +35,11 @@ function AdminOffersPage() {
   const { data: offers = [], isLoading } = useQuery({
     queryKey: ["admin-offers"],
     queryFn: () => listFn(),
+  });
+
+  const { data: addProjectOffers = [] } = useQuery({
+    queryKey: ["admin-add-project-offers"],
+    queryFn: () => listAddProjectFn(),
   });
 
   async function openPdf(key: string) {
@@ -44,67 +50,94 @@ function AdminOffersPage() {
   async function setStatus(id: string, status: "new" | "reviewing" | "accepted" | "rejected") {
     await updateFn({ data: { id, status } });
     qc.invalidateQueries({ queryKey: ["admin-offers"] });
+    qc.invalidateQueries({ queryKey: ["admin-add-project-offers"] });
   }
 
   const blockMut = useMutation({
     mutationFn: (v: { company_name?: string; email?: string }) => blockFn({ data: v }),
-    onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["admin-offers"] }); },
+    onSuccess: () => {
+      toast.success("تم حظر الشركة");
+      qc.invalidateQueries({ queryKey: ["admin-offers"] });
+      qc.invalidateQueries({ queryKey: ["admin-add-project-offers"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  function renderOfferCard(o: any) {
+    return (
+      <div key={o.id} className="rounded-xl border border-border bg-card p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="font-bold">{o.company_name}</div>
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
+            {STATUS_LABEL[o.status] ?? o.status}
+          </span>
+        </div>
+        <div className="mt-1 grid gap-0.5 text-muted-foreground">
+          {o.project_name && o.source !== "add_project" && <span>المشروع: {o.project_name}</span>}
+          {o.amount && <span>القيمة: {o.amount}</span>}
+          {o.duration && <span>مدة المشروع: {o.duration}</span>}
+          <span>البريد: {o.email}</span>
+          {o.facility_location && <span>موقع المنشأة: {o.facility_location}</span>}
+          {o.submitter_type && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold">
+              {o.submitter_type === "customer" ? "👤 عميل" : "🔔 زائر"}
+            </span>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {o.pdf_key && (
+            <button
+              onClick={() => openPdf(o.pdf_key!)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {o.pdf_filename ?? "عرض الملف"}
+            </button>
+          )}
+          {(["reviewing", "accepted", "rejected"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatus(o.id, s)}
+              className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
+            >
+              {STATUS_LABEL[s]}
+            </button>
+          ))}
+          <button
+            disabled={blockMut.isPending}
+            onClick={() => blockMut.mutate({ company_name: o.company_name, email: o.email })}
+            className="inline-flex items-center gap-1.5 rounded-md bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-60"
+          >
+            {blockMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
+            حظر
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4" dir="rtl">
       <h1 className="text-xl font-bold">عروض الأسعار</h1>
       {isLoading && <p className="text-sm text-muted-foreground">جارٍ التحميل…</p>}
-      {!isLoading && offers.length === 0 && (
+      {!isLoading && offers.length === 0 && addProjectOffers.length === 0 && (
         <p className="text-sm text-muted-foreground">لا توجد عروض حتى الآن.</p>
       )}
-      <div className="grid gap-3">
-        {offers.map((o) => (
-          <div key={o.id} className="rounded-xl border border-border bg-card p-4 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-bold">{o.company_name}</div>
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
-                {STATUS_LABEL[o.status] ?? o.status}
-              </span>
-            </div>
-            <div className="mt-1 grid gap-0.5 text-muted-foreground">
-              <span>المشروع: {o.project_name}</span>
-              <span>القيمة: {o.amount}</span>
-              {o.duration && <span>مدة المشروع: {o.duration}</span>}
-              <span>البريد: {o.email}</span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {o.pdf_key && (
-                <button
-                  onClick={() => openPdf(o.pdf_key!)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  {o.pdf_filename ?? "عرض الملف"}
-                </button>
-              )}
-              {(["reviewing", "accepted", "rejected"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatus(o.id, s)}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
-                >
-                  {STATUS_LABEL[s]}
-                </button>
-              ))}
-              <button
-                disabled={blockMut.isPending}
-                onClick={() => blockMut.mutate({ company_name: o.company_name, email: o.email })}
-                className="inline-flex items-center gap-1.5 rounded-md bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-60"
-              >
-                {blockMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
-                حظر
-              </button>
-            </div>
+
+      {offers.length > 0 && (
+        <div className="grid gap-3">
+          {offers.map(renderOfferCard)}
+        </div>
+      )}
+
+      {addProjectOffers.length > 0 && (
+        <>
+          <h2 className="mt-8 text-lg font-bold">طلبات أضف مشروعك ({addProjectOffers.length})</h2>
+          <div className="grid gap-3">
+            {addProjectOffers.map(renderOfferCard)}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }

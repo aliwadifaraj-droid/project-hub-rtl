@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { submitBidRequest } from "@/lib/admin.functions";
+import { submitAddProjectOffer } from "@/lib/offers.functions";
+import { uploadPublicFile } from "@/lib/files.functions";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Upload, X, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -9,10 +10,13 @@ import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 
 export function BidFormAddProject() {
-  const submit = useServerFn(submitBidRequest);
+  const submitAddOffer = useServerFn(submitAddProjectOffer);
+  const upload = useServerFn(uploadPublicFile);
+
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
   const [email, setEmail] = useState("");
+  const [submitterType, setSubmitterType] = useState<"visitor" | "customer">("visitor");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -42,23 +46,37 @@ export function BidFormAddProject() {
     }
     setSubmitting(true);
     try {
-      const fileBase64 = await fileToBase64(pdfFile);
-      const result = await submit({
+      const buf = await pdfFile.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(buf);
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      const file_base64 = btoa(binary);
+
+      const uploadRes = await upload({
         data: {
-          company_name: companyName.trim(),
-          facility_location: facilityLocation.trim(),
-          email: email.trim(),
-          file_name: pdfFile.name,
-          file_base64: fileBase64,
-          vip_token: "add_project",
-          project_name: companyName.trim(),
+          filename: pdfFile.name,
+          mime: pdfFile.type || "application/pdf",
+          purpose: "bid-pdf",
+          data: file_base64,
         },
       });
-      if (result?.ok) {
-        setDone(true);
-      } else {
-        throw new Error("لم يتم حفظ الطلب");
-      }
+      if (!uploadRes?.key) throw new Error("فشل رفع الملف");
+
+      await submitAddOffer({
+        data: {
+          company_name: companyName.trim().slice(0, 200),
+          facility_location: facilityLocation.trim().slice(0, 300),
+          email: email.trim().slice(0, 255),
+          pdf_key: uploadRes.key,
+          pdf_filename: pdfFile.name,
+          submitter_type: submitterType,
+        },
+      });
+
+      setDone(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "تعذر إرسال الطلب");
     } finally {
@@ -129,6 +147,33 @@ export function BidFormAddProject() {
                   />
                 </Field>
 
+                <Field label="نوع العميل">
+                  <div className="flex gap-3">
+                    <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-4 py-2.5 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+                      <input
+                        type="radio"
+                        name="submitterType"
+                        value="visitor"
+                        checked={submitterType === "visitor"}
+                        onChange={() => setSubmitterType("visitor")}
+                        className="h-4 w-4"
+                      />
+                      زائر
+                    </label>
+                    <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-4 py-2.5 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+                      <input
+                        type="radio"
+                        name="submitterType"
+                        value="customer"
+                        checked={submitterType === "customer"}
+                        onChange={() => setSubmitterType("customer")}
+                        className="h-4 w-4"
+                      />
+                      عميل
+                    </label>
+                  </div>
+                </Field>
+
                 <Field label="ملف المشروع PDF">
                   <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-4 py-5 text-sm hover:bg-secondary transition">
                     <Upload className="h-5 w-5 text-accent" />
@@ -179,17 +224,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
-      const base64 = result.split(",")[1] ?? result;
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }

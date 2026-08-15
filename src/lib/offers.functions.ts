@@ -12,24 +12,21 @@ import { getProjectExclusive } from "./projects.repo";
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 
 const addProjectOfferSchema = z.object({
-  project_id: z.string().uuid(),
   company_name: z.string().trim().min(1).max(200),
   facility_location: z.string().trim().min(1).max(300),
   email: z.string().trim().email().max(255),
   pdf_key: z.string().trim().min(1).max(500),
   pdf_filename: z.string().trim().min(1).max(200),
+  submitter_type: z.enum(["visitor", "customer"]).default("visitor"),
 });
 
 export const submitAddProjectOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => addProjectOfferSchema.parse(d))
   .handler(async ({ data }) => {
-    const { getById } = await import("./projects.repo");
-    const proj = await getById(data.project_id);
-    if (!proj) throw new Error("المشروع غير موجود");
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
     const id = await offersRepo.insertOffer({
-      project_id: data.project_id,
-      project_name: proj.name,
+      project_id: null,
+      project_name: data.company_name,
       company_name: data.company_name,
       email: data.email,
       amount: "",
@@ -39,6 +36,7 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
       visitor_token: null,
       facility_location: data.facility_location,
       source: "add_project",
+      submitter_type: data.submitter_type,
     });
     try {
       const staff = await offersRepo.listAdminUserIds();
@@ -47,8 +45,8 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
           staff.map((uid) => ({
             user_id: uid,
             title: "عرض جديد لمشروع مضاف",
-            body: `${data.company_name} — ${proj.name}`,
-            link: "/admin/requests",
+            body: `${data.company_name} — ${data.facility_location}`,
+            link: "/admin/offers",
           })),
         );
       }
@@ -111,6 +109,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       visitor_token: data.visitorToken ?? null,
       facility_location: null,
       source: "bot",
+      submitter_type: "visitor",
     });
 
 
@@ -152,6 +151,13 @@ export const adminListOffers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     assertStaff(context.roles);
     return offersRepo.listOffers();
+  });
+
+export const adminListAddProjectOffers = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    assertStaff(context.roles);
+    return offersRepo.listAddProjectOffers();
   });
 
 export const adminCountNewOffers = createServerFn({ method: "GET" })

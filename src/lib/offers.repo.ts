@@ -15,6 +15,7 @@ export type OfferRow = {
   visitor_token: string | null;
   facility_location: string | null;
   source: string | null;
+  submitter_type: string | null;
   created_at: string;
 };
 
@@ -33,6 +34,7 @@ function decode(r: any): OfferRow {
     visitor_token: r.visitor_token ?? null,
     facility_location: r.facility_location ?? null,
     source: r.source ?? null,
+    submitter_type: r.submitter_type ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
@@ -45,6 +47,7 @@ export function ensureOffersColumns(): Promise<void> {
   _offersColReady = Promise.all([
     db.execute(`ALTER TABLE offers ADD COLUMN facility_location TEXT`).catch(() => undefined),
     db.execute(`ALTER TABLE offers ADD COLUMN source TEXT`).catch(() => undefined),
+    db.execute(`ALTER TABLE offers ADD COLUMN submitter_type TEXT`).catch(() => undefined),
   ]).then(() => undefined);
   return _offersColReady;
 }
@@ -53,8 +56,8 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
   await ensureOffersColumns();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, facility_location, source, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, facility_location, source, submitter_type, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       o.project_id ?? null,
@@ -69,6 +72,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
       o.visitor_token ?? null,
       o.facility_location ?? null,
       o.source ?? null,
+      o.submitter_type ?? "visitor",
       new Date().toISOString(),
     ],
   );
@@ -81,6 +85,15 @@ export async function listOffers(limit = 200): Promise<OfferRow[]> {
      LEFT JOIN projects p ON o.project_id = p.id
      WHERE p.is_customer_request = 0 OR p.is_customer_request IS NULL
      ORDER BY o.created_at DESC LIMIT ?`,
+    [limit],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
+export async function listAddProjectOffers(limit = 200): Promise<OfferRow[]> {
+  await ensureOffersColumns();
+  const r = await db.execute(
+    `SELECT * FROM offers WHERE source = 'add_project' ORDER BY created_at DESC LIMIT ?`,
     [limit],
   );
   return rowsToObjects(r).map(decode);
