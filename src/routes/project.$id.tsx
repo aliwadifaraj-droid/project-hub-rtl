@@ -1,7 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getProject, submitBidRequest, getMyRoles } from "@/lib/admin.functions";
 import { getMyVipStatus } from "@/lib/vip.functions";
 import { hasAdminRole } from "@/lib/role-label";
@@ -71,6 +71,20 @@ function ProjectDetail() {
     ? !!vipStatus?.isVip && (vipStatus?.city ?? "").trim() === projectCity
     : false;
   const showExclusiveGate = isExclusive && !isVipInCity;
+
+  const [remainingMs, setRemainingMs] = useState(0);
+  useEffect(() => {
+    if (!projectExclusiveUntil) return;
+    const end = new Date(projectExclusiveUntil).getTime();
+    const tick = () => setRemainingMs(Math.max(0, end - Date.now()));
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [projectExclusiveUntil]);
+  const hoursLeft = Math.floor(remainingMs / 3600_000);
+  const minutesLeft = Math.floor((remainingMs % 3600_000) / 60_000);
+  const secondsLeft = Math.floor((remainingMs % 60_000) / 1000);
+  const countdownLabel = `${String(hoursLeft).padStart(2, "0")}:${String(minutesLeft).padStart(2, "0")}:${String(secondsLeft).padStart(2, "0")}`;
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -202,8 +216,12 @@ function ProjectDetail() {
           <section className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
               <p className="text-base font-bold text-amber-900">
-                🔒 حصري لمشتركي {projectCity} حتى {new Date(projectExclusiveUntil!).toLocaleDateString("ar-SA")}
+                🔒 حصري لمشتركي {projectCity}
               </p>
+              <p className="mt-3 text-3xl font-mono font-bold text-amber-900 tabular-nums tracking-wider">
+                {countdownLabel}
+              </p>
+              <p className="mt-1 text-xs text-amber-700/80">الوقت المتبقي لانتهاء الحصرية</p>
               <p className="mt-2 text-sm text-amber-800/80">
                 هذا المشروع متاح حالياً حصرياً لمشتركي VIP في {projectCity}.
               </p>
