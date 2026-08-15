@@ -604,3 +604,11 @@ export const toggleExclusivityOff = createServerFn({ method: "POST" })
     await invalidateProjectsAll();
     return { ok: true as const };
   });
+export const adminListOffers = createServerFn({ method: "GET" })
+.middleware([requireAdmin])
+.handler(async () => {
+    const { db } = await import("./db");
+    const { offers } = await import("./schema");
+    const { eq, desc } = await import("drizzle-orm");
+    return await db.select().from(offers).where(eq(offers.type, 'add_project')).orderBy(desc(offers.createdAt));
+  });
