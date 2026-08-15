@@ -113,7 +113,7 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offers = await offersRepo.listCustomerRequestOffers();
+    const offers = await offersRepo.listAddProjectOffers();
     return offers.map((o) => ({
       id: o.id,
       project_id: o.project_id,
@@ -137,6 +137,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
  .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
+    const offersRepo = await import("./offers.repo");
 
     let req = await requestsRepo.getRequestById(data.id);
     let isOffer = false;
@@ -366,36 +367,40 @@ export const signupFirstAdmin = createServerFn({ method: "POST" })
   });
 
 export const submitBidRequest = createServerFn({ method: "POST" })
-  .inputValidator((d: { project_id: string; company_name: string; facility_location: string; email: string; file_name: string; file_base64: string; vip_token?: string | null }) =>
-    z.object({ project_id: z.string().uuid(), company_name: z.string().trim().min(1).max(200), facility_location: z.string().trim().min(1).max(300), email: z.string().trim().email().max(255), file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(15_000_000), vip_token: z.string().optional().nullable() }).parse(d))
+  .inputValidator((d: { project_id?: string; company_name: string; facility_location: string; email: string; file_name: string; file_base64: string; vip_token?: string | null; project_name?: string }) =>
+    z.object({ project_id: z.string().uuid().optional().nullable(), company_name: z.string().trim().min(1).max(200), facility_location: z.string().trim().min(1).max(300), email: z.string().trim().email().max(255), file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(15_000_000), vip_token: z.string().optional().nullable(), project_name: z.string().trim().max(200).optional() }).parse(d))
   .handler(async ({ data }) => {
     const bytes = Buffer.from(data.file_base64, "base64");
     if (bytes.length === 0) throw new Error("الملف فارغ");
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
+    const isAddProject = data.vip_token === "add_project";
     let submitterType: "guest" | "user" = "guest";
     try { const { getSessionClaims } = await import("./auth.server"); const claims = await getSessionClaims(); if (claims) submitterType = "user"; } catch { }
-    const proj = await projectsRepo.getById(data.project_id);
-    if (!proj) throw new Error("المشروع غير موجود");
-    if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
-    const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
-    const isAddProject = data.vip_token === "add_project";
-    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime() && !isAddProject) {
-      if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
-      const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
-      const tokenResult = await validateVipToken(data.vip_token, data.project_id);
-      if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
-      await consumeVipToken(data.vip_token);
+    if (!isAddProject) {
+      if (!data.project_id) throw new Error("معرف المشروع مطلوب");
+      const proj = await projectsRepo.getById(data.project_id);
+      if (!proj) throw new Error("المشروع غير موجود");
+      if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
+      const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
+      if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+        if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
+        const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
+        const tokenResult = await validateVipToken(data.vip_token, data.project_id);
+        if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
+        await consumeVipToken(data.vip_token);
+      }
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
-    const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
+    const projectIdForPath = data.project_id ?? "add-project";
+    const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
     if (isAddProject) {
       await offersRepo.insertOffer({
-        project_id: data.project_id,
-        project_name: proj.name,
+        project_id: data.project_id ?? null,
+        project_name: data.project_name || data.company_name,
         company_name: data.company_name,
         email: data.email,
         amount: "",
@@ -405,7 +410,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
         visitor_token: null,
       });
     } else {
-      await requestsRepo.insertRequest({ project_id: data.project_id, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, project_type: "platform" });
+      await requestsRepo.insertRequest({ project_id: data.project_id!, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, project_type: "platform" });
     }
     return { ok: true };
   });

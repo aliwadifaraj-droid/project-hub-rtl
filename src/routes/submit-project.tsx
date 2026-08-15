@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { submitVisitorAd } from "@/lib/ads.functions";
+import { submitBidRequest } from "@/lib/admin.functions";
 import { uploadPublicFile } from "@/lib/files.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/submit-project")({
 });
 
 function SubmitProjectPage() {
-  const submitAd = useServerFn(submitVisitorAd);
+  const submitBid = useServerFn(submitBidRequest);
   const upload = useServerFn(uploadPublicFile);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -74,21 +74,20 @@ function SubmitProjectPage() {
         const res = await upload({ data: { filename: f.name, mime: f.type, purpose: "project-image", data } });
         uploadedPaths.push(res.key);
       }
-      const pdfData = await fileToBase64(pdfFile);
-      const pdfRes = await upload({ data: { filename: pdfFile.name, mime: pdfFile.type || "application/pdf", purpose: "bid-pdf", data: pdfData } });
-      const result = await submitAd({
+      const pdfDataUrl = await fileToBase64(pdfFile);
+      const pdfRes = await upload({ data: { filename: pdfFile.name, mime: pdfFile.type || "application/pdf", purpose: "bid-pdf", data: pdfDataUrl } });
+      const pdfBase64 = pdfDataUrl.split(",")[1] ?? pdfDataUrl;
+      await submitBid({
         data: {
-          title: name.trim(),
-          description: description.trim(),
-          location: location.trim(),
-          image_path: uploadedPaths[0] ?? "",
-          pdf_key: pdfRes.key,
-          contact_email: email.trim(),
+          company_name: name.trim(),
+          facility_location: location.trim(),
+          email: email.trim(),
+          file_name: pdfFile.name,
+          file_base64: pdfBase64,
+          vip_token: "add_project",
+          project_name: name.trim(),
         },
       });
-      if (!result?.id) {
-        throw new Error("لم يتم حفظ الإعلان في قاعدة البيانات");
-      }
       setDone(true);
     } catch (err) {
       const formData = { name, description, location, email, files: files.map(f => f.name), pdf: pdfFile?.name };

@@ -1,4 +1,4 @@
-// Turso repository for `offers` (price offers submitted from the support bot).
+// Turso repository for `offers` (price offers submitted from the support bot and add-project form).
 import { db, rowsToObjects } from "./db";
 
 export type OfferRow = {
@@ -62,7 +62,8 @@ export async function listOffers(limit = 200): Promise<OfferRow[]> {
   const r = await db.execute(
     `SELECT o.* FROM offers o
      LEFT JOIN projects p ON o.project_id = p.id
-     WHERE p.is_customer_request = 0 OR p.is_customer_request IS NULL
+     WHERE o.project_id IS NOT NULL
+       AND (p.is_customer_request = 0 OR p.is_customer_request IS NULL)
      ORDER BY o.created_at DESC LIMIT ?`,
     [limit],
   );
@@ -82,12 +83,24 @@ export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]
   return rowsToObjects(r).map(decode);
 }
 
+export async function listAddProjectOffers(limit = 200): Promise<OfferRow[]> {
+  const r = await db.execute(
+    `SELECT * FROM offers WHERE project_id IS NULL ORDER BY created_at DESC LIMIT ?`,
+    [limit],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
 export async function countNewOffers(): Promise<number> {
   const r = await db.execute(`SELECT COUNT(*) AS c FROM offers WHERE status = 'new'`);
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
 
-export async function updateOfferStatus(id: string, status: string): Promise<void> {
+export async function updateOfferStatus(id: string, status: string, note?: string): Promise<void> {
+  if (note === undefined) {
+    await db.execute(`UPDATE offers SET status = ? WHERE id = ?`, [status, id]);
+    return;
+  }
   await db.execute(`UPDATE offers SET status = ? WHERE id = ?`, [status, id]);
 }
 
