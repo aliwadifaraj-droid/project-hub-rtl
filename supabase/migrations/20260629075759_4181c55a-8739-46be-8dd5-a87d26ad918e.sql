@@ -1,1 +1,0 @@
-ALTER TABLE public.vip_subscribers ADD COLUMN IF NOT EXISTS plan TEXT;

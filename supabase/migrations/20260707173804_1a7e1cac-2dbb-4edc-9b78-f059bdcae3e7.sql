@@ -1,1 +1,0 @@
-ALTER TABLE public.bot_settings ADD COLUMN IF NOT EXISTS fallback_message text NOT NULL DEFAULT 'عذرًا، لا أملك إجابة على هذا السؤال. يمكنك اختيار أحد الأسئلة من القائمة أو كتابة "موظف" للتحدث مع الدعم.'; NOTIFY pgrst, 'reload schema';

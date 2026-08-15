@@ -1,1 +1,0 @@
-ALTER TABLE public.ads ALTER COLUMN created_by DROP NOT NULL;
