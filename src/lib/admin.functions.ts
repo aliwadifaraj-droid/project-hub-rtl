@@ -52,6 +52,7 @@ export const getProject = createServerFn({ method: "GET" })
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
+        is_customer_request: p.is_customer_request,
         exclusive_until: p.exclusive_until ?? null,
         cover_url, image_urls, pdf_url,
       };
@@ -788,4 +789,22 @@ export const toggleExclusivityOff = createServerFn({ method: "POST" })
     );
     await invalidateProjectsAll();
     return { ok: true as const };
+  });
+
+export const getExclusiveStatus = createServerFn({ method: "GET" })
+  .inputValidator((d: { projectId: string; vip_token?: string | null }) =>
+    z.object({ projectId: z.string().min(1), vip_token: z.string().optional().nullable() }).parse(d))
+  .handler(async ({ data }) => {
+    const row = await projectsRepo.getProjectExclusive(data.projectId);
+    if (!row) return { showForm: true as const, vipEndAt: null, vipStartAt: null };
+    const now = Date.now();
+    const endTime = new Date(row.vip_end_at).getTime();
+    const showForm = now >= endTime;
+    if (showForm) return { showForm, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
+    if (data.vip_token) {
+      const { validateVipToken } = await import("./vip-tokens.repo");
+      const result = await validateVipToken(data.vip_token, data.projectId);
+      if (result.valid) return { showForm: true as const, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at, vipBypass: true as const };
+    }
+    return { showForm: false as const, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
   });
