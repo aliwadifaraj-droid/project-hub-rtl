@@ -102,6 +102,16 @@ export async function listOffers(limit = 200): Promise<OfferRow[]> {
   return rowsToObjects(r).map(decode);
 }
 
+export async function listAllOffers(limit = 500): Promise<OfferRow[]> {
+  await ensureSourceColumn();
+  await ensureSubmitterTypeColumn();
+  const r = await db.execute(
+    `SELECT * FROM offers ORDER BY created_at DESC LIMIT ?`,
+    [limit],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
 export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]> {
   await ensureSourceColumn();
   await ensureSubmitterTypeColumn();
