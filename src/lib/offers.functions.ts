@@ -11,51 +11,6 @@ import { getProjectExclusive } from "./projects.repo";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 
-const addProjectOfferSchema = z.object({
-  company_name: z.string().trim().min(1).max(200),
-  facility_location: z.string().trim().min(1).max(300),
-  email: z.string().trim().email().max(255),
-  pdf_key: z.string().trim().min(1).max(500),
-  pdf_filename: z.string().trim().min(1).max(200),
-  submitter_type: z.enum(["visitor", "customer"]).default("visitor"),
-});
-
-export const submitAddProjectOffer = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => addProjectOfferSchema.parse(d))
-  .handler(async ({ data }) => {
-    if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    const id = await offersRepo.insertOffer({
-      project_id: null,
-      project_name: data.company_name,
-      company_name: data.company_name,
-      email: data.email,
-      amount: "",
-      duration: null,
-      pdf_key: data.pdf_key,
-      pdf_filename: data.pdf_filename,
-      visitor_token: null,
-      facility_location: data.facility_location,
-      source: "add_project",
-      submitter_type: data.submitter_type,
-    });
-    try {
-      const staff = await offersRepo.listAdminUserIds();
-      if (staff.length) {
-        await notificationsRepo.insertMany(
-          staff.map((uid) => ({
-            user_id: uid,
-            title: "عرض جديد لمشروع مضاف",
-            body: `${data.company_name} — ${data.facility_location}`,
-            link: "/admin/offers",
-          })),
-        );
-      }
-    } catch (e) {
-      console.error("add-project offer notification failed", e);
-    }
-    return { ok: true as const, id };
-  });
-
 const submitSchema = z.object({
   projectName: z.string().trim().min(2).max(200),
   companyName: z.string().trim().min(2).max(200),
@@ -153,13 +108,6 @@ export const adminListOffers = createServerFn({ method: "GET" })
     return offersRepo.listOffers();
   });
 
-export const adminListAddProjectOffers = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    assertStaff(context.roles);
-    return offersRepo.listAddProjectOffers();
-  });
-
 export const adminCountNewOffers = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -176,16 +124,15 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
     if (data.status === "accepted") {
       const offer = await offersRepo.getOfferById(data.id);
       if (!offer) return { ok: false as const, message: "العرض غير موجود" };
-      const isAddProject = offer.source === "add_project";
       const requests = await import("./project-requests.repo");
       const requestId = await requests.insertRequest({
         project_id: offer.project_id ?? "",
         company_name: offer.company_name,
-        facility_location: isAddProject ? (offer.facility_location ?? "") : offer.project_name,
+        facility_location: offer.project_name,
         email: offer.email,
         pdf_url: offer.pdf_key ?? "",
         submitter_type: offer.submitter_type ?? "visitor",
-        project_type: isAddProject ? "add_project" : "platform",
+        project_type: "platform",
       });
       await requests.updateRequestStatus(requestId, "new");
       await offersRepo.deleteOffer(offer.id);

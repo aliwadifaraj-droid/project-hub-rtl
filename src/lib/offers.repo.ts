@@ -85,30 +85,6 @@ export async function listOffers(limit = 200): Promise<OfferRow[]> {
     `SELECT o.* FROM offers o
      LEFT JOIN projects p ON o.project_id = p.id
      WHERE (p.is_customer_request = 0 OR p.is_customer_request IS NULL)
-       AND (o.source IS NULL OR o.source != 'add_project')
-     ORDER BY o.created_at DESC LIMIT ?`,
-    [limit],
-  );
-  return rowsToObjects(r).map(decode);
-}
-
-export async function listAddProjectOffers(limit = 200): Promise<OfferRow[]> {
-  await ensureOffersColumns();
-  const r = await db.execute(
-    `SELECT * FROM offers WHERE source = 'add_project' ORDER BY created_at DESC LIMIT ?`,
-    [limit],
-  );
-  return rowsToObjects(r).map(decode);
-}
-
-export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]> {
-  await ensureOffersColumns();
-  const { ensureOffersEnabledColumn } = await import("./projects.repo");
-  await ensureOffersEnabledColumn();
-  const r = await db.execute(
-    `SELECT o.* FROM offers o
-     LEFT JOIN projects p ON o.project_id = p.id
-     WHERE o.source = 'add_project' OR (p.is_customer_request = 1)
      ORDER BY o.created_at DESC LIMIT ?`,
     [limit],
   );

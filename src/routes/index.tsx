@@ -45,12 +45,6 @@ function HomePage() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                to="/submit-project"
-                className="inline-flex items-center gap-2 rounded-lg bg-[image:var(--gradient-accent)] px-6 py-3 text-base font-bold text-accent-foreground shadow hover:opacity-90 transition"
-              >
-                أضف مشروعك
-              </Link>
-              <Link
                 to="/vip"
                 className="inline-flex items-center gap-2 rounded-lg border border-foreground/20 bg-background px-6 py-3 text-base font-bold text-foreground shadow-sm hover:bg-secondary transition"
               >
