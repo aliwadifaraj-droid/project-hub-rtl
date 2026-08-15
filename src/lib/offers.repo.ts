@@ -80,10 +80,12 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
 }
 
 export async function listOffers(limit = 200): Promise<OfferRow[]> {
+  await ensureOffersColumns();
   const r = await db.execute(
     `SELECT o.* FROM offers o
      LEFT JOIN projects p ON o.project_id = p.id
-     WHERE p.is_customer_request = 0 OR p.is_customer_request IS NULL
+     WHERE (p.is_customer_request = 0 OR p.is_customer_request IS NULL)
+       AND (o.source IS NULL OR o.source != 'add_project')
      ORDER BY o.created_at DESC LIMIT ?`,
     [limit],
   );

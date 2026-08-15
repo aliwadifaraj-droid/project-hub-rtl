@@ -176,14 +176,16 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
     if (data.status === "accepted") {
       const offer = await offersRepo.getOfferById(data.id);
       if (!offer) return { ok: false as const, message: "العرض غير موجود" };
+      const isAddProject = offer.source === "add_project";
       const requests = await import("./project-requests.repo");
       const requestId = await requests.insertRequest({
         project_id: offer.project_id ?? "",
         company_name: offer.company_name,
-        facility_location: offer.project_name,
+        facility_location: isAddProject ? (offer.facility_location ?? "") : offer.project_name,
         email: offer.email,
         pdf_url: offer.pdf_key ?? "",
-        submitter_type: "visitor",
+        submitter_type: offer.submitter_type ?? "visitor",
+        project_type: isAddProject ? "add_project" : "platform",
       });
       await requests.updateRequestStatus(requestId, "new");
       await offersRepo.deleteOffer(offer.id);

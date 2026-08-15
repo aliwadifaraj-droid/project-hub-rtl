@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileText, Ban, Loader2 } from "lucide-react";
-import { adminListOffers, adminUpdateOfferStatus, adminGetOfferPdfUrl } from "@/lib/offers.functions";
+import { adminListAddProjectOffers, adminUpdateOfferStatus, adminGetOfferPdfUrl } from "@/lib/offers.functions";
 import { adminBlockCompany } from "@/lib/blocked.functions";
 import { toast } from "sonner";
 
@@ -19,7 +19,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function SubmissionsPage() {
   const qc = useQueryClient();
-  const listFn = useServerFn(adminListOffers);
+  const listFn = useServerFn(adminListAddProjectOffers);
   const updateFn = useServerFn(adminUpdateOfferStatus);
   const pdfFn = useServerFn(adminGetOfferPdfUrl);
   const blockFn = useServerFn(adminBlockCompany);

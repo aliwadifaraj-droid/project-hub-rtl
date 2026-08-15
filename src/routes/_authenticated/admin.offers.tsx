@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { FileText, Ban, Loader2 } from "lucide-react";
-import { adminListOffers, adminListAddProjectOffers, adminUpdateOfferStatus, adminGetOfferPdfUrl } from "@/lib/offers.functions";
+import { adminListOffers, adminUpdateOfferStatus, adminGetOfferPdfUrl } from "@/lib/offers.functions";
 import { adminBlockCompany } from "@/lib/blocked.functions";
 import { toast } from "sonner";
 
@@ -27,7 +27,6 @@ const STATUS_LABEL: Record<string, string> = {
 function AdminOffersPage() {
   const qc = useQueryClient();
   const listFn = useServerFn(adminListOffers);
-  const listAddProjectFn = useServerFn(adminListAddProjectOffers);
   const updateFn = useServerFn(adminUpdateOfferStatus);
   const pdfFn = useServerFn(adminGetOfferPdfUrl);
   const blockFn = useServerFn(adminBlockCompany);
@@ -35,11 +34,6 @@ function AdminOffersPage() {
   const { data: offers = [], isLoading } = useQuery({
     queryKey: ["admin-offers"],
     queryFn: () => listFn(),
-  });
-
-  const { data: addProjectOffers = [] } = useQuery({
-    queryKey: ["admin-add-project-offers"],
-    queryFn: () => listAddProjectFn(),
   });
 
   async function openPdf(key: string) {
@@ -50,7 +44,6 @@ function AdminOffersPage() {
   async function setStatus(id: string, status: "new" | "reviewing" | "accepted" | "rejected") {
     await updateFn({ data: { id, status } });
     qc.invalidateQueries({ queryKey: ["admin-offers"] });
-    qc.invalidateQueries({ queryKey: ["admin-add-project-offers"] });
   }
 
   const blockMut = useMutation({
@@ -58,7 +51,6 @@ function AdminOffersPage() {
     onSuccess: () => {
       toast.success("تم حظر الشركة");
       qc.invalidateQueries({ queryKey: ["admin-offers"] });
-      qc.invalidateQueries({ queryKey: ["admin-add-project-offers"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -120,7 +112,7 @@ function AdminOffersPage() {
     <div className="space-y-4" dir="rtl">
       <h1 className="text-xl font-bold">عروض الأسعار</h1>
       {isLoading && <p className="text-sm text-muted-foreground">جارٍ التحميل…</p>}
-      {!isLoading && offers.length === 0 && addProjectOffers.length === 0 && (
+      {!isLoading && offers.length === 0 && (
         <p className="text-sm text-muted-foreground">لا توجد عروض حتى الآن.</p>
       )}
 
@@ -128,15 +120,6 @@ function AdminOffersPage() {
         <div className="grid gap-3">
           {offers.map(renderOfferCard)}
         </div>
-      )}
-
-      {addProjectOffers.length > 0 && (
-        <>
-          <h2 className="mt-8 text-lg font-bold">طلبات أضف مشروعك ({addProjectOffers.length})</h2>
-          <div className="grid gap-3">
-            {addProjectOffers.map(renderOfferCard)}
-          </div>
-        </>
       )}
     </div>
   );
