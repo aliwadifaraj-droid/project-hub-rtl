@@ -1,4 +1,4 @@
-// Turso repository for `offers` (price offers submitted from the support bot and add-project form).
+// Turso repository for `offers` (price offers submitted from the support bot).
 import { db, rowsToObjects } from "./db";
 
 export type OfferRow = {
@@ -13,8 +13,8 @@ export type OfferRow = {
   pdf_filename: string | null;
   status: string;
   visitor_token: string | null;
-  source: string;
-  submitter_type: string | null;
+  facility_location: string | null;
+  source: string | null;
   created_at: string;
 };
 
@@ -31,42 +31,29 @@ function decode(r: any): OfferRow {
     pdf_filename: r.pdf_filename ?? null,
     status: String(r.status ?? "new"),
     visitor_token: r.visitor_token ?? null,
-    source: String(r.source ?? "platform"),
-    submitter_type: r.submitter_type ?? null,
+    facility_location: r.facility_location ?? null,
+    source: r.source ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status" | "source" | "submitter_type"> & { status?: string; source?: string; submitter_type?: string | null };
+export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status"> & { status?: string };
 
-let _sourceColReady: Promise<void> | null = null;
-export function ensureSourceColumn(): Promise<void> {
-  if (!_sourceColReady) {
-    _sourceColReady = db
-      .execute(`ALTER TABLE offers ADD COLUMN source TEXT NOT NULL DEFAULT 'platform'`)
-      .then(() => undefined)
-      .catch(() => undefined);
-  }
-  return _sourceColReady;
-}
-
-let _submitterTypeColReady: Promise<void> | null = null;
-export function ensureSubmitterTypeColumn(): Promise<void> {
-  if (!_submitterTypeColReady) {
-    _submitterTypeColReady = db
-      .execute(`ALTER TABLE offers ADD COLUMN submitter_type TEXT`)
-      .then(() => undefined)
-      .catch(() => undefined);
-  }
-  return _submitterTypeColReady;
+let _offersColReady: Promise<void> | null = null;
+export function ensureOffersColumns(): Promise<void> {
+  if (_offersColReady) return _offersColReady;
+  _offersColReady = Promise.all([
+    db.execute(`ALTER TABLE offers ADD COLUMN facility_location TEXT`).catch(() => undefined),
+    db.execute(`ALTER TABLE offers ADD COLUMN source TEXT`).catch(() => undefined),
+  ]).then(() => undefined);
+  return _offersColReady;
 }
 
 export async function insertOffer(o: OfferInsert): Promise<string> {
-  await ensureSourceColumn();
-  await ensureSubmitterTypeColumn();
+  await ensureOffersColumns();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, source, submitter_type, created_at)
+    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, facility_location, source, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
@@ -80,8 +67,8 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
       o.pdf_filename ?? null,
       o.status ?? "new",
       o.visitor_token ?? null,
-      o.source ?? "platform",
-      o.submitter_type ?? null,
+      o.facility_location ?? null,
+      o.source ?? null,
       new Date().toISOString(),
     ],
   );
@@ -89,50 +76,26 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
 }
 
 export async function listOffers(limit = 200): Promise<OfferRow[]> {
-  await ensureSourceColumn();
-  await ensureSubmitterTypeColumn();
   const r = await db.execute(
     `SELECT o.* FROM offers o
      LEFT JOIN projects p ON o.project_id = p.id
-     WHERE o.project_id IS NOT NULL
-       AND (p.is_customer_request = 0 OR p.is_customer_request IS NULL)
+     WHERE p.is_customer_request = 0 OR p.is_customer_request IS NULL
      ORDER BY o.created_at DESC LIMIT ?`,
-    [limit],
-  );
-  return rowsToObjects(r).map(decode);
-}
-
-export async function listAllOffers(limit = 500): Promise<OfferRow[]> {
-  await ensureSourceColumn();
-  await ensureSubmitterTypeColumn();
-  const r = await db.execute(
-    `SELECT * FROM offers ORDER BY created_at DESC LIMIT ?`,
     [limit],
   );
   return rowsToObjects(r).map(decode);
 }
 
 export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]> {
-  await ensureSourceColumn();
-  await ensureSubmitterTypeColumn();
+  await ensureOffersColumns();
   const { ensureOffersEnabledColumn } = await import("./projects.repo");
   await ensureOffersEnabledColumn();
   const r = await db.execute(
     `SELECT o.* FROM offers o
-     INNER JOIN projects p ON o.project_id = p.id
-     WHERE p.is_customer_request = 1
+     LEFT JOIN projects p ON o.project_id = p.id
+     WHERE o.source = 'add_project' OR (p.is_customer_request = 1)
      ORDER BY o.created_at DESC LIMIT ?`,
     [limit],
-  );
-  return rowsToObjects(r).map(decode);
-}
-
-export async function listOffersBySource(source: "platform" | "add_project", limit = 200): Promise<OfferRow[]> {
-  await ensureSourceColumn();
-  await ensureSubmitterTypeColumn();
-  const r = await db.execute(
-    `SELECT * FROM offers WHERE source = ? ORDER BY created_at DESC LIMIT ?`,
-    [source, limit],
   );
   return rowsToObjects(r).map(decode);
 }
@@ -142,11 +105,7 @@ export async function countNewOffers(): Promise<number> {
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
 
-export async function updateOfferStatus(id: string, status: string, note?: string): Promise<void> {
-  if (note === undefined) {
-    await db.execute(`UPDATE offers SET status = ? WHERE id = ?`, [status, id]);
-    return;
-  }
+export async function updateOfferStatus(id: string, status: string): Promise<void> {
   await db.execute(`UPDATE offers SET status = ? WHERE id = ?`, [status, id]);
 }
 
@@ -154,7 +113,6 @@ export async function deleteOffer(id: string): Promise<void> {
   await db.execute(`DELETE FROM offers WHERE id = ?`, [id]);
 }
 
-/** Find a project by (fuzzy) name to attach its id + duration to the offer. */
 export async function findProjectForOffer(name: string): Promise<{ id: string; name: string; duration: string | null; offers_enabled: boolean; bot_offers_enabled: boolean } | null> {
   const n = (name ?? "").trim();
   if (!n) return null;
@@ -182,17 +140,7 @@ export async function listAdminUserIds(): Promise<string[]> {
 }
 
 export async function getOfferById(id: string): Promise<OfferRow | null> {
-  await ensureSourceColumn();
-  await ensureSubmitterTypeColumn();
   const r = await db.execute(`SELECT * FROM offers WHERE id = ? LIMIT 1`, [id]);
-  const row = rowsToObjects<any>(r)[0];
-  return row ? decode(row) : null;
-}
-
-export async function getOfferByPdfPath(path: string): Promise<OfferRow | null> {
-  await ensureSourceColumn();
-  await ensureSubmitterTypeColumn();
-  const r = await db.execute(`SELECT * FROM offers WHERE pdf_key = ? LIMIT 1`, [path]);
   const row = rowsToObjects<any>(r)[0];
   return row ? decode(row) : null;
 }
@@ -213,7 +161,6 @@ export async function searchOffersByCompany(q: string): Promise<OfferRow[]> {
   return rowsToObjects(r).map(decode);
 }
 
-/** True when an offer/request already exists for the same project + (email or company). */
 export async function existsDuplicateOffer(
   projectName: string,
   email: string,

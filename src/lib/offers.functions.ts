@@ -7,8 +7,56 @@ import * as notificationsRepo from "./notifications.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
+import { getProjectExclusive } from "./projects.repo";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
+
+const addProjectOfferSchema = z.object({
+  project_id: z.string().uuid(),
+  company_name: z.string().trim().min(1).max(200),
+  facility_location: z.string().trim().min(1).max(300),
+  email: z.string().trim().email().max(255),
+  pdf_key: z.string().trim().min(1).max(500),
+  pdf_filename: z.string().trim().min(1).max(200),
+});
+
+export const submitAddProjectOffer = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => addProjectOfferSchema.parse(d))
+  .handler(async ({ data }) => {
+    const { getById } = await import("./projects.repo");
+    const proj = await getById(data.project_id);
+    if (!proj) throw new Error("المشروع غير موجود");
+    if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    const id = await offersRepo.insertOffer({
+      project_id: data.project_id,
+      project_name: proj.name,
+      company_name: data.company_name,
+      email: data.email,
+      amount: "",
+      duration: null,
+      pdf_key: data.pdf_key,
+      pdf_filename: data.pdf_filename,
+      visitor_token: null,
+      facility_location: data.facility_location,
+      source: "add_project",
+    });
+    try {
+      const staff = await offersRepo.listAdminUserIds();
+      if (staff.length) {
+        await notificationsRepo.insertMany(
+          staff.map((uid) => ({
+            user_id: uid,
+            title: "عرض جديد لمشروع مضاف",
+            body: `${data.company_name} — ${proj.name}`,
+            link: "/admin/requests",
+          })),
+        );
+      }
+    } catch (e) {
+      console.error("add-project offer notification failed", e);
+    }
+    return { ok: true as const, id };
+  });
 
 const submitSchema = z.object({
   projectName: z.string().trim().min(2).max(200),
@@ -18,31 +66,51 @@ const submitSchema = z.object({
   pdfKey: z.string().trim().min(1).max(500),
   pdfFilename: z.string().trim().min(1).max(200),
   visitorToken: z.string().uuid().optional().nullable(),
+  vipToken: z.string().optional().nullable(),
 });
 
+export const OFFER_PROJECT_NOT_FOUND = "المشروع غير موجود";
+export const OFFER_DISABLED_MESSAGE = "تقديم عروض الأسعار متوقف حالياً لهذا المشروع";
 export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
 
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
+    const project = await offersRepo.findProjectForOffer(data.projectName);
+    if (!project) {
+      return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND };
+    }
+    const exclusive = await getProjectExclusive(project.id);
+    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+      if (!data.vipToken) return { ok: false as const, message: "المشروع في فترة حصرية" };
+      const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
+      const tokenResult = await validateVipToken(data.vipToken, project.id);
+      if (!tokenResult.valid) return { ok: false as const, message: "رمز الحصرية غير صالح أو منتهي" };
+      await consumeVipToken(data.vipToken);
+    }
+    if (!project.bot_offers_enabled) {
+      return { ok: false as const, message: OFFER_DISABLED_MESSAGE };
+    }
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
-    const duplicate = await offersRepo.existsDuplicateOffer(data.projectName, data.email, data.companyName);
+    const duplicate = await offersRepo.existsDuplicateOffer(project.name, data.email, data.companyName);
     if (duplicate) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
     const id = await offersRepo.insertOffer({
-      project_id: null,
-      project_name: data.projectName,
+      project_id: project.id,
+      project_name: project.name,
       company_name: data.companyName,
       email: data.email,
       amount: data.amount,
-      duration: null,
+      duration: project.duration ?? null,
       pdf_key: data.pdfKey,
       pdf_filename: data.pdfFilename,
       visitor_token: data.visitorToken ?? null,
+      facility_location: null,
+      source: "bot",
     });
 
 
@@ -53,7 +121,7 @@ export const submitOffer = createServerFn({ method: "POST" })
           staff.map((uid) => ({
             user_id: uid,
             title: "عرض سعر جديد",
-            body: `${data.companyName} — ${data.projectName} — ${data.amount}`,
+            body: `${data.companyName} — ${project.name} — ${data.amount}`,
             link: "/admin/offers",
           })),
         );
@@ -109,7 +177,7 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
         facility_location: offer.project_name,
         email: offer.email,
         pdf_url: offer.pdf_key ?? "",
-        submitter_type: "offer",
+        submitter_type: "visitor",
       });
       await requests.updateRequestStatus(requestId, "new");
       await offersRepo.deleteOffer(offer.id);
