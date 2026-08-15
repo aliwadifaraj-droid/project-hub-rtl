@@ -124,8 +124,7 @@ function AdminLayout() {
   const items = [
     { to: "/admin/projects", label: "كل المشاريع", icon: FolderKanban, show: true },
     { to: "/admin/requests", label: "الطلبات", icon: ClipboardList, show: true },
-    { to: "/admin/visitor-bids", label: "طلبات اضف مشروعك", icon: FileText, show: true },
-    { to: "/admin/submissions", label: "طلبات إضافة المشاريع", icon: Inbox, show: isAdmin },
+    { to: "/admin/submissions", label: "طلبات أضف مشروعك", icon: Inbox, show: isAdmin },
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: isAdmin },
     { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
     { to: "/admin/support", label: "دعم العملاء", icon: Headphones, show: true },
@@ -137,7 +136,6 @@ function AdminLayout() {
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
     { to: "/admin/vip", label: "العملاء المميزون", icon: Star, show: isAdmin },
-    { to: "/admin/exclusivity", label: "لوحة الحصرية", icon: Lock, show: isAdmin },
     { to: "/admin/settings", label: "الإعدادات", icon: Settings2, show: isAdmin },
   ];
 
