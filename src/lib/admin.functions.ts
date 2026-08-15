@@ -514,7 +514,6 @@ export const submitBidRequest = createServerFn({ method: "POST" })
 
     await exclusiveRepo.insertExclusive({
       project_id: data.project_id,
-      project_name: proj.name,
       company_name: data.company_name,
       facility_location: data.facility_location,
       email: data.email,
