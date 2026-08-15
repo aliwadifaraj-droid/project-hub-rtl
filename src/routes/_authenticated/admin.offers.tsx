@@ -65,7 +65,7 @@ function AdminOffersPage() {
           </span>
         </div>
         <div className="mt-1 grid gap-0.5 text-muted-foreground">
-          {o.project_name && o.source !== "add_project" && <span>المشروع: {o.project_name}</span>}
+          {o.project_name && <span>المشروع: {o.project_name}</span>}
           {o.amount && <span>القيمة: {o.amount}</span>}
           {o.duration && <span>مدة المشروع: {o.duration}</span>}
           <span>البريد: {o.email}</span>
