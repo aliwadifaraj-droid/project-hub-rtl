@@ -14,6 +14,7 @@ export type OfferRow = {
   status: string;
   visitor_token: string | null;
   source: string;
+  submitter_type: string | null;
   created_at: string;
 };
 
@@ -31,11 +32,12 @@ function decode(r: any): OfferRow {
     status: String(r.status ?? "new"),
     visitor_token: r.visitor_token ?? null,
     source: String(r.source ?? "platform"),
+    submitter_type: r.submitter_type ?? null,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status" | "source"> & { status?: string; source?: string };
+export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status" | "source" | "submitter_type"> & { status?: string; source?: string; submitter_type?: string | null };
 
 let _sourceColReady: Promise<void> | null = null;
 export function ensureSourceColumn(): Promise<void> {
@@ -48,12 +50,24 @@ export function ensureSourceColumn(): Promise<void> {
   return _sourceColReady;
 }
 
+let _submitterTypeColReady: Promise<void> | null = null;
+export function ensureSubmitterTypeColumn(): Promise<void> {
+  if (!_submitterTypeColReady) {
+    _submitterTypeColReady = db
+      .execute(`ALTER TABLE offers ADD COLUMN submitter_type TEXT`)
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+  return _submitterTypeColReady;
+}
+
 export async function insertOffer(o: OfferInsert): Promise<string> {
   await ensureSourceColumn();
+  await ensureSubmitterTypeColumn();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, source, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, source, submitter_type, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       o.project_id ?? null,
@@ -67,6 +81,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
       o.status ?? "new",
       o.visitor_token ?? null,
       o.source ?? "platform",
+      o.submitter_type ?? null,
       new Date().toISOString(),
     ],
   );
@@ -75,6 +90,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
 
 export async function listOffers(limit = 200): Promise<OfferRow[]> {
   await ensureSourceColumn();
+  await ensureSubmitterTypeColumn();
   const r = await db.execute(
     `SELECT o.* FROM offers o
      LEFT JOIN projects p ON o.project_id = p.id
@@ -88,6 +104,7 @@ export async function listOffers(limit = 200): Promise<OfferRow[]> {
 
 export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]> {
   await ensureSourceColumn();
+  await ensureSubmitterTypeColumn();
   const { ensureOffersEnabledColumn } = await import("./projects.repo");
   await ensureOffersEnabledColumn();
   const r = await db.execute(
@@ -102,6 +119,7 @@ export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]
 
 export async function listOffersBySource(source: "platform" | "add_project", limit = 200): Promise<OfferRow[]> {
   await ensureSourceColumn();
+  await ensureSubmitterTypeColumn();
   const r = await db.execute(
     `SELECT * FROM offers WHERE source = ? ORDER BY created_at DESC LIMIT ?`,
     [source, limit],
@@ -155,6 +173,7 @@ export async function listAdminUserIds(): Promise<string[]> {
 
 export async function getOfferById(id: string): Promise<OfferRow | null> {
   await ensureSourceColumn();
+  await ensureSubmitterTypeColumn();
   const r = await db.execute(`SELECT * FROM offers WHERE id = ? LIMIT 1`, [id]);
   const row = rowsToObjects<any>(r)[0];
   return row ? decode(row) : null;
@@ -162,6 +181,7 @@ export async function getOfferById(id: string): Promise<OfferRow | null> {
 
 export async function getOfferByPdfPath(path: string): Promise<OfferRow | null> {
   await ensureSourceColumn();
+  await ensureSubmitterTypeColumn();
   const r = await db.execute(`SELECT * FROM offers WHERE pdf_key = ? LIMIT 1`, [path]);
   const row = rowsToObjects<any>(r)[0];
   return row ? decode(row) : null;
