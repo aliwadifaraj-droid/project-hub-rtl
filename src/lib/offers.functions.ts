@@ -7,7 +7,6 @@ import * as notificationsRepo from "./notifications.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
-import { getProjectExclusive } from "./projects.repo";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 
@@ -19,46 +18,28 @@ const submitSchema = z.object({
   pdfKey: z.string().trim().min(1).max(500),
   pdfFilename: z.string().trim().min(1).max(200),
   visitorToken: z.string().uuid().optional().nullable(),
-  vipToken: z.string().optional().nullable(),
 });
 
-export const OFFER_PROJECT_NOT_FOUND = "المشروع غير موجود";
-export const OFFER_DISABLED_MESSAGE = "تقديم عروض الأسعار متوقف حالياً لهذا المشروع";
 export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
 
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
-    const project = await offersRepo.findProjectForOffer(data.projectName);
-    if (!project) {
-      return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND };
-    }
-    const exclusive = await getProjectExclusive(project.id);
-    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-      if (!data.vipToken) return { ok: false as const, message: "المشروع في فترة حصرية" };
-      const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
-      const tokenResult = await validateVipToken(data.vipToken, project.id);
-      if (!tokenResult.valid) return { ok: false as const, message: "رمز الحصرية غير صالح أو منتهي" };
-      await consumeVipToken(data.vipToken);
-    }
-    if (!project.bot_offers_enabled) {
-      return { ok: false as const, message: OFFER_DISABLED_MESSAGE };
-    }
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
-    const duplicate = await offersRepo.existsDuplicateOffer(project.name, data.email, data.companyName);
+    const duplicate = await offersRepo.existsDuplicateOffer(data.projectName, data.email, data.companyName);
     if (duplicate) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
     const id = await offersRepo.insertOffer({
-      project_id: project.id,
-      project_name: project.name,
+      project_id: null,
+      project_name: data.projectName,
       company_name: data.companyName,
       email: data.email,
       amount: data.amount,
-      duration: project.duration ?? null,
+      duration: null,
       pdf_key: data.pdfKey,
       pdf_filename: data.pdfFilename,
       visitor_token: data.visitorToken ?? null,
@@ -72,7 +53,7 @@ export const submitOffer = createServerFn({ method: "POST" })
           staff.map((uid) => ({
             user_id: uid,
             title: "عرض سعر جديد",
-            body: `${data.companyName} — ${project.name} — ${data.amount}`,
+            body: `${data.companyName} — ${data.projectName} — ${data.amount}`,
             link: "/admin/offers",
           })),
         );
@@ -128,7 +109,7 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
         facility_location: offer.project_name,
         email: offer.email,
         pdf_url: offer.pdf_key ?? "",
-        submitter_type: "visitor",
+        submitter_type: "offer",
       });
       await requests.updateRequestStatus(requestId, "new");
       await offersRepo.deleteOffer(offer.id);

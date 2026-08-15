@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   user_id      TEXT NOT NULL UNIQUE,
   display_name TEXT,
   avatar_url   TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ roles (label lookup) ============
@@ -78,14 +78,27 @@ CREATE INDEX IF NOT EXISTS idx_projects_approval ON projects(admin_approval);
 CREATE TABLE IF NOT EXISTS ads (
   id           TEXT PRIMARY KEY,
   title        TEXT NOT NULL,
-  description  TEXT,
-  image_url    TEXT,
-  link_url     TEXT,
-  position     TEXT NOT NULL DEFAULT 'sidebar',
+  body         TEXT,
+  image_key    TEXT,
+  link         TEXT,
   is_active    INTEGER NOT NULL DEFAULT 1,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  sort_order   INTEGER NOT NULL DEFAULT 0,
+  created_by   TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ads_active ON ads(is_active);
+
+-- ============ ad_comments ============
+CREATE TABLE IF NOT EXISTS ad_comments (
+  id         TEXT PRIMARY KEY,
+  ad_id      TEXT NOT NULL,
+  user_id    TEXT,
+  author     TEXT,
+  body       TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ad_comments_ad ON ad_comments(ad_id);
 
 -- ============ project_requests ============
 CREATE TABLE IF NOT EXISTS project_requests (
@@ -97,13 +110,11 @@ CREATE TABLE IF NOT EXISTS project_requests (
   phone             TEXT,
   pdf_url           TEXT,
   submitter_type    TEXT,
-  project_type      TEXT NOT NULL DEFAULT 'platform',  -- 'platform' | 'add_project'
   status            TEXT NOT NULL DEFAULT 'new',
   note              TEXT,
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_project_requests_project ON project_requests(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_requests_type ON project_requests(project_type);
 
 -- ============ project_submissions ============
 CREATE TABLE IF NOT EXISTS project_submissions (
@@ -186,11 +197,11 @@ CREATE TABLE IF NOT EXISTS team_messages (
 CREATE TABLE IF NOT EXISTS notifications (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL,
-  title       TEXT NOT NULL,
-  body        TEXT,
-  link        TEXT,
-  read        INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  title      TEXT NOT NULL,
+  body       TEXT,
+  link       TEXT,
+  read       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
 
@@ -217,8 +228,8 @@ CREATE TABLE IF NOT EXISTS support_chats (
   user_id     TEXT,
   status      TEXT NOT NULL DEFAULT 'open',
   assigned_to TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ support_messages ============
@@ -300,26 +311,20 @@ CREATE TABLE IF NOT EXISTS offers (
 );
 CREATE INDEX IF NOT EXISTS idx_offers_created ON offers(created_at DESC);
 
--- ============ vip_tokens (per-VIP exclusivity bypass tokens) ============
-CREATE TABLE IF NOT EXISTS vip_tokens (
-  id          TEXT PRIMARY KEY,
-  token       TEXT NOT NULL UNIQUE,
-  project_id  TEXT NOT NULL,
-  vip_email   TEXT NOT NULL,
-  expires_at  TEXT NOT NULL,
-  used        INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_vip_tokens_token ON vip_tokens(token);
-
--- ============ project_exclusive (time-based exclusivity) ============
+-- ============ project_exclusive (offers from platform project pages) ============
 CREATE TABLE IF NOT EXISTS project_exclusive (
-  id            TEXT PRIMARY KEY,
-  project_id    TEXT NOT NULL UNIQUE,
-  vip_start_at  TEXT NOT NULL,
-  vip_end_at    TEXT NOT NULL,
-  duration_hours INTEGER NOT NULL DEFAULT 6,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  id                TEXT PRIMARY KEY,
+  project_id        TEXT NOT NULL,
+  project_name      TEXT,
+  company_name      TEXT,
+  facility_location TEXT,
+  email             TEXT,
+  phone             TEXT,
+  pdf_url           TEXT,
+  status            TEXT NOT NULL DEFAULT 'new',
+  submitter_type    TEXT,
+  note              TEXT,
+  created_at        TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_project ON project_exclusive(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_exclusive_end ON project_exclusive(vip_end_at);
+CREATE INDEX IF NOT EXISTS idx_project_exclusive_created ON project_exclusive(created_at DESC);
