@@ -101,11 +101,25 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const rows = await requestsRepo.listPlatformRequests();
-    return Promise.all(rows.map(async (r) => {
-      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+    const offers = await offersRepo.listOffersBySource("platform");
+    return Promise.all(offers.map(async (o) => {
+      const proj = o.project_id ? await projectsRepo.getById(o.project_id).catch(() => null) : null;
       const canManage = !!proj && proj.created_by === context.userId;
-      return { ...r, email: isAdmin || canManage ? r.email : null, note: isAdmin || canManage ? r.note : null, projects: proj ? { name: proj.name } : null, can_manage: canManage };
+      return {
+        id: o.id,
+        project_id: o.project_id,
+        company_name: o.company_name,
+        facility_location: null,
+        email: isAdmin || canManage ? o.email : null,
+        pdf_url: o.pdf_key,
+        status: o.status,
+        submitter_type: "visitor",
+        project_type: "platform",
+        note: null,
+        created_at: o.created_at,
+        projects: proj ? { name: proj.name } : (o.project_name ? { name: o.project_name } : null),
+        can_manage: canManage,
+      };
     }));
   });
 
@@ -113,7 +127,7 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offers = await offersRepo.listAddProjectOffers();
+    const offers = await offersRepo.listOffersBySource("add_project");
     return offers.map((o) => ({
       id: o.id,
       project_id: o.project_id,
@@ -408,9 +422,23 @@ export const submitBidRequest = createServerFn({ method: "POST" })
         pdf_key: path,
         pdf_filename: data.file_name,
         visitor_token: null,
+        source: "add_project",
       });
     } else {
-      await requestsRepo.insertRequest({ project_id: data.project_id!, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, project_type: "platform" });
+      const proj = data.project_id ? await projectsRepo.getById(data.project_id) : null;
+      const source = proj?.is_customer_request ? "add_project" : "platform";
+      await offersRepo.insertOffer({
+        project_id: data.project_id!,
+        project_name: proj?.name ?? data.project_name ?? data.company_name,
+        company_name: data.company_name,
+        email: data.email,
+        amount: "",
+        duration: null,
+        pdf_key: path,
+        pdf_filename: data.file_name,
+        visitor_token: null,
+        source,
+      });
     }
     return { ok: true };
   });

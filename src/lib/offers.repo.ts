@@ -13,6 +13,7 @@ export type OfferRow = {
   pdf_filename: string | null;
   status: string;
   visitor_token: string | null;
+  source: string;
   created_at: string;
 };
 
@@ -29,17 +30,30 @@ function decode(r: any): OfferRow {
     pdf_filename: r.pdf_filename ?? null,
     status: String(r.status ?? "new"),
     visitor_token: r.visitor_token ?? null,
+    source: String(r.source ?? "platform"),
     created_at: String(r.created_at ?? ""),
   };
 }
 
-export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status"> & { status?: string };
+export type OfferInsert = Omit<OfferRow, "id" | "created_at" | "status" | "source"> & { status?: string; source?: string };
+
+let _sourceColReady: Promise<void> | null = null;
+export function ensureSourceColumn(): Promise<void> {
+  if (!_sourceColReady) {
+    _sourceColReady = db
+      .execute(`ALTER TABLE offers ADD COLUMN source TEXT NOT NULL DEFAULT 'platform'`)
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+  return _sourceColReady;
+}
 
 export async function insertOffer(o: OfferInsert): Promise<string> {
+  await ensureSourceColumn();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO offers (id, project_id, project_name, company_name, email, amount, duration, pdf_key, pdf_filename, status, visitor_token, source, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       o.project_id ?? null,
@@ -52,6 +66,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
       o.pdf_filename ?? null,
       o.status ?? "new",
       o.visitor_token ?? null,
+      o.source ?? "platform",
       new Date().toISOString(),
     ],
   );
@@ -59,6 +74,7 @@ export async function insertOffer(o: OfferInsert): Promise<string> {
 }
 
 export async function listOffers(limit = 200): Promise<OfferRow[]> {
+  await ensureSourceColumn();
   const r = await db.execute(
     `SELECT o.* FROM offers o
      LEFT JOIN projects p ON o.project_id = p.id
@@ -71,6 +87,7 @@ export async function listOffers(limit = 200): Promise<OfferRow[]> {
 }
 
 export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]> {
+  await ensureSourceColumn();
   const { ensureOffersEnabledColumn } = await import("./projects.repo");
   await ensureOffersEnabledColumn();
   const r = await db.execute(
@@ -83,10 +100,11 @@ export async function listCustomerRequestOffers(limit = 200): Promise<OfferRow[]
   return rowsToObjects(r).map(decode);
 }
 
-export async function listAddProjectOffers(limit = 200): Promise<OfferRow[]> {
+export async function listOffersBySource(source: "platform" | "add_project", limit = 200): Promise<OfferRow[]> {
+  await ensureSourceColumn();
   const r = await db.execute(
-    `SELECT * FROM offers WHERE project_id IS NULL ORDER BY created_at DESC LIMIT ?`,
-    [limit],
+    `SELECT * FROM offers WHERE source = ? ORDER BY created_at DESC LIMIT ?`,
+    [source, limit],
   );
   return rowsToObjects(r).map(decode);
 }
@@ -136,7 +154,15 @@ export async function listAdminUserIds(): Promise<string[]> {
 }
 
 export async function getOfferById(id: string): Promise<OfferRow | null> {
+  await ensureSourceColumn();
   const r = await db.execute(`SELECT * FROM offers WHERE id = ? LIMIT 1`, [id]);
+  const row = rowsToObjects<any>(r)[0];
+  return row ? decode(row) : null;
+}
+
+export async function getOfferByPdfPath(path: string): Promise<OfferRow | null> {
+  await ensureSourceColumn();
+  const r = await db.execute(`SELECT * FROM offers WHERE pdf_key = ? LIMIT 1`, [path]);
   const row = rowsToObjects<any>(r)[0];
   return row ? decode(row) : null;
 }
