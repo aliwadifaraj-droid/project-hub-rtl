@@ -182,15 +182,19 @@ export const upsertProject = createServerFn({ method: "POST" })
       await invalidateQuotes(existing.created_by);
       return { id: data.id };
     }
-    const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved" });
     const city = detectCity(data.location);
     const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
     if (hasVip) {
       const now = new Date();
       const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+      const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved", is_exclusive: true, exclusive_until: vipEndAt.toISOString() });
       await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
+      notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
+      await invalidateProjectsAll();
+      await invalidateQuotes(context.userId);
+      return { id, admin_approval: "approved" };
     }
-    notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
+    const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved", is_exclusive: false, exclusive_until: null });
     await invalidateProjectsAll();
     await invalidateQuotes(context.userId);
     return { id, admin_approval: "approved" };
