@@ -109,6 +109,42 @@ export const adminListRequests = createServerFn({ method: "GET" })
     }));
   });
 
+export const getPlatformRequests = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = context.roles.includes("admin");
+    const rows = await requestsRepo.listPlatformRequests();
+    return Promise.all(rows.map(async (r) => {
+      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+      const canManage = !!proj && proj.created_by === context.userId;
+      return {
+        ...r,
+        email: isAdmin || canManage ? r.email : null,
+        note: isAdmin || canManage ? r.note : null,
+        projects: proj ? { name: proj.name } : null,
+        can_manage: canManage,
+      };
+    }));
+  });
+
+export const getAddProjectRequests = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = context.roles.includes("admin");
+    const rows = await requestsRepo.listAddProjectRequests();
+    return Promise.all(rows.map(async (r) => {
+      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+      const canManage = !!proj && proj.created_by === context.userId;
+      return {
+        ...r,
+        email: isAdmin || canManage ? r.email : null,
+        note: isAdmin || canManage ? r.note : null,
+        projects: proj ? { name: proj.name } : null,
+        can_manage: canManage,
+      };
+    }));
+  });
+
 export const updateRequestStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d: { id: string; status: string; note?: string }) =>
