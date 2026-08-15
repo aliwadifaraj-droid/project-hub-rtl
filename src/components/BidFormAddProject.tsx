@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { submitAddProjectBidRequest } from "@/lib/admin.functions";
+import { submitBidRequest } from "@/lib/admin.functions";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Upload, X, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -9,11 +9,10 @@ import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 
 export function BidFormAddProject() {
-  const submit = useServerFn(submitAddProjectBidRequest);
+  const submit = useServerFn(submitBidRequest);
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
   const [email, setEmail] = useState("");
-  const [submitterType, setSubmitterType] = useState<"client" | "visitor">("visitor");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -49,9 +48,10 @@ export function BidFormAddProject() {
           company_name: companyName.trim(),
           facility_location: facilityLocation.trim(),
           email: email.trim(),
-          submitter_type: submitterType,
           file_name: pdfFile.name,
           file_base64: fileBase64,
+          vip_token: "add_project",
+          project_name: companyName.trim(),
         },
       });
       if (result?.ok) {
@@ -127,33 +127,6 @@ export function BidFormAddProject() {
                     className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                     placeholder="example@email.com"
                   />
-                </Field>
-
-                <Field label="نوع المُقدِّم">
-                  <div className="flex gap-3">
-                    <label className="flex-1 cursor-pointer rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-center transition hover:bg-secondary/50 has-[:checked]:border-accent has-[:checked]:bg-accent/10 has-[:checked]:font-semibold">
-                      <input
-                        type="radio"
-                        name="submitter_type"
-                        value="visitor"
-                        checked={submitterType === "visitor"}
-                        onChange={() => setSubmitterType("visitor")}
-                        className="hidden"
-                      />
-                      زائر
-                    </label>
-                    <label className="flex-1 cursor-pointer rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-center transition hover:bg-secondary/50 has-[:checked]:border-accent has-[:checked]:bg-accent/10 has-[:checked]:font-semibold">
-                      <input
-                        type="radio"
-                        name="submitter_type"
-                        value="client"
-                        checked={submitterType === "client"}
-                        onChange={() => setSubmitterType("client")}
-                        className="hidden"
-                      />
-                      عميل
-                    </label>
-                  </div>
                 </Field>
 
                 <Field label="ملف المشروع PDF">
