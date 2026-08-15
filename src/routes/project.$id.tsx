@@ -56,7 +56,7 @@ function ProjectDetail() {
   const isAdmin = hasAdminRole(roles);
 
   const projectExclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until ?? null;
-  const isExclusive = projectExclusiveUntil
+  const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive && projectExclusiveUntil
     ? new Date(projectExclusiveUntil).getTime() > Date.now()
     : false;
   const projectCity = (project.location ?? "").split("-")[0].trim();

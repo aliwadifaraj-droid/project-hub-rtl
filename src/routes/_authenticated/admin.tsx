@@ -134,6 +134,7 @@ function AdminLayout() {
     { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
+    { to: "/admin/exclusivity", label: "الحصرية", icon: Lock, show: isAdmin },
     { to: "/admin/vip", label: "العملاء المميزون", icon: Star, show: isAdmin },
     { to: "/admin/settings", label: "الإعدادات", icon: Settings2, show: isAdmin },
   ];
