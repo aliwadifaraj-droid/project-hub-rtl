@@ -5,7 +5,6 @@ import { hashPassword } from "./auth.server";
 import { getRolesForUser, findUserById, findUserByEmail, createUser, grantRole, listUsersWithRoles, getRoleNameById, deleteUser as deleteUserRow } from "./users.repo";
 import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
-import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
@@ -101,18 +100,6 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
     const rows = await requestsRepo.listPlatformRequests();
-    return Promise.all(rows.map(async (r) => {
-      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
-      const canManage = !!proj && proj.created_by === context.userId;
-      return { ...r, email: isAdmin || canManage ? r.email : null, note: isAdmin || canManage ? r.note : null, projects: proj ? { name: proj.name } : null, can_manage: canManage };
-    }));
-  });
-
-export const getAddProjectRequests = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    const isAdmin = context.roles.includes("admin");
-    const rows = await requestsRepo.listAddProjectRequests();
     return Promise.all(rows.map(async (r) => {
       const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
       const canManage = !!proj && proj.created_by === context.userId;
@@ -366,70 +353,6 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
     await requestsRepo.insertRequest({ project_id: data.project_id, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, project_type: "platform" });
-    return { ok: true };
-  });
-
-const imageItemSchema = z.object({ file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(8_000_000), content_type: z.string().regex(/^image\/(png|jpe?g|webp|gif)$/) });
-
-export const submitProjectSuggestion = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), images: z.array(imageItemSchema).max(8).default([]) }).parse(d))
-  .handler(async ({ data }) => {
-    if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
-    const uploadedPaths: string[] = [];
-    for (const img of data.images) {
-      const bytes = Buffer.from(img.file_base64, "base64");
-      if (bytes.length === 0) continue;
-      if (bytes.length > 5 * 1024 * 1024) throw new Error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
-      const safeName = img.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
-      const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
-      const { uploadToR2 } = await import("./r2");
-      await uploadToR2({ key: path, body: bytes, contentType: img.content_type });
-      uploadedPaths.push(path);
-    }
-    await submissionsRepo.insertSubmission({ name: data.name, description: data.description, location: data.location, contact_phone: data.contact_phone, images: uploadedPaths });
-    return { ok: true };
-  });
-
-export const adminListSubmissions = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    const rows = await submissionsRepo.listAllSubmissions();
-    return Promise.all(rows.map(async (s) => ({ ...s, image_urls: await Promise.all((s.images ?? []).map(resolveStoragePath)) })));
-  });
-
-export const approveSubmission = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    const sub = await submissionsRepo.getSubmissionById(data.id);
-    if (!sub) throw new Error("الطلب غير موجود");
-    if (sub.status === "approved" && sub.approved_project_id) return { id: sub.approved_project_id };
-    const images = sub.images ?? [];
-    const cover = images[0] ?? "placeholder.jpg";
-    const newId = await projectsRepo.insertProject({ name: sub.name, description: sub.description, location: sub.location, duration: "غير محدد", cover_image: cover, images, admin_approval: "approved" });
-    const city = detectCity(sub.location);
-    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
-    if (hasVip) {
-      const now = new Date();
-      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
-      await projectsRepo.setProjectExclusive(newId, now.toISOString(), vipEndAt.toISOString());
-    }
-    notifyVipSubscribersOfNewProject({ id: newId, name: sub.name, description: sub.description, location: sub.location }).catch((e) => console.error("[vip-notify]", e));
-    await submissionsRepo.markSubmissionApproved(data.id, newId);
-    return { id: newId };
-  });
-
-export const deleteSubmission = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => { await submissionsRepo.deleteSubmission(data.id); return { ok: true }; });
-
-export const submitProjectWithPaths = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]) }).parse(d))
-  .handler(async ({ data }) => {
-    if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
-    const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
-    await submissionsRepo.insertSubmission({ name: data.name, description: data.description, location: data.location, contact_phone: data.contact_phone, images: safePaths });
     return { ok: true };
   });
 
