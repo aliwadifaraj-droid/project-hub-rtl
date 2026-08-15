@@ -4,7 +4,6 @@ import { db, rowsToObjects } from "./db";
 export type ProjectExclusiveRow = {
   id: string;
   project_id: string;
-  project_name: string;
   company_name: string;
   facility_location: string;
   email: string;
@@ -20,7 +19,6 @@ function decode(r: any): ProjectExclusiveRow {
   return {
     id: String(r.id),
     project_id: String(r.project_id ?? ""),
-    project_name: String(r.project_name ?? ""),
     company_name: String(r.company_name ?? ""),
     facility_location: String(r.facility_location ?? ""),
     email: String(r.email ?? ""),
@@ -41,7 +39,6 @@ export function ensureTable(): Promise<void> {
         `CREATE TABLE IF NOT EXISTS project_exclusive (
           id                TEXT PRIMARY KEY,
           project_id        TEXT NOT NULL,
-          project_name      TEXT,
           company_name      TEXT,
           facility_location TEXT,
           email             TEXT,
@@ -53,6 +50,14 @@ export function ensureTable(): Promise<void> {
           created_at        TEXT NOT NULL
         )`,
       )
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN company_name TEXT`).catch(() => undefined))
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN facility_location TEXT`).catch(() => undefined))
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN email TEXT`).catch(() => undefined))
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN phone TEXT`).catch(() => undefined))
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN pdf_url TEXT`).catch(() => undefined))
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN status TEXT NOT NULL DEFAULT 'new'`).catch(() => undefined))
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN submitter_type TEXT`).catch(() => undefined))
+      .then(() => db.execute(`ALTER TABLE project_exclusive ADD COLUMN note TEXT`).catch(() => undefined))
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_project_exclusive_project ON project_exclusive(project_id)`))
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_project_exclusive_created ON project_exclusive(created_at DESC)`))
       .then(() => undefined)
@@ -63,7 +68,6 @@ export function ensureTable(): Promise<void> {
 
 export async function insertExclusive(input: {
   project_id: string;
-  project_name?: string;
   company_name: string;
   facility_location: string;
   email: string;
@@ -74,12 +78,11 @@ export async function insertExclusive(input: {
   await ensureTable();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO project_exclusive (id, project_id, project_name, company_name, facility_location, email, phone, pdf_url, status, submitter_type, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)`,
+    `INSERT INTO project_exclusive (id, project_id, company_name, facility_location, email, phone, pdf_url, status, submitter_type, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)`,
     [
       id,
       input.project_id,
-      input.project_name ?? null,
       input.company_name,
       input.facility_location,
       input.email,
