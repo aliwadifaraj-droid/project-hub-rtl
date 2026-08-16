@@ -179,7 +179,7 @@ export const approveVipSubscriber = createServerFn({ method: "POST" })
         await sendResendEmail({
           to: row.email,
           subject: "تم تفعيل اشتراك VIP ✅",
-          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتك بنا.</p></div>`,
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتنا بنا.</p></div>`,
         });
       } catch (e) {
         console.error("vip approval email error", e);
@@ -206,7 +206,36 @@ export const createTrialVipSubscription = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const row = await vipRepo.createTrialVip(data.email, data.duration_minutes);
-    return { id: row.id, email: row.email ?? data.email };
+    const delayMs = data.duration_minutes * 60_000;
+    const trialEmail = row.email ?? data.email;
+    const trialId = row.id;
+
+    setTimeout(async () => {
+      try {
+        const { sendResendEmail } = await import("./resend-send.server");
+        const expired = await vipRepo.markExpired();
+        const matched = expired.rows.find((r) => r.id === trialId);
+
+        if (matched?.email) {
+          try {
+            await sendResendEmail({
+              to: matched.email,
+              subject: "تم انتهاء اشتراك VIP",
+              html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${matched.name ?? ""},</h2><p>نود إعلامك بأن <strong>انتهى اشتراكك في باقة VIP</strong>.</p><p>توقفت العروض الحصرية المرتبطة باشتراكك.</p><p>للتجديد أو الاستفسار، يرجى التواصل معنا.</p><p>شكراً لثقتك بمنصة العمران.</p></div>`,
+            });
+            console.log(`[vip-trial] تم ارسال اشعار انتهاء لـ ${matched.email}`);
+          } catch (e) {
+            console.error(`[vip-trial] فشل ارسال اشعار انتهاء لـ ${matched.email}`, e);
+          }
+        } else {
+          console.log(`[vip-trial] لا يوجد صف منتهٍ مطابق لـ ${trialEmail} (ربما انتهى يدوياً)`);
+        }
+      } catch (e) {
+        console.error("[vip-trial] خطأ في معالجة انتهاء التجربة", e);
+      }
+    }, delayMs);
+
+    return { id: row.id, email: trialEmail };
   });
 
 export const testVipExpiry = createServerFn({ method: "POST" })
