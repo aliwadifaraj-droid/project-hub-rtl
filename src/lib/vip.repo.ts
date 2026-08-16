@@ -68,9 +68,17 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
   }));
 }
 
+const PLAN_DAYS: Record<string, number> = { "شهر": 30, "شهرين": 60, "3 شهور": 90 };
+
 export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
   await ensureColumns();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 3600_000).toISOString();
+  const sub = await db.execute(
+    `SELECT plan FROM vip_subscribers WHERE project_id = ? ORDER BY created_at DESC LIMIT 1`,
+    [projectId],
+  );
+  const subRow = rowsToObjects<any>(sub)[0];
+  const days = PLAN_DAYS[subRow?.plan] ?? 30;
+  const expiresAt = new Date(Date.now() + days * 86400_000).toISOString();
   await db.execute(
     `UPDATE vip_subscribers SET status = 'approved', expires_at = ? WHERE project_id = ?`,
     [expiresAt, projectId],
@@ -163,8 +171,7 @@ export async function insertVipSubscriber(input: {
 }) {
   await ensureCityColumn();
   const id = crypto.randomUUID();
-  const planDays: Record<string, number> = { "شهر": 30, "شهرين": 60, "3 شهور": 90 };
-  const days = planDays[input.plan] ?? 30;
+  const days = PLAN_DAYS[input.plan] ?? 30;
   const expiresAt = new Date(Date.now() + days * 86400_000).toISOString();
   await db.execute(
     `INSERT INTO vip_subscribers (id, name, email, plan, city, status, expires_at, receipt_key, created_at)
