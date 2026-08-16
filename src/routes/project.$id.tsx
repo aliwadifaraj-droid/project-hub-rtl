@@ -13,6 +13,7 @@ import { ArrowRight, MapPin, Clock, Upload, Loader2, FileDown } from "lucide-rea
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
+import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 function statusLabel(s?: string | null) {
   if (s === "delivered") return "تم التسليم";
@@ -282,15 +283,17 @@ function ProjectDetail() {
               </Field>
 
               <Field label="موقع المنشأة">
-                <input
-                  type="text"
+                <select
                   required
-                  maxLength={300}
                   value={facilityLocation}
                   onChange={(e) => setFacilityLocation(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="مثال: الرياض - حي العليا - شارع الملك فهد"
-                />
+                >
+                  <option value="" disabled>اختر المدينة</option>
+                  {SAUDI_CITIES.map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
               </Field>
 
               <Field label="البريد الإلكتروني">
