@@ -163,10 +163,13 @@ export async function insertVipSubscriber(input: {
 }) {
   await ensureCityColumn();
   const id = crypto.randomUUID();
+  const planDays: Record<string, number> = { "شهر": 30, "شهرين": 60, "3 شهور": 90 };
+  const days = planDays[input.plan] ?? 30;
+  const expiresAt = new Date(Date.now() + days * 86400_000).toISOString();
   await db.execute(
-    `INSERT INTO vip_subscribers (id, name, email, plan, city, status, receipt_key, created_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
-    [id, input.name, input.email, input.plan, input.city, input.receipt_path, new Date().toISOString()],
+    `INSERT INTO vip_subscribers (id, name, email, plan, city, status, expires_at, receipt_key, created_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+    [id, input.name, input.email, input.plan, input.city, expiresAt, input.receipt_path, new Date().toISOString()],
   );
   return id;
 }
