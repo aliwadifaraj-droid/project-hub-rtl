@@ -184,7 +184,6 @@ function AdminVipPage() {
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
                 <TableHead>المشروع</TableHead>
-                <TableHead>الباقة</TableHead>
                 <TableHead>الحالة</TableHead>
                 <TableHead>تاريخ الانتهاء</TableHead>
                 <TableHead>ينتهي خلال</TableHead>
@@ -204,12 +203,11 @@ function AdminVipPage() {
                     <TableCell className="text-xs">
                       {(s as { project_name?: string | null }).project_name ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs">{(s as { plan?: string | null }).plan ?? "—"}</TableCell>
                     <TableCell>{statusBadge(s.status)}</TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell>
                       {(s as { expires_at?: string | null }).expires_at
-                        ? new Date((s as { expires_at?: string | null }).expires_at!).toLocaleDateString("ar-SA")
-                        : "—"}
+                        ? new Date((s as { expires_at: string }).expires_at).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })
+                        : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
                       {isApproved && hours !== null ? (
