@@ -10,6 +10,7 @@ import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
+import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 export const Route = createFileRoute("/_authenticated/admin/projects")({
   component: ProjectsAdminPage,
@@ -220,7 +221,17 @@ function ProjectModal({
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="الموقع">
-              <input className="inp" value={form.location ?? ""} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              <select
+                className="inp"
+                required
+                value={form.location ?? ""}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+              >
+                <option value="" disabled>اختر المدينة</option>
+                {SAUDI_CITIES.map((city) => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
             </Field>
             <Field label="المدة المتوقعة">
               <input className="inp" value={form.duration ?? ""} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
