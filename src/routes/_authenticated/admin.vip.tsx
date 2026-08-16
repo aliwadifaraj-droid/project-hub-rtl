@@ -183,6 +183,7 @@ function AdminVipPage() {
               <TableRow>
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
+                <TableHead>المدينة</TableHead>
                 <TableHead>المشروع</TableHead>
                 <TableHead>الحالة</TableHead>
                 <TableHead>تاريخ الانتهاء</TableHead>
@@ -200,6 +201,7 @@ function AdminVipPage() {
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.name ?? "—"}</TableCell>
                     <TableCell className="text-xs">{s.email ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{(s as { city?: string | null }).city ?? "—"}</TableCell>
                     <TableCell className="text-xs">
                       {(s as { project_name?: string | null }).project_name ?? "—"}
                     </TableCell>
