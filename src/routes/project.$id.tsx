@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
-import { getProject, submitBidRequest, getMyRoles } from "@/lib/admin.functions";
+import { getProject, submitBidRequest, getMyRoles, getExclusiveStatus } from "@/lib/admin.functions";
 import { getMyVipStatus } from "@/lib/vip.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { resolveImage } from "@/data/projects";
@@ -36,6 +36,9 @@ function pickImage(p: { cover_url?: string; cover_image: string | null }) {
 }
 
 export const Route = createFileRoute("/project/$id")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    vip_token: typeof search.vip_token === "string" ? search.vip_token : undefined,
+  }),
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(projectQuery(params.id)),
   component: ProjectDetail,
@@ -43,6 +46,8 @@ export const Route = createFileRoute("/project/$id")({
 
 function ProjectDetail() {
   const { id } = Route.useParams();
+  const search = Route.useSearch();
+  const vipToken = (search as { vip_token?: string }).vip_token ?? null;
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
   const getRoles = useServerFn(getMyRoles);
@@ -61,6 +66,12 @@ function ProjectDetail() {
     : false;
   const projectCity = (project.location ?? "").split("-")[0].trim();
 
+  const { data: exclusiveStatus } = useQuery({
+    queryKey: ["exclusive-status", id, vipToken],
+    queryFn: () => getExclusiveStatus({ data: { projectId: id, vip_token: vipToken } }),
+    enabled: isExclusive,
+    retry: false,
+  });
   const { data: vipStatus } = useQuery({
     queryKey: ["my-vip-status", id],
     queryFn: () => getVipStatus({ data: { project_id: id } }),
@@ -70,7 +81,7 @@ function ProjectDetail() {
   const isVipInCity = isExclusive
     ? !!vipStatus?.isVip && (vipStatus?.city ?? "").trim() === projectCity
     : false;
-  const showExclusiveGate = isExclusive && !isVipInCity;
+  const showExclusiveGate = isExclusive && !isVipInCity && !exclusiveStatus?.showForm;
 
   const [remainingMs, setRemainingMs] = useState(0);
   useEffect(() => {
@@ -127,6 +138,7 @@ function ProjectDetail() {
           email: email.trim().slice(0, 255),
           file_name: pdfFile.name,
           file_base64,
+          vip_token: vipToken,
         },
       });
 
