@@ -5,6 +5,8 @@ import { hashPassword } from "./auth.server";
 import { getRolesForUser, findUserById, findUserByEmail, createUser, grantRole, listUsersWithRoles, getRoleNameById, deleteUser as deleteUserRow } from "./users.repo";
 import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
+import * as offersRepo from "./offers.repo";
+import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
@@ -50,8 +52,6 @@ export const getProject = createServerFn({ method: "GET" })
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
-        is_exclusive: p.is_exclusive,
-        exclusive_until: p.exclusive_until,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {
@@ -101,38 +101,90 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const rows = await requestsRepo.listPlatformRequests();
-    return Promise.all(rows.map(async (r) => {
-      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+    const offers = await offersRepo.listOffersBySource("platform");
+    return Promise.all(offers.map(async (o) => {
+      const proj = o.project_id ? await projectsRepo.getById(o.project_id).catch(() => null) : null;
       const canManage = !!proj && proj.created_by === context.userId;
-      return { ...r, email: isAdmin || canManage ? r.email : null, note: isAdmin || canManage ? r.note : null, projects: proj ? { name: proj.name } : null, can_manage: canManage };
+      return {
+        id: o.id,
+        project_id: o.project_id,
+        company_name: o.company_name,
+        facility_location: null,
+        email: isAdmin || canManage ? o.email : null,
+        pdf_url: o.pdf_key,
+        status: o.status,
+        submitter_type: "visitor",
+        project_type: "platform",
+        note: null,
+        created_at: o.created_at,
+        projects: proj ? { name: proj.name } : (o.project_name ? { name: o.project_name } : null),
+        can_manage: canManage,
+      };
+    }));
+  });
+
+export const getAddProjectRequests = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = context.roles.includes("admin");
+    const offers = await offersRepo.listOffersBySource("add_project");
+    return offers.map((o) => ({
+      id: o.id,
+      project_id: o.project_id,
+      company_name: o.company_name,
+      facility_location: null,
+      email: isAdmin ? o.email : null,
+      pdf_url: o.pdf_key,
+      status: o.status,
+      submitter_type: (o as any).submitter_type ?? "visitor",
+      project_type: "add_project",
+      note: null,
+      created_at: o.created_at,
+      projects: { name: o.project_name },
+      can_manage: false,
     }));
   });
 
 export const updateRequestStatus = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { id: string; status: string; note?: string }) =>
+ .middleware([requireAuth])
+ .inputValidator((d: { id: string; status: string; note?: string }) =>
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
-  .handler(async ({ data, context }) => {
+ .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
-    const req = await requestsRepo.getRequestById(data.id);
-    if (!req) throw new Error("الطلب غير موجود");
-    if (!isAdmin) {
-      const proj = req.project_id ? await projectsRepo.getById(req.project_id) : null;
-      if (!proj || proj.created_by !== context.userId) throw new Error("غير مصرح بتغيير حالة هذا الطلب");
+    const offersRepo = await import("./offers.repo");
+
+    let req = await requestsRepo.getRequestById(data.id);
+    let isOffer = false;
+
+    if (!req) {
+      req = await offersRepo.getOfferById(data.id);
+      isOffer = true;
     }
-    const note = (data.note ?? "").trim();
-    if (!isAdmin && !note) throw new Error("الملاحظة إجبارية للموظف عند تغيير الحالة");
-    await requestsRepo.updateRequestStatus(data.id, data.status, note ? note : undefined);
+    if (!req) throw new Error("الطلب غير موجود");
+
+    if (!isAdmin) {
+      const proj = req.project_id? await projectsRepo.getById(req.project_id) : null;
+      if (!proj || proj.created_by!== context.userId) throw new Error("غير مصرح بتغيير حالة هذا الطلب");
+    }
+
+    const note = (data.note?? "").trim();
+    if (!isAdmin &&!note) throw new Error("الملاحظة إجبارية للموظف عند تغيير الحالة");
+
+    if (isOffer) {
+      await offersRepo.updateOfferStatus(data.id, data.status, note || undefined);
+    } else {
+      await requestsRepo.updateRequestStatus(data.id, data.status, note? note : undefined);
+    }
+
     if (req.email) {
       const apiKey = process.env.RESEND_API_KEY;
       if (apiKey) {
-        const proj = req.project_id ? await projectsRepo.getById(req.project_id).catch(() => null) : null;
-        const projectName = proj?.name || req.company_name || "طلبك";
+        const proj = req.project_id? await projectsRepo.getById(req.project_id).catch(() => null) : null;
+        const projectName = proj?.name || req.company_name || req.project_name || "طلبك";
         const statusLabels: Record<string, string> = { new: "جديد", reviewing: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض" };
         const statusColors: Record<string, string> = { new: "#2563eb", reviewing: "#d97706", accepted: "#16a34a", rejected: "#dc2626" };
-        const label = statusLabels[data.status] ?? data.status;
-        const color = statusColors[data.status] ?? "#111";
+        const label = statusLabels[data.status]?? data.status;
+        const color = statusColors[data.status]?? "#111";
         const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb"><div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb"><h2 style="margin:0 0 12px">تحديث حالة طلبك</h2><p>مرحباً،</p><p>نودّ إعلامك بأن حالة طلبك المتعلق بمشروع <strong>"${projectName}"</strong> قد تم تحديثها إلى:</p><p style="font-size:18px;font-weight:bold;color:${color};padding:12px;background:#f3f4f6;border-radius:6px;text-align:center">${label}</p><p>شكراً لاستخدامك <strong>منصة العمران</strong>.</p></div></div>`;
         try { await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <send@ali-alhaddad.com>", to: [req.email], subject: "تحديث حالة طلبك في منصة العمران", html }) }); } catch (e) { console.error("Resend send exception", e); }
       }
@@ -182,19 +234,15 @@ export const upsertProject = createServerFn({ method: "POST" })
       await invalidateQuotes(existing.created_by);
       return { id: data.id };
     }
+    const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved" });
     const city = detectCity(data.location);
     const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
     if (hasVip) {
       const now = new Date();
       const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
-      const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved", is_exclusive: true, exclusive_until: vipEndAt.toISOString() });
       await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
-      notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
-      await invalidateProjectsAll();
-      await invalidateQuotes(context.userId);
-      return { id, admin_approval: "approved" };
     }
-    const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved", is_exclusive: false, exclusive_until: null });
+    notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
     await invalidateProjectsAll();
     await invalidateQuotes(context.userId);
     return { id, admin_approval: "approved" };
@@ -333,32 +381,158 @@ export const signupFirstAdmin = createServerFn({ method: "POST" })
   });
 
 export const submitBidRequest = createServerFn({ method: "POST" })
-  .inputValidator((d: { project_id: string; company_name: string; facility_location: string; email: string; file_name: string; file_base64: string; vip_token?: string | null }) =>
-    z.object({ project_id: z.string().uuid(), company_name: z.string().trim().min(1).max(200), facility_location: z.string().trim().min(1).max(300), email: z.string().trim().email().max(255), file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(15_000_000), vip_token: z.string().optional().nullable() }).parse(d))
+  .inputValidator((d: { project_id?: string; company_name: string; facility_location: string; email: string; file_name: string; file_base64: string; vip_token?: string | null; project_name?: string }) =>
+    z.object({ project_id: z.string().uuid().optional().nullable(), company_name: z.string().trim().min(1).max(200), facility_location: z.string().trim().min(1).max(300), email: z.string().trim().email().max(255), file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(15_000_000), vip_token: z.string().optional().nullable(), project_name: z.string().trim().max(200).optional() }).parse(d))
   .handler(async ({ data }) => {
     const bytes = Buffer.from(data.file_base64, "base64");
     if (bytes.length === 0) throw new Error("الملف فارغ");
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
+    const isAddProject = data.vip_token === "add_project";
     let submitterType: "guest" | "user" = "guest";
     try { const { getSessionClaims } = await import("./auth.server"); const claims = await getSessionClaims(); if (claims) submitterType = "user"; } catch { }
-    const proj = await projectsRepo.getById(data.project_id);
-    if (!proj) throw new Error("المشروع غير موجود");
-    if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
-    const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
-    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-      if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
-      const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
-      const tokenResult = await validateVipToken(data.vip_token, data.project_id);
-      if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
-      await consumeVipToken(data.vip_token);
+    if (!isAddProject) {
+      if (!data.project_id) throw new Error("معرف المشروع مطلوب");
+      const proj = await projectsRepo.getById(data.project_id);
+      if (!proj) throw new Error("المشروع غير موجود");
+      if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
+      const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
+      if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+        if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
+        const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
+        const tokenResult = await validateVipToken(data.vip_token, data.project_id);
+        if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
+        await consumeVipToken(data.vip_token);
+      }
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
-    const path = `${data.project_id}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
+    const projectIdForPath = data.project_id ?? "add-project";
+    const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-    await requestsRepo.insertRequest({ project_id: data.project_id, company_name: data.company_name, facility_location: data.facility_location, email: data.email, pdf_url: path, submitter_type: submitterType, project_type: "platform" });
+    if (isAddProject) {
+      await offersRepo.insertOffer({
+        project_id: data.project_id ?? null,
+        project_name: data.project_name || data.company_name,
+        company_name: data.company_name,
+        email: data.email,
+        amount: "",
+        duration: null,
+        pdf_key: path,
+        pdf_filename: data.file_name,
+        visitor_token: null,
+        source: "add_project",
+      });
+    } else {
+      const proj = data.project_id ? await projectsRepo.getById(data.project_id) : null;
+      const source = proj?.is_customer_request ? "add_project" : "platform";
+      await offersRepo.insertOffer({
+        project_id: data.project_id!,
+        project_name: proj?.name ?? data.project_name ?? data.company_name,
+        company_name: data.company_name,
+        email: data.email,
+        amount: "",
+        duration: null,
+        pdf_key: path,
+        pdf_filename: data.file_name,
+        visitor_token: null,
+        source,
+      });
+    }
+    return { ok: true };
+  });
+
+export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
+  .inputValidator((d: { company_name: string; facility_location: string; email: string; submitter_type: "client" | "visitor"; file_name: string; file_base64: string }) =>
+    z.object({ company_name: z.string().trim().min(1).max(200), facility_location: z.string().trim().min(1).max(300), email: z.string().trim().email().max(255), submitter_type: z.enum(["client", "visitor"]), file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(15_000_000) }).parse(d))
+  .handler(async ({ data }) => {
+    const bytes = Buffer.from(data.file_base64, "base64");
+    if (bytes.length === 0) throw new Error("الملف فارغ");
+    if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
+    if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
+    if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
+    const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
+    const { uploadToR2 } = await import("./r2");
+    await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
+    await offersRepo.insertOffer({
+      project_id: null,
+      project_name: data.company_name,
+      company_name: data.company_name,
+      email: data.email,
+      amount: "",
+      duration: null,
+      pdf_key: path,
+      pdf_filename: data.file_name,
+      visitor_token: null,
+      source: "add_project",
+      submitter_type: data.submitter_type,
+    });
+    return { ok: true };
+  });
+
+const imageItemSchema = z.object({ file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(8_000_000), content_type: z.string().regex(/^image\/(png|jpe?g|webp|gif)$/) });
+
+export const submitProjectSuggestion = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), images: z.array(imageItemSchema).max(8).default([]) }).parse(d))
+  .handler(async ({ data }) => {
+    if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
+    const uploadedPaths: string[] = [];
+    for (const img of data.images) {
+      const bytes = Buffer.from(img.file_base64, "base64");
+      if (bytes.length === 0) continue;
+      if (bytes.length > 5 * 1024 * 1024) throw new Error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
+      const safeName = img.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
+      const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+      const { uploadToR2 } = await import("./r2");
+      await uploadToR2({ key: path, body: bytes, contentType: img.content_type });
+      uploadedPaths.push(path);
+    }
+    await submissionsRepo.insertSubmission({ name: data.name, description: data.description, location: data.location, contact_phone: data.contact_phone, images: uploadedPaths });
+    return { ok: true };
+  });
+
+export const adminListSubmissions = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const rows = await submissionsRepo.listAllSubmissions();
+    return Promise.all(rows.map(async (s) => ({ ...s, image_urls: await Promise.all((s.images ?? []).map(resolveStoragePath)) })));
+  });
+
+export const approveSubmission = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const sub = await submissionsRepo.getSubmissionById(data.id);
+    if (!sub) throw new Error("الطلب غير موجود");
+    if (sub.status === "approved" && sub.approved_project_id) return { id: sub.approved_project_id };
+    const images = sub.images ?? [];
+    const cover = images[0] ?? "placeholder.jpg";
+    const newId = await projectsRepo.insertProject({ name: sub.name, description: sub.description, location: sub.location, duration: "غير محدد", cover_image: cover, images, admin_approval: "approved" });
+    const city = detectCity(sub.location);
+    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+    if (hasVip) {
+      const now = new Date();
+      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+      await projectsRepo.setProjectExclusive(newId, now.toISOString(), vipEndAt.toISOString());
+    }
+    notifyVipSubscribersOfNewProject({ id: newId, name: sub.name, description: sub.description, location: sub.location }).catch((e) => console.error("[vip-notify]", e));
+    await submissionsRepo.markSubmissionApproved(data.id, newId);
+    return { id: newId };
+  });
+
+export const deleteSubmission = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => { await submissionsRepo.deleteSubmission(data.id); return { ok: true }; });
+
+export const submitProjectWithPaths = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]) }).parse(d))
+  .handler(async ({ data }) => {
+    if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
+    const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
+    await submissionsRepo.insertSubmission({ name: data.name, description: data.description, location: data.location, contact_phone: data.contact_phone, images: safePaths });
     return { ok: true };
   });
 
@@ -445,17 +619,36 @@ export const getExclusiveStatus = createServerFn({ method: "GET" })
     return { showForm: false as const, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
   });
 
-export const searchProjectByName = createServerFn({ method: "GET" })
+export const getExclusivityConfig = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
+  .inputValidator((d: { projectId: string }) => z.object({ projectId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const row = await projectsRepo.getProjectExclusive(data.projectId);
+    if (!row) return null;
+    return { vipStartAt: row.vip_start_at, vipEndAt: row.vip_end_at, durationHours: row.duration_hours };
+  });
+
+export const updateExclusivity = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { projectId: string; durationHours: number }) =>
+    z.object({ projectId: z.string().uuid(), durationHours: z.number().int().min(0).max(720) }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.updateProjectExclusivity(data.projectId, data.durationHours);
+    await invalidateProjectsAll();
+    return { ok: true as const };
+  });
+
+export const searchProjectByName = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .inputValidator((d: { q: string }) => z.object({ q: z.string().trim().min(1).max(200) }).parse(d))
   .handler(async ({ data }) => {
     const rows = await projectsRepo.searchByName(data.q);
-    return Promise.all(rows.map(async (p) => {
+    const results = await Promise.all(rows.map(async (p) => {
       const exclusive = await projectsRepo.getProjectExclusive(p.id).catch(() => null);
-      const now = Date.now();
-      const endMs = exclusive ? new Date(exclusive.vip_end_at).getTime() : 0;
-      const remainingMs = exclusive && endMs > now ? endMs - now : 0;
-      const remainingHours = Math.ceil(remainingMs / 3600_000);
+      const vipEndAt = exclusive?.vip_end_at ?? null;
+      const remainingMs = vipEndAt ? new Date(vipEndAt).getTime() - Date.now() : 0;
+      const remainingHours = remainingMs > 0 ? Math.ceil(remainingMs / 3600_000) : 0;
+      const active = p.is_exclusive || (exclusive ? Date.now() < new Date(exclusive.vip_end_at).getTime() : false);
       return {
         id: p.id,
         name: p.name,
@@ -464,11 +657,12 @@ export const searchProjectByName = createServerFn({ method: "GET" })
         is_exclusive: p.is_exclusive,
         exclusive_until: p.exclusive_until,
         has_exclusive: !!exclusive,
-        vip_end_at: exclusive?.vip_end_at ?? null,
+        vip_end_at: vipEndAt,
         remaining_hours: remainingHours,
-        active: !!exclusive && endMs > now,
+        active,
       };
     }));
+    return results;
   });
 
 export const updateExclusivityHours = createServerFn({ method: "POST" })
@@ -476,60 +670,29 @@ export const updateExclusivityHours = createServerFn({ method: "POST" })
   .inputValidator((d: { projectId: string; hours: number }) =>
     z.object({ projectId: z.string().uuid(), hours: z.number().int().min(1).max(720) }).parse(d))
   .handler(async ({ data }) => {
-    const project = await projectsRepo.getById(data.projectId);
-    if (!project) throw new Error("المشروع غير موجود");
-    const { db } = await import("./db");
-    await db.execute(
-      `UPDATE projects SET exclusive_hours = ?, updated_at = datetime('now') WHERE id = ?`,
-      [data.hours, data.projectId],
-    );
-    const exclusive = await projectsRepo.getProjectExclusive(data.projectId);
-    if (exclusive) {
-      const startMs = new Date(exclusive.vip_start_at).getTime();
-      const newEndMs = startMs + data.hours * 3600_000;
-      await projectsRepo.setProjectExclusive(
-        data.projectId,
-        exclusive.vip_start_at,
-        new Date(newEndMs).toISOString(),
-      );
-    }
+    await projectsRepo.updateProject(data.projectId, { exclusive_hours: data.hours });
     await invalidateProjectsAll();
     return { ok: true as const };
   });
 
 export const toggleExclusivityOn = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { projectId: string; hours?: number }) =>
-    z.object({ projectId: z.string().uuid(), hours: z.number().int().min(1).max(720).optional() }).parse(d))
+  .inputValidator((d: { projectId: string; hours: number }) =>
+    z.object({ projectId: z.string().uuid(), hours: z.number().int().min(1).max(720) }).parse(d))
   .handler(async ({ data }) => {
-    const project = await projectsRepo.getById(data.projectId);
-    if (!project) throw new Error("المشروع غير موجود");
-    const hours = data.hours ?? project.exclusive_hours ?? 6;
     const now = new Date();
-    const endAt = new Date(now.getTime() + hours * 3600_000);
+    const endAt = new Date(now.getTime() + data.hours * 3600_000);
     await projectsRepo.setProjectExclusive(data.projectId, now.toISOString(), endAt.toISOString());
-    const { db } = await import("./db");
-    await db.execute(
-      `UPDATE projects SET is_exclusive = 1, exclusive_until = ?, exclusive_hours = ?, updated_at = datetime('now') WHERE id = ?`,
-      [endAt.toISOString(), hours, data.projectId],
-    );
+    await projectsRepo.updateProject(data.projectId, { is_exclusive: true, exclusive_until: endAt.toISOString(), exclusive_hours: data.hours });
     await invalidateProjectsAll();
     return { ok: true as const };
   });
 
 export const toggleExclusivityOff = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { projectId: string }) =>
-    z.object({ projectId: z.string().uuid() }).parse(d))
+  .inputValidator((d: { projectId: string }) => z.object({ projectId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const project = await projectsRepo.getById(data.projectId);
-    if (!project) throw new Error("المشروع غير موجود");
-    const { db } = await import("./db");
-    await db.execute(
-      `UPDATE projects SET is_exclusive = 0, exclusive_until = NULL, updated_at = datetime('now') WHERE id = ?`,
-      [data.projectId],
-    );
-    await db.execute(`DELETE FROM project_exclusive WHERE project_id = ?`, [data.projectId]).catch(() => undefined);
+    await projectsRepo.updateProject(data.projectId, { is_exclusive: false, exclusive_until: null });
     await invalidateProjectsAll();
     return { ok: true as const };
   });
