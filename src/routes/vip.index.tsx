@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
-import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy } from "lucide-react";
+import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } from "lucide-react";
 import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
@@ -13,6 +13,8 @@ import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
+import type { OcrResult } from "@/lib/receipt-ocr";
+import { scanReceipt, validateOcrResult } from "@/lib/receipt-ocr";
 const BANK_INFO = {
   name: "البنك الأهلي",
   holder: "AHMED SALMI",
@@ -48,6 +50,8 @@ function VipPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showOtherPlans, setShowOtherPlans] = useState(false);
+  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
+  const [ocrScanning, setOcrScanning] = useState(false);
 
   const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
@@ -70,6 +74,27 @@ function VipPage() {
     setStep(3);
   }
 
+  async function handleFileChange(file: File | null) {
+    setFile(file);
+    setOcrResult(null);
+    if (!file || !file.type.startsWith("image/")) return;
+    setOcrScanning(true);
+    try {
+      const result = await scanReceipt(file);
+      setOcrResult(result);
+      const validation = validateOcrResult(result, selectedPlanObj.price);
+      if (!validation.ok) {
+        toast.error(validation.message);
+      } else {
+        toast.success("تم التحقق من الإيصال بنجاح");
+      }
+    } catch (err) {
+      toast.error("تعذر قراءة الإيصال: " + (err as Error).message);
+    } finally {
+      setOcrScanning(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return toast.error("ارفع صورة الإيصال");
@@ -77,11 +102,18 @@ function VipPage() {
     if (!email.trim()) return toast.error("أدخل البريد الإلكتروني");
     if (!city) return toast.error("اختر المدينة");
     if (!selectedPlan) return toast.error("اختر الباقة");
+    if (ocrResult) {
+      const validation = validateOcrResult(ocrResult, selectedPlanObj.price);
+      if (!validation.ok) {
+        toast.error(validation.message);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const data = await fileToBase64(file);
       const res = await upload({ data: { filename: file.name, mime: file.type, purpose: "vip-receipt", data } });
-      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan, city } });
+      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan, city, ocr_bank: ocrResult?.bank ?? null, ocr_amount: ocrResult?.amount ?? null, ocr_date: ocrResult?.date ?? null, ocr_time: ocrResult?.time ?? null } });
       setSubmitted(true);
     } catch (err) {
       toast.error("حصل خطأ: " + (err as Error).message);
@@ -348,7 +380,7 @@ function VipPage() {
                           <input
                             type="file"
                             accept="image/*,application/pdf"
-                            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                            onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
                             className="hidden"
                           />
                         </label>
@@ -357,7 +389,21 @@ function VipPage() {
                             <Check className="h-3.5 w-3.5" /> تم اختيار الملف
                           </span>
                         )}
+                        {ocrScanning && (
+                          <span className="text-xs text-primary inline-flex items-center gap-1">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> جارٍ فحص الإيصال...
+                          </span>
+                        )}
                       </div>
+                      {ocrResult && (
+                        <div className="mt-3 rounded-lg border border-border bg-secondary/20 p-3 text-xs space-y-1">
+                          <p className="font-bold text-sm mb-1">بيانات الإيصال المستخرجة:</p>
+                          <p><span className="text-muted-foreground">البنك:</span> {ocrResult.bank ?? "—"}</p>
+                          <p><span className="text-muted-foreground">المبلغ:</span> {ocrResult.amount ?? "—"}</p>
+                          <p><span className="text-muted-foreground">التاريخ:</span> {ocrResult.date ?? "—"}</p>
+                          <p><span className="text-muted-foreground">الوقت:</span> {ocrResult.time ?? "—"}</p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-6 flex gap-3">

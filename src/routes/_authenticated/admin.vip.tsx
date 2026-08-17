@@ -224,14 +224,26 @@ function AdminVipPage() {
                     </TableCell>
                     <TableCell>
                       {s.receipt_url ? (
-                        <a
-                          href={s.receipt_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary text-xs underline"
-                        >
-                          عرض
-                        </a>
+                        <div className="space-y-1">
+                          <a
+                            href={s.receipt_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary text-xs underline"
+                          >
+                            عرض
+                          </a>
+                          {(s as { ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }).ocr_bank ||
+                          (s as { ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }).ocr_amount ||
+                          (s as { ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }).ocr_date ? (
+                            <div className="rounded border border-border bg-secondary/30 p-2 text-[10px] space-y-0.5">
+                              <div><span className="text-muted-foreground">البنك:</span> {(s as { ocr_bank?: string | null }).ocr_bank ?? "—"}</div>
+                              <div><span className="text-muted-foreground">المبلغ:</span> {(s as { ocr_amount?: string | null }).ocr_amount ?? "—"}</div>
+                              <div><span className="text-muted-foreground">التاريخ:</span> {(s as { ocr_date?: string | null }).ocr_date ?? "—"}</div>
+                              <div><span className="text-muted-foreground">الوقت:</span> {(s as { ocr_time?: string | null }).ocr_time ?? "—"}</div>
+                            </div>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">لا يوجد</span>
                       )}

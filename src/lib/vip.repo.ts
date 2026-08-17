@@ -12,6 +12,10 @@ export type VipSubscriberRow = {
   receipt_path: string | null;
   receipt_key: string | null;
   notes: string | null;
+  ocr_bank: string | null;
+  ocr_amount: string | null;
+  ocr_date: string | null;
+  ocr_time: string | null;
   created_at: string;
 };
 
@@ -29,6 +33,10 @@ function decode(row: any): VipSubscriberRow {
     receipt_path: receipt,
     receipt_key: receipt,
     notes: row.notes ?? null,
+    ocr_bank: row.ocr_bank ?? null,
+    ocr_amount: row.ocr_amount ?? null,
+    ocr_date: row.ocr_date ?? null,
+    ocr_time: row.ocr_time ?? null,
     created_at: String(row.created_at ?? ""),
   };
 }
@@ -40,6 +48,10 @@ function ensureColumns(): Promise<void> {
     db.execute(`ALTER TABLE vip_subscribers ADD COLUMN city TEXT`).catch(() => undefined),
     db.execute(`ALTER TABLE vip_subscribers ADD COLUMN project_id TEXT`).catch(() => undefined),
     db.execute(`ALTER TABLE vip_subscribers ADD COLUMN expires_at TEXT`).catch(() => undefined),
+    db.execute(`ALTER TABLE vip_subscribers ADD COLUMN ocr_bank TEXT`).catch(() => undefined),
+    db.execute(`ALTER TABLE vip_subscribers ADD COLUMN ocr_amount TEXT`).catch(() => undefined),
+    db.execute(`ALTER TABLE vip_subscribers ADD COLUMN ocr_date TEXT`).catch(() => undefined),
+    db.execute(`ALTER TABLE vip_subscribers ADD COLUMN ocr_time TEXT`).catch(() => undefined),
   ]).then(() => undefined);
   return _colsReady;
 }
@@ -198,15 +210,19 @@ export async function insertVipSubscriber(input: {
   plan: string;
   city: string;
   receipt_path: string;
+  ocr_bank?: string | null;
+  ocr_amount?: string | null;
+  ocr_date?: string | null;
+  ocr_time?: string | null;
 }) {
   await ensureCityColumn();
   const id = crypto.randomUUID();
   const days = planToDays(input.plan) ?? 30;
   const expiresAt = new Date(Date.now() + days * 86400_000).toISOString();
   await db.execute(
-    `INSERT INTO vip_subscribers (id, name, email, plan, city, status, expires_at, receipt_key, created_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-    [id, input.name, input.email, input.plan, input.city, expiresAt, input.receipt_path, new Date().toISOString()],
+    `INSERT INTO vip_subscribers (id, name, email, plan, city, status, expires_at, receipt_key, ocr_bank, ocr_amount, ocr_date, ocr_time, created_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`,
+    [id, input.name, input.email, input.plan, input.city, expiresAt, input.receipt_path, input.ocr_bank ?? null, input.ocr_amount ?? null, input.ocr_date ?? null, input.ocr_time ?? null, new Date().toISOString()],
   );
   return id;
 }

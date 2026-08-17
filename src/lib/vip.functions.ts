@@ -120,12 +120,12 @@ export const listVipByProject = createServerFn({ method: "GET" })
   });
 
 export const submitVipSubscription = createServerFn({ method: "POST" })
-  .inputValidator((data: { name: string; email: string; receipt_path: string; plan: string; city: string }) => {
+  .inputValidator((data: { name: string; email: string; receipt_path: string; plan: string; city: string; ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }) => {
     if (!data?.name?.trim() || !data?.email?.trim()) throw new Error("الاسم والبريد مطلوبان");
     if (!data?.receipt_path?.trim()) throw new Error("إيصال التحويل مطلوب");
     if (!data?.plan?.trim()) throw new Error("اختر الباقة");
     if (!data?.city?.trim()) throw new Error("اختر المدينة");
-    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim(), city: data.city.trim() };
+    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim(), city: data.city.trim(), ocr_bank: data.ocr_bank ?? null, ocr_amount: data.ocr_amount ?? null, ocr_date: data.ocr_date ?? null, ocr_time: data.ocr_time ?? null };
   })
   .handler(async ({ data }) => {
     const id = await vipRepo.insertVipSubscriber(data);
