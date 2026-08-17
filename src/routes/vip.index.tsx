@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
-import { Star, Check, Wrench, ChevronLeft, Upload, Copy } from "lucide-react";
+import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy } from "lucide-react";
 import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
@@ -47,6 +47,7 @@ function VipPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showOtherPlans, setShowOtherPlans] = useState(false);
 
   const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
@@ -157,7 +158,7 @@ function VipPage() {
                   <span className="w-8 text-center">الدفع</span>
                 </div>
 
-                {/* Step 1: Plan selection with featured card + other plans visible */}
+                {/* Step 1: Plan selection with featured card + collapsible other plans */}
                 {step === 1 && (
                   <div className="mx-auto mt-8 max-w-xl">
                     <div className="rounded-2xl border-2 border-primary bg-card p-8 text-center shadow-lg">
@@ -190,45 +191,52 @@ function VipPage() {
                       </button>
                     </div>
 
-                    <div className="mt-5 rounded-xl border border-border bg-card p-4">
-                      <div className="flex items-center justify-center gap-2 pb-3">
-                        <div className="h-px flex-1 bg-border" />
-                        <span className="text-sm font-bold text-primary">باقات أخرى متاحة</span>
-                        <div className="h-px flex-1 bg-border" />
+                    <button
+                      type="button"
+                      onClick={() => setShowOtherPlans((v) => !v)}
+                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-bold text-white transition hover:opacity-90"
+                      style={{ backgroundColor: "#F97316" }}
+                    >
+                      باقات أخرى متاحة
+                      <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${showOtherPlans ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {showOtherPlans && (
+                      <div className="mt-4 rounded-xl border border-border bg-card p-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {PLANS.slice(1).map((p) => {
+                            const active = selectedPlan === p.id;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => setSelectedPlan(p.id)}
+                                className={`rounded-lg border p-4 text-center transition ${active ? "border-primary ring-2 ring-primary" : "border-border hover:bg-secondary"}`}
+                              >
+                                <h4 className="text-sm font-bold">{p.label}</h4>
+                                <p className="mt-1 text-xs text-muted-foreground">{p.duration}</p>
+                                <p className="mt-3 text-2xl font-extrabold text-foreground">
+                                  {p.price}
+                                  <span className="text-xs font-medium text-muted-foreground"> ر.س</span>
+                                </p>
+                                {active && (
+                                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
+                                    <Check className="h-3 w-3" /> محددة
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={goToStep2}
+                          className="mt-4 w-full rounded-lg border border-primary bg-primary/5 px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary/10"
+                        >
+                          متابعة بالباقة المختارة
+                        </button>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {PLANS.slice(1).map((p) => {
-                          const active = selectedPlan === p.id;
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => setSelectedPlan(p.id)}
-                              className={`rounded-lg border p-4 text-center transition ${active ? "border-primary ring-2 ring-primary" : "border-border hover:bg-secondary"}`}
-                            >
-                              <h4 className="text-sm font-bold">{p.label}</h4>
-                              <p className="mt-1 text-xs text-muted-foreground">{p.duration}</p>
-                              <p className="mt-3 text-2xl font-extrabold text-foreground">
-                                {p.price}
-                                <span className="text-xs font-medium text-muted-foreground"> ر.س</span>
-                              </p>
-                              {active && (
-                                <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
-                                  <Check className="h-3 w-3" /> محددة
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={goToStep2}
-                        className="mt-4 w-full rounded-lg border border-primary bg-primary/5 px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary/10"
-                      >
-                        متابعة بالباقة المختارة
-                      </button>
-                    </div>
+                    )}
                   </div>
                 )}
 
