@@ -58,7 +58,7 @@ export function AdminProjectStatus({
       <div className="mb-2 text-xs font-semibold text-muted-foreground">
         إجراءات المشرف {currentLabel ? `• الحالة الحالية: ${currentLabel}` : ""}
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2.5">
         {statusButtons.map((btn) => (
           <button
             key={btn.status}
@@ -69,12 +69,14 @@ export function AdminProjectStatus({
               backgroundColor: btn.color,
               color: "#ffffff",
               fontWeight: "bold",
-              padding: "10px 20px",
+              fontSize: "14px",
+              padding: "10px 14px",
               borderRadius: "8px",
+              width: "auto",
             }}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
           >
-            {mut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span>{btn.icon}</span>}
+            {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <span style={{ fontSize: "16px" }}>{btn.icon}</span>}
             {btn.label}
           </button>
         ))}
