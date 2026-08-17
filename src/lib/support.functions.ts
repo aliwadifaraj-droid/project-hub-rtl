@@ -726,13 +726,6 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
   if (!bankName) {
     return { approved: false, reason: "لم يتم العثور على اسم بنك أو محفظة في الإيصال." };
   }
-  const lowerBank = bankName.toLowerCase();
-  const hasBankKeyword = BANK_KEYWORDS.some((k) =>
-    lowerBank.includes(k.toLowerCase()),
-  );
-  if (!hasBankKeyword) {
-    return { approved: false, reason: "الإيصال لا يحتوي على اسم بنك أو محفظة معروفة." };
-  }
 
   if (!date) {
     return { approved: false, reason: "لم يتم العثور على تاريخ في الإيصال." };
