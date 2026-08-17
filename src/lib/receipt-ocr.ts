@@ -2,8 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const VISION_MODELS = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-4-maverick-17b-128e-instruct",
+  "qwen/qwen3.6-27b",
 ];
 
 export interface OcrResult {
@@ -22,12 +21,13 @@ const EMPTY_RESULT: OcrResult = {
 
 const SYSTEM_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
 Extract the transfer amount, date, time, and bank/wallet name from the image.
-Respond with JSON ONLY — no markdown, no explanation, no code fences:
+Respond with a JSON object only — no markdown, no explanation, no code fences:
 {"bank":"bank or wallet name or null","amount":100,"date":"YYYY-MM-DD or null","time":"HH:MM or null"}
-Amount must be numeric only (no currency symbol, no commas). If you see a Hijri date, convert it to Gregorian YYYY-MM-DD. If a field is not visible, set it to null.`;
+Amount must be numeric only (no currency symbol, no commas). If you see a Hijri date, convert it to Gregorian YYYY-MM-DD. If a field is not visible, set it to null. Do not include any thinking or reasoning text outside the JSON.`;
 
 function extractJson(text: string): Record<string, unknown> | null {
-  const match = text.match(/\{[\s\S]*\}/);
+  const cleaned = text.replace(/<[\s\S]*?<\/think>/gi, "").trim();
+  const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
     return JSON.parse(match[0]) as Record<string, unknown>;
@@ -43,13 +43,14 @@ async function callModel(model: string, dataUrl: string, apiKey: string): Promis
     body: JSON.stringify({
       model,
       temperature: 0,
-      max_tokens: 300,
+      max_completion_tokens: 300,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: [
-            { type: "text", text: "Read this receipt and extract the fields as JSON." },
+            { type: "text", text: "Read this receipt and extract the fields as a JSON object." },
             { type: "image_url", image_url: { url: dataUrl } },
           ],
         },

@@ -282,7 +282,7 @@ function asksAboutVip(text: string): boolean {
 
 
 
-/** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
+/** Ask Groq (qwen/qwen3.6-27b) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
   systemInstruction?: string | null;
   dialect?: string | null;
@@ -292,7 +292,7 @@ async function askGroq(userText: string, opts: {
 }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const model = process.env.GROQ_MODEL || "qwen/qwen3.6-27b";
   const sysParts = [
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
@@ -309,7 +309,7 @@ async function askGroq(userText: string, opts: {
       body: JSON.stringify({
         model,
         temperature: 0.4,
-        max_tokens: 512,
+        max_completion_tokens: 512,
         messages: [
           ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
           { role: "user", content: userText },
@@ -639,20 +639,20 @@ interface ReceiptCheckResult {
 }
 
 const VISION_MODELS = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-4-maverick-17b-128e-instruct",
+  "qwen/qwen3.6-27b",
 ];
 
 const RECEIPT_VISION_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
-Extract the following fields from the image and respond with JSON ONLY — no markdown, no explanation, no code fences:
+Extract the following fields from the image and respond with a JSON object only — no markdown, no explanation, no code fences:
 {
   "amount": the numeric transfer amount (numbers only, no currency symbol, no commas — e.g. 100 or 100.00),
   "date": the transfer date in YYYY-MM-DD format (if you see a Hijri date, convert it to Gregorian; if only time is visible, use today's date)
 }
-If a field is not visible, set it to null. Look carefully — amounts may appear as "100.00 SAR", "100 ر.س", or just "100". Dates may be in Hijri (e.g. 1447/03/15) or Gregorian.`;
+If a field is not visible, set it to null. Look carefully — amounts may appear as "100.00 SAR", "100 ر.س", or just "100". Dates may be in Hijri (e.g. 1447/03/15) or Gregorian. Do not include any thinking or reasoning text outside the JSON.`;
 
 function parseReceiptJson(content: string): { amount: number | null; date: string | null } {
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  const cleaned = content.replace(/<[\s\S]*?<\/think>/gi, "").trim();
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return { amount: null, date: null };
   try {
     const parsed = JSON.parse(jsonMatch[0]);
@@ -687,13 +687,14 @@ async function callGroqVision(model: string, imageDataUrl: string, apiKey: strin
     body: JSON.stringify({
       model,
       temperature: 0,
-      max_tokens: 300,
+      max_completion_tokens: 300,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: RECEIPT_VISION_PROMPT },
         {
           role: "user",
           content: [
-            { type: "text", text: "Read this receipt and extract amount and date as JSON." },
+            { type: "text", text: "Read this receipt and extract amount and date as a JSON object." },
             { type: "image_url", image_url: { url: imageDataUrl } },
           ],
         },
@@ -757,8 +758,7 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
     return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
   }
   if (Math.abs(amount - packageAmount) > 0.01) {
-    return {
-      approved: false,
+    return {\n      approved: false,
       reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
     };
   }
