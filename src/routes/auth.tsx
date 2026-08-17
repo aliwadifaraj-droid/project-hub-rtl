@@ -88,6 +88,11 @@ function AuthPage() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {isLogin ? "تسجيل الدخول" : "إنشاء الحساب"}
             </button>
+            {isLogin ? (
+              <Link to="/forgot-password" className="block text-center text-xs text-muted-foreground hover:text-foreground">
+                نسيت كلمة السر؟
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={() => {
