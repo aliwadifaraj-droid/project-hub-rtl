@@ -8,8 +8,6 @@ export interface OcrResult {
   amount: number | null;
   date: string | null;
   time: string | null;
-  is_receipt: boolean;
-  is_recent: boolean;
 }
 
 const EMPTY_RESULT: OcrResult = {
@@ -17,15 +15,12 @@ const EMPTY_RESULT: OcrResult = {
   amount: null,
   date: null,
   time: null,
-  is_receipt: false,
-  is_recent: false,
 };
 
-const SYSTEM_PROMPT = `أنت مسؤول عن فحص صور الإيصالات البنكية.
-استخرج اسم البنك والمبلغ وتاريخ ووقت التحويل.
-تحقق أن الصورة إيصال تحويل بنكي حقيقي وأن التاريخ خلال آخر 30 يوماً.
+const SYSTEM_PROMPT = `أنت مسؤول عن قراءة صور الإيصالات البنكية.
+استخرج اسم البنك أو المحفظة والمبلغ وتاريخ ووقت التحويل من الصورة.
 أجب بصيغة JSON فقط:
-{"bank":"اسم البنك أو null","amount":100,"date":"YYYY-MM-DD أو null","time":"HH:MM أو null","is_receipt":true,"is_recent":true}`;
+{"bank":"اسم البنك أو المحفظة أو null","amount":100,"date":"YYYY-MM-DD أو null","time":"HH:MM أو null"}`;
 
 function extractJson(text: string): Record<string, unknown> | null {
   const match = text.match(/\{[\s\S]*\}/);
@@ -57,7 +52,7 @@ export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
           {
             role: "user",
             content: [
-              { type: "text", text: "افحص الصورة وأجب بصيغة JSON فقط." },
+              { type: "text", text: "اقرأ الإيصال وأجب بصيغة JSON فقط." },
               { type: "image_url", image_url: { url: dataUrl } },
             ],
           },
@@ -78,8 +73,6 @@ export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
       amount: typeof parsed.amount === "number" ? parsed.amount : null,
       date: typeof parsed.date === "string" ? parsed.date : null,
       time: typeof parsed.time === "string" ? parsed.time : null,
-      is_receipt: parsed.is_receipt === true,
-      is_recent: parsed.is_recent === true,
     };
   } catch (error) {
     console.error("[receipt-ocr] exception", error);
@@ -91,22 +84,39 @@ export async function scanReceipt(file: File): Promise<OcrResult> {
   return scanReceiptDataUrl(await fileToBase64(file));
 }
 
-export function validateOcrResult(result: OcrResult, expectedPrice: number): { ok: boolean; message: string } {
-  if (!result.is_receipt) return { ok: false, message: "الصورة ليست إيصال تحويل بنكي صحيح" };
-  if (!result.is_recent) return { ok: false, message: "الإيصال قديم أو لا يحتوي على تاريخ واضح" };
-  if (result.amount === null) return { ok: false, message: "تعذر قراءة مبلغ التحويل" };
-  if (result.amount < expectedPrice) {
-    return { ok: false, message: `المبلغ في الإيصال (${result.amount} ر.س) أقل من قيمة الباقة (${expectedPrice} ر.س)` };
+const BANK_KEYWORDS = ["بنك", "bank", "stc pay", "apple pay", "mada", "مدى", "محفظة", "wallet", "alipay", "wechat"];
+
+export function validateOcrResult(result: OcrResult, expectedAmount: number): { ok: boolean; message: string } {
+  // 1) اسم البنك: لازم يكون فيه كلمة "بنك" أو "Bank" أو اسم محفظة
+  if (!result.bank) return { ok: false, message: "لم يتم العثور على اسم بنك أو محفظة في الإيصال" };
+  const bankLower = result.bank.toLowerCase();
+  const hasBankKeyword = BANK_KEYWORDS.some((k) => bankLower.includes(k));
+  if (!hasBankKeyword) return { ok: false, message: "الإيصال لا يحتوي على اسم بنك أو محفظة معروفة" };
+
+  // 2) التاريخ: لازم يكون خلال آخر 72 ساعة
+  if (!result.date) return { ok: false, message: "لم يتم العثور على تاريخ في الإيصال" };
+  const receiptDate = new Date(result.date);
+  if (isNaN(receiptDate.getTime())) return { ok: false, message: "تاريخ الإيصال غير صالح" };
+  const now = new Date();
+  const diffHours = (now.getTime() - receiptDate.getTime()) / 3_600_000;
+  if (diffHours > 72) return { ok: false, message: "الإيصال قديم — يجب أن يكون خلال آخر 72 ساعة" };
+  if (diffHours < -24) return { ok: false, message: "تاريخ الإيصال في المستقبل" };
+
+  // 3) المبلغ: لازم يطابق قيمة الباقة بالضبط
+  if (result.amount === null) return { ok: false, message: "لم يتم قراءة مبلغ التحويل من الإيصال" };
+  if (result.amount !== expectedAmount) {
+    return { ok: false, message: `المبلغ في الإيصال (${result.amount} ر.س) لا يطابق قيمة الباقة (${expectedAmount} ر.س)` };
   }
+
   return { ok: true, message: "تم التحقق من الإيصال بنجاح" };
 }
 
 export const validateReceiptOcr = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ imageData: z.string().min(1), expectedPrice: z.number().positive() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ imageData: z.string().min(1), expectedAmount: z.number().positive() }).parse(d))
   .handler(async ({ data }) => {
     const result = await scanReceiptDataUrl(data.imageData);
-    const validation = validateOcrResult(result, data.expectedPrice);
-    return { valid: validation.ok, reason: validation.message, result };
+    const validation = validateOcrResult(result, data.expectedAmount);
+    return { approved: validation.ok, reason: validation.message, result };
   });
 
 function fileToBase64(file: File): Promise<string> {

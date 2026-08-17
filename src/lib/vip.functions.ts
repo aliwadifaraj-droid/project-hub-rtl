@@ -257,16 +257,17 @@ export const createTrialVipSubscription = createServerFn({ method: "POST" })
 
 export const createPackageTrialSubscription = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((data: { email: string; receipt_image: string }) => {
+  .inputValidator((data: { email: string; receipt_image: string; package_amount: number }) => {
     if (!data?.email?.trim()) throw new Error("البريد الإلكتروني مطلوب");
     if (!data?.receipt_image?.trim()) throw new Error("رفع الإيصال البنكي إلزامي");
-    return { email: data.email.trim(), receipt_image: data.receipt_image.trim() };
+    if (!Number.isFinite(data.package_amount) || data.package_amount <= 0)
+      throw new Error("قيمة الباقة يجب أن تكون رقماً موجباً");
+    return { email: data.email.trim(), receipt_image: data.receipt_image.trim(), package_amount: data.package_amount };
   })
   .handler(async ({ data }) => {
     const { scanReceiptDataUrl, validateOcrResult } = await import("./receipt-ocr");
-    const expectedPrice = 50;
     const ocrResult = await scanReceiptDataUrl(data.receipt_image);
-    const validation = validateOcrResult(ocrResult, expectedPrice);
+    const validation = validateOcrResult(ocrResult, data.package_amount);
     if (!validation.ok) {
       return { approved: false, reason: validation.message };
     }

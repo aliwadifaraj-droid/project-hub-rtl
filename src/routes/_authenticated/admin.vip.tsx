@@ -118,6 +118,7 @@ function AdminVipPage() {
 
   const pkgTrialFn = useServerFn(createPackageTrialSubscription);
   const [pkgEmail, setPkgEmail] = useState("");
+  const [pkgAmount, setPkgAmount] = useState("50");
   const [pkgFile, setPkgFile] = useState<File | null>(null);
   const [pkgLoading, setPkgLoading] = useState(false);
 
@@ -134,10 +135,11 @@ function AdminVipPage() {
     e.preventDefault();
     if (!pkgEmail.trim()) return toast.error("أدخل البريد الإلكتروني");
     if (!pkgFile) return toast.error("ارفع الإيصال البنكي");
+    if (!pkgAmount.trim() || Number(pkgAmount) <= 0) return toast.error("أدخل قيمة الباقة");
     setPkgLoading(true);
     try {
       const imageData = await fileToBase64(pkgFile);
-      const res = await pkgTrialFn({ data: { email: pkgEmail.trim(), receipt_image: imageData } });
+      const res = await pkgTrialFn({ data: { email: pkgEmail.trim(), receipt_image: imageData, package_amount: Number(pkgAmount) } });
       if (res.approved) {
         toast.success(`تمت الموافقة — فُعّل اشتراك 7 أيام لـ ${res.email}`);
         setPkgEmail("");
@@ -205,7 +207,7 @@ function AdminVipPage() {
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="mb-3 text-lg font-semibold">انشاء تجربة اشتراك الباقات</h2>
         <p className="mb-3 text-xs text-muted-foreground">
-          المبلغ ثابت 50 ريال — المدة ثابتة 7 أيام. يُرفع الإيصال ويُرسل لـ Groq للفحص.
+          المدة ثابتة 7 أيام. أدخل قيمة الباقة وارفع الإيصال ويُرسل لـ Groq للفحص.
         </p>
         <form className="flex flex-wrap items-end gap-3" onSubmit={handlePkgTrial}>
           <div className="flex flex-col gap-1">
@@ -217,6 +219,17 @@ function AdminVipPage() {
               onChange={(e) => setPkgEmail(e.target.value)}
               placeholder="test@example.com"
               className="w-64"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_amount">قيمة الباقة (ريال)</Label>
+            <Input
+              id="pkg_amount"
+              type="number"
+              min="1"
+              value={pkgAmount}
+              onChange={(e) => setPkgAmount(e.target.value)}
+              className="w-32"
             />
           </div>
           <div className="flex flex-col gap-1">
