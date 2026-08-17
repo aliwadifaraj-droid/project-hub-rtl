@@ -1,4 +1,4 @@
-// Public auth server functions: signUp, signIn, signOut, getMe, resetPassword.
+// Public auth server functions: signUp, signIn, signOut, getMe, changePassword, requestPasswordReset, resetPasswordWithToken.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
@@ -18,6 +18,8 @@ import {
   getRolesForUser,
   updateUserPassword,
 } from "./users.repo";
+import { createPasswordResetToken, getValidPasswordResetToken, markPasswordResetTokenUsed } from "./password-reset.repo";
+import { sendResendEmail } from "./resend-send.server";
 
 const FIRST_ADMIN_EMAIL = "aliwadifaraj@gmail.com";
 
@@ -91,5 +93,52 @@ export const changePassword = createServerFn({ method: "POST" })
     const ok = await verifyPassword(data.currentPassword, user.password_hash);
     if (!ok) throw new Error("كلمة المرور الحالية غير صحيحة");
     await updateUserPassword(user.id, await hashPassword(data.newPassword));
+    return { ok: true };
+  });
+
+const emailSchema = z.object({
+  email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
+});
+
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => emailSchema.parse(d))
+  .handler(async ({ data }) => {
+    const user = await findUserByEmail(data.email);
+    if (user) {
+      const token = await createPasswordResetToken(user.id);
+      const appUrl = process.env.APP_URL || `https://${process.env.DEPLOYMENT_URL}` || "http://localhost:3000";
+      const resetLink = `${appUrl}/reset-password?token=${token}`;
+      await sendResendEmail({
+        to: user.email,
+        subject: "إعادة تعيين كلمة المرور — Alamran",
+        html: `<!DOCTYPE html><html dir="rtl" lang="ar"><body style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+<h2>إعادة تعيين كلمة المرور</h2>
+<p>لقد تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك.</p>
+<p>اضغط على الزر أدناه لإعادة تعيين كلمة المرور:</p>
+<p style="margin:24px 0;">
+  <a href="${resetLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;">إعادة تعيين كلمة المرور</a>
+</p>
+<p style="font-size:12px;color:#64748b;">أو انسخ هذا الرابط: ${resetLink}</p>
+<p style="font-size:12px;color:#64748b;">الرابط صالح لمدة 30 دقيقة فقط. إذا لم تطلب إعادة التعيين، تجاهل هذه الرسالة.</p>
+</body></html>`,
+      });
+    }
+    return { ok: true };
+  });
+
+const resetWithTokenSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(6).max(72),
+});
+
+export const resetPasswordWithToken = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => resetWithTokenSchema.parse(d))
+  .handler(async ({ data }) => {
+    const tokenRow = await getValidPasswordResetToken(data.token);
+    if (!tokenRow) throw new Error("الرابط غير صالح أو منتهي الصلاحية");
+    const user = await findUserById(tokenRow.user_id);
+    if (!user) throw new Error("المستخدم غير موجود");
+    await updateUserPassword(user.id, await hashPassword(data.newPassword));
+    await markPasswordResetTokenUsed(data.token);
     return { ok: true };
   });
