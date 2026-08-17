@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const VISION_MODELS = [
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "meta-llama/llama-4-maverick-17b-128e-instruct",
+];
 
 export interface OcrResult {
   bank: string | null;
@@ -17,10 +20,11 @@ const EMPTY_RESULT: OcrResult = {
   time: null,
 };
 
-const SYSTEM_PROMPT = `أنت مسؤول عن قراءة صور الإيصالات البنكية.
-استخرج اسم البنك أو المحفظة والمبلغ وتاريخ ووقت التحويل من الصورة.
-أجب بصيغة JSON فقط:
-{"bank":"اسم البنك أو المحفظة أو null","amount":100,"date":"YYYY-MM-DD أو null","time":"HH:MM أو null"}`;
+const SYSTEM_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
+Extract the transfer amount, date, time, and bank/wallet name from the image.
+Respond with JSON ONLY — no markdown, no explanation, no code fences:
+{"bank":"bank or wallet name or null","amount":100,"date":"YYYY-MM-DD or null","time":"HH:MM or null"}
+Amount must be numeric only (no currency symbol, no commas). If you see a Hijri date, convert it to Gregorian YYYY-MM-DD. If a field is not visible, set it to null.`;
 
 function extractJson(text: string): Record<string, unknown> | null {
   const match = text.match(/\{[\s\S]*\}/);
@@ -32,6 +36,50 @@ function extractJson(text: string): Record<string, unknown> | null {
   }
 }
 
+async function callModel(model: string, dataUrl: string, apiKey: string): Promise<OcrResult> {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      max_tokens: 300,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Read this receipt and extract the fields as JSON." },
+            { type: "image_url", image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Groq ${model} ${res.status}: ${txt.slice(0, 200)}`);
+  }
+
+  const response = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const parsed = extractJson(response.choices?.[0]?.message?.content?.trim() ?? "");
+  if (!parsed) return EMPTY_RESULT;
+
+  const amountRaw = parsed.amount;
+  const amountNum = typeof amountRaw === "number"
+    ? amountRaw
+    : amountRaw != null
+      ? Number(String(amountRaw).replace(/[^\d.]/g, ""))
+      : null;
+
+  return {
+    bank: typeof parsed.bank === "string" && parsed.bank.trim() ? parsed.bank.trim() : null,
+    amount: amountNum != null && Number.isFinite(amountNum) ? amountNum : null,
+    date: typeof parsed.date === "string" && parsed.date.trim() ? parsed.date.trim() : null,
+    time: typeof parsed.time === "string" && parsed.time.trim() ? parsed.time.trim() : null,
+  };
+}
+
 export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -39,61 +87,29 @@ export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
     return EMPTY_RESULT;
   }
 
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: VISION_MODEL,
-        temperature: 0,
-        max_tokens: 256,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "اقرأ الإيصال وأجب بصيغة JSON فقط." },
-              { type: "image_url", image_url: { url: dataUrl } },
-            ],
-          },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      console.error("[receipt-ocr] Groq API error", res.status);
-      return EMPTY_RESULT;
+  let bestResult: OcrResult = EMPTY_RESULT;
+  for (const model of VISION_MODELS) {
+    try {
+      const result = await callModel(model, dataUrl, apiKey);
+      if (result.amount !== null && result.date !== null) {
+        return result;
+      }
+      if (result.amount !== null || result.date !== null) {
+        bestResult = result;
+      }
+    } catch (error) {
+      console.error(`[receipt-ocr] model ${model} failed`, error);
     }
-
-    const response = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const parsed = extractJson(response.choices?.[0]?.message?.content?.trim() ?? "");
-    if (!parsed) return EMPTY_RESULT;
-
-    return {
-      bank: typeof parsed.bank === "string" ? parsed.bank : null,
-      amount: typeof parsed.amount === "number" ? parsed.amount : null,
-      date: typeof parsed.date === "string" ? parsed.date : null,
-      time: typeof parsed.time === "string" ? parsed.time : null,
-    };
-  } catch (error) {
-    console.error("[receipt-ocr] exception", error);
-    return EMPTY_RESULT;
   }
+  return bestResult;
 }
 
 export async function scanReceipt(file: File): Promise<OcrResult> {
   return scanReceiptDataUrl(await fileToBase64(file));
 }
 
-const BANK_KEYWORDS = ["بنك", "bank", "stc pay", "apple pay", "mada", "مدى", "محفظة", "wallet", "alipay", "wechat"];
-
 export function validateOcrResult(result: OcrResult, expectedAmount: number): { ok: boolean; message: string } {
-  // 1) اسم البنك: لازم يكون فيه كلمة "بنك" أو "Bank" أو اسم محفظة
-  if (!result.bank) return { ok: false, message: "لم يتم العثور على اسم بنك أو محفظة في الإيصال" };
-  const bankLower = result.bank.toLowerCase();
-  const hasBankKeyword = BANK_KEYWORDS.some((k) => bankLower.includes(k));
-  if (!hasBankKeyword) return { ok: false, message: "الإيصال لا يحتوي على اسم بنك أو محفظة معروفة" };
-
-  // 2) التاريخ: لازم يكون خلال آخر 72 ساعة
+  // 1) التاريخ: لازم يكون خلال آخر 72 ساعة
   if (!result.date) return { ok: false, message: "لم يتم العثور على تاريخ في الإيصال" };
   const receiptDate = new Date(result.date);
   if (isNaN(receiptDate.getTime())) return { ok: false, message: "تاريخ الإيصال غير صالح" };
@@ -102,9 +118,9 @@ export function validateOcrResult(result: OcrResult, expectedAmount: number): { 
   if (diffHours > 72) return { ok: false, message: "الإيصال قديم — يجب أن يكون خلال آخر 72 ساعة" };
   if (diffHours < -24) return { ok: false, message: "تاريخ الإيصال في المستقبل" };
 
-  // 3) المبلغ: لازم يطابق قيمة الباقة بالضبط
+  // 2) المبلغ: لازم يطابق قيمة الباقة بالضبط
   if (result.amount === null) return { ok: false, message: "لم يتم قراءة مبلغ التحويل من الإيصال" };
-  if (result.amount !== expectedAmount) {
+  if (Math.abs(result.amount - expectedAmount) > 0.01) {
     return { ok: false, message: `المبلغ في الإيصال (${result.amount} ر.س) لا يطابق قيمة الباقة (${expectedAmount} ر.س)` };
   }
 

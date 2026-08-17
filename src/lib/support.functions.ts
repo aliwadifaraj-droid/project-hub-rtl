@@ -638,59 +638,22 @@ interface ReceiptCheckResult {
   date: string | null;
 }
 
-async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptCheckResult> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY غير موضع");
+const VISION_MODELS = [
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "meta-llama/llama-4-maverick-17b-128e-instruct",
+];
 
-  const visionModel = "meta-llama/llama-4-scout-17b-16e-instruct";
-  const prompt = `أنت مساعد يقرأ إيصالات تحويل بنكي. استخرج المعلومات التالية من الإيصال بصيغة JSON فقط بدون أي نص إضافي:
+const RECEIPT_VISION_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
+Extract the following fields from the image and respond with JSON ONLY — no markdown, no explanation, no code fences:
 {
-  "bankName": "اسم البنك أو المحفظة الموجود في الإيصال (مثل: بنك الراجحي، مصرف الأهلي، STC Pay، Urpay، محفظة، إلخ)",
-  "amount": "المبلغ بالأرقام فقط بدون عملة",
-  "date": "تاريخ التحويل بصيغة YYYY-MM-DD أو ISO"
+  "amount": the numeric transfer amount (numbers only, no currency symbol, no commas — e.g. 100 or 100.00),
+  "date": the transfer date in YYYY-MM-DD format (if you see a Hijri date, convert it to Gregorian; if only time is visible, use today's date)
 }
-إذا لم تجد أي حقل، ضع null.`;
+If a field is not visible, set it to null. Look carefully — amounts may appear as "100.00 SAR", "100 ر.س", or just "100". Dates may be in Hijri (e.g. 1447/03/15) or Gregorian.`;
 
-  let imageDataUrl = receiptUrl;
-  if (!receiptUrl.startsWith("data:")) {
-    const resp = await fetch(receiptUrl);
-    const buf = await resp.arrayBuffer();
-    const mime = resp.headers.get("content-type") ?? "image/jpeg";
-    imageDataUrl = `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
-  }
-
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: visionModel,
-      temperature: 0,
-      max_tokens: 256,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: imageDataUrl } },
-          ],
-        },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Groq Vision ${res.status}: ${txt.slice(0, 200)}`);
-  }
-
-  const j: any = await res.json();
-  const content: string = j?.choices?.[0]?.message?.content ?? "";
+function parseReceiptJson(content: string): { amount: number | null; date: string | null } {
   const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return { bankName: null, amount: null, date: null };
-
+  if (!jsonMatch) return { amount: null, date: null };
   try {
     const parsed = JSON.parse(jsonMatch[0]);
     const amountRaw = parsed.amount;
@@ -700,13 +663,71 @@ async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptChe
         ? Number(String(amountRaw).replace(/[^\d.]/g, ""))
         : null;
     return {
-      bankName: parsed.bankName ? String(parsed.bankName).trim() : null,
       amount: amountNum != null && Number.isFinite(amountNum) ? amountNum : null,
       date: parsed.date ? String(parsed.date).trim() : null,
     };
   } catch {
-    return { bankName: null, amount: null, date: null };
+    return { amount: null, date: null };
   }
+}
+
+async function fetchImageAsDataUrl(url: string): Promise<string> {
+  if (url.startsWith("data:")) return url;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`fetch image ${resp.status}`);
+  const buf = await resp.arrayBuffer();
+  const mime = resp.headers.get("content-type") ?? "image/jpeg";
+  return `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
+}
+
+async function callGroqVision(model: string, imageDataUrl: string, apiKey: string): Promise<{ amount: number | null; date: string | null }> {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      max_tokens: 300,
+      messages: [
+        { role: "system", content: RECEIPT_VISION_PROMPT },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Read this receipt and extract amount and date as JSON." },
+            { type: "image_url", image_url: { url: imageDataUrl } },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Groq Vision ${model} ${res.status}: ${txt.slice(0, 200)}`);
+  }
+  const j: any = await res.json();
+  return parseReceiptJson(j?.choices?.[0]?.message?.content ?? "");
+}
+
+async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptCheckResult> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY غير موضع");
+
+  const imageDataUrl = await fetchImageAsDataUrl(receiptUrl);
+
+  let lastError: Error | null = null;
+  for (const model of VISION_MODELS) {
+    try {
+      const result = await callGroqVision(model, imageDataUrl, apiKey);
+      if (result.amount !== null || result.date !== null) {
+        return { bankName: null, ...result };
+      }
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      console.error(`readReceipt: model ${model} failed`, e);
+    }
+  }
+  if (lastError) throw lastError;
+  return { bankName: null, amount: null, date: null };
 }
 
 async function checkReceipt(receiptFile: string, packageAmount: number): Promise<{ approved: boolean; reason: string }> {
