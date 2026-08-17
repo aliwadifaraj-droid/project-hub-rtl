@@ -52,6 +52,7 @@ function VipPage() {
   const [showOtherPlans, setShowOtherPlans] = useState(false);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [ocrScanning, setOcrScanning] = useState(false);
+  const [receiptError, setReceiptError] = useState("");
 
   const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
@@ -79,6 +80,7 @@ function VipPage() {
   async function handleFileChange(file: File | null) {
     setFile(file);
     setOcrResult(null);
+    setReceiptError("");
     if (!file || !file.type.startsWith("image/")) return;
     setOcrScanning(true);
     try {
@@ -86,12 +88,12 @@ function VipPage() {
       const res = await validateOcr({ data: { imageData: dataUrl, expectedPrice: selectedPlanObj.price } });
       if (res.result) setOcrResult(res.result);
       if (!res.valid) {
-        toast.error(res.reason);
+        setReceiptError(res.reason);
       } else {
-        toast.success(res.reason);
+        setReceiptError("");
       }
     } catch (err) {
-      toast.error("تعذر قراءة الإيصال: " + (err as Error).message);
+      setReceiptError("تعذر قراءة الإيصال: " + (err as Error).message);
     } finally {
       setOcrScanning(false);
     }
@@ -106,7 +108,7 @@ function VipPage() {
     if (!selectedPlan) return toast.error("اختر الباقة");
     if (ocrResult) {
       if (!ocrResult.is_receipt || !ocrResult.is_recent) {
-        toast.error("الإيصال غير صالح — يرجى رفع إيصال تحويل بنكي حديث");
+        setReceiptError("الإيصال غير صالح — يرجى رفع إيصال تحويل بنكي حديث");
         return;
       }
     }
@@ -396,6 +398,9 @@ function VipPage() {
                           </span>
                         )}
                       </div>
+                      {receiptError && (
+                        <p className="text-red-600 text-sm mt-2">⚠️ {receiptError}</p>
+                      )}
                       {ocrResult && (
                         <div className="mt-3 rounded-lg border border-border bg-secondary/20 p-3 text-xs space-y-1">
                           <p className="font-bold text-sm mb-1">بيانات الإيصال المستخرجة:</p>
