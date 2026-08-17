@@ -14,7 +14,7 @@ import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 import type { OcrResult } from "@/lib/receipt-ocr";
-import { scanReceipt, validateOcrResult } from "@/lib/receipt-ocr";
+import { validateReceiptOcr } from "@/lib/receipt-ocr";
 const BANK_INFO = {
   name: "البنك الأهلي",
   holder: "AHMED SALMI",
@@ -74,19 +74,21 @@ function VipPage() {
     setStep(3);
   }
 
+  const validateOcr = useServerFn(validateReceiptOcr);
+
   async function handleFileChange(file: File | null) {
     setFile(file);
     setOcrResult(null);
     if (!file || !file.type.startsWith("image/")) return;
     setOcrScanning(true);
     try {
-      const result = await scanReceipt(file);
-      setOcrResult(result);
-      const validation = validateOcrResult(result, selectedPlanObj.price);
-      if (!validation.ok) {
-        toast.error(validation.message);
+      const dataUrl = await fileToBase64(file);
+      const res = await validateOcr({ data: { imageData: dataUrl, expectedPrice: selectedPlanObj.price } });
+      if (res.result) setOcrResult(res.result);
+      if (!res.valid) {
+        toast.error(res.reason);
       } else {
-        toast.success("تم التحقق من الإيصال بنجاح");
+        toast.success(res.reason);
       }
     } catch (err) {
       toast.error("تعذر قراءة الإيصال: " + (err as Error).message);
@@ -103,9 +105,8 @@ function VipPage() {
     if (!city) return toast.error("اختر المدينة");
     if (!selectedPlan) return toast.error("اختر الباقة");
     if (ocrResult) {
-      const validation = validateOcrResult(ocrResult, selectedPlanObj.price);
-      if (!validation.ok) {
-        toast.error(validation.message);
+      if (!ocrResult.is_receipt || !ocrResult.is_recent) {
+        toast.error("الإيصال غير صالح — يرجى رفع إيصال تحويل بنكي حديث");
         return;
       }
     }
@@ -113,7 +114,7 @@ function VipPage() {
     try {
       const data = await fileToBase64(file);
       const res = await upload({ data: { filename: file.name, mime: file.type, purpose: "vip-receipt", data } });
-      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan, city, ocr_bank: ocrResult?.bank ?? null, ocr_amount: ocrResult?.amount ?? null, ocr_date: ocrResult?.date ?? null, ocr_time: ocrResult?.time ?? null } });
+      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, receipt_image: data, plan: selectedPlan, city } });
       setSubmitted(true);
     } catch (err) {
       toast.error("حصل خطأ: " + (err as Error).message);

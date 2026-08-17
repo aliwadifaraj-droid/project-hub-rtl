@@ -12,167 +12,101 @@ export interface OcrResult {
   is_recent: boolean;
 }
 
-const SYSTEM_PROMPT = `أنت مسؤول عن فحص صور الإيصالات البنكية.
-استخرج البيانات التالية من الإيصال:
-- اسم البنك
-- المبلغ المحوّل
-- تاريخ التحويل
-- وقت التحويل
-ثم تحقق من:
-1. هل الصورة تحتوي على إيصال تحويل بنكي حقيقي؟
-2. هل التاريخ في الإيصال حديث (ضمن آخر 30 يوماً)؟
-أجب بصيغة JSON فقط:
-{"bank": "اسم البنك أو null", "amount": 100, "date": "YYYY-MM-DD أو null", "time": "HH:MM أو null", "is_receipt": true/false, "is_recent": true/false}`;
+const EMPTY_RESULT: OcrResult = {
+  bank: null,
+  amount: null,
+  date: null,
+  time: null,
+  is_receipt: false,
+  is_recent: false,
+};
 
-function extractJson(text: string): Record<string, any> | null {
+const SYSTEM_PROMPT = `أنت مسؤول عن فحص صور الإيصالات البنكية.
+استخرج اسم البنك والمبلغ وتاريخ ووقت التحويل.
+تحقق أن الصورة إيصال تحويل بنكي حقيقي وأن التاريخ خلال آخر 30 يوماً.
+أجب بصيغة JSON فقط:
+{"bank":"اسم البنك أو null","amount":100,"date":"YYYY-MM-DD أو null","time":"HH:MM أو null","is_receipt":true,"is_recent":true}`;
+
+function extractJson(text: string): Record<string, unknown> | null {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
-    return JSON.parse(match[0]);
+    return JSON.parse(match[0]) as Record<string, unknown>;
   } catch {
     return null;
   }
 }
 
-export async function scanReceipt(file: File): Promise<OcrResult> {
-  const dataUrl = await fileToBase64(file);
+export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    console.error("[receipt-ocr] GROQ_API_KEY missing — skipping scan");
-    return { bank: null, amount: null, date: null, time: null, is_receipt: true, is_recent: true };
+    console.error("[receipt-ocr] GROQ_API_KEY missing");
+    return EMPTY_RESULT;
   }
 
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: VISION_MODEL,
-        temperature: 0.1,
-        max_tokens: 512,
+        temperature: 0,
+        max_tokens: 256,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
             content: [
-              { type: "text", text: "افحص هذا الإيصال واستخرج البيانات بصيغة JSON." },
+              { type: "text", text: "افحص الصورة وأجب بصيغة JSON فقط." },
               { type: "image_url", image_url: { url: dataUrl } },
             ],
           },
         ],
       }),
     });
-
     if (!res.ok) {
-      console.error("[receipt-ocr] Groq API error", res.status, await res.text());
-      return { bank: null, amount: null, date: null, time: null, is_receipt: true, is_recent: true };
+      console.error("[receipt-ocr] Groq API error", res.status);
+      return EMPTY_RESULT;
     }
 
-    const j: any = await res.json();
-    const text: string = j?.choices?.[0]?.message?.content?.trim() ?? "";
-    const parsed = extractJson(text);
-    if (!parsed) {
-      console.error("[receipt-ocr] No JSON in response:", text);
-      return { bank: null, amount: null, date: null, time: null, is_receipt: true, is_recent: true };
-    }
+    const response = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const parsed = extractJson(response.choices?.[0]?.message?.content?.trim() ?? "");
+    if (!parsed) return EMPTY_RESULT;
 
     return {
-      bank: parsed.bank ?? null,
+      bank: typeof parsed.bank === "string" ? parsed.bank : null,
       amount: typeof parsed.amount === "number" ? parsed.amount : null,
-      date: parsed.date ?? null,
-      time: parsed.time ?? null,
+      date: typeof parsed.date === "string" ? parsed.date : null,
+      time: typeof parsed.time === "string" ? parsed.time : null,
       is_receipt: parsed.is_receipt === true,
       is_recent: parsed.is_recent === true,
     };
-  } catch (e) {
-    console.error("[receipt-ocr] exception", e);
-    return { bank: null, amount: null, date: null, time: null, is_receipt: true, is_recent: true };
+  } catch (error) {
+    console.error("[receipt-ocr] exception", error);
+    return EMPTY_RESULT;
   }
 }
 
+export async function scanReceipt(file: File): Promise<OcrResult> {
+  return scanReceiptDataUrl(await fileToBase64(file));
+}
+
 export function validateOcrResult(result: OcrResult, expectedPrice: number): { ok: boolean; message: string } {
-  if (!result.is_receipt) {
-    return { ok: false, message: "الصورة ليست إيصال تحويل بنكي صحيح" };
-  }
-  if (!result.is_recent) {
-    return { ok: false, message: "الإيصال قديم — يجب أن يكون ضمن آخر 30 يوماً" };
-  }
-  if (result.amount !== null && result.amount < expectedPrice) {
+  if (!result.is_receipt) return { ok: false, message: "الصورة ليست إيصال تحويل بنكي صحيح" };
+  if (!result.is_recent) return { ok: false, message: "الإيصال قديم أو لا يحتوي على تاريخ واضح" };
+  if (result.amount === null) return { ok: false, message: "تعذر قراءة مبلغ التحويل" };
+  if (result.amount < expectedPrice) {
     return { ok: false, message: `المبلغ في الإيصال (${result.amount} ر.س) أقل من قيمة الباقة (${expectedPrice} ر.س)` };
   }
   return { ok: true, message: "تم التحقق من الإيصال بنجاح" };
 }
 
 export const validateReceiptOcr = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      imageData: z.string().min(1),
-      mime: z.string().optional(),
-    }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ imageData: z.string().min(1), expectedPrice: z.number().positive() }).parse(d))
   .handler(async ({ data }) => {
-    const dataUrl = data.imageData.startsWith("data:")
-      ? data.imageData
-      : `data:${data.mime ?? "image/jpeg"};base64,${data.imageData}`;
-
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) {
-      console.error("[receipt-ocr] GROQ_API_KEY missing — skipping validation");
-      return { valid: true, reason: "لم يتم التحقق (لا يوجد مفتاح API)" };
-    }
-
-    try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: VISION_MODEL,
-          temperature: 0.1,
-          max_tokens: 256,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: "افحص هذه الصورة وأجب بصيغة JSON." },
-                { type: "image_url", image_url: { url: dataUrl } },
-              ],
-            },
-          ],
-        }),
-      });
-
-      if (!res.ok) {
-        console.error("[receipt-ocr] Groq API error", res.status, await res.text());
-        return { valid: true, reason: "تعذر التحقق من الإيصال" };
-      }
-
-      const j: any = await res.json();
-      const text: string = j?.choices?.[0]?.message?.content?.trim() ?? "";
-      const parsed = extractJson(text);
-      if (!parsed) {
-        console.error("[receipt-ocr] No JSON in response:", text);
-        return { valid: true, reason: "تعذر تحليل نتيجة الفحص" };
-      }
-
-      if (parsed.is_receipt !== true) {
-        return { valid: false, reason: "الصورة ليست إيصال تحويل بنكي صحيح" };
-      }
-      if (parsed.is_recent !== true) {
-        return { valid: false, reason: "الإيصال قديم — يجب أن يكون ضمن آخر 30 يوماً" };
-      }
-
-      return { valid: true, reason: "تم التحقق من الإيصال بنجاح" };
-    } catch (e) {
-      console.error("[receipt-ocr] exception", e);
-      return { valid: true, reason: "تعذر التحقق من الإيصال" };
-    }
+    const result = await scanReceiptDataUrl(data.imageData);
+    const validation = validateOcrResult(result, data.expectedPrice);
+    return { valid: validation.ok, reason: validation.message, result };
   });
 
 function fileToBase64(file: File): Promise<string> {
