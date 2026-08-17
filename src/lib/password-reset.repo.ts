@@ -12,7 +12,26 @@ export type PasswordResetTokenRow = {
 
 const TOKEN_TTL_MINUTES = 30;
 
+let _tableReady: Promise<void> | null = null;
+function ensureTable(): Promise<void> {
+  if (_tableReady) return _tableReady;
+  _tableReady = db.execute(
+    `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    )`,
+  ).then(() => db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token)`,
+  )).then(() => undefined);
+  return _tableReady;
+}
+
 export async function createPasswordResetToken(userId: string): Promise<string> {
+  await ensureTable();
   const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
   const id = crypto.randomUUID();
   const now = new Date();
@@ -25,6 +44,7 @@ export async function createPasswordResetToken(userId: string): Promise<string> 
 }
 
 export async function getValidPasswordResetToken(token: string): Promise<PasswordResetTokenRow | null> {
+  await ensureTable();
   const r = await db.execute(
     `SELECT id, user_id, token, expires_at, used, created_at FROM password_reset_tokens WHERE token = ? LIMIT 1`,
     [token],
@@ -45,5 +65,6 @@ export async function getValidPasswordResetToken(token: string): Promise<Passwor
 }
 
 export async function markPasswordResetTokenUsed(token: string): Promise<void> {
+  await ensureTable();
   await db.execute(`UPDATE password_reset_tokens SET used = 1 WHERE token = ?`, [token]);
 }
