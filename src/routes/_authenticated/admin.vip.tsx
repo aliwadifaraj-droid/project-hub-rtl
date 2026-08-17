@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, testVipExpiry, createTrialVipSubscription, createPackageTrialSubscription } from "@/lib/vip.functions";
+import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, testVipExpiry, createTrialVipSubscription } from "@/lib/vip.functions";
+import { createPackageTrialSubscription } from "@/lib/support.functions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, X, Star } from "lucide-react";
@@ -116,42 +117,50 @@ function AdminVipPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const pkgTrialFn = useServerFn(createPackageTrialSubscription);
+  const packageTrialFn = useServerFn(createPackageTrialSubscription);
   const [pkgEmail, setPkgEmail] = useState("");
-  const [pkgAmount, setPkgAmount] = useState("50");
-  const [pkgFile, setPkgFile] = useState<File | null>(null);
-  const [pkgLoading, setPkgLoading] = useState(false);
-
-  async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function handlePkgTrial(e: React.FormEvent) {
-    e.preventDefault();
-    if (!pkgEmail.trim()) return toast.error("أدخل البريد الإلكتروني");
-    if (!pkgFile) return toast.error("ارفع الإيصال البنكي");
-    if (!pkgAmount.trim() || Number(pkgAmount) <= 0) return toast.error("أدخل قيمة الباقة");
-    setPkgLoading(true);
-    try {
-      const imageData = await fileToBase64(pkgFile);
-      const res = await pkgTrialFn({ data: { email: pkgEmail.trim(), receipt_image: imageData, package_amount: Number(pkgAmount) } });
-      if (res.approved) {
-        toast.success(`تمت الموافقة — فُعّل اشتراك 7 أيام لـ ${res.email}`);
+  const [pkgAmount, setPkgAmount] = useState("100");
+  const [pkgMinutes, setPkgMinutes] = useState("30");
+  const [pkgReceiptUrl, setPkgReceiptUrl] = useState("");
+  const [pkgUploading, setPkgUploading] = useState(false);
+  const createPackageTrial = useMutation({
+    mutationFn: () =>
+      packageTrialFn({
+        data: {
+          email: pkgEmail,
+          receiptFile: pkgReceiptUrl,
+          packageAmount: Number(pkgAmount),
+          durationMinutes: Number(pkgMinutes),
+        },
+      }),
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success(`تم انشاء اشتراك الباقة بنجاح لـ ${res.email}`);
         setPkgEmail("");
-        setPkgFile(null);
-        qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
+        setPkgReceiptUrl("");
       } else {
-        toast.error(`رفض Groq: ${res.reason}`);
+        toast.error(`تم رفض الإيصال: ${res.reason}`);
       }
-    } catch (err) {
-      toast.error("حصل خطأ: " + (err as Error).message);
+      qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  async function handlePkgReceiptUpload(file: File) {
+    setPkgUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("purpose", "vip-receipt");
+      const res = await fetch("/api/public/upload", { method: "POST", body: fd });
+      const json = (await res.json()) as { url?: string; signedUrl?: string; error?: string };
+      if (!res.ok || !json.url) throw new Error(json.error || "تعذر رفع الملف");
+      setPkgReceiptUrl(json.signedUrl ?? json.url ?? "");
+      toast.success("تم رفع الإيصال");
+    } catch (e) {
+      toast.error((e as Error).message);
     } finally {
-      setPkgLoading(false);
+      setPkgUploading(false);
     }
   }
 
@@ -205,45 +214,43 @@ function AdminVipPage() {
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <h2 className="mb-3 text-lg font-semibold">انشاء تجربة اشتراك الباقات</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          المدة ثابتة 7 أيام. أدخل قيمة الباقة وارفع الإيصال ويُرسل لـ Groq للفحص.
-        </p>
-        <form className="flex flex-wrap items-end gap-3" onSubmit={handlePkgTrial}>
+        <h2 className="mb-3 text-lg font-semibold">تجربة اشتراك الباقات (مع فحص الإيصال)</h2>
+        <form
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (pkgEmail.trim() && pkgReceiptUrl && Number(pkgAmount) > 0 && Number(pkgMinutes) > 0) {
+              createPackageTrial.mutate();
+            }
+          }}
+        >
           <div className="flex flex-col gap-1">
             <Label htmlFor="pkg_email">الايميل</Label>
-            <Input
-              id="pkg_email"
-              type="email"
-              value={pkgEmail}
-              onChange={(e) => setPkgEmail(e.target.value)}
-              placeholder="test@example.com"
-              className="w-64"
-            />
+            <Input id="pkg_email" type="email" value={pkgEmail} onChange={(e) => setPkgEmail(e.target.value)} placeholder="user@example.com" className="w-56" />
           </div>
           <div className="flex flex-col gap-1">
             <Label htmlFor="pkg_amount">قيمة الباقة (ريال)</Label>
-            <Input
-              id="pkg_amount"
-              type="number"
-              min="1"
-              value={pkgAmount}
-              onChange={(e) => setPkgAmount(e.target.value)}
-              className="w-32"
-            />
+            <Input id="pkg_amount" type="number" min="1" value={pkgAmount} onChange={(e) => setPkgAmount(e.target.value)} className="w-32" />
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="pkg_receipt">الإيصال البنكي (إلزامي)</Label>
-            <input
+            <Label htmlFor="pkg_minutes">مدة الاشتراك (دقائق)</Label>
+            <Input id="pkg_minutes" type="number" min="1" value={pkgMinutes} onChange={(e) => setPkgMinutes(e.target.value)} className="w-32" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_receipt">صورة الإيصال</Label>
+            <Input
               id="pkg_receipt"
               type="file"
               accept="image/*,application/pdf"
-              onChange={(e) => setPkgFile(e.target.files?.[0] ?? null)}
-              className="w-64 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handlePkgReceiptUpload(f);
+              }}
+              className="w-56"
             />
           </div>
-          <Button type="submit" disabled={pkgLoading}>
-            {pkgLoading ? "جارٍ الفحص..." : "انشاء تجربة اشتراك الباقات"}
+          <Button type="submit" disabled={createPackageTrial.isPending || pkgUploading || !pkgReceiptUrl}>
+            {createPackageTrial.isPending ? "جارٍ الفحص..." : pkgUploading ? "جارٍ رفع الإيصال..." : "تجربة اشتراك الباقات"}
           </Button>
         </form>
       </div>
@@ -266,10 +273,8 @@ function AdminVipPage() {
               <TableRow>
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
-                <TableHead>المدينة</TableHead>
                 <TableHead>المشروع</TableHead>
                 <TableHead>الحالة</TableHead>
-                <TableHead>تاريخ الانتهاء</TableHead>
                 <TableHead>ينتهي خلال</TableHead>
                 <TableHead>الإيصال</TableHead>
                 <TableHead>إجراءات</TableHead>
@@ -284,16 +289,10 @@ function AdminVipPage() {
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.name ?? "—"}</TableCell>
                     <TableCell className="text-xs">{s.email ?? "—"}</TableCell>
-                    <TableCell className="text-xs">{(s as { city?: string | null }).city ?? "—"}</TableCell>
                     <TableCell className="text-xs">
                       {(s as { project_name?: string | null }).project_name ?? "—"}
                     </TableCell>
                     <TableCell>{statusBadge(s.status)}</TableCell>
-                    <TableCell>
-                      {(s as { expires_at?: string | null }).expires_at
-                        ? new Date((s as { expires_at: string }).expires_at).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })
-                        : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
                     <TableCell>
                       {isApproved && hours !== null ? (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -307,26 +306,14 @@ function AdminVipPage() {
                     </TableCell>
                     <TableCell>
                       {s.receipt_url ? (
-                        <div className="space-y-1">
-                          <a
-                            href={s.receipt_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary text-xs underline"
-                          >
-                            عرض
-                          </a>
-                          {(s as { ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }).ocr_bank ||
-                          (s as { ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }).ocr_amount ||
-                          (s as { ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }).ocr_date ? (
-                            <div className="rounded border border-border bg-secondary/30 p-2 text-[10px] space-y-0.5">
-                              <div><span className="text-muted-foreground">البنك:</span> {(s as { ocr_bank?: string | null }).ocr_bank ?? "—"}</div>
-                              <div><span className="text-muted-foreground">المبلغ:</span> {(s as { ocr_amount?: string | null }).ocr_amount ?? "—"}</div>
-                              <div><span className="text-muted-foreground">التاريخ:</span> {(s as { ocr_date?: string | null }).ocr_date ?? "—"}</div>
-                              <div><span className="text-muted-foreground">الوقت:</span> {(s as { ocr_time?: string | null }).ocr_time ?? "—"}</div>
-                            </div>
-                          ) : null}
-                        </div>
+                        <a
+                          href={s.receipt_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary text-xs underline"
+                        >
+                          عرض
+                        </a>
                       ) : (
                         <span className="text-xs text-muted-foreground">لا يوجد</span>
                       )}

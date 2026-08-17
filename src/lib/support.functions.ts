@@ -88,10 +88,8 @@ function findProjectByQuery(rows: Array<{ name: string; location: string | null 
     const nameNorm = normalizeAr(r.name);
     const locNorm = normalizeAr(r.location ?? "");
     let score = 0;
-    // Full-name substring in either direction
     const qJoined = qTokens.join(" ");
     if (nameNorm && (nameNorm === qJoined || nameNorm.includes(qJoined) || qJoined.includes(nameNorm))) score += 10;
-    // Per-token matches
     for (const t of qTokens) {
       if (t.length < 2) continue;
       if (nameNorm.includes(t)) score += 3;
@@ -112,14 +110,12 @@ async function answerProjectQuery(text: string): Promise<string | null> {
   const rows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
   if (!rows.length) return hasProjectWord ? "لا توجد مشاريع متاحة حالياً." : null;
 
-  // 1) Count queries first
   if (hasProjectWord && (tNorm.includes("كم") || tNorm.includes("عدد") || tNorm.includes("count") || tNorm.includes("how many"))) {
     const active = rows.filter((r) => r.status === "active").length;
     const delivered = rows.filter((r) => r.status === "delivered").length;
     return `عدد المشاريع المعتمدة: ${rows.length}\n• مفتوح للعروض: ${active}\n• تم التسليم: ${delivered}`;
   }
 
-  // 2) City query: "مشاريع [المدينة]"
   const cityRe = /^\s*(?:مشاريع|projects)\s+(?:في|by|in)?\s*(.+)$/i;
   const cm = raw.match(cityRe);
   if (cm && cm[1]) {
@@ -133,20 +129,16 @@ async function answerProjectQuery(text: string): Promise<string | null> {
       if (matches.length) {
         return `مشاريع ${cityRaw}:\n\n` + matches.slice(0, 20).map((p) => `• ${p.name} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
       }
-      // fall through: maybe user asked about specific project name, try name match
     }
   }
 
-  // 3) Specific project match by fuzzy tokens
   const idx = findProjectByQuery(rows, raw);
   if (idx >= 0) {
     return projectDetails(rows[idx]);
   }
 
-  // 4) If not clearly a project query, don't answer
   if (!hasProjectWord) return null;
 
-  // 5) Status-filtered listing
   let filtered = rows;
   if (tNorm.includes("مفتوح") || tNorm.includes("متاح")) filtered = rows.filter((p) => p.status === "active");
   else if (tNorm.includes("مسلم") || tNorm.includes("تسليم") || tNorm.includes("منجز")) filtered = rows.filter((p) => p.status === "delivered");
@@ -194,7 +186,6 @@ async function answerRequestStatus(query: string): Promise<string | null> {
   const emailMatch = raw.match(EMAIL_RE);
   const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
 
-  // 1) project_requests أولاً
   let rows = emailMatch ? await repo.searchRequestsByEmail(emailMatch[0]) : [];
   if (!rows.length && !emailMatch) rows = await repo.searchRequestsByCompany(name);
   if (rows.length) {
@@ -222,7 +213,6 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       .join("\n\n");
   }
 
-  // 2) offers (لم تُقبل بعد)
   let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
   if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
   if (offers.length) return OFFER_PENDING_REPLY;
@@ -342,11 +332,9 @@ async function askGroq(userText: string, opts: {
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
-/** Returns true when current time (Riyadh, UTC+3) is inside configured work hours. */
 function isInWorkHours(settings: { work_days: Record<string, boolean> | null; work_start: string | null; work_end: string | null }): boolean {
   if (!settings.work_days || !settings.work_start || !settings.work_end) return true;
   const now = new Date();
-  // Compute in Asia/Riyadh (UTC+3, no DST).
   const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   const localMinutes = (utcMinutes + 3 * 60) % (24 * 60);
   const dayIdx = (now.getUTCDay() + Math.floor((utcMinutes + 3 * 60) / (24 * 60))) % 7;
@@ -455,7 +443,6 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
       if (!chat) return { chat: null, messages: [] };
       return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
     };
-    // cached: chat_{customerId}, 10 min (full history reads only)
     if (data.sinceIso) return load();
     return cached(cacheKeys.chat(data.visitorToken), TTL_CHAT, load);
   });
@@ -491,7 +478,6 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
-    // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
     if (!answer && asksAboutOffer(data.body)) {
       const allRows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
       const pIdx = findProjectByQuery(allRows, data.body);
@@ -516,8 +502,6 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
-
-    // استعلام حالة الطلب من الطلبات الواردة
 
     let requestAnswer: string | null = null;
     if (!answer) {
@@ -645,3 +629,163 @@ export const adminCountOpenSupportChats = createServerFn({ method: "GET" }).midd
   assertStaff(context.roles);
   return { count: await supportRepo.countEscalatedChats() };
 });
+
+/* ---------- فحص الإيصال + اشتراك تجربة الباقة ---------- */
+
+const BANK_KEYWORDS = ["بنك", "Bank", "مصرف", "bank", "محفظة", "wallet", "STC Pay", "Urpay", "Apple Pay", "مدى"];
+
+interface ReceiptCheckResult {
+  bankName: string | null;
+  amount: number | null;
+  date: string | null;
+}
+
+async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptCheckResult> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY غير موضع");
+
+  const visionModel = "meta-llama/llama-4-scout-17b-16e-instruct";
+  const prompt = `أنت مساعد يقرأ إيصالات تحويل بنكي. استخرج المعلومات التالية من الإيصال بصيغة JSON فقط بدون أي نص إضافي:
+{
+  "bankName": "اسم البنك أو المحفظة الموجود في الإيصال",
+  "amount": "المبلغ بالأرقام فقط بدون عملة",
+  "date": "تاريخ التحويل بصيغة YYYY-MM-DD أو ISO"
+}
+إذا لم تجد أي حقل، ضع null.`;
+
+  let imageDataUrl = receiptUrl;
+  if (!receiptUrl.startsWith("data:")) {
+    const resp = await fetch(receiptUrl);
+    const buf = await resp.arrayBuffer();
+    const mime = resp.headers.get("content-type") ?? "image/jpeg";
+    imageDataUrl = `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
+  }
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: visionModel,
+      temperature: 0,
+      max_tokens: 256,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: imageDataUrl } },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Groq Vision ${res.status}: ${txt.slice(0, 200)}`);
+  }
+
+  const j: any = await res.json();
+  const content: string = j?.choices?.[0]?.message?.content ?? "";
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return { bankName: null, amount: null, date: null };
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    const amountRaw = parsed.amount;
+    const amountNum = typeof amountRaw === "number"
+      ? amountRaw
+      : amountRaw != null
+        ? Number(String(amountRaw).replace(/[^\d.]/g, ""))
+        : null;
+    return {
+      bankName: parsed.bankName ? String(parsed.bankName).trim() : null,
+      amount: amountNum != null && Number.isFinite(amountNum) ? amountNum : null,
+      date: parsed.date ? String(parsed.date).trim() : null,
+    };
+  } catch {
+    return { bankName: null, amount: null, date: null };
+  }
+}
+
+async function checkReceipt(receiptFile: string, packageAmount: number): Promise<{ approved: boolean; reason: string }> {
+  let parsed: ReceiptCheckResult;
+  try {
+    parsed = await readReceiptWithGroqVision(receiptFile);
+  } catch (e) {
+    console.error("verifyReceipt: فشل قراءة الإيصال", e);
+    return { approved: false, reason: "تعذر قراءة الإيصال. حاول برفع صورة أوضح." };
+  }
+
+  const { bankName, amount, date } = parsed;
+  console.log(`البنك المكتشف: ${bankName}, المبلغ: ${amount}, التاريخ: ${date}`);
+
+  if (!bankName) {
+    return { approved: false, reason: "لم يتم العثور على اسم بنك أو محفظة في الإيصال." };
+  }
+  const hasBankKeyword = BANK_KEYWORDS.some((k) =>
+    bankName.toLowerCase().includes(k.toLowerCase()),
+  );
+  if (!hasBankKeyword) {
+    return { approved: false, reason: "الإيصال لا يحتوي على اسم بنك أو محفظة معروفة." };
+  }
+
+  if (!date) {
+    return { approved: false, reason: "لم يتم العثور على تاريخ في الإيصال." };
+  }
+  const receiptDate = new Date(date);
+  if (isNaN(receiptDate.getTime())) {
+    return { approved: false, reason: "تاريخ الإيصال غير صالح." };
+  }
+  const hoursDiff = (Date.now() - receiptDate.getTime()) / 3_600_000;
+  if (hoursDiff < 0 || hoursDiff > 72) {
+    return { approved: false, reason: "تاريخ الإيصال خارج نطاق 72 ساعة المسموح." };
+  }
+
+  if (amount == null) {
+    return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
+  }
+  if (Math.abs(amount - packageAmount) > 0.01) {
+    return {
+      approved: false,
+      reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
+    };
+  }
+
+  return { approved: true, reason: "تمت الموافقة على الإيصال." };
+}
+
+export const verifyReceipt = createServerFn({ method: "POST" })
+  .inputValidator((d: { email: string; receiptFile: string; packageAmount: number }) =>
+    z.object({
+      email: z.string().trim().min(1),
+      receiptFile: z.string().trim().min(1),
+      packageAmount: z.number().positive(),
+    }).parse(d))
+  .handler(async ({ data }) => checkReceipt(data.receiptFile, data.packageAmount));
+
+export const createPackageTrialSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: { email: string; receiptFile: string; packageAmount: number; durationMinutes: number }) =>
+    z.object({
+      email: z.string().trim().min(1),
+      receiptFile: z.string().trim().min(1),
+      packageAmount: z.number().positive(),
+      durationMinutes: z.number().int().positive(),
+    }).parse(d))
+  .handler(async ({ data, context }) => {
+    assertAdmin(context.roles);
+
+    const check = await checkReceipt(data.receiptFile, data.packageAmount);
+
+    if (!check.approved) {
+      return { ok: false as const, reason: check.reason };
+    }
+
+    const vipRepo = await import("./vip.repo");
+    const row = await vipRepo.createTrialVip(data.email, data.durationMinutes);
+    return { ok: true as const, id: row.id, email: row.email ?? data.email };
+  });
