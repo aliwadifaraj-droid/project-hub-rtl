@@ -13,13 +13,6 @@ import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@/components/ui/accordion";
-
 const BANK_INFO = {
   name: "البنك الأهلي",
   holder: "AHMED SALMI",
@@ -164,7 +157,7 @@ function VipPage() {
                   <span className="w-8 text-center">الدفع</span>
                 </div>
 
-                {/* Step 1: Plan selection with featured card + accordion */}
+                {/* Step 1: Plan selection with featured card + other plans visible */}
                 {step === 1 && (
                   <div className="mx-auto mt-8 max-w-xl">
                     <div className="rounded-2xl border-2 border-primary bg-card p-8 text-center shadow-lg">
@@ -197,47 +190,45 @@ function VipPage() {
                       </button>
                     </div>
 
-                    <Accordion type="single" collapsible className="mt-6 rounded-xl border border-border bg-card px-4">
-                      <AccordionItem value="other-plans">
-                        <AccordionTrigger className="text-sm font-bold">
-                          باقات أخرى متاحة
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            {PLANS.slice(1).map((p) => {
-                              const active = selectedPlan === p.id;
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={() => setSelectedPlan(p.id)}
-                                  className={`rounded-lg border p-4 text-center transition ${active ? "border-primary ring-2 ring-primary" : "border-border hover:bg-secondary"}`}
-                                >
-                                  <h4 className="text-sm font-bold">{p.label}</h4>
-                                  <p className="mt-1 text-xs text-muted-foreground">{p.duration}</p>
-                                  <p className="mt-3 text-2xl font-extrabold text-foreground">
-                                    {p.price}
-                                    <span className="text-xs font-medium text-muted-foreground"> ر.س</span>
-                                  </p>
-                                  {active && (
-                                    <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
-                                      <Check className="h-3 w-3" /> محددة
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={goToStep2}
-                            className="mt-4 w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-bold text-foreground transition hover:bg-secondary"
-                          >
-                            متابعة بالباقة المختارة
-                          </button>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
+                    <div className="mt-5 rounded-xl border border-border bg-card p-4">
+                      <div className="flex items-center justify-center gap-2 pb-3">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-sm font-bold text-primary">باقات أخرى متاحة</span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {PLANS.slice(1).map((p) => {
+                          const active = selectedPlan === p.id;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setSelectedPlan(p.id)}
+                              className={`rounded-lg border p-4 text-center transition ${active ? "border-primary ring-2 ring-primary" : "border-border hover:bg-secondary"}`}
+                            >
+                              <h4 className="text-sm font-bold">{p.label}</h4>
+                              <p className="mt-1 text-xs text-muted-foreground">{p.duration}</p>
+                              <p className="mt-3 text-2xl font-extrabold text-foreground">
+                                {p.price}
+                                <span className="text-xs font-medium text-muted-foreground"> ر.س</span>
+                              </p>
+                              {active && (
+                                <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
+                                  <Check className="h-3 w-3" /> محددة
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={goToStep2}
+                        className="mt-4 w-full rounded-lg border border-primary bg-primary/5 px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary/10"
+                      >
+                        متابعة بالباقة المختارة
+                      </button>
+                    </div>
                   </div>
                 )}
 
