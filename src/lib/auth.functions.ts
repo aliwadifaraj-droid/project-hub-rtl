@@ -1,5 +1,6 @@
 // Public auth server functions: signUp, signIn, signOut, getMe, changePassword, requestPasswordReset, resetPasswordWithToken.
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import {
   hashPassword,
@@ -106,7 +107,9 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     const user = await findUserByEmail(data.email);
     if (user) {
       const token = await createPasswordResetToken(user.id);
-      const appUrl = process.env.APP_URL || `https://${process.env.DEPLOYMENT_URL}` || "http://localhost:3000";
+      const requestOrigin = new URL(getRequest().url).origin;
+      const configuredUrl = process.env.APP_URL?.trim() || process.env.DEPLOYMENT_URL?.trim();
+      const appUrl = configuredUrl || requestOrigin || "http://localhost:3000";
       const resetLink = `${appUrl}/reset-password?token=${token}`;
       await sendResendEmail({
         to: user.email,
