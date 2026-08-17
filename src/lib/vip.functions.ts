@@ -120,15 +120,43 @@ export const listVipByProject = createServerFn({ method: "GET" })
   });
 
 export const submitVipSubscription = createServerFn({ method: "POST" })
-  .inputValidator((data: { name: string; email: string; receipt_path: string; plan: string; city: string; ocr_bank?: string | null; ocr_amount?: string | null; ocr_date?: string | null; ocr_time?: string | null }) => {
+  .inputValidator((data: { name: string; email: string; receipt_path: string; plan: string; city: string; ocr_bank?: string | null; ocr_amount?: number | null; ocr_date?: string | null; ocr_time?: string | null }) => {
     if (!data?.name?.trim() || !data?.email?.trim()) throw new Error("الاسم والبريد مطلوبان");
     if (!data?.receipt_path?.trim()) throw new Error("إيصال التحويل مطلوب");
     if (!data?.plan?.trim()) throw new Error("اختر الباقة");
     if (!data?.city?.trim()) throw new Error("اختر المدينة");
-    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim(), city: data.city.trim(), ocr_bank: data.ocr_bank ?? null, ocr_amount: data.ocr_amount ?? null, ocr_date: data.ocr_date ?? null, ocr_time: data.ocr_time ?? null };
+    return {
+      name: data.name.trim(),
+      email: data.email.trim(),
+      receipt_path: data.receipt_path.trim(),
+      plan: data.plan.trim(),
+      city: data.city.trim(),
+      ocr_bank: data.ocr_bank ?? null,
+      ocr_amount: data.ocr_amount ?? null,
+      ocr_date: data.ocr_date ?? null,
+      ocr_time: data.ocr_time ?? null,
+    };
   })
   .handler(async ({ data }) => {
-    const id = await vipRepo.insertVipSubscriber(data);
+    const { validateOcrResult } = await import("./receipt-ocr");
+    const ocrResult = {
+      bank: data.ocr_bank,
+      amount: data.ocr_amount,
+      date: data.ocr_date,
+      time: data.ocr_time,
+      is_receipt: data.ocr_bank !== null || data.ocr_amount !== null,
+      is_recent: data.ocr_date !== null,
+    };
+    const planPrices: Record<string, number> = { "شهر": 100, "شهرين": 200, "3 شهور": 300 };
+    const expectedPrice = planPrices[data.plan] ?? 0;
+    if (ocrResult.is_receipt || ocrResult.is_recent) {
+      const validation = validateOcrResult(ocrResult, expectedPrice);
+      if (!validation.ok) {
+        throw new Error(validation.message);
+      }
+    }
+
+    const id = await vipRepo.insertVipSubscriber({ name: data.name, email: data.email, plan: data.plan, city: data.city, receipt_path: data.receipt_path });
     const admins = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin"));
     if (admins.length > 0) {
       const { insertMany } = await import("./notifications.repo");
