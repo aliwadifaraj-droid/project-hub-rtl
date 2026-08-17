@@ -632,7 +632,7 @@ export const adminCountOpenSupportChats = createServerFn({ method: "GET" }).midd
 
 /* ---------- فحص الإيصال + اشتراك تجربة الباقة ---------- */
 
-const BANK_KEYWORDS = ["بنك", "Bank", "مصرف", "bank", "محفظة", "wallet", "STC Pay", "Urpay", "Apple Pay", "مدى"];
+const BANK_KEYWORDS = ["بنك", "Bank", "مصرف", "bank", "محفظة", "wallet", "STC Pay", "Urpay"];
 
 interface ReceiptCheckResult {
   bankName: string | null;
@@ -647,7 +647,7 @@ async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptChe
   const visionModel = "meta-llama/llama-4-scout-17b-16e-instruct";
   const prompt = `أنت مساعد يقرأ إيصالات تحويل بنكي. استخرج المعلومات التالية من الإيصال بصيغة JSON فقط بدون أي نص إضافي:
 {
-  "bankName": "اسم البنك أو المحفظة الموجود في الإيصال",
+  "bankName": "اسم البنك أو المحفظة الموجود في الإيصال (مثل: بنك الراجحي، مصرف الأهلي، STC Pay، Urpay، محفظة، إلخ)",
   "amount": "المبلغ بالأرقام فقط بدون عملة",
   "date": "تاريخ التحويل بصيغة YYYY-MM-DD أو ISO"
 }
@@ -721,13 +721,14 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
   }
 
   const { bankName, amount, date } = parsed;
-  console.log(`البنك المكتشف: ${bankName}, المبلغ: ${amount}, التاريخ: ${date}`);
+  console.log("البنك/المحفظة المكتشفة:", bankName);
 
   if (!bankName) {
     return { approved: false, reason: "لم يتم العثور على اسم بنك أو محفظة في الإيصال." };
   }
+  const lowerBank = bankName.toLowerCase();
   const hasBankKeyword = BANK_KEYWORDS.some((k) =>
-    bankName.toLowerCase().includes(k.toLowerCase()),
+    lowerBank.includes(k.toLowerCase()),
   );
   if (!hasBankKeyword) {
     return { approved: false, reason: "الإيصال لا يحتوي على اسم بنك أو محفظة معروفة." };
