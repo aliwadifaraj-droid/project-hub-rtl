@@ -14,11 +14,11 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as MyRequestsRouteImport } from './routes/my-requests'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as SubmitProjectRouteImport } from './routes/submit-project'
 import { Route as SubscribeSuccessRouteImport } from './routes/subscribe-success'
 import { Route as ThankYouRouteImport } from './routes/thank-you'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
@@ -48,11 +48,10 @@ import { Route as AuthenticatedAdminPendingProjectsRouteImport } from './routes/
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin.projects'
 import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authenticated/admin.requests'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
-import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin.support'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
-import { Route as AuthenticatedAdminVisitorBidsRouteImport } from './routes/_authenticated/admin.visitor-bids'
+import { Route as ApiAdminR2RouteImport } from './routes/api/admin/r2'
 import { Route as ApiPublicUploadRouteImport } from './routes/api/public/upload'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -83,6 +82,11 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MaintenanceRoute = MaintenanceRouteImport.update({
   id: '/maintenance',
   path: '/maintenance',
@@ -101,11 +105,6 @@ const ProjectsRoute = ProjectsRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SubmitProjectRoute = SubmitProjectRouteImport.update({
-  id: '/submit-project',
-  path: '/submit-project',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubscribeSuccessRoute = SubscribeSuccessRouteImport.update({
@@ -266,12 +265,6 @@ const AuthenticatedAdminSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminSubmissionsRoute =
-  AuthenticatedAdminSubmissionsRouteImport.update({
-    id: '/submissions',
-    path: '/submissions',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminSupportRoute =
   AuthenticatedAdminSupportRouteImport.update({
     id: '/support',
@@ -288,12 +281,11 @@ const AuthenticatedAdminVipRoute = AuthenticatedAdminVipRouteImport.update({
   path: '/vip',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminVisitorBidsRoute =
-  AuthenticatedAdminVisitorBidsRouteImport.update({
-    id: '/visitor-bids',
-    path: '/visitor-bids',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
+const ApiAdminR2Route = ApiAdminR2RouteImport.update({
+  id: '/api/admin/r2',
+  path: '/api/admin/r2',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicUploadRoute = ApiPublicUploadRouteImport.update({
   id: '/api/public/upload',
   path: '/api/public/upload',
@@ -328,11 +320,11 @@ export interface FileRoutesByFullPath {
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
   '/projects': typeof ProjectsRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/submit-project': typeof SubmitProjectRoute
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -361,11 +353,10 @@ export interface FileRoutesByFullPath {
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
-  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
-  '/admin/visitor-bids': typeof AuthenticatedAdminVisitorBidsRoute
+  '/api/admin/r2': typeof ApiAdminR2Route
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -378,11 +369,11 @@ export interface FileRoutesByTo {
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
   '/projects': typeof ProjectsRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/submit-project': typeof SubmitProjectRoute
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -409,11 +400,10 @@ export interface FileRoutesByTo {
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
-  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
-  '/admin/visitor-bids': typeof AuthenticatedAdminVisitorBidsRoute
+  '/api/admin/r2': typeof ApiAdminR2Route
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -428,11 +418,11 @@ export interface FileRoutesById {
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
   '/my-requests': typeof MyRequestsRoute
   '/projects': typeof ProjectsRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/submit-project': typeof SubmitProjectRoute
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -461,11 +451,10 @@ export interface FileRoutesById {
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
   '/_authenticated/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
-  '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
-  '/_authenticated/admin/visitor-bids': typeof AuthenticatedAdminVisitorBidsRoute
+  '/api/admin/r2': typeof ApiAdminR2Route
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -480,11 +469,11 @@ export interface FileRouteTypes {
     | '/ads'
     | '/auth'
     | '/contact'
+    | '/forgot-password'
     | '/maintenance'
     | '/my-requests'
     | '/projects'
     | '/reset-password'
-    | '/submit-project'
     | '/subscribe-success'
     | '/thank-you'
     | '/unsubscribe'
@@ -513,11 +502,10 @@ export interface FileRouteTypes {
     | '/admin/projects'
     | '/admin/requests'
     | '/admin/settings'
-    | '/admin/submissions'
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
-    | '/admin/visitor-bids'
+    | '/api/admin/r2'
     | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/admin/'
@@ -530,11 +518,11 @@ export interface FileRouteTypes {
     | '/ads'
     | '/auth'
     | '/contact'
+    | '/forgot-password'
     | '/maintenance'
     | '/my-requests'
     | '/projects'
     | '/reset-password'
-    | '/submit-project'
     | '/subscribe-success'
     | '/thank-you'
     | '/unsubscribe'
@@ -561,11 +549,10 @@ export interface FileRouteTypes {
     | '/admin/projects'
     | '/admin/requests'
     | '/admin/settings'
-    | '/admin/submissions'
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
-    | '/admin/visitor-bids'
+    | '/api/admin/r2'
     | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/admin'
@@ -579,11 +566,11 @@ export interface FileRouteTypes {
     | '/ads'
     | '/auth'
     | '/contact'
+    | '/forgot-password'
     | '/maintenance'
     | '/my-requests'
     | '/projects'
     | '/reset-password'
-    | '/submit-project'
     | '/subscribe-success'
     | '/thank-you'
     | '/unsubscribe'
@@ -612,11 +599,10 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/projects'
     | '/_authenticated/admin/requests'
     | '/_authenticated/admin/settings'
-    | '/_authenticated/admin/submissions'
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
-    | '/_authenticated/admin/visitor-bids'
+    | '/api/admin/r2'
     | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
@@ -631,17 +617,18 @@ export interface RootRouteChildren {
   AdsRoute: typeof AdsRouteWithChildren
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   MaintenanceRoute: typeof MaintenanceRoute
   MyRequestsRoute: typeof MyRequestsRoute
   ProjectsRoute: typeof ProjectsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
-  SubmitProjectRoute: typeof SubmitProjectRoute
   SubscribeSuccessRoute: typeof SubscribeSuccessRoute
   ThankYouRoute: typeof ThankYouRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VipRoute: typeof VipRouteWithChildren
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
+  ApiAdminR2Route: typeof ApiAdminR2Route
   ApiPublicUploadRoute: typeof ApiPublicUploadRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -686,6 +673,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/maintenance': {
       id: '/maintenance'
       path: '/maintenance'
@@ -712,13 +706,6 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/submit-project': {
-      id: '/submit-project'
-      path: '/submit-project'
-      fullPath: '/submit-project'
-      preLoaderRoute: typeof SubmitProjectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/subscribe-success': {
@@ -924,13 +911,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/submissions': {
-      id: '/_authenticated/admin/submissions'
-      path: '/submissions'
-      fullPath: '/admin/submissions'
-      preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/support': {
       id: '/_authenticated/admin/support'
       path: '/support'
@@ -952,12 +932,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVipRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/visitor-bids': {
-      id: '/_authenticated/admin/visitor-bids'
-      path: '/visitor-bids'
-      fullPath: '/admin/visitor-bids'
-      preLoaderRoute: typeof AuthenticatedAdminVisitorBidsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+    '/api/admin/r2': {
+      id: '/api/admin/r2'
+      path: '/api/admin/r2'
+      fullPath: '/api/admin/r2'
+      preLoaderRoute: typeof ApiAdminR2RouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/upload': {
       id: '/api/public/upload'
@@ -1013,11 +993,9 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
   AuthenticatedAdminRequestsRoute: typeof AuthenticatedAdminRequestsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
-  AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVipRoute: typeof AuthenticatedAdminVipRoute
-  AuthenticatedAdminVisitorBidsRoute: typeof AuthenticatedAdminVisitorBidsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -1038,11 +1016,9 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
   AuthenticatedAdminRequestsRoute: AuthenticatedAdminRequestsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
-  AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVipRoute: AuthenticatedAdminVipRoute,
-  AuthenticatedAdminVisitorBidsRoute: AuthenticatedAdminVisitorBidsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
@@ -1094,17 +1070,18 @@ const rootRouteChildren: RootRouteChildren = {
   AdsRoute: AdsRouteWithChildren,
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   MaintenanceRoute: MaintenanceRoute,
   MyRequestsRoute: MyRequestsRoute,
   ProjectsRoute: ProjectsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-  SubmitProjectRoute: SubmitProjectRoute,
   SubscribeSuccessRoute: SubscribeSuccessRoute,
   ThankYouRoute: ThankYouRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VipRoute: VipRouteWithChildren,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ProjectIdRoute: ProjectIdRoute,
+  ApiAdminR2Route: ApiAdminR2Route,
   ApiPublicUploadRoute: ApiPublicUploadRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

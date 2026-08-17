@@ -255,6 +255,26 @@ export const createTrialVipSubscription = createServerFn({ method: "POST" })
     return { id: row.id, email: trialEmail };
   });
 
+export const createPackageTrialSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((data: { email: string; receipt_image: string }) => {
+    if (!data?.email?.trim()) throw new Error("البريد الإلكتروني مطلوب");
+    if (!data?.receipt_image?.trim()) throw new Error("رفع الإيصال البنكي إلزامي");
+    return { email: data.email.trim(), receipt_image: data.receipt_image.trim() };
+  })
+  .handler(async ({ data }) => {
+    const { scanReceiptDataUrl, validateOcrResult } = await import("./receipt-ocr");
+    const expectedPrice = 50;
+    const ocrResult = await scanReceiptDataUrl(data.receipt_image);
+    const validation = validateOcrResult(ocrResult, expectedPrice);
+    if (!validation.ok) {
+      return { approved: false, reason: validation.message };
+    }
+    const durationMinutes = 7 * 24 * 60;
+    const row = await vipRepo.createTrialVip(data.email, durationMinutes);
+    return { approved: true, reason: validation.message, id: row.id, email: row.email ?? data.email };
+  });
+
 export const testVipExpiry = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async () => {

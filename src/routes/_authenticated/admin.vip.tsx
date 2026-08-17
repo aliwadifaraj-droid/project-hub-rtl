@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, testVipExpiry, createTrialVipSubscription } from "@/lib/vip.functions";
+import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, testVipExpiry, createTrialVipSubscription, createPackageTrialSubscription } from "@/lib/vip.functions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, X, Star } from "lucide-react";
@@ -116,6 +116,43 @@ function AdminVipPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const pkgTrialFn = useServerFn(createPackageTrialSubscription);
+  const [pkgEmail, setPkgEmail] = useState("");
+  const [pkgFile, setPkgFile] = useState<File | null>(null);
+  const [pkgLoading, setPkgLoading] = useState(false);
+
+  async function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handlePkgTrial(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pkgEmail.trim()) return toast.error("أدخل البريد الإلكتروني");
+    if (!pkgFile) return toast.error("ارفع الإيصال البنكي");
+    setPkgLoading(true);
+    try {
+      const imageData = await fileToBase64(pkgFile);
+      const res = await pkgTrialFn({ data: { email: pkgEmail.trim(), receipt_image: imageData } });
+      if (res.approved) {
+        toast.success(`تمت الموافقة — فُعّل اشتراك 7 أيام لـ ${res.email}`);
+        setPkgEmail("");
+        setPkgFile(null);
+        qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
+      } else {
+        toast.error(`رفض Groq: ${res.reason}`);
+      }
+    } catch (err) {
+      toast.error("حصل خطأ: " + (err as Error).message);
+    } finally {
+      setPkgLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center gap-2">
@@ -163,6 +200,39 @@ function AdminVipPage() {
         <Button onClick={() => testExpiry.mutate()} disabled={testExpiry.isPending}>
           {testExpiry.isPending ? "جارٍ الفحص..." : "اختبار اشعارات VIP"}
         </Button>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h2 className="mb-3 text-lg font-semibold">انشاء تجربة اشتراك الباقات</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          المبلغ ثابت 50 ريال — المدة ثابتة 7 أيام. يُرفع الإيصال ويُرسل لـ Groq للفحص.
+        </p>
+        <form className="flex flex-wrap items-end gap-3" onSubmit={handlePkgTrial}>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_email">الايميل</Label>
+            <Input
+              id="pkg_email"
+              type="email"
+              value={pkgEmail}
+              onChange={(e) => setPkgEmail(e.target.value)}
+              placeholder="test@example.com"
+              className="w-64"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_receipt">الإيصال البنكي (إلزامي)</Label>
+            <input
+              id="pkg_receipt"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setPkgFile(e.target.files?.[0] ?? null)}
+              className="w-64 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <Button type="submit" disabled={pkgLoading}>
+            {pkgLoading ? "جارٍ الفحص..." : "انشاء تجربة اشتراك الباقات"}
+          </Button>
+        </form>
       </div>
 
       {isLoading ? (
