@@ -632,8 +632,6 @@ export const adminCountOpenSupportChats = createServerFn({ method: "GET" }).midd
 
 /* ---------- فحص الإيصال + اشتراك تجربة الباقة ---------- */
 
-const BANK_KEYWORDS = ["بنك", "Bank", "مصرف", "bank", "محفظة", "wallet", "STC Pay", "Urpay"];
-
 interface ReceiptCheckResult {
   bankName: string | null;
   amount: number | null;
@@ -720,12 +718,7 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
     return { approved: false, reason: "تعذر قراءة الإيصال. حاول برفع صورة أوضح." };
   }
 
-  const { bankName, amount, date } = parsed;
-  console.log("البنك/المحفظة المكتشفة:", bankName);
-
-  if (!bankName) {
-    return { approved: false, reason: "لم يتم العثور على اسم بنك أو محفظة في الإيصال." };
-  }
+  const { amount, date } = parsed;
 
   if (!date) {
     return { approved: false, reason: "لم يتم العثور على تاريخ في الإيصال." };
