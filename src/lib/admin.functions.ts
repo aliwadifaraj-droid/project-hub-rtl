@@ -8,7 +8,8 @@ import * as notificationsRepo from "./notifications.repo";
 import * as vipTokensRepo from "./vip-tokens.repo";
 import * as projectRequestsRepo from "./project-requests.repo";
 import * as contactMessagesRepo from "./contact-messages.repo";
-import { getRolesForUser, findUserById } from "./users.repo";
+import { getRolesForUser, findUserById, createUser, deleteUser, listUsersWithRoles, grantRole, getRoleNameById } from "./users.repo";
+import { hashPassword } from "./auth.server";
 import { resolveStoredFileUrl } from "./storage-url";
 import { getSessionClaims } from "./auth.server";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll } from "./cache";
@@ -109,6 +110,21 @@ export const deleteProject = createServerFn({ method: "POST" })
     await projectsRepo.deleteProject(data.id);
     await invalidateProjectsAll();
     return { ok: true };
+  });
+
+export const updateProjectStatus = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      status: z.enum(["active", "delivered", "cancelled"]),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const row = await projectsRepo.getById(data.id);
+    if (!row) throw new Error("المشروع غير موجود");
+    await projectsRepo.updateProject(data.id, { status: data.status });
+    await invalidateProjectsAll();
+    return { id: data.id, status: data.status };
   });
 
 export const getMyRoles = createServerFn({ method: "GET" })
@@ -318,4 +334,355 @@ export const sendTestEmail = createServerFn({ method: "POST" })
     } catch { /* ignore */ }
     if (status === "error") throw new Error(error ?? "فشل الإرسال");
     return { to: data.to };
+  });
+
+export const listEmployees = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const users = await listUsersWithRoles();
+    return users.map((u) => ({
+      user_id: u.id,
+      email: u.email,
+      role: u.roles[0] ?? "user",
+      created_at: u.created_at,
+    }));
+  });
+
+export const listRoles = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const r = await import("./db").then(({ db, rowsToObjects }) =>
+      db.execute("SELECT id, name, label FROM roles ORDER BY label ASC"),
+    );
+    return rowsToObjects<{ id: string; name: string; label: string }>(r).map((x) => ({
+      id: String(x.id),
+      name: String(x.name),
+      label: String(x.label ?? x.name),
+    }));
+  });
+
+export const createEmployee = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      email: z.string().trim().email().max(255),
+      password: z.string().min(6).max(200),
+      role_id: z.string().min(1),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const roleName = await getRoleNameById(data.role_id);
+    if (!roleName) throw new Error("الدور غير موجود");
+    const existing = await import("./users.repo").then((m) => m.findUserByEmail(data.email));
+    if (existing) throw new Error("البريد مستخدم بالفعل");
+    const hash = await hashPassword(data.password);
+    const userId = await createUser(data.email, hash);
+    await grantRole(userId, roleName);
+    return { user_id: userId };
+  });
+
+export const deleteEmployee = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ user_id: z.string().min(1) }).parse(d))
+  .handler(async ({ data }) => {
+    await deleteUser(data.user_id);
+    return { ok: true };
+  });
+
+/* ---------- exclusivity ---------- */
+
+export const searchProjectByName = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ q: z.string().trim().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const rows = await projectsRepo.searchByName(data.q);
+    const results = await Promise.all(rows.map(async (p) => {
+      let vipEnd: string | null = null;
+      try {
+        const excl = await import("./project-exclusive.repo").then((m) => m.getProjectExclusive(p.id));
+        vipEnd = excl?.vip_end_at ?? null;
+      } catch { /* ignore */ }
+      const endDate = vipEnd ? new Date(vipEnd) : null;
+      const now = Date.now();
+      const remainingMs = endDate ? endDate.getTime() - now : 0;
+      const remainingHours = remainingMs > 0 ? Math.ceil(remainingMs / (1000 * 60 * 60)) : 0;
+      const active = p.is_exclusive && endDate ? endDate.getTime() > now : false;
+      return {
+        id: p.id,
+        name: p.name,
+        location: p.location,
+        exclusive_hours: p.exclusive_hours,
+        is_exclusive: p.is_exclusive,
+        exclusive_until: p.exclusive_until,
+        has_exclusive: !!vipEnd,
+        vip_end_at: vipEnd,
+        remaining_hours: remainingHours,
+        active,
+      };
+    }));
+    return results;
+  });
+
+export const updateExclusivityHours = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      projectId: z.string().uuid(),
+      hours: z.number().int().min(1).max(720),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.updateProject(data.projectId, { exclusive_hours: data.hours });
+    await invalidateProjectsAll();
+    return { ok: true };
+  });
+
+export const toggleExclusivityOn = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      projectId: z.string().uuid(),
+      hours: z.number().int().min(1).max(720),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const until = new Date(Date.now() + data.hours * 60 * 60 * 1000).toISOString();
+    await projectsRepo.updateProject(data.projectId, {
+      is_exclusive: true,
+      exclusive_until: until,
+      exclusive_hours: data.hours,
+    });
+    await invalidateProjectsAll();
+    return { ok: true, exclusive_until: until };
+  });
+
+export const toggleExclusivityOff = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ projectId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.updateProject(data.projectId, {
+      is_exclusive: false,
+      exclusive_until: null,
+    });
+    await invalidateProjectsAll();
+    return { ok: true };
+  });
+
+/* ---------- platform requests ---------- */
+
+export const getPlatformRequests = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = context.roles?.includes("admin") ?? false;
+    const rows = isAdmin
+      ? await projectRequestsRepo.listPlatformRequests()
+      : await projectRequestsRepo.searchRequestsByEmail(context.userId ?? "");
+    const projectsById = new Map<string, { name: string }>();
+    await Promise.all(
+      rows
+        .filter((r) => r.project_id && !projectsById.has(r.project_id))
+        .map(async (r) => {
+          if (!r.project_id) return;
+          const p = await projectsRepo.getById(r.project_id);
+          if (p) projectsById.set(r.project_id, { name: p.name });
+        }),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      company_name: r.company_name ?? "",
+      email: r.email ?? "",
+      facility_location: r.facility_location ?? "",
+      pdf_url: r.pdf_url ?? "",
+      status: r.status,
+      submitter_type: r.submitter_type,
+      project_type: r.project_type,
+      note: r.note,
+      created_at: r.created_at,
+      project_id: r.project_id,
+      projects: r.project_id ? { name: projectsById.get(r.project_id)?.name ?? "-" } : null,
+      can_manage: isAdmin,
+    }));
+  });
+
+export const updateRequestStatus = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      status: z.enum(["new", "reviewing", "accepted", "rejected"]),
+      note: z.string().optional(),
+    }).parse(d))
+  .handler(async ({ data, context }) => {
+    const isAdmin = context.roles?.includes("admin") ?? false;
+    const req = await projectRequestsRepo.getRequestById(data.id);
+    if (!req) throw new Error("الطلب غير موجود");
+    if (!isAdmin) {
+      const isOwner = req.email === context.userId;
+      if (!isOwner) throw new Error("غير مصرح");
+    }
+    await projectRequestsRepo.updateRequestStatus(data.id, data.status, data.note);
+    return { ok: true };
+  });
+
+export const getBidPdfUrl = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ path: z.string().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const isAdmin = context.roles?.includes("admin") ?? false;
+    if (!isAdmin) {
+      const req = await projectRequestsRepo.getRequestByPdfPath(data.path);
+      if (!req || req.email !== context.userId) throw new Error("غير مصرح");
+    }
+    const url = await signGetUrl(data.path, 60 * 60).catch(() => "");
+    return url;
+  });
+
+export const sendRequestMessage = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      email: z.string().email().max(255),
+      company: z.string().max(200),
+      message: z.string().min(1).max(2000),
+    }).parse(d))
+  .handler(async ({ data, context }) => {
+    const isAdmin = context.roles?.includes("admin") ?? false;
+    if (!isAdmin) throw new Error("غير مصرح");
+    try {
+      await sendResendEmail({
+        to: data.email,
+        subject: `رسالة بخصوص طلب ${data.company}`,
+        html: `<p>${data.message.replace(/</g, "&lt;")}</p>`,
+      });
+      await insertEmailLog({ to_email: data.email, subject: `رسالة بخصوص طلب ${data.company}`, template: "request-message", status: "sent" });
+    } catch (e: any) {
+      await insertEmailLog({ to_email: data.email, subject: `رسالة بخصوص طلب ${data.company}`, template: "request-message", status: "error", error: e?.message });
+      throw new Error("تعذر إرسال الرسالة");
+    }
+    return { ok: true };
+  });
+
+/* ---------- offer toggles ---------- */
+
+export const adminListProjectOfferToggles = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const rows = await projectsRepo.listAllProjects();
+    return rows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      offers_enabled: p.offers_enabled,
+      bot_offers_enabled: p.bot_offers_enabled,
+    }));
+  });
+
+export const adminSetProjectOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      projectId: z.string().uuid(),
+      enabled: z.boolean(),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.setOffersEnabled(data.projectId, data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true };
+  });
+
+export const adminSetAllProjectOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ enabled: z.boolean() }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.setAllOffersEnabled(data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true };
+  });
+
+export const adminSetProjectBotOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      projectId: z.string().uuid(),
+      enabled: z.boolean(),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.setBotOffersEnabled(data.projectId, data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true };
+  });
+
+export const adminSetAllProjectBotOffersEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ enabled: z.boolean() }).parse(d))
+  .handler(async ({ data }) => {
+    await projectsRepo.setAllBotOffersEnabled(data.enabled);
+    await invalidateProjectsAll();
+    return { ok: true };
+  });
+
+/* ---------- contact messages ---------- */
+
+export const adminListMessages = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    return contactMessagesRepo.listContactMessages();
+  });
+
+export const adminDeleteContactMessage = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().min(1) }).parse(d))
+  .handler(async ({ data }) => {
+    await contactMessagesRepo.deleteContactMessage(data.id);
+    return { ok: true };
+  });
+
+export const adminReplyContactMessage = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().min(1),
+      reply: z.string().min(1).max(5000),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    const msg = await contactMessagesRepo.getContactMessageById(data.id);
+    if (!msg) throw new Error("الرسالة غير موجودة");
+    await contactMessagesRepo.setContactReply(data.id, data.reply);
+    try {
+      await sendResendEmail({
+        to: msg.email ?? "",
+        subject: "رد على رسالتك",
+        html: `<p>${data.reply.replace(/</g, "&lt;")}</p>`,
+      });
+      await insertEmailLog({ to_email: msg.email, subject: "رد على رسالة", template: "contact-reply", status: "sent" });
+    } catch (e: any) {
+      await insertEmailLog({ to_email: msg.email, subject: "رد على رسالة", template: "contact-reply", status: "error", error: e?.message });
+    }
+    return { ok: true };
+  });
+
+export const adminSendCustomEmail = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({
+      to: z.string().email().max(255),
+      subject: z.string().min(1).max(200),
+      message: z.string().min(1).max(10000),
+    }).parse(d))
+  .handler(async ({ data }) => {
+    try {
+      await sendResendEmail({
+        to: data.to,
+        subject: data.subject,
+        html: `<p>${data.message.replace(/</g, "&lt;")}</p>`,
+      });
+      await insertEmailLog({ to_email: data.to, subject: data.subject, template: "custom", status: "sent" });
+    } catch (e: any) {
+      await insertEmailLog({ to_email: data.to, subject: data.subject, template: "custom", status: "error", error: e?.message });
+      throw new Error("تعذر إرسال الإيميل");
+    }
+    return { ok: true };
   });
