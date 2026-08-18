@@ -7,12 +7,15 @@ import * as blockedRepo from "./blocked.repo";
 import * as notificationsRepo from "./notifications.repo";
 import * as vipTokensRepo from "./vip-tokens.repo";
 import * as projectRequestsRepo from "./project-requests.repo";
+import * as contactMessagesRepo from "./contact-messages.repo";
 import { getRolesForUser, findUserById } from "./users.repo";
 import { resolveStoredFileUrl } from "./storage-url";
 import { getSessionClaims } from "./auth.server";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll } from "./cache";
 import { signGetUrl } from "./r2";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
+import { sendResendEmail } from "./resend-send.server";
+import { insertEmailLog } from "./email.repo";
 
 async function resolveImage(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
@@ -284,4 +287,35 @@ export const searchRequests = createServerFn({ method: "GET" })
       created_at: r.created_at,
       projects: r.project_id ? projectsById.get(r.project_id) ?? null : null,
     }));
+  });
+
+export const countContactMessages = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ since: z.string().nullable().optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const count = await contactMessagesRepo.countContactMessagesSince(data.since ?? null);
+    return { count };
+  });
+
+export const sendTestEmail = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ to: z.string().trim().email().max(255) }).parse(d))
+  .handler(async ({ data }) => {
+    const subject = "بريد تجريبي من المنصة";
+    const html = "<p>هذا بريد تجريبي للتأكد من إعدادات الإرسال.</p>";
+    let status = "sent";
+    let error: string | null = null;
+    try {
+      await sendResendEmail({ to: data.to, subject, html });
+    } catch (e: any) {
+      status = "error";
+      error = e?.message ?? String(e);
+    }
+    try {
+      await insertEmailLog({ to_email: data.to, subject, template: "test", status, error });
+    } catch { /* ignore */ }
+    if (status === "error") throw new Error(error ?? "فشل الإرسال");
+    return { to: data.to };
   });
