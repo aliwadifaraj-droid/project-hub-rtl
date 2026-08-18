@@ -136,7 +136,6 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }) => {
-    .handler(async ({ data }) => {
     const id = await vipRepo.insertVipSubscriber({ name: data.name, email: data.email, plan: data.plan, city: data.city, receipt_path: data.receipt_path });
 
     const id = await vipRepo.insertVipSubscriber({ name: data.name, email: data.email, plan: data.plan, city: data.city, receipt_path: data.receipt_path });
