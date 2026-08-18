@@ -293,11 +293,26 @@ async function askGroq(userText: string, opts: {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   const model = process.env.GROQ_MODEL || "qwen/qwen3.6-27b";
+
+  const ENFORCE_AR = [
+    "### تعليمات حديدية لا يجوز مخالفتها أبداً ###",
+    "1. ردك يجب أن يكون باللغة العربية ONLY. ممنوع تماماً استخدام أي كلمة إنجليزية ما لم يكن مصطلحاً تقنياً لا يترجم.",
+    "2. اللهجة: سعودية ودودة 100%. ممنوع الفصحى المعقدة وممنوع الإنجليزية نهائياً.",
+    "3. اختصار: ردك 3 أسطر بالكثير. لا تبدأ بـ \"كمساعد ذكي\" ولا تعتذر.",
+    "4. لا تكتب think ولا --- ولا تشرح لنفسك. رد النتيجة فقط.",
+    "5. إذا كان السؤال خارج نطاق المنصة قل: \"انا مساعد العمران بس 😊 اقدر اخدمك في شي يخص المنصة؟\"",
+    "6. الدفع والعقود والحسابات: ردك ثابت: \"لمساعدتك بشكل دقيق يرجى التواصل مع الدعم الفني\".",
+    "7. لا تأليف أبداً. إذا ما تدري قول: \"للتفاصيل الدقيقة راجع قسم المشاريع او كلم الدعم الفني\".",
+    "8. نحن منصة إلكترونية 100%. كل الخدمات أونلاين. ما عندنا مقر.",
+  ].join("\n");
+
   const sysParts = [
+    ENFORCE_AR,
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
-    opts.dialect ? `اللهجة: ${opts.dialect}.` : null,
+    opts.dialect ? `اللهجة المطلوبة: ${opts.dialect}.` : null,
     opts.scope ? `نطاق عملك: ${opts.scope}` : null,
+    "### تذكير أخير: رد بالعربية السعودية فقط. أي رد بغير العربية مرفوض. ###",
   ].filter(Boolean);
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -308,8 +323,8 @@ async function askGroq(userText: string, opts: {
       },
       body: JSON.stringify({
         model,
-        temperature: 0.4,
-        max_completion_tokens: 512,
+        temperature: 0.2,
+        max_completion_tokens: 400,
         messages: [
           ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
           { role: "user", content: userText },
@@ -323,6 +338,8 @@ async function askGroq(userText: string, opts: {
     for (const bad of opts.blockedReplies ?? []) {
       if (bad && text.toLowerCase().includes(bad.toLowerCase())) return null;
     }
+    const englishRatio = (text.match(/[a-zA-Z]{2,}/g) ?? []).length / Math.max(text.split(/\s+/).length, 1);
+    if (englishRatio > 0.4) return null;
     return text;
   } catch {
     return null;
