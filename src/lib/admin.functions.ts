@@ -432,7 +432,7 @@ export const searchProjectByName = createServerFn({ method: "GET" })
     const results = await Promise.all(rows.map(async (p) => {
       let vipEnd: string | null = null;
       try {
-        const excl = await import("./project-exclusive.repo").then((m) => m.getProjectExclusive(p.id));
+        const excl = await projectsRepo.getProjectExclusive(p.id);
         vipEnd = excl?.vip_end_at ?? null;
       } catch { /* ignore */ }
       const endDate = vipEnd ? new Date(vipEnd) : null;
