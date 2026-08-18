@@ -100,7 +100,7 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
      ORDER BY v.created_at DESC`,
   );
   return rowsToObjects(r).map((row: any) => ({
-  ...decode(row),
+ ...decode(row),
     project_name: row.project_name?? null,
   }));
 }
@@ -108,7 +108,7 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
 export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
   await ensureColumns();
   const sub = await db.execute(
-    `SELECT plan, expires_at FROM vip_subscribers WHERE project_id =? ORDER BY created_at DESC LIMIT 1`,
+    `SELECT plan, expires_at, city FROM vip_subscribers WHERE project_id =? ORDER BY created_at DESC LIMIT 1`,
     [projectId],
   );
   const subRow = rowsToObjects<any>(sub)[0];
@@ -121,11 +121,16 @@ export async function approveByProject(projectId: string): Promise<VipSubscriber
   } else {
     expiresAt = new Date(Date.now() + 30 * 86400_000).toISOString();
   }
+
+  // فعل المشترك active عشان الاشعار يشتغل
   await db.execute(
-    `UPDATE vip_subscribers SET status = 'approved', expires_at =? WHERE project_id =?`,
+    `UPDATE vip_subscribers SET status = 'active', expires_at =? WHERE project_id =?`,
     [expiresAt, projectId],
   );
+
+  // فعل الحصرية 30 يوم او مدة الخطة
   await setProjectVip(projectId, true, days?? 30);
+
   const r = await db.execute(
     `SELECT * FROM vip_subscribers WHERE project_id =? ORDER BY created_at DESC LIMIT 1`,
     [projectId],
