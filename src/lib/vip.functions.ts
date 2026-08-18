@@ -125,16 +125,10 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
     if (!data?.receipt_path?.trim()) throw new Error("إيصال التحويل مطلوب");
     if (!data?.plan?.trim()) throw new Error("اختر الباقة");
     if (!data?.city?.trim()) throw new Error("اختر المدينة");
-    return {
-      name: data.name.trim(),
-      email: data.email.trim(),
-      receipt_path: data.receipt_path.trim(),
-      plan: data.plan.trim(),
-      city: data.city.trim(),
-    };
+    return { name: data.name.trim(), email: data.email.trim(), receipt_path: data.receipt_path.trim(), plan: data.plan.trim(), city: data.city.trim() };
   })
   .handler(async ({ data }) => {
-    const id = await vipRepo.insertVipSubscriber({ name: data.name, email: data.email, plan: data.plan, city: data.city, receipt_path: data.receipt_path });
+    const id = await vipRepo.insertVipSubscriber(data);
     const admins = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin"));
     if (admins.length > 0) {
       const { insertMany } = await import("./notifications.repo");
@@ -152,7 +146,7 @@ export const submitVipSubscription = createServerFn({ method: "POST" })
 
 export const attachVipReceipt = createServerFn({ method: "POST" })
   .inputValidator((data: { id: string; receipt_path: string }) => {
-    if (!data?.id || !data?.receipt_path) throw new Error("بيانات ناقصة");
+    if (!data?.id || !data.receipt_path) throw new Error("بيانات ناقصة");
     return data;
   })
   .handler(async ({ data }) => {
@@ -202,27 +196,6 @@ export const rejectVipSubscriber = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-async function processVipExpiry(): Promise<{ expired: number; expiredEmailed: number }> {
-  const { expired, rows } = await vipRepo.markExpired();
-  let expiredEmailed = 0;
-  for (const row of rows) {
-    if (!row.email) continue;
-    try {
-      const { sendResendEmail } = await import("./resend-send.server");
-      await sendResendEmail({
-        to: row.email,
-        subject: "تم انتهاء اشتراك VIP",
-        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>نود إعلامك بأن <strong>انتهى اشتراكك في باقة VIP</strong>.</p><p>توقفت العروض الحصرية المرتبطة باشتراكك.</p><p>للتجديد أو الاستفسار، يرجى التواصل معنا.</p><p>شكراً لثقتك بمنصة العمران.</p></div>`,
-      });
-      console.log(`[vip-expiry] تم ارسال اشعار انتهاء لـ ${row.email}`);
-      expiredEmailed++;
-    } catch (e) {
-      console.error(`[vip-expiry] فشل ارسال اشعار انتهاء لـ ${row.email}`, e);
-    }
-  }
-  return { expired, expiredEmailed };
-}
-
 export const createTrialVipSubscription = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((data: { email: string; duration_minutes: number }) => {
@@ -233,35 +206,52 @@ export const createTrialVipSubscription = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const row = await vipRepo.createTrialVip(data.email, data.duration_minutes);
-    const delayMs = data.duration_minutes * 60_000;
-    const trialEmail = row.email ?? data.email;
-
-    setTimeout(() => {
-      processVipExpiry().catch((e) => console.error("[vip-expiry] خطأ في معالجة انتهاء التجربة", e));
-    }, delayMs);
-
-    return { id: row.id, email: trialEmail };
+    return { id: row.id, email: row.email ?? data.email };
   });
+
+export async function runVipExpiryCheckRaw(): Promise<{
+  processed: number;
+  expired: number;
+  expiredEmailed: number;
+  emailed: number;
+  expiredEmailFailed: number;
+  reminderEmailFailed: number;
+}> {
+  const { expired, rows } = await vipRepo.markExpired();
+  let expiredEmailed = 0;
+  let expiredEmailFailed = 0;
+  const { sendResendEmail } = await import("./resend-send.server");
+  for (const row of rows) {
+    if (!row.email) continue;
+    const ok = await sendResendEmail({
+      to: row.email,
+      subject: "انتهى اشتراك VIP",
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>نود إعلامك بأن <strong>اشتراكك في باقة VIP قد انتهى</strong>.</p><p>للتجديد أو الاستفسار، يرجى التواصل معنا.</p><p>شكراً لثقتك بمنصة العمران.</p></div>`,
+    });
+    if (ok) expiredEmailed++;
+    else expiredEmailFailed++;
+  }
+  const soon = await vipRepo.findExpiringSoon(24);
+  let emailed = 0;
+  let reminderEmailFailed = 0;
+  for (const row of soon) {
+    if (!row.email) continue;
+    const ok = await sendResendEmail({
+      to: row.email,
+      subject: "تذكير: اشتراك VIP ينتهي قريباً",
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>ينتهي اشتراكك خلال 24 ساعة.</p></div>`,
+    });
+    if (ok) emailed++;
+    else reminderEmailFailed++;
+  }
+  return { processed: soon.length, expired, emailed, expiredEmailed, expiredEmailFailed, reminderEmailFailed };
+}
 
 export const testVipExpiry = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .handler(async () => {
-    const { expired, expiredEmailed } = await processVipExpiry();
-    const soon = await vipRepo.findExpiringSoon(24);
-    let emailed = 0;
-    for (const row of soon) {
-      if (!row.email) continue;
-      try {
-        const { sendResendEmail } = await import("./resend-send.server");
-        await sendResendEmail({
-          to: row.email,
-          subject: "تذكير: اشتراك VIP ينتهي قريباً",
-          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>ينتهي اشتراكك خلال 24 ساعة.</p></div>`,
-        });
-        emailed++;
-      } catch (e) {
-        console.error("vip expiry email error", e);
-      }
-    }
-    return { processed: soon.length, expired, emailed, expiredEmailed };
-  });
+  .handler(async () => runVipExpiryCheckRaw());
+
+export const cronVipExpiry = createServerFn({ method: "GET" }).handler(async () => {
+  const result = await runVipExpiryCheckRaw();
+  return { ok: true, ...result };
+});

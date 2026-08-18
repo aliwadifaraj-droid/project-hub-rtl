@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, testVipExpiry, createTrialVipSubscription } from "@/lib/vip.functions";
+import { createPackageTrialSubscription } from "@/lib/support.functions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, X, Star } from "lucide-react";
@@ -20,14 +21,12 @@ function statusBadge(s: string) {
     active: "bg-green-100 text-green-800",
     approved: "bg-green-100 text-green-800",
     rejected: "bg-red-100 text-red-800",
-    expired: "bg-orange-100 text-orange-800",
   };
   const labels: Record<string, string> = {
     pending: "قيد المراجعة",
     active: "مفعّل",
     approved: "مفعّل",
     rejected: "مرفوض",
-    expired: "منتهٍ",
   };
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${map[s] ?? "bg-secondary"}`}>
@@ -98,7 +97,14 @@ function AdminVipPage() {
   const testExpiry = useMutation({
     mutationFn: () => testFn(),
     onSuccess: (res) => {
-      toast.success(`تم فحص اشعارات انتهاء VIP — تمت معالجة ${res.processed}، انتهاء ${res.expired}، إرسال ${res.emailed}`);
+      const parts = [
+        `معالجة ${res.processed}`,
+        `انتهاء ${res.expired}`,
+        `إيصالات نجحت ${res.expiredEmailed + res.emailed}`,
+      ];
+      const failed = res.expiredEmailFailed + res.reminderEmailFailed;
+      if (failed > 0) parts.push(`إيصالات فشلت ${failed}`);
+      toast.success(`فحص اشعارات VIP — ${parts.join("، ")}`);
       qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
     },
     onError: (e) => toast.error((e as Error).message),
@@ -117,6 +123,53 @@ function AdminVipPage() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const packageTrialFn = useServerFn(createPackageTrialSubscription);
+  const [pkgEmail, setPkgEmail] = useState("");
+  const [pkgAmount, setPkgAmount] = useState("100");
+  const [pkgMinutes, setPkgMinutes] = useState("30");
+  const [pkgReceiptUrl, setPkgReceiptUrl] = useState("");
+  const [pkgUploading, setPkgUploading] = useState(false);
+  const createPackageTrial = useMutation({
+    mutationFn: () =>
+      packageTrialFn({
+        data: {
+          email: pkgEmail,
+          receiptFile: pkgReceiptUrl,
+          packageAmount: Number(pkgAmount),
+          durationMinutes: Number(pkgMinutes),
+        },
+      }),
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success(`تم انشاء اشتراك الباقة بنجاح لـ ${res.email}`);
+        setPkgEmail("");
+        setPkgReceiptUrl("");
+      } else {
+        toast.error(`تم رفض الإيصال: ${res.reason}`);
+      }
+      qc.invalidateQueries({ queryKey: ["vip-subscribers"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  async function handlePkgReceiptUpload(file: File) {
+    setPkgUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("purpose", "vip-receipt");
+      const res = await fetch("/api/public/upload", { method: "POST", body: fd });
+      const json = (await res.json()) as { url?: string; signedUrl?: string; error?: string };
+      if (!res.ok || !json.url) throw new Error(json.error || "تعذر رفع الملف");
+      setPkgReceiptUrl(json.signedUrl ?? json.url ?? "");
+      toast.success("تم رفع الإيصال");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPkgUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -167,6 +220,48 @@ function AdminVipPage() {
         </Button>
       </div>
 
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h2 className="mb-3 text-lg font-semibold">تجربة اشتراك الباقات (مع فحص الإيصال)</h2>
+        <form
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (pkgEmail.trim() && pkgReceiptUrl && Number(pkgAmount) > 0 && Number(pkgMinutes) > 0) {
+              createPackageTrial.mutate();
+            }
+          }}
+        >
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_email">الايميل</Label>
+            <Input id="pkg_email" type="email" value={pkgEmail} onChange={(e) => setPkgEmail(e.target.value)} placeholder="user@example.com" className="w-56" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_amount">قيمة الباقة (ريال)</Label>
+            <Input id="pkg_amount" type="number" min="1" value={pkgAmount} onChange={(e) => setPkgAmount(e.target.value)} className="w-32" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_minutes">مدة الاشتراك (دقائق)</Label>
+            <Input id="pkg_minutes" type="number" min="1" value={pkgMinutes} onChange={(e) => setPkgMinutes(e.target.value)} className="w-32" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="pkg_receipt">صورة الإيصال</Label>
+            <Input
+              id="pkg_receipt"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handlePkgReceiptUpload(f);
+              }}
+              className="w-56"
+            />
+          </div>
+          <Button type="submit" disabled={createPackageTrial.isPending || pkgUploading || !pkgReceiptUrl}>
+            {createPackageTrial.isPending ? "جارٍ الفحص..." : pkgUploading ? "جارٍ رفع الإيصال..." : "تجربة اشتراك الباقات"}
+          </Button>
+        </form>
+      </div>
+
       {isLoading ? (
         <div className="grid place-items-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -186,9 +281,7 @@ function AdminVipPage() {
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
                 <TableHead>المشروع</TableHead>
-                <TableHead>الباقة</TableHead>
                 <TableHead>الحالة</TableHead>
-                <TableHead>تاريخ الانتهاء</TableHead>
                 <TableHead>ينتهي خلال</TableHead>
                 <TableHead>الإيصال</TableHead>
                 <TableHead>إجراءات</TableHead>
@@ -206,13 +299,7 @@ function AdminVipPage() {
                     <TableCell className="text-xs">
                       {(s as { project_name?: string | null }).project_name ?? "—"}
                     </TableCell>
-                    <TableCell className="text-xs">{(s as { plan?: string | null }).plan ?? "—"}</TableCell>
                     <TableCell>{statusBadge(s.status)}</TableCell>
-                    <TableCell className="text-xs">
-                      {(s as { expires_at?: string | null }).expires_at
-                        ? new Date((s as { expires_at?: string | null }).expires_at!).toLocaleDateString("ar-SA")
-                        : "—"}
-                    </TableCell>
                     <TableCell>
                       {isApproved && hours !== null ? (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
