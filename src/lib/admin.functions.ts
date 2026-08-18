@@ -17,6 +17,8 @@ import { signGetUrl } from "./r2";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { sendResendEmail } from "./resend-send.server";
 import { insertEmailLog } from "./email.repo";
+import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
+import { autoActivateByCity, listActiveByCity } from "./vip.repo";
 
 async function resolveImage(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
@@ -96,6 +98,36 @@ export const upsertProject = createServerFn({ method: "POST" })
       admin_approval: approval,
     });
     await invalidateProjectsAll();
+
+    // When admin creates an approved project, auto-start VIP exclusivity + notify subscribers.
+    if (isAdmin && approval === "approved" && data.location) {
+      try {
+        const city = detectCity(data.location);
+        const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+        if (hasVip) {
+          const now = new Date();
+          const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+          await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
+          await projectsRepo.updateProject(id, {
+            is_exclusive: true,
+            exclusive_until: vipEndAt.toISOString(),
+            exclusive_hours: 6,
+          });
+        }
+        await autoActivateByCity(data.location, 6);
+      } catch (e) {
+        console.error("auto vip activation error (upsert)", e);
+      }
+
+      notifyVipSubscribersOfNewProject({
+        id,
+        name: data.name,
+        description: data.description ?? null,
+        location: data.location ?? null,
+        duration: data.duration ?? null,
+      }).catch((e) => console.error("[vip-notify] upsert", e));
+    }
+
     return { id, admin_approval: approval };
   });
 
