@@ -125,7 +125,7 @@ export async function approveByProject(projectId: string): Promise<VipSubscriber
     `UPDATE vip_subscribers SET status = 'approved', expires_at =? WHERE project_id =?`,
     [expiresAt, projectId],
   );
-  await setProjectVip(projectId, true, days?? 0.25);
+  await setProjectVip(projectId, true, days?? 30);
   const r = await db.execute(
     `SELECT * FROM vip_subscribers WHERE project_id =? ORDER BY created_at DESC LIMIT 1`,
     [projectId],
@@ -198,7 +198,6 @@ export async function listActiveByCity(city: string): Promise<VipSubscriberRow[]
   const r = await db.execute(
     `SELECT * FROM vip_subscribers
       WHERE status = 'active'
-        AND email IS NOT NULL AND TRIM(email) <> ''
         AND city IS NOT NULL AND TRIM(LOWER(city)) = TRIM(LOWER(?))`,
     [city],
   );
@@ -318,5 +317,5 @@ export async function setProjectVip(projectId: string, isVip: boolean, days: num
 
 export async function activateVipForNewProject(projectId: string, city: string) {
   const hasVip = await listActiveByCity(city);
-  if (hasVip.length > 0) await setProjectVip(projectId, true, 0.25);
+  if (hasVip.length > 0) await setProjectVip(projectId, true, 0.25); // هنا 6 ساعات فقط للتفعيل التلقائي
 }
