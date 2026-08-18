@@ -56,7 +56,7 @@ const STOP_WORDS = new Set([
 function normalizeAr(s: string): string {
   return (s ?? "")
     .toLowerCase()
-    .replace(/[?؟.!،,:;()"'`]/g, " ")
+    .replace(/[؟.!،,:;()"'`]/g, " ")
     .replace(/[أإآ]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
@@ -643,28 +643,45 @@ const VISION_MODELS = [
 ];
 
 const RECEIPT_VISION_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
-Extract the following fields from the image and respond with a JSON object only — no markdown, no explanation, no code fences:
-{
-  "amount": the numeric transfer amount (numbers only, no currency symbol, no commas — e.g. 100 or 100.00),
-  "date": the transfer date in YYYY-MM-DD format (if you see a Hijri date, convert it to Gregorian; if only time is visible, use today's date)
+Read only the transfer amount and transaction date needed to validate this receipt. Search the entire image carefully, including small text and the receipt header/footer.
+Respond with a JSON object only — no markdown, no explanation, no code fences:
+{"amount":100,"date":"YYYY-MM-DD"}
+Amount must be numeric only with no currency symbol or commas. The date may appear as DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or a Hijri date. Convert a Hijri date to Gregorian YYYY-MM-DD. If a date is visible, never return null; return the date you can read. Only return null when the field is genuinely not visible. Do not include thinking or reasoning text outside the JSON.`;
+
+const RECEIPT_FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find ONLY the transfer amount and transaction date. Search all small text carefully. Return JSON only: {"amount":100,"date":"the date exactly as visible"}. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri. Do not return a null date if any date is visible.`;
+
+function normalizeDigits(value: string): string {
+  return value.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 }
-If a field is not visible, set it to null. Look carefully — amounts may appear as "100.00 SAR", "100 ر.س", or just "100". Dates may be in Hijri (e.g. 1447/03/15) or Gregorian. Do not include any thinking or reasoning text outside the JSON.`;
+
+function normalizeReceiptDate(value: string | null): string | null {
+  if (!value?.trim()) return null;
+  const raw = normalizeDigits(value.trim()).replace(/[.]/g, "/");
+  if (["null", "n/a", "unknown", "غير واضح"].includes(raw.toLowerCase())) return null;
+  const iso = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+  const dmy = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  return raw;
+}
 
 function parseReceiptJson(content: string): { amount: number | null; date: string | null } {
-  const cleaned = content.replace(/<[\s\S]*?<\/think>/gi, "").trim();
+  const cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return { amount: null, date: null };
   try {
     const parsed = JSON.parse(jsonMatch[0]);
     const amountRaw = parsed.amount;
+    const amountText = amountRaw == null ? null : normalizeDigits(String(amountRaw));
     const amountNum = typeof amountRaw === "number"
       ? amountRaw
-      : amountRaw != null
-        ? Number(String(amountRaw).replace(/[^\d.]/g, ""))
+      : amountText != null
+        ? Number(amountText.replace(/[^\d.]/g, ""))
         : null;
+    const dateText = typeof parsed.date === "string" && parsed.date.trim() ? parsed.date.trim() : null;
     return {
       amount: amountNum != null && Number.isFinite(amountNum) ? amountNum : null,
-      date: parsed.date ? String(parsed.date).trim() : null,
+      date: normalizeReceiptDate(dateText),
     };
   } catch {
     return { amount: null, date: null };
@@ -680,7 +697,7 @@ async function fetchImageAsDataUrl(url: string): Promise<string> {
   return `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
 }
 
-async function callGroqVision(model: string, imageDataUrl: string, apiKey: string): Promise<{ amount: number | null; date: string | null }> {
+async function callGroqVision(model: string, imageDataUrl: string, apiKey: string, focused = false): Promise<{ amount: number | null; date: string | null }> {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -694,7 +711,7 @@ async function callGroqVision(model: string, imageDataUrl: string, apiKey: strin
         {
           role: "user",
           content: [
-            { type: "text", text: "Read this receipt and extract amount and date as a JSON object." },
+            { type: "text", text: focused ? RECEIPT_FOCUSED_PROMPT : "Read this receipt and extract amount and date as a JSON object." },
             { type: "image_url", image_url: { url: imageDataUrl } },
           ],
         },
@@ -718,7 +735,14 @@ async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptChe
   let lastError: Error | null = null;
   for (const model of VISION_MODELS) {
     try {
-      const result = await callGroqVision(model, imageDataUrl, apiKey);
+      let result = await callGroqVision(model, imageDataUrl, apiKey);
+      if (result.amount === null || result.date === null) {
+        const focusedResult = await callGroqVision(model, imageDataUrl, apiKey, true);
+        result = {
+          amount: result.amount ?? focusedResult.amount,
+          date: result.date ?? focusedResult.date,
+        };
+      }
       if (result.amount !== null || result.date !== null) {
         return { bankName: null, ...result };
       }
@@ -758,8 +782,7 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
     return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
   }
   if (Math.abs(amount - packageAmount) > 0.01) {
-    return {
-      approved: false,
+    return {\n      approved: false,
       reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
     };
   }
