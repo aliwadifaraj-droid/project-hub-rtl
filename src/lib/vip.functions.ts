@@ -255,11 +255,10 @@ export const createPackageTrialSubscription = createServerFn({ method: "POST" })
     return { email: data.email.trim(), receipt_image: data.receipt_image.trim(), package_amount: data.package_amount };
   })
   .handler(async ({ data }) => {
-    const { scanReceiptDataUrl, validateOcrResult } = await import("./receipt-ocr");
-    const ocrResult = await scanReceiptDataUrl(data.receipt_image);
-    const validation = validateOcrResult(ocrResult, data.package_amount);
-    if (!validation.ok) {
-      return { approved: false, reason: validation.message };
+    // شلنا فحص groq
+const durationMinutes = 7 * 24 * 60;
+const row = await vipRepo.createTrialVip(data.email, durationMinutes);
+return { approved: true, reason: "تم القبول بدون فحص", id: row.id, email: row.email ?? data.email };
     }
     const durationMinutes = 7 * 24 * 60;
     const row = await vipRepo.createTrialVip(data.email, durationMinutes);
