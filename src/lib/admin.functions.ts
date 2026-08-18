@@ -6,6 +6,7 @@ import * as offersRepo from "./offers.repo";
 import * as blockedRepo from "./blocked.repo";
 import * as notificationsRepo from "./notifications.repo";
 import * as vipTokensRepo from "./vip-tokens.repo";
+import * as projectRequestsRepo from "./project-requests.repo";
 import { getRolesForUser, findUserById } from "./users.repo";
 import { resolveStoredFileUrl } from "./storage-url";
 import { getSessionClaims } from "./auth.server";
@@ -259,4 +260,28 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     }
 
     return { ok: true as const, id };
+  });
+
+export const searchRequests = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ q: z.string().trim().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const rows = await projectRequestsRepo.searchRequestsByCompany(data.q);
+    const projectsById = new Map<string, { name: string }>();
+    await Promise.all(
+      rows
+        .filter((r) => r.project_id && !projectsById.has(r.project_id))
+        .map(async (r) => {
+          if (!r.project_id) return;
+          const p = await projectsRepo.getById(r.project_id);
+          if (p) projectsById.set(r.project_id, { name: p.name });
+        }),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      company_name: r.company_name ?? "",
+      facility_location: r.facility_location ?? "",
+      status: r.status,
+      created_at: r.created_at,
+      projects: r.project_id ? projectsById.get(r.project_id) ?? null : null,
+    }));
   });
