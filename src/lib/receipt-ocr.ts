@@ -145,17 +145,9 @@ export async function scanReceipt(file: File): Promise<OcrResult> {
   return scanReceiptDataUrl(await fileToBase64(file));
 }
 
+// TEMP: Bypass receipt date validation — amount check retained — urgent fix 18-08-2026
 export function validateOcrResult(result: OcrResult, expectedAmount: number): { ok: boolean; message: string } {
-  // 1) التاريخ: لازم يكون خلال آخر 72 ساعة
-  if (!result.date) return { ok: false, message: "لم يتم العثور على تاريخ في الإيصال" };
-  const receiptDate = new Date(result.date);
-  if (isNaN(receiptDate.getTime())) return { ok: false, message: "تاريخ الإيصال غير صالح" };
-  const now = new Date();
-  const diffHours = (now.getTime() - receiptDate.getTime()) / 3_600_000;
-  if (diffHours > 72) return { ok: false, message: "الإيصال قديم — يجب أن يكون خلال آخر 72 ساعة" };
-  if (diffHours < -24) return { ok: false, message: "تاريخ الإيصال في المستقبل" };
-
-  // 2) المبلغ: لازم يطابق قيمة الباقة بالضبط
+  // المبلغ: لازم يطابق قيمة الباقة بالضبط
   if (result.amount === null) return { ok: false, message: "لم يتم قراءة مبلغ التحويل من الإيصال" };
   if (Math.abs(result.amount - expectedAmount) > 0.01) {
     return { ok: false, message: `المبلغ في الإيصال (${result.amount} ر.س) لا يطابق قيمة الباقة (${expectedAmount} ر.س)` };
