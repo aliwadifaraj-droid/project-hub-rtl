@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
-import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } from "lucide-react";
+import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy } from "lucide-react";
 import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
@@ -13,8 +13,7 @@ import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
-import type { OcrResult } from "@/lib/receipt-ocr";
-import { validateReceiptOcr } from "@/lib/receipt-ocr";
+
 const BANK_INFO = {
   name: "البنك الأهلي",
   holder: "AHMED SALMI",
@@ -50,9 +49,7 @@ function VipPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showOtherPlans, setShowOtherPlans] = useState(false);
-  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
-  const [ocrScanning, setOcrScanning] = useState(false);
-  const [receiptError, setReceiptError] = useState("");
+
 
   const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
@@ -75,28 +72,8 @@ function VipPage() {
     setStep(3);
   }
 
-  const validateOcr = useServerFn(validateReceiptOcr);
-
   async function handleFileChange(file: File | null) {
     setFile(file);
-    setOcrResult(null);
-    setReceiptError("");
-    if (!file || !file.type.startsWith("image/")) return;
-    setOcrScanning(true);
-    try {
-      const dataUrl = await fileToBase64(file);
-      const res = await validateOcr({ data: { imageData: dataUrl, expectedAmount: selectedPlanObj.price } });
-      if (res.result) setOcrResult(res.result);
-      if (!res.approved) {
-        setReceiptError(res.reason);
-      } else {
-        setReceiptError("");
-      }
-    } catch (err) {
-      setReceiptError("تعذر قراءة الإيصال: " + (err as Error).message);
-    } finally {
-      setOcrScanning(false);
-    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -106,17 +83,11 @@ function VipPage() {
     if (!email.trim()) return toast.error("أدخل البريد الإلكتروني");
     if (!city) return toast.error("اختر المدينة");
     if (!selectedPlan) return toast.error("اختر الباقة");
-    if (ocrResult) {
-      if (ocrResult.amount === null || ocrResult.date === null) {
-        setReceiptError("الإيصال غير صالح — يرجى رفع إيصال تحويل بنكي حديث");
-        return;
-      }
-    }
     setLoading(true);
     try {
       const data = await fileToBase64(file);
       const res = await upload({ data: { filename: file.name, mime: file.type, purpose: "vip-receipt", data } });
-      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, receipt_image: data, plan: selectedPlan, city } });
+      await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan, city } });
       setSubmitted(true);
     } catch (err) {
       toast.error("حصل خطأ: " + (err as Error).message);
@@ -392,24 +363,7 @@ function VipPage() {
                             <Check className="h-3.5 w-3.5" /> تم اختيار الملف
                           </span>
                         )}
-                        {ocrScanning && (
-                          <span className="text-xs text-primary inline-flex items-center gap-1">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> جارٍ فحص الإيصال...
-                          </span>
-                        )}
                       </div>
-                      {receiptError && (
-                        <p className="text-red-600 text-sm mt-2">⚠️ {receiptError}</p>
-                      )}
-                      {ocrResult && (
-                        <div className="mt-3 rounded-lg border border-border bg-secondary/20 p-3 text-xs space-y-1">
-                          <p className="font-bold text-sm mb-1">بيانات الإيصال المستخرجة:</p>
-                          <p><span className="text-muted-foreground">البنك:</span> {ocrResult.bank ?? "—"}</p>
-                          <p><span className="text-muted-foreground">المبلغ:</span> {ocrResult.amount ?? "—"}</p>
-                          <p><span className="text-muted-foreground">التاريخ:</span> {ocrResult.date ?? "—"}</p>
-                          <p><span className="text-muted-foreground">الوقت:</span> {ocrResult.time ?? "—"}</p>
-                        </div>
-                      )}
                     </div>
 
                     <div className="mt-6 flex gap-3">
