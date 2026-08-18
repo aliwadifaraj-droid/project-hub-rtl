@@ -85,9 +85,9 @@ function VipPage() {
     setOcrScanning(true);
     try {
       const dataUrl = await fileToBase64(file);
-      const res = await validateOcr({ data: { imageData: dataUrl, expectedPrice: selectedPlanObj.price } });
+      const res = await validateOcr({ data: { imageData: dataUrl, expectedAmount: selectedPlanObj.price } });
       if (res.result) setOcrResult(res.result);
-      if (!res.valid) {
+      if (!res.approved) {
         setReceiptError(res.reason);
       } else {
         setReceiptError("");
@@ -107,7 +107,7 @@ function VipPage() {
     if (!city) return toast.error("اختر المدينة");
     if (!selectedPlan) return toast.error("اختر الباقة");
     if (ocrResult) {
-      if (!ocrResult.is_receipt || !ocrResult.is_recent) {
+      if (ocrResult.amount === null || ocrResult.date === null) {
         setReceiptError("الإيصال غير صالح — يرجى رفع إيصال تحويل بنكي حديث");
         return;
       }
