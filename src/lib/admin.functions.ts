@@ -538,12 +538,12 @@ export const submitProjectWithPaths = createServerFn({ method: "POST" })
 
 export const sendRequestMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ to: z.string().trim().email().max(255), message: z.string().trim().min(1).max(3000) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(255), company: z.string().trim().max(200), message: z.string().trim().min(1).max(3000) }).parse(d))
   .handler(async ({ data }) => {
     const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
     if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
     const safe = data.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
-    const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <noreply@ali-alhaddad.com>", to: [data.to], subject: "رسالة من فريق العمران", html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;line-height:1.9">${safe}</div>` }) });
+    const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <noreply@ali-alhaddad.com>", to: [data.email], subject: `رسالة من فريق العمران - ${data.company}`, html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;line-height:1.9">${safe}</div>` }) });
     const bodyText = await res.text();
     if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
     return { ok: true };
