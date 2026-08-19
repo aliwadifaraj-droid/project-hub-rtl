@@ -411,7 +411,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       }
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    const safeName = data.file_name.replace(/[^\\w.\\-]/g, "_").slice(-100);
+    const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
@@ -423,7 +423,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
           user_id: uid,
           title: "طلب إضافة مشروع جديد",
           body: `${data.company_name} — ${data.facility_location}`,
-          link: "/admin/requests",
+          link: "/admin/offers",
           project_name: data.project_name || data.company_name,
           company_name: data.company_name,
           email: data.email,
@@ -442,7 +442,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
           user_id: uid,
           title: "عرض سعر جديد",
           body: `${data.company_name} — ${proj?.name ?? data.project_name ?? data.company_name}`,
-          link: "/admin/requests",
+          link: "/admin/offers",
           project_id: data.project_id!,
           project_name: proj?.name ?? data.project_name ?? data.company_name,
           company_name: data.company_name,
@@ -466,7 +466,7 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    const safeName = data.file_name.replace(/[^\\w.\\-]/g, "_").slice(-100);
+    const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
@@ -476,7 +476,7 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
         user_id: uid,
         title: "طلب إضافة مشروع جديد",
         body: `${data.company_name} — ${data.facility_location}`,
-        link: "/admin/requests",
+        link: "/admin/offers",
         project_name: data.company_name,
         company_name: data.company_name,
         email: data.email,
@@ -491,10 +491,10 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-const imageItemSchema = z.object({ file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(8_000_000), content_type: z.string().regex(/^image\\/(png|jpe?g|webp|gif)$/) });
+const imageItemSchema = z.object({ file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(8_000_000), content_type: z.string().regex(/^image\/(png|jpe?g|webp|gif)$/) });
 
 export const submitProjectSuggestion = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\\-\\s()]+$/), images: z.array(imageItemSchema).max(8).default([]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), images: z.array(imageItemSchema).max(8).default([]) }).parse(d))
   .handler(async ({ data }) => {
     if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
     const uploadedPaths: string[] = [];
@@ -502,7 +502,7 @@ export const submitProjectSuggestion = createServerFn({ method: "POST" })
       const bytes = Buffer.from(img.file_base64, "base64");
       if (bytes.length === 0) continue;
       if (bytes.length > 5 * 1024 * 1024) throw new Error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
-      const safeName = img.file_name.replace(/[^\\w.\\-]/g, "_").slice(-100);
+      const safeName = img.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
       const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
       const { uploadToR2 } = await import("./r2");
       await uploadToR2({ key: path, body: bytes, contentType: img.content_type });
@@ -547,7 +547,7 @@ export const deleteSubmission = createServerFn({ method: "POST" })
   .handler(async ({ data }) => { await submissionsRepo.deleteSubmission(data.id); return { ok: true }; });
 
 export const submitProjectWithPaths = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\\-\\s()]+$/), image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]) }).parse(d))
   .handler(async ({ data }) => {
     if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
     const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
@@ -561,7 +561,7 @@ export const sendRequestMessage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
     if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
-    const safe = data.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\\n/g, "<br/>");
+    const safe = data.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
     const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <noreply@ali-alhaddad.com>", to: [data.email], subject: `رسالة من فريق العمران - ${data.company}`, html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;line-height:1.9">${safe}</div>` }) });
     const bodyText = await res.text();
     if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
