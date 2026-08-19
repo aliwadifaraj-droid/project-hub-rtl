@@ -54,7 +54,7 @@ export const submitOffer = createServerFn({ method: "POST" })
             user_id: uid,
             title: "عرض سعر جديد",
             body: `${data.companyName} — ${data.projectName} — ${data.amount}`,
-            link: "/admin/offers",
+            link: "/admin/requests",
           })),
         );
       }
@@ -141,7 +141,7 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
             user_id: uid,
             title: "طلب إضافة مشروع جديد",
             body: `${data.company_name} — ${data.facility_location}`,
-            link: "/admin/offers",
+            link: "/admin/requests",
           })),
         );
       }
@@ -195,6 +195,7 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
     await offersRepo.updateOfferStatus(data.id, data.status);
     return { ok: true as const };
   });
+
 
 
 export const adminDeleteOffer = createServerFn({ method: "POST" })
