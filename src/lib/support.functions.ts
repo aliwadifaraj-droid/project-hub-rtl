@@ -182,7 +182,7 @@ async function answerRequestStatus(query: string): Promise<string | null> {
   const raw = (query ?? "").trim();
   if (!raw) return null;
   const repo = await import("./project-requests.repo");
-  const offersRepo = await import("./offers.repo");
+  const notificationsRepo = await import("./notifications.repo");
   const emailMatch = raw.match(EMAIL_RE);
   const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
 
@@ -213,8 +213,8 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       .join("\n\n");
   }
 
-  let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
-  if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
+  let offers = emailMatch ? await notificationsRepo.searchOfferNotificationsByEmail(emailMatch[0]) : [];
+  if (!offers.length && !emailMatch) offers = await notificationsRepo.searchOfferNotificationsByCompany(name);
   if (offers.length) return OFFER_PENDING_REPLY;
 
   return REQUEST_NOT_FOUND;
@@ -282,7 +282,7 @@ function asksAboutVip(text: string): boolean {
 
 
 
-/** Ask Groq (qwen/qwen3.6-27b) as a last-resort fallback. Returns null on any failure. */
+/** Ask Groq (llama-3.3-70b-versatile) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
   systemInstruction?: string | null;
   dialect?: string | null;
@@ -292,7 +292,7 @@ async function askGroq(userText: string, opts: {
 }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.GROQ_MODEL || "qwen/qwen3.6-27b";
+  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
   const ENFORCE_AR = [
     "### تعليمات حديدية لا يجوز مخالفتها أبداً ###",
@@ -324,7 +324,7 @@ async function askGroq(userText: string, opts: {
       body: JSON.stringify({
         model,
         temperature: 0.2,
-        max_completion_tokens: 400,
+        max_tokens: 400,
         messages: [
           ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
           { role: "user", content: userText },
