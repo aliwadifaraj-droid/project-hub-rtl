@@ -356,7 +356,7 @@ function OfferTogglesPanel() {
   }
 
   const toggleOne = useMutation({
-    mutationFn: (v: { id: string; enabled: boolean }) => setOneFn({ data: v }),
+    mutationFn: (v: { projectId: string; enabled: boolean }) => setOneFn({ data: v }),
     onSuccess: (_d, v) => {
       toast.success(v.enabled ? "تم تفعيل إرسال عرض السعر" : "تم تعطيل إرسال عرض السعر");
       refresh();
@@ -417,7 +417,7 @@ function OfferTogglesPanel() {
                 aria-checked={p.offers_enabled}
                 aria-label={`تشغيل أو إطفاء عرض السعر لمشروع ${p.name}`}
                 disabled={busy}
-                onClick={() => toggleOne.mutate({ id: p.id, enabled: !p.offers_enabled })}
+                onClick={() => toggleOne.mutate({ projectId: p.id, enabled: !p.offers_enabled })}
                 className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-60 ${
                   p.offers_enabled ? "bg-emerald-600" : "bg-slate-600"
                 }`}
@@ -451,7 +451,7 @@ function BotOfferTogglesPanel() {
   }
 
   const toggleOne = useMutation({
-    mutationFn: (v: { id: string; enabled: boolean }) => setOneFn({ data: v }),
+    mutationFn: (v: { projectId: string; enabled: boolean }) => setOneFn({ data: v }),
     onSuccess: (_d, v) => {
       toast.success(v.enabled ? "تم تفعيل استلام البوت للعروض" : "تم تعطيل استلام البوت للعروض");
       refresh();
@@ -512,7 +512,7 @@ function BotOfferTogglesPanel() {
                 aria-checked={p.bot_offers_enabled}
                 aria-label={`تشغيل أو إطفاء استلام البوت للعروض لمشروع ${p.name}`}
                 disabled={busy}
-                onClick={() => toggleOne.mutate({ id: p.id, enabled: !p.bot_offers_enabled })}
+                onClick={() => toggleOne.mutate({ projectId: p.id, enabled: !p.bot_offers_enabled })}
                 className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-60 ${
                   p.bot_offers_enabled ? "bg-emerald-600" : "bg-slate-600"
                 }`}
