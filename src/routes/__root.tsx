@@ -114,7 +114,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       throw redirect({ to: "/" });
     }
 
-    const ALLOW_PREFIXES = ["/maintenance", "/auth", "/reset-password", "/api/"];
+    // Admin routes bypass the server-side maintenance gate; the client-side
+    // MaintenanceGate component still redirects non-admins after getMe() resolves.
+    const ALLOW_PREFIXES = ["/maintenance", "/auth", "/reset-password", "/api/", "/admin"];
     const allowed = ALLOW_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
     if (allowed) return;
 
