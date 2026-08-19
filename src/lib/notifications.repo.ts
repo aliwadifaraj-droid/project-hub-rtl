@@ -336,3 +336,29 @@ export async function existsDuplicateAddProjectNotification(
   );
   return rowsToObjects(r).length > 0;
 }
+
+export async function searchOfferNotificationsByEmail(email: string, limit = 50): Promise<NotificationRow[]> {
+  await ensureOfferColumns();
+  const e = (email ?? "").trim().toLowerCase();
+  if (!e) return [];
+  const r = await db.execute(
+    `SELECT id,user_id,title,body,link,read,created_at,${OFFER_COLS} FROM notifications
+     WHERE offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(email,''))) = ?
+     ORDER BY created_at DESC LIMIT ?`,
+    [e, limit],
+  );
+  return rowsToObjects(r).map(decode);
+}
+
+export async function searchOfferNotificationsByCompany(name: string, limit = 50): Promise<NotificationRow[]> {
+  await ensureOfferColumns();
+  const n = (name ?? "").trim().toLowerCase();
+  if (!n) return [];
+  const r = await db.execute(
+    `SELECT id,user_id,title,body,link,read,created_at,${OFFER_COLS} FROM notifications
+     WHERE offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(company_name,''))) LIKE ?
+     ORDER BY created_at DESC LIMIT ?`,
+    [`%${n}%`, limit],
+  );
+  return rowsToObjects(r).map(decode);
+}
