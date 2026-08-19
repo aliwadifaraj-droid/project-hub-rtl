@@ -5,7 +5,7 @@ import { hashPassword } from "./auth.server";
 import { getRolesForUser, findUserById, findUserByEmail, createUser, grantRole, listUsersWithRoles, getRoleNameById, deleteUser as deleteUserRow } from "./users.repo";
 import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
-import * as offersRepo from "./offers.repo";
+import * as notificationsRepo from "./notifications.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
@@ -17,6 +17,12 @@ import { listActiveByCity } from "./vip.repo";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
+}
+
+async function listAdminUserIds(): Promise<string[]> {
+  const { db, rowsToObjects } = await import("./db");
+  const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
+  return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
 }
 
 export const listProjects = createServerFn({ method: "GET" }).handler(async () => {
@@ -77,7 +83,8 @@ export const getBidPdfUrl = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
     if (!isAdmin) {
-      const req = await requestsRepo.getRequestByPdfPath(data.path);
+      let req = await requestsRepo.getRequestByPdfPath(data.path);
+      if (!req) req = await notificationsRepo.getOfferNotificationByPdfPath(data.path) as any;
       const proj = req?.project_id ? await projectsRepo.getById(req.project_id) : null;
       if (!proj || proj.created_by !== context.userId) throw new Error("غير مصرح بفتح هذا الملف");
     }
@@ -101,19 +108,19 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offers = await offersRepo.listOffersBySource("platform");
+    const offers = await notificationsRepo.listOfferNotificationsBySource("platform");
     return Promise.all(offers.map(async (o) => {
       const proj = o.project_id ? await projectsRepo.getById(o.project_id).catch(() => null) : null;
       const canManage = !!proj && proj.created_by === context.userId;
       return {
         id: o.id,
         project_id: o.project_id,
-        company_name: o.company_name,
-        facility_location: null,
+        company_name: o.company_name ?? "",
+        facility_location: o.facility_location ?? null,
         email: isAdmin || canManage ? o.email : null,
         pdf_url: o.pdf_key,
-        status: o.status,
-        submitter_type: "visitor",
+        status: o.offer_status ?? "new",
+        submitter_type: o.submitter_type ?? "visitor",
         project_type: "platform",
         note: null,
         created_at: o.created_at,
@@ -127,20 +134,20 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offers = await offersRepo.listOffersBySource("add_project");
+    const offers = await notificationsRepo.listOfferNotificationsBySource("add_project");
     return offers.map((o) => ({
       id: o.id,
       project_id: o.project_id,
-      company_name: o.company_name,
-      facility_location: null,
+      company_name: o.company_name ?? "",
+      facility_location: o.facility_location ?? null,
       email: isAdmin ? o.email : null,
       pdf_url: o.pdf_key,
-      status: o.status,
-      submitter_type: (o as any).submitter_type ?? "visitor",
+      status: o.offer_status ?? "new",
+      submitter_type: o.submitter_type ?? "visitor",
       project_type: "add_project",
       note: null,
       created_at: o.created_at,
-      projects: { name: o.project_name },
+      projects: { name: o.project_name ?? o.company_name ?? "" },
       can_manage: false,
     }));
   });
@@ -151,13 +158,11 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
  .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offersRepo = await import("./offers.repo");
-
     let req = await requestsRepo.getRequestById(data.id);
     let isOffer = false;
 
     if (!req) {
-      req = await offersRepo.getOfferById(data.id);
+      req = await notificationsRepo.getOfferNotificationById(data.id) as any;
       isOffer = true;
     }
     if (!req) throw new Error("الطلب غير موجود");
@@ -171,7 +176,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     if (!isAdmin &&!note) throw new Error("الملاحظة إجبارية للموظف عند تغيير الحالة");
 
     if (isOffer) {
-      await offersRepo.updateOfferStatus(data.id, data.status, note || undefined);
+      await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
     } else {
       await requestsRepo.updateRequestStatus(data.id, data.status, note? note : undefined);
     }
@@ -406,39 +411,48 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       }
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
+    const safeName = data.file_name.replace(/[^\\w.\\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
+    const adminIds = await listAdminUserIds();
     if (isAddProject) {
-      await offersRepo.insertOffer({
-        project_id: data.project_id ?? null,
-        project_name: data.project_name || data.company_name,
-        company_name: data.company_name,
-        email: data.email,
-        amount: "",
-        duration: null,
-        pdf_key: path,
-        pdf_filename: data.file_name,
-        visitor_token: null,
-        source: "add_project",
-      });
+      await notificationsRepo.insertOfferNotificationMany(
+        adminIds.map((uid) => ({
+          user_id: uid,
+          title: "طلب إضافة مشروع جديد",
+          body: `${data.company_name} — ${data.facility_location}`,
+          link: "/admin/requests",
+          project_name: data.project_name || data.company_name,
+          company_name: data.company_name,
+          email: data.email,
+          facility_location: data.facility_location,
+          pdf_key: path,
+          pdf_filename: data.file_name,
+          source: "add_project",
+          offer_status: "new",
+        })),
+      );
     } else {
       const proj = data.project_id ? await projectsRepo.getById(data.project_id) : null;
       const source = proj?.is_customer_request ? "add_project" : "platform";
-      await offersRepo.insertOffer({
-        project_id: data.project_id!,
-        project_name: proj?.name ?? data.project_name ?? data.company_name,
-        company_name: data.company_name,
-        email: data.email,
-        amount: "",
-        duration: null,
-        pdf_key: path,
-        pdf_filename: data.file_name,
-        visitor_token: null,
-        source,
-      });
+      await notificationsRepo.insertOfferNotificationMany(
+        adminIds.map((uid) => ({
+          user_id: uid,
+          title: "عرض سعر جديد",
+          body: `${data.company_name} — ${proj?.name ?? data.project_name ?? data.company_name}`,
+          link: "/admin/requests",
+          project_id: data.project_id!,
+          project_name: proj?.name ?? data.project_name ?? data.company_name,
+          company_name: data.company_name,
+          email: data.email,
+          pdf_key: path,
+          pdf_filename: data.file_name,
+          source,
+          offer_status: "new",
+        })),
+      );
     }
     return { ok: true };
   });
@@ -452,30 +466,35 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
+    const safeName = data.file_name.replace(/[^\\w.\\-]/g, "_").slice(-100);
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-    await offersRepo.insertOffer({
-      project_id: null,
-      project_name: data.company_name,
-      company_name: data.company_name,
-      email: data.email,
-      amount: "",
-      duration: null,
-      pdf_key: path,
-      pdf_filename: data.file_name,
-      visitor_token: null,
-      source: "add_project",
-      submitter_type: data.submitter_type,
-    });
+    const adminIds = await listAdminUserIds();
+    await notificationsRepo.insertOfferNotificationMany(
+      adminIds.map((uid) => ({
+        user_id: uid,
+        title: "طلب إضافة مشروع جديد",
+        body: `${data.company_name} — ${data.facility_location}`,
+        link: "/admin/requests",
+        project_name: data.company_name,
+        company_name: data.company_name,
+        email: data.email,
+        facility_location: data.facility_location,
+        pdf_key: path,
+        pdf_filename: data.file_name,
+        source: "add_project",
+        submitter_type: data.submitter_type,
+        offer_status: "new",
+      })),
+    );
     return { ok: true };
   });
 
-const imageItemSchema = z.object({ file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(8_000_000), content_type: z.string().regex(/^image\/(png|jpe?g|webp|gif)$/) });
+const imageItemSchema = z.object({ file_name: z.string().trim().min(1).max(200), file_base64: z.string().min(8).max(8_000_000), content_type: z.string().regex(/^image\\/(png|jpe?g|webp|gif)$/) });
 
 export const submitProjectSuggestion = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), images: z.array(imageItemSchema).max(8).default([]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\\-\\s()]+$/), images: z.array(imageItemSchema).max(8).default([]) }).parse(d))
   .handler(async ({ data }) => {
     if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
     const uploadedPaths: string[] = [];
@@ -483,7 +502,7 @@ export const submitProjectSuggestion = createServerFn({ method: "POST" })
       const bytes = Buffer.from(img.file_base64, "base64");
       if (bytes.length === 0) continue;
       if (bytes.length > 5 * 1024 * 1024) throw new Error("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
-      const safeName = img.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
+      const safeName = img.file_name.replace(/[^\\w.\\-]/g, "_").slice(-100);
       const path = `submissions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
       const { uploadToR2 } = await import("./r2");
       await uploadToR2({ key: path, body: bytes, contentType: img.content_type });
@@ -528,7 +547,7 @@ export const deleteSubmission = createServerFn({ method: "POST" })
   .handler(async ({ data }) => { await submissionsRepo.deleteSubmission(data.id); return { ok: true }; });
 
 export const submitProjectWithPaths = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\-\s()]+$/), image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(5000), location: z.string().trim().min(1).max(300), contact_phone: z.string().trim().min(4).max(40).regex(/^[0-9+\\-\\s()]+$/), image_paths: z.array(z.string().trim().min(1).max(500)).max(8).default([]) }).parse(d))
   .handler(async ({ data }) => {
     if (await blockedRepo.isBlocked(data.name, null)) throw new Error(BLOCKED_MESSAGE);
     const safePaths = data.image_paths.filter((p) => p.startsWith("submissions/"));
@@ -542,7 +561,7 @@ export const sendRequestMessage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
     if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
-    const safe = data.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
+    const safe = data.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\\n/g, "<br/>");
     const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <noreply@ali-alhaddad.com>", to: [data.email], subject: `رسالة من فريق العمران - ${data.company}`, html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;line-height:1.9">${safe}</div>` }) });
     const bodyText = await res.text();
     if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
