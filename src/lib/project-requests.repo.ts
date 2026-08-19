@@ -117,7 +117,7 @@ export async function getRequestByPdfPath(path: string): Promise<ProjectRequestR
 }
 
 export async function insertRequest(input: {
-  project_id: string;
+  project_id: string | null;
   company_name: string;
   facility_location: string;
   email: string;
