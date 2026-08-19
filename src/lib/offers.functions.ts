@@ -1,8 +1,9 @@
 // Price-offer server functions (submitted by visitors from the support bot).
+// Offers are saved into the `notifications` table (as offer-notifications) and
+// moved to `project_requests` when an admin accepts them.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
-import * as offersRepo from "./offers.repo";
 import * as notificationsRepo from "./notifications.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
@@ -22,6 +23,12 @@ const submitSchema = z.object({
 
 export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
 
+async function listAdminUserIds(): Promise<string[]> {
+  const { db, rowsToObjects } = await import("./db");
+  const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
+  return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
+}
+
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
@@ -29,38 +36,31 @@ export const submitOffer = createServerFn({ method: "POST" })
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
-    const duplicate = await offersRepo.existsDuplicateOffer(data.projectName, data.email, data.companyName);
+    const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
     if (duplicate) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
-    const id = await offersRepo.insertOffer({
-      project_id: null,
-      project_name: data.projectName,
-      company_name: data.companyName,
-      email: data.email,
-      amount: data.amount,
-      duration: null,
-      pdf_key: data.pdfKey,
-      pdf_filename: data.pdfFilename,
-      visitor_token: data.visitorToken ?? null,
-    });
 
-
-    try {
-      const staff = await offersRepo.listAdminUserIds();
-      if (staff.length) {
-        await notificationsRepo.insertMany(
-          staff.map((uid) => ({
-            user_id: uid,
-            title: "عرض سعر جديد",
-            body: `${data.companyName} — ${data.projectName} — ${data.amount}`,
-            link: "/admin/requests",
-          })),
-        );
-      }
-    } catch (e) {
-      console.error("offer notification failed", e);
-    }
+    const staff = await listAdminUserIds();
+    const title = "عرض سعر جديد";
+    const body = `${data.companyName} — ${data.projectName} — ${data.amount}`;
+    const ids = await notificationsRepo.insertOfferNotificationMany(
+      staff.map((uid) => ({
+        user_id: uid,
+        title,
+        body,
+        link: "/admin/requests",
+        project_name: data.projectName,
+        company_name: data.companyName,
+        email: data.email,
+        amount: data.amount,
+        pdf_key: data.pdfKey,
+        pdf_filename: data.pdfFilename,
+        source: "platform",
+        offer_status: "new",
+      })),
+    );
+    const id = ids[0] ?? "";
 
     if (data.visitorToken) {
       try {
@@ -75,7 +75,7 @@ export const submitOffer = createServerFn({ method: "POST" })
     return { ok: true as const, id, message: OFFER_SUCCESS_MESSAGE };
   });
 
-// ---------- Add-project form: save to offers table only (no project_id, no project_name) ----------
+// ---------- Add-project form: save to notifications table only ----------
 const addProjectSchema = z.object({
   company_name: z.string().trim().min(1).max(200),
   facility_location: z.string().trim().min(1).max(300),
@@ -94,7 +94,7 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
-    const duplicate = await offersRepo.existsDuplicateAddProjectOffer(data.email, data.company_name);
+    const duplicate = await notificationsRepo.existsDuplicateAddProjectNotification(data.email, data.company_name);
     if (duplicate) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
@@ -118,38 +118,27 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
 
-    const id = await offersRepo.insertOffer({
-      project_id: null,
-      project_name: null,
-      company_name: data.company_name,
-      email: data.email,
-      amount: "",
-      duration: null,
-      facility_location: data.facility_location,
-      pdf_key: path,
-      pdf_filename: data.file_name,
-      visitor_token: null,
-      source: "add_project",
-      submitter_type: submitterType,
-    });
+    const staff = await listAdminUserIds();
+    const title = "طلب إضافة مشروع جديد";
+    const body = `${data.company_name} — ${data.facility_location}`;
+    const ids = await notificationsRepo.insertOfferNotificationMany(
+      staff.map((uid) => ({
+        user_id: uid,
+        title,
+        body,
+        link: "/admin/requests",
+        company_name: data.company_name,
+        email: data.email,
+        facility_location: data.facility_location,
+        pdf_key: path,
+        pdf_filename: data.file_name,
+        source: "add_project",
+        submitter_type: submitterType,
+        offer_status: "new",
+      })),
+    );
 
-    try {
-      const staff = await offersRepo.listAdminUserIds();
-      if (staff.length) {
-        await notificationsRepo.insertMany(
-          staff.map((uid) => ({
-            user_id: uid,
-            title: "طلب إضافة مشروع جديد",
-            body: `${data.company_name} — ${data.facility_location}`,
-            link: "/admin/requests",
-          })),
-        );
-      }
-    } catch (e) {
-      console.error("add-project offer notification failed", e);
-    }
-
-    return { ok: true as const, id, message: ADD_PROJECT_SUCCESS_MESSAGE };
+    return { ok: true as const, id: ids[0] ?? "", message: ADD_PROJECT_SUCCESS_MESSAGE };
   });
 
 function assertStaff(roles: string[]) {
@@ -160,14 +149,31 @@ export const adminListOffers = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     assertStaff(context.roles);
-    return offersRepo.listAllOffers();
+    const rows = await notificationsRepo.listAllOfferNotifications();
+    return rows.map((r) => ({
+      id: r.id,
+      project_id: r.project_id,
+      project_name: r.project_name,
+      company_name: r.company_name ?? "",
+      email: r.email ?? "",
+      amount: r.amount ?? "",
+      duration: null,
+      facility_location: r.facility_location,
+      pdf_key: r.pdf_key,
+      pdf_filename: r.pdf_filename,
+      status: r.offer_status ?? "new",
+      visitor_token: null,
+      source: r.source ?? "platform",
+      submitter_type: r.submitter_type,
+      created_at: r.created_at,
+    }));
   });
 
 export const adminCountNewOffers = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     assertStaff(context.roles);
-    return { count: await offersRepo.countNewOffers() };
+    return { count: await notificationsRepo.countNewOfferNotifications() };
   });
 
 export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
@@ -177,33 +183,31 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     if (data.status === "accepted") {
-      const offer = await offersRepo.getOfferById(data.id);
+      const offer = await notificationsRepo.getOfferNotificationById(data.id);
       if (!offer) return { ok: false as const, message: "العرض غير موجود" };
       const requests = await import("./project-requests.repo");
       const requestId = await requests.insertRequest({
         project_id: offer.project_id ?? null,
-        company_name: offer.company_name,
+        company_name: offer.company_name ?? "",
         facility_location: offer.facility_location ?? offer.project_name ?? "",
-        email: offer.email,
+        email: offer.email ?? "",
         pdf_url: offer.pdf_key ?? "",
         submitter_type: offer.submitter_type ?? "offer",
       });
       await requests.updateRequestStatus(requestId, "new");
-      await offersRepo.deleteOffer(offer.id);
+      await notificationsRepo.deleteOfferNotification(offer.id);
       return { ok: true as const, moved: true, requestId };
     }
-    await offersRepo.updateOfferStatus(data.id, data.status);
+    await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
     return { ok: true as const };
   });
-
-
 
 export const adminDeleteOffer = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     if (!context.roles.includes("admin")) throw new Error("Forbidden");
-    await offersRepo.deleteOffer(data.id);
+    await notificationsRepo.deleteOfferNotification(data.id);
     return { ok: true };
   });
 
