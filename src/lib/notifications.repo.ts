@@ -2,7 +2,7 @@
 // Also stores price offers (bid requests) so they surface in the notifications feed.
 import { db, rowsToObjects } from "./db";
 
-export type NotificationRow = {//////)())
+export type NotificationRow = {
   id: string;
   user_id: string;
   title: string;
