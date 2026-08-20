@@ -1,5 +1,5 @@
 // Price-offer server functions (submitted by visitors from the support bot).
-// Offers are saved into the `notifications` table (as offer-notifications) and)()(:-؛/:؛-؛
+// Offers are saved into the `notifications` table (as offer-notifications) and
 // moved to `project_requests` when an admin accepts them.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
