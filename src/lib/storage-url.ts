@@ -16,10 +16,20 @@ function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function stripLegacyPublicPrefix(value: string): string | null {
+function bucketFromMarker(marker: string): string {
+  const parts = marker.split("/").filter(Boolean);
+  return parts[parts.length - 1];
+}
+
+function stripLegacyPublicPrefix(value: string): { key: string; bucket: string } | null {
   for (const marker of LEGACY_PUBLIC_MARKERS) {
     const index = value.indexOf(marker);
-    if (index >= 0) return decodeURIComponent(value.slice(index + marker.length));
+    if (index >= 0) {
+      return {
+        key: decodeURIComponent(value.slice(index + marker.length)),
+        bucket: bucketFromMarker(marker),
+      };
+    }
   }
   return null;
 }
@@ -30,13 +40,13 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
   if (value.startsWith("data:")) return { direct: value, keys: [] };
 
   if (value.startsWith("http://") || value.startsWith("https://")) {
-    const legacyKey = stripLegacyPublicPrefix(value);
-    if (legacyKey) return { keys: unique([legacyKey]) };
+    const legacy = stripLegacyPublicPrefix(value);
+    if (legacy) return { keys: unique([legacy.key, `${legacy.bucket}/${legacy.key}`]) };
     return { direct: value, keys: [] };
   }
 
-  const legacyKey = stripLegacyPublicPrefix(value);
-  if (legacyKey) return { keys: unique([legacyKey]) };
+  const legacy = stripLegacyPublicPrefix(value);
+  if (legacy) return { keys: unique([legacy.key, `${legacy.bucket}/${legacy.key}`]) };
 
   if (value.startsWith("/")) return { direct: value, keys: [] };
   if (!value.includes("/")) return { direct: value, keys: [] };
