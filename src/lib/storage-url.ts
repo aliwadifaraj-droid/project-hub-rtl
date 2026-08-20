@@ -1,10 +1,14 @@
 /**
  * Resolve stored file references to browser-usable URLs.
  *
- * New uploads are R2 object keys. Older rows may still contain legacy
- * `/storage/v1/object/public/...` paths or full public-storage URLs. Those
- * paths must not be returned directly on Vercel, because they resolve as app
- * routes and show the 404 page instead of an image.
+ * Preference order:
+ * 1. R2_PUBLIC_URL (if set) — direct public URL, no signing needed.
+ * 2. Signed URL via R2 credentials (signGetUrl).
+ * 3. Legacy Supabase storage paths are converted to R2 keys.
+ *
+ * Older rows may contain legacy `/storage/v1/object/public/...` paths,
+ * `/turso/` prefixed paths, or full public-storage URLs. Those paths must
+ * not be returned directly on Vercel because they resolve as app routes.
  */
 const LEGACY_PUBLIC_MARKERS = [
   "/storage/v1/object/public/turso/",
@@ -40,8 +44,6 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
   if (!value) return { keys: [] };
   if (value.startsWith("data:")) return { direct: value, keys: [] };
 
-  // Complete public or signed URLs are already browser-ready. Re-signing
-  // them against the current endpoint can change the old object's path.
   if (value.startsWith("http://") || value.startsWith("https://")) {
     return { direct: value, keys: [] };
   }
@@ -60,16 +62,36 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
   return { keys: unique([value, value.replace(/^(project-images|projects|files)\//, "")]) };
 }
 
+function getR2PublicUrl(): string | null {
+  const u = process.env.R2_PUBLIC_URL || process.env.VITE_R2_PUBLIC_URL;
+  return u ? u.replace(/\/+$/, "") : null;
+}
+
+function buildPublicUrl(key: string): string {
+  const base = getR2PublicUrl();
+  if (!base) return "";
+  const encoded = key.split("/").map(encodeURIComponent).join("/");
+  return `${base}/${encoded}`;
+}
+
 export async function resolveStoredFileUrl(raw: string | null | undefined, expiresIn = 60 * 60): Promise<string> {
   if (!raw) return "";
   const { direct, keys } = storageKeyCandidates(raw);
-  if (direct !== undefined) return direct;
 
-  const { signGetUrl } = await import("./r2");
+  if (direct !== undefined) {
+    if (!direct.startsWith("http://") && !direct.startsWith("https://")) return direct;
+    const publicBase = getR2PublicUrl();
+    if (publicBase && direct.startsWith(publicBase + "/")) return direct;
+    return direct;
+  }
+
   if (!keys.length) return "";
 
   for (const key of keys) {
+    const pub = buildPublicUrl(key);
+    if (pub) return pub;
     try {
+      const { signGetUrl } = await import("./r2");
       return await signGetUrl(key, expiresIn);
     } catch {
       // Try the next candidate when signing fails.
