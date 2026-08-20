@@ -90,11 +90,11 @@ function ProjectsAdminPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {(data ?? []).map((p) => {
-          const src = p.cover_image?.startsWith("https") ? p.cover_image : p.cover_image ? `/uploads/${p.cover_image}` : "";
+          console.log("[admin.projects] cover_image raw value:", p.cover_image);
           return (
           <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-            {src ? (
-              <img src={src} alt={p.name} className="aspect-video w-full object-cover" />
+            {p.cover_image ? (
+              <img src={p.cover_image} alt={p.name} loading="lazy" className="aspect-video w-full object-cover" />
             ) : <div className="aspect-video w-full bg-secondary" />}
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
