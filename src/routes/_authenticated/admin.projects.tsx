@@ -88,8 +88,8 @@ function ProjectsAdminPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {(data ?? []).map((p) => (
           <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-            {p.cover_url ? (
-              <img src={p.cover_url} alt={p.name} className="aspect-video w-full object-cover" />
+            {p.cover_image ? (
+              <img src={p.cover_image.startsWith("http") ? p.cover_image : `/uploads/${p.cover_image}`} alt={p.name} className="aspect-video w-full object-cover" />
             ) : <div className="aspect-video w-full bg-secondary" />}
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
