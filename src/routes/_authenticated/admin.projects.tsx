@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
 import { listAllProjectVipStatus } from "@/lib/vip.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
@@ -43,6 +43,9 @@ function ProjectsAdminPage() {
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
   const { data: vipStatuses } = useQuery({ queryKey: ["admin-project-vip"], queryFn: () => fetchVipStatus() });
+  useEffect(() => {
+    console.log("[admin.projects] first cover_image values", (data ?? []).slice(0, 3).map((project) => project.cover_image));
+  }, [data]);
   const isAdmin = hasAdminRole(roles);
   const myId = me?.userId ?? null;
   const vipByProject = new Map((vipStatuses ?? []).map((v) => [v.project_id, v]));
@@ -86,10 +89,12 @@ function ProjectsAdminPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(data ?? []).map((p) => (
+        {(data ?? []).map((p) => {
+          const src = p.cover_image?.startsWith("https") ? p.cover_image : p.cover_image ? `/uploads/${p.cover_image}` : "";
+          return (
           <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-            {p.cover_image ? (
-              <img src={p.cover_image.startsWith("http") ? p.cover_image : `/uploads/${p.cover_image}`} alt={p.name} className="aspect-video w-full object-cover" />
+            {src ? (
+              <img src={src} alt={p.name} className="aspect-video w-full object-cover" />
             ) : <div className="aspect-video w-full bg-secondary" />}
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
@@ -132,7 +137,8 @@ function ProjectsAdminPage() {
               ) : null}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {editing ? <ProjectModal value={editing} onClose={() => setEditing(null)} onSave={(v) => saveMut.mutate(v)} saving={saveMut.isPending} /> : null}
