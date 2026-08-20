@@ -12,6 +12,14 @@ import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
+const BUCKET_URL = "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev";
+
+function getImageSrc(url: string | null | undefined): string {
+  if (!url) return "/placeholder.jpg";
+  if (url.startsWith("http")) return url;
+  return `${BUCKET_URL}/${url}`;
+}
+
 export const Route = createFileRoute("/_authenticated/admin/projects")({
   component: ProjectsAdminPage,
 });
@@ -90,11 +98,11 @@ function ProjectsAdminPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {(data ?? []).map((p) => {
-          console.log("[admin.projects] cover_image raw value:", p.cover_image);
+          console.log("[admin.projects] cover_image raw value:", p.cover_image, "→ src:", getImageSrc(p.cover_image));
           return (
           <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
             {p.cover_image ? (
-              <img src={p.cover_image} alt={p.name} loading="lazy" className="aspect-video w-full object-cover" />
+              <img src={getImageSrc(p.cover_image)} alt={p.name} loading="lazy" className="aspect-video w-full object-cover" />
             ) : <div className="aspect-video w-full bg-secondary" />}
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
