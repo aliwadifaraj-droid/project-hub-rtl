@@ -40,6 +40,9 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
   if (!value) return { keys: [] };
   if (value.startsWith("data:")) return { direct: value, keys: [] };
 
+  // Full URLs: if they are publicly accessible (R2 public URL, custom domain,
+  // or pre-signed URL) return as-is. Re-signing R2 S3 endpoint URLs was
+  // breaking old images whose object keys didn't match the extracted path.
   if (value.startsWith("http://") || value.startsWith("https://")) {
     return { direct: value, keys: [] };
   }
@@ -51,7 +54,7 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
   if (!value.includes("/")) return { direct: value, keys: [] };
 
   const withoutBucket = value.replace(/^(turso|project-images|projects|files)\//, "");
-  return { keys: unique([withoutBucket, value]) };
+  return { keys: unique([value, withoutBucket]) };
 }
 
 export async function resolveStoredFileUrl(raw: string | null | undefined, expiresIn = 60 * 60): Promise<string> {
