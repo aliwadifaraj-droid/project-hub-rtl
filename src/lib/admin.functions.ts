@@ -16,6 +16,8 @@ import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.serve
 import { listActiveByCity } from "./vip.repo";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
