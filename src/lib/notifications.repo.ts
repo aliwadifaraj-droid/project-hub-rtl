@@ -183,7 +183,7 @@ export async function insertOfferNotification(n: OfferNotificationInsert): Promi
   const id = crypto.randomUUID();
   await db.execute(
     `INSERT INTO notifications (id, user_id, title, body, link, read, created_at, ${OFFER_COLS})
-     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       n.user_id,
@@ -215,7 +215,7 @@ export async function insertOfferNotificationMany(items: OfferNotificationInsert
   await db.batch(
     items.map((n, i) => ({
       sql: `INSERT INTO notifications (id, user_id, title, body, link, read, created_at, ${OFFER_COLS})
-            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         ids[i],
         n.user_id,
