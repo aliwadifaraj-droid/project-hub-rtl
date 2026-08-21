@@ -6,7 +6,6 @@ import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } f
 import { listAllProjectVipStatus } from "@/lib/vip.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
-import { buildR2Url } from "@/data/projects";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown } from "lucide-react";
 import { toast } from "sonner";
@@ -87,15 +86,12 @@ function ProjectsAdminPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(data ?? []).map((p) => (
+        {(data ?? []).map((p) => {
+          return (
           <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-            {(() => {
-              const fallback = buildR2Url(p.cover_image ?? null);
-              const src = p.cover_url || fallback || "";
-              return src ? (
-                <img src={src} alt={p.name} className="aspect-video w-full object-cover" />
-              ) : <div className="aspect-video w-full bg-secondary" />;
-            })()}
+            {p.cover_url ? (
+              <img src={p.cover_url} alt={p.name} loading="lazy" className="aspect-video w-full object-cover" />
+            ) : <div className="aspect-video w-full bg-secondary" />}
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-bold">{p.name}</h3>
@@ -137,7 +133,8 @@ function ProjectsAdminPage() {
               ) : null}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {editing ? <ProjectModal value={editing} onClose={() => setEditing(null)} onSave={(v) => saveMut.mutate(v)} saving={saveMut.isPending} /> : null}

@@ -5,6 +5,7 @@ import { AwsClient } from "aws4fetch";
 let _client: AwsClient | null = null;
 
 function getClient(): AwsClient {
+  const _client = null;
   if (_client) return _client;
   const accessKeyId =
     process.env.R2_ACCESS_KEY_ID ||
@@ -101,6 +102,13 @@ export async function deleteFromR2(key: string): Promise<void> {
     const text = await res.text().catch(() => "");
     throw new Error(`R2 DELETE ${res.status}: ${text.slice(0, 300)}`);
   }
+}
+
+/** Build a public URL for an R2 object key using the bucket's public domain. */
+export function getPublicUrl(key: string): string {
+  const base = (process.env.R2_PUBLIC_URL || process.env.VITE_R2_PUBLIC_URL || "").replace(/\/+$/, "");
+  if (!base) throw new Error("R2_PUBLIC_URL is not set");
+  return `${base}/${key.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 /** Build a deterministic object key: <prefix>/<uuid>-<filename>. */
