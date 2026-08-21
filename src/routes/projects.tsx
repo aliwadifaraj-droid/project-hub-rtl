@@ -104,10 +104,6 @@ function ProjectsPage() {
             {(data ?? []).map((p) => (
               <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
                 {(() => {
-                  console.log("[projects] image data:", { id: p.id, cover_image: p.cover_image, cover_url: p.cover_url, r2fallback: buildR2Url(p.cover_image) });
-                  return null;
-                })()}
-                {(() => {
                   const fallback = buildR2Url(p.cover_image);
                   const src = p.cover_url || fallback || "";
                   return src ? (

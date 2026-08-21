@@ -165,10 +165,6 @@ function ProjectDetail() {
         </Link>
 
         <div className="overflow-hidden rounded-2xl shadow-[var(--shadow-elegant)]">
-          {(() => {
-            console.log("[project-detail] image data:", { id: project.id, cover_image: project.cover_image, cover_url: project.cover_url, picked: pickImage(project) });
-            return null;
-          })()}
           <img
             src={pickImage(project)}
             alt={project.name}
