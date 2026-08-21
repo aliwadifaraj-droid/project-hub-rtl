@@ -1,24 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
 import { listAllProjectVipStatus } from "@/lib/vip.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
+import { buildR2Url } from "@/data/projects";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
-
-const BUCKET_URL = "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev";
-
-function getImageSrc(url: string | null | undefined): string {
-  if (!url) return "/placeholder.jpg";
-  if (url.startsWith("http")) return url;
-  return `${BUCKET_URL}/${url}`;
-}
 
 export const Route = createFileRoute("/_authenticated/admin/projects")({
   component: ProjectsAdminPage,
@@ -51,9 +44,6 @@ function ProjectsAdminPage() {
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
   const { data: vipStatuses } = useQuery({ queryKey: ["admin-project-vip"], queryFn: () => fetchVipStatus() });
-  useEffect(() => {
-    console.log("[admin.projects] first cover_image values", (data ?? []).slice(0, 3).map((project) => project.cover_image));
-  }, [data]);
   const isAdmin = hasAdminRole(roles);
   const myId = me?.userId ?? null;
   const vipByProject = new Map((vipStatuses ?? []).map((v) => [v.project_id, v]));
@@ -97,13 +87,15 @@ function ProjectsAdminPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(data ?? []).map((p) => {
-          console.log("[admin.projects] cover_image raw value:", p.cover_image, "→ src:", getImageSrc(p.cover_image));
-          return (
+        {(data ?? []).map((p) => (
           <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-            {p.cover_image ? (
-              <img src={getImageSrc(p.cover_image)} alt={p.name} loading="lazy" className="aspect-video w-full object-cover" />
-            ) : <div className="aspect-video w-full bg-secondary" />}
+            {(() => {
+              const fallback = buildR2Url(p.cover_image ?? null);
+              const src = p.cover_url || fallback || "";
+              return src ? (
+                <img src={src} alt={p.name} className="aspect-video w-full object-cover" />
+              ) : <div className="aspect-video w-full bg-secondary" />;
+            })()}
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-bold">{p.name}</h3>
@@ -145,8 +137,7 @@ function ProjectsAdminPage() {
               ) : null}
             </div>
           </div>
-          );
-        })}
+        ))}
       </div>
 
       {editing ? <ProjectModal value={editing} onClose={() => setEditing(null)} onSave={(v) => saveMut.mutate(v)} saving={saveMut.isPending} /> : null}

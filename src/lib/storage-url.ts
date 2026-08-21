@@ -2,13 +2,9 @@
  * Resolve stored file references to browser-usable URLs.
  *
  * Preference order:
- * 1. R2_PUBLIC_URL (if set) — direct public URL, no signing needed.
- * 2. Signed URL via R2 credentials (signGetUrl).
+ * 1. Signed URL via R2 credentials (signGetUrl) — always works when keys are set.
+ * 2. R2 public dev URL (https://<bucket>.r2.dev/<key>) — works when public access is enabled.
  * 3. Legacy Supabase storage paths are converted to R2 keys.
- *
- * Older rows may contain legacy `/storage/v1/object/public/...` paths,
- * `/turso/` prefixed paths, or full public-storage URLs. Those paths must
- * not be returned directly on Vercel because they resolve as app routes.
  */
 const LEGACY_PUBLIC_MARKERS = [
   "/storage/v1/object/public/turso/",
@@ -59,12 +55,16 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
     return { keys: unique([value.slice("turso/".length), value]) };
   }
 
-  return { keys: unique([value, value.replace(/^(project-images|projects|files)\//, "")]) };
+  // Handle both singular (project-image) and plural (project-images) prefixes.
+  return { keys: unique([value, value.replace(/^(project-images?|projects|files)\//, "")]) };
 }
 
 function getR2PublicUrl(): string | null {
   const u = process.env.R2_PUBLIC_URL || process.env.VITE_R2_PUBLIC_URL;
-  return u ? u.replace(/\/+$/, "") : null;
+  if (u) return u.replace(/\/+$/, "");
+  const bucket = process.env.R2_BUCKET_NAME || process.env.VITE_R2_BUCKET_NAME || process.env.R2_BUCKET || process.env.VITE_R2_BUCKET;
+  if (bucket) return `https://${bucket}.r2.dev`;
+  return null;
 }
 
 function buildPublicUrl(key: string): string {
@@ -80,22 +80,23 @@ export async function resolveStoredFileUrl(raw: string | null | undefined, expir
 
   if (direct !== undefined) {
     if (!direct.startsWith("http://") && !direct.startsWith("https://")) return direct;
-    const publicBase = getR2PublicUrl();
-    if (publicBase && direct.startsWith(publicBase + "/")) return direct;
     return direct;
   }
 
   if (!keys.length) return "";
 
   for (const key of keys) {
-    const pub = buildPublicUrl(key);
-    if (pub) return pub;
+    // Try signed URL first — always works when R2 credentials are available.
     try {
       const { signGetUrl } = await import("./r2");
-      return await signGetUrl(key, expiresIn);
+      const signed = await signGetUrl(key, expiresIn);
+      if (signed) return signed;
     } catch {
-      // Try the next candidate when signing fails.
+      // Signing failed (credentials missing or invalid) — fall through to public URL.
     }
+    // Fall back to public URL if signing failed.
+    const pub = buildPublicUrl(key);
+    if (pub) return pub;
   }
   return "";
 }

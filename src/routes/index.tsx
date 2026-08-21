@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { listProjects } from "@/lib/admin.functions";
-import { resolveImage } from "@/data/projects";
+import { resolveImage, buildR2Url } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
@@ -25,6 +25,8 @@ export const Route = createFileRoute("/")({
 
 function pickImage(p: { cover_url?: string; cover_image: string | null }) {
   if (p.cover_url && (p.cover_url.startsWith("http") || p.cover_url.startsWith("/"))) return p.cover_url;
+  const r2 = buildR2Url(p.cover_image ?? "");
+  if (r2) return r2;
   return resolveImage(p.cover_image ?? "");
 }
 

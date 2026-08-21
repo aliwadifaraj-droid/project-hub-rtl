@@ -5,6 +5,7 @@ import { listMyProjects, deleteMyProject } from "@/lib/my-projects.functions";
 import { deleteMyAd } from "@/lib/ads.functions";
 import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
+import { buildR2Url } from "@/data/projects";
 import { Loader2, Trash2, Globe, FolderKanban, Megaphone } from "lucide-react";
 import { toast } from "sonner";
 
@@ -64,11 +65,15 @@ function MyProjectsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((p) => (
             <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-              {p.cover_url ? (
-                <img src={p.cover_url} alt={p.name} className="aspect-video w-full object-cover" />
-              ) : (
-                <div className="aspect-video w-full bg-secondary" />
-              )}
+              {(() => {
+                const fallback = buildR2Url(p.cover_image ?? null);
+                const src = p.cover_url || fallback || "";
+                return src ? (
+                  <img src={src} alt={p.name} className="aspect-video w-full object-cover" />
+                ) : (
+                  <div className="aspect-video w-full bg-secondary" />
+                );
+              })()}
               <div className="p-4">
                 <h3 className="font-bold line-clamp-1">{p.name}</h3>
                 {p.description ? (

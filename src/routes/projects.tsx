@@ -6,6 +6,7 @@ import { upsertProject, deleteProject, listProjects } from "@/lib/admin.function
 import { getMe } from "@/lib/auth.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { hasAdminRole } from "@/lib/role-label";
+import { buildR2Url } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
@@ -102,9 +103,17 @@ function ProjectsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {(data ?? []).map((p) => (
               <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-                {p.cover_url ? (
-                  <img src={p.cover_url} alt={p.name} className="aspect-video w-full object-cover" />
-                ) : <div className="aspect-video w-full bg-secondary" />}
+                {(() => {
+                  console.log("[projects] image data:", { id: p.id, cover_image: p.cover_image, cover_url: p.cover_url, r2fallback: buildR2Url(p.cover_image) });
+                  return null;
+                })()}
+                {(() => {
+                  const fallback = buildR2Url(p.cover_image);
+                  const src = p.cover_url || fallback || "";
+                  return src ? (
+                    <img src={src} alt={p.name} className="aspect-video w-full object-cover" />
+                  ) : <div className="aspect-video w-full bg-secondary" />;
+                })()}
                 <div className="p-4">
                   <h3 className="font-bold">{p.name}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
@@ -216,14 +225,14 @@ function ProjectModal({
           <Field label={`معرض الصور (${form.images?.length ?? 0})`}>
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
               <Upload className="h-4 w-4" />
-              <span className="flex-1 text-muted-foreground">إضافة صور</span>
+              <span className="text-muted-foreground">إضافة صور</span>
               <input type="file" accept="image/*" multiple className="hidden" onChange={onGallery} />
             </label>
           </Field>
           <Field label="ملف PDF (اختياري)">
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
               <Upload className="h-4 w-4" />
-              <span className="flex-1 text-muted-foreground truncate">{form.pdf_file || "اختر ملف PDF"}</span>
+              <span className="text-muted-foreground truncate">{form.pdf_file || "اختر ملف PDF"}</span>
               <input type="file" accept="application/pdf" className="hidden" onChange={onPdf} />
             </label>
             {form.pdf_file ? (

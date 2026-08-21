@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { getProject, submitBidRequest, getMyRoles, getExclusiveStatus } from "@/lib/admin.functions";
 import { getMyVipStatus } from "@/lib/vip.functions";
 import { hasAdminRole } from "@/lib/role-label";
-import { resolveImage } from "@/data/projects";
+import { resolveImage, buildR2Url } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
@@ -33,6 +33,8 @@ const projectQuery = (id: string) =>
 
 function pickImage(p: { cover_url?: string; cover_image: string | null }) {
   if (p.cover_url && (p.cover_url.startsWith("http") || p.cover_url.startsWith("/"))) return p.cover_url;
+  const r2 = buildR2Url(p.cover_image ?? "");
+  if (r2) return r2;
   return resolveImage(p.cover_image ?? "");
 }
 
@@ -163,6 +165,10 @@ function ProjectDetail() {
         </Link>
 
         <div className="overflow-hidden rounded-2xl shadow-[var(--shadow-elegant)]">
+          {(() => {
+            console.log("[project-detail] image data:", { id: project.id, cover_image: project.cover_image, cover_url: project.cover_url, picked: pickImage(project) });
+            return null;
+          })()}
           <img
             src={pickImage(project)}
             alt={project.name}
