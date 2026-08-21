@@ -18,7 +18,7 @@ import { listActiveByCity } from "./vip.repo";
 async function resolveStoragePath(path: string | null): Promise<string> {
   if (!path) return "";
   if (path.startsWith("http")) return path;
-  return `${process.env.NEXT_PUBLIC_R2_URL}/project-image/${path}`;
+  return `${process.env.NEXT_PUBLIC_R2_URL}/${path}`;
 }
 
 async function listAdminUserIds(): Promise<string[]> {
