@@ -31,14 +31,13 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
   try {
     return await cached(cacheKeys.projectsAll(), TTL_PROJECTS, async () => {
       const rows = await projectsRepo.listAllProjects();
-      return Promise.all(rows.map(async (p) => ({
-        id: p.id, name: p.name, description: p.description, location: p.location,
-duration: p.duration, cover_url: await resolveStoragePath(p.cover_image), images: p.images,
-        pdf_file: p.pdf_file, created_by: p.created_by, status: p.status,
-        admin_approval: p.admin_approval,
-        cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
-        pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
-      })))
+     return Promise.all(rows.map(async (p) => ({
+  id: p.id, name: p.name, description: p.description, location: p.location,
+  duration: p.duration, cover_url: await resolveStoragePath(p.cover_image).catch(() => ""), images: p.images,
+  pdf_file: p.pdf_file, created_by: p.created_by, status: p.status,
+  admin_approval: p.admin_approval,
+  pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
+}))) 
     });
   } catch (e) {
     console.error("[listProjects] unexpected error:", e);
