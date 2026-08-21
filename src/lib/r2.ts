@@ -5,7 +5,6 @@ import { AwsClient } from "aws4fetch";
 let _client: AwsClient | null = null;
 
 function getClient(): AwsClient {
-  const _client = null;
   if (_client) return _client;
   const accessKeyId =
     process.env.R2_ACCESS_KEY_ID ||
