@@ -43,12 +43,23 @@ export function ensureNoteColumn(): Promise<void> {
   return _noteColReady;
 }
 
+let _updatedAtColReady: Promise<void> | null = null;
+export function ensureUpdatedAtColumn(): Promise<void> {
+  if (!_updatedAtColReady) {
+    _updatedAtColReady = db
+      .execute(`ALTER TABLE project_requests ADD COLUMN updated_at TEXT`)
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+  return _updatedAtColReady;
+}
+
 let _projectTypeColReady: Promise<void> | null = null;
 export function ensureProjectTypeColumn(): Promise<void> {
   if (!_projectTypeColReady) {
     _projectTypeColReady = db
-      .execute(`ALTER TABLE project_requests ADD COLUMN project_type TEXT NOT NULL DEFAULT 'platform'`)
-      .then(() => undefined)
+      .execute(`ALTER TABLE project_requests ADD COLUMN project_type TEXT DEFAULT 'platform'`)
+      .then(() => db.execute(`UPDATE project_requests SET project_type = 'platform' WHERE project_type IS NULL`).then(() => undefined).catch(() => undefined))
       .catch(() => undefined);
   }
   return _projectTypeColReady;
@@ -75,7 +86,7 @@ export async function listPlatformRequests(): Promise<ProjectRequestRow[]> {
   await ensureNoteColumn();
   await ensureProjectTypeColumn();
   const r = await db.execute(
-    `SELECT ${COLS} FROM project_requests WHERE project_type = 'platform' ORDER BY created_at DESC`,
+    `SELECT ${COLS} FROM project_requests WHERE project_type = 'platform' OR project_type IS NULL ORDER BY created_at DESC`,
   );
   return rowsToObjects(r).map(decode);
 }
@@ -117,7 +128,7 @@ export async function getRequestByPdfPath(path: string): Promise<ProjectRequestR
 }
 
 export async function insertRequest(input: {
-  project_id: string | null;
+  project_id: string;
   company_name: string;
   facility_location: string;
   email: string;
@@ -127,6 +138,7 @@ export async function insertRequest(input: {
 }): Promise<string> {
   await ensureNoteColumn();
   await ensureProjectTypeColumn();
+  await ensureUpdatedAtColumn();
   const id = crypto.randomUUID();
   await db.execute(
     `INSERT INTO project_requests (id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,project_type,created_at,updated_at)
@@ -144,6 +156,7 @@ export async function insertRequest(input: {
 export async function updateRequestStatus(id: string, status: string, note?: string | null): Promise<void> {
   await ensureNoteColumn();
   await ensureProjectTypeColumn();
+  await ensureUpdatedAtColumn();
   if (note === undefined) {
     await db.execute(`UPDATE project_requests SET status = ?, updated_at = ? WHERE id = ?`, [
       status,
