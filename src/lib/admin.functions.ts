@@ -5,7 +5,7 @@ import { hashPassword } from "./auth.server";
 import { getRolesForUser, findUserById, findUserByEmail, createUser, grantRole, listUsersWithRoles, getRoleNameById, deleteUser as deleteUserRow } from "./users.repo";
 import * as projectsRepo from "./projects.repo";
 import * as requestsRepo from "./project-requests.repo";
-import * as offersRepo from "./offers.repo";
+import * as notificationsRepo from "./notifications.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
@@ -101,46 +101,65 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offers = await offersRepo.listOffersBySource("platform");
-    return Promise.all(offers.map(async (o) => {
-      const proj = o.project_id ? await projectsRepo.getById(o.project_id).catch(() => null) : null;
+    const requests = await requestsRepo.listPlatformRequests();
+    const offerNotifs = await notificationsRepo.listOfferNotificationsBySource("platform");
+    const fromRequests = await Promise.all(requests.map(async (r) => {
+      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
       const canManage = !!proj && proj.created_by === context.userId;
       return {
-        id: o.id,
-        project_id: o.project_id,
-        company_name: o.company_name,
-        facility_location: null,
-        email: isAdmin || canManage ? o.email : null,
-        pdf_url: o.pdf_key,
-        status: o.status,
-        submitter_type: "visitor",
-        project_type: "platform",
-        note: null,
-        created_at: o.created_at,
-        projects: proj ? { name: proj.name } : (o.project_name ? { name: o.project_name } : null),
+        id: r.id,
+        project_id: r.project_id,
+        company_name: r.company_name,
+        facility_location: r.facility_location,
+        email: isAdmin || canManage ? r.email : null,
+        pdf_url: r.pdf_url,
+        status: r.status,
+        submitter_type: r.submitter_type ?? "visitor",
+        project_type: r.project_type ?? "platform",
+        note: r.note,
+        created_at: r.created_at,
+        projects: proj ? { name: proj.name } : null,
         can_manage: canManage,
       };
     }));
+    const fromNotifications = offerNotifs.map((n) => ({
+      id: n.id,
+      project_id: n.project_id,
+      company_name: n.company_name ?? "",
+      facility_location: n.facility_location,
+      email: isAdmin ? n.email : null,
+      pdf_url: n.pdf_key,
+      status: n.offer_status ?? "new",
+      submitter_type: n.submitter_type ?? "visitor",
+      project_type: "platform",
+      note: null,
+      created_at: n.created_at,
+      projects: n.project_name ? { name: n.project_name } : null,
+      can_manage: false,
+    }));
+    const seen = new Set(fromRequests.map((r) => r.id));
+    return [...fromRequests, ...fromNotifications.filter((n) => !seen.has(n.id))]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   });
 
 export const getAddProjectRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offers = await offersRepo.listOffersBySource("add_project");
+    const offers = await notificationsRepo.listOfferNotificationsBySource("add_project");
     return offers.map((o) => ({
       id: o.id,
       project_id: o.project_id,
-      company_name: o.company_name,
-      facility_location: null,
+      company_name: o.company_name ?? "",
+      facility_location: o.facility_location,
       email: isAdmin ? o.email : null,
       pdf_url: o.pdf_key,
-      status: o.status,
-      submitter_type: (o as any).submitter_type ?? "visitor",
+      status: o.offer_status ?? "new",
+      submitter_type: o.submitter_type ?? "visitor",
       project_type: "add_project",
       note: null,
       created_at: o.created_at,
-      projects: { name: o.project_name },
+      projects: o.project_name ? { name: o.project_name } : null,
       can_manage: false,
     }));
   });
@@ -151,14 +170,28 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
  .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offersRepo = await import("./offers.repo");
 
     let req = await requestsRepo.getRequestById(data.id);
-    let isOffer = false;
+    let isOfferNotif = false;
 
     if (!req) {
-      req = await offersRepo.getOfferById(data.id);
-      isOffer = true;
+      const notif = await notificationsRepo.getOfferNotificationById(data.id);
+      if (notif) {
+        isOfferNotif = true;
+        req = {
+          id: notif.id,
+          project_id: notif.project_id,
+          company_name: notif.company_name,
+          facility_location: notif.facility_location,
+          email: notif.email,
+          pdf_url: notif.pdf_key,
+          status: notif.offer_status ?? "new",
+          submitter_type: notif.submitter_type,
+          project_type: notif.source,
+          note: null,
+          created_at: notif.created_at,
+        } as requestsRepo.ProjectRequestRow;
+      }
     }
     if (!req) throw new Error("الطلب غير موجود");
 
@@ -170,8 +203,25 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     const note = (data.note?? "").trim();
     if (!isAdmin &&!note) throw new Error("الملاحظة إجبارية للموظف عند تغيير الحالة");
 
-    if (isOffer) {
-      await offersRepo.updateOfferStatus(data.id, data.status, note || undefined);
+    if (isOfferNotif) {
+      if (data.status === "accepted") {
+        const notif = await notificationsRepo.getOfferNotificationById(data.id);
+        if (notif) {
+          const requestId = await requestsRepo.insertRequest({
+            project_id: notif.project_id ?? "",
+            company_name: notif.company_name ?? "",
+            facility_location: notif.facility_location ?? notif.project_name ?? "",
+            email: notif.email ?? "",
+            pdf_url: notif.pdf_key ?? "",
+            submitter_type: notif.submitter_type ?? "offer",
+            project_type: notif.source ?? "platform",
+          });
+          await requestsRepo.updateRequestStatus(requestId, "new");
+          await notificationsRepo.deleteOfferNotification(notif.id);
+        }
+      } else {
+        await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
+      }
     } else {
       await requestsRepo.updateRequestStatus(data.id, data.status, note? note : undefined);
     }
@@ -180,7 +230,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       const apiKey = process.env.RESEND_API_KEY;
       if (apiKey) {
         const proj = req.project_id? await projectsRepo.getById(req.project_id).catch(() => null) : null;
-        const projectName = proj?.name || req.company_name || req.project_name || "طلبك";
+        const projectName = proj?.name || req.company_name || "طلبك";
         const statusLabels: Record<string, string> = { new: "جديد", reviewing: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض" };
         const statusColors: Record<string, string> = { new: "#2563eb", reviewing: "#d97706", accepted: "#16a34a", rejected: "#dc2626" };
         const label = statusLabels[data.status]?? data.status;
@@ -411,34 +461,50 @@ export const submitBidRequest = createServerFn({ method: "POST" })
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
+    const staff = await (async () => {
+      const { db, rowsToObjects } = await import("./db");
+      const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
+      return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
+    })();
     if (isAddProject) {
-      await offersRepo.insertOffer({
-        project_id: data.project_id ?? null,
-        project_name: data.project_name || data.company_name,
-        company_name: data.company_name,
-        email: data.email,
-        amount: "",
-        duration: null,
-        pdf_key: path,
-        pdf_filename: data.file_name,
-        visitor_token: null,
-        source: "add_project",
-      });
+      await notificationsRepo.insertOfferNotificationMany(
+        staff.map((uid) => ({
+          user_id: uid,
+          title: "طلب إضافة مشروع جديد",
+          body: `${data.company_name} — ${data.facility_location}`,
+          link: "/admin/requests",
+          project_id: data.project_id ?? null,
+          project_name: data.project_name || data.company_name,
+          company_name: data.company_name,
+          email: data.email,
+          facility_location: data.facility_location,
+          pdf_key: path,
+          pdf_filename: data.file_name,
+          source: "add_project",
+          submitter_type: submitterType,
+          offer_status: "new",
+        })),
+      );
     } else {
       const proj = data.project_id ? await projectsRepo.getById(data.project_id) : null;
       const source = proj?.is_customer_request ? "add_project" : "platform";
-      await offersRepo.insertOffer({
-        project_id: data.project_id!,
-        project_name: proj?.name ?? data.project_name ?? data.company_name,
-        company_name: data.company_name,
-        email: data.email,
-        amount: "",
-        duration: null,
-        pdf_key: path,
-        pdf_filename: data.file_name,
-        visitor_token: null,
-        source,
-      });
+      await notificationsRepo.insertOfferNotificationMany(
+        staff.map((uid) => ({
+          user_id: uid,
+          title: "عرض سعر جديد",
+          body: `${data.company_name} — ${proj?.name ?? data.project_name ?? data.company_name}`,
+          link: "/admin/requests",
+          project_id: data.project_id!,
+          project_name: proj?.name ?? data.project_name ?? data.company_name,
+          company_name: data.company_name,
+          email: data.email,
+          pdf_key: path,
+          pdf_filename: data.file_name,
+          source,
+          submitter_type: submitterType,
+          offer_status: "new",
+        })),
+      );
     }
     return { ok: true };
   });
@@ -456,19 +522,28 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-    await offersRepo.insertOffer({
-      project_id: null,
-      project_name: data.company_name,
-      company_name: data.company_name,
-      email: data.email,
-      amount: "",
-      duration: null,
-      pdf_key: path,
-      pdf_filename: data.file_name,
-      visitor_token: null,
-      source: "add_project",
-      submitter_type: data.submitter_type,
-    });
+    const staff = await (async () => {
+      const { db, rowsToObjects } = await import("./db");
+      const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
+      return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
+    })();
+    await notificationsRepo.insertOfferNotificationMany(
+      staff.map((uid) => ({
+        user_id: uid,
+        title: "طلب إضافة مشروع جديد",
+        body: `${data.company_name} — ${data.facility_location}`,
+        link: "/admin/requests",
+        project_name: data.company_name,
+        company_name: data.company_name,
+        email: data.email,
+        facility_location: data.facility_location,
+        pdf_key: path,
+        pdf_filename: data.file_name,
+        source: "add_project",
+        submitter_type: data.submitter_type,
+        offer_status: "new",
+      })),
+    );
     return { ok: true };
   });
 
