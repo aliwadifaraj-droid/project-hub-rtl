@@ -54,6 +54,10 @@ function ProjectDetail() {
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
   const getRoles = useServerFn(getMyRoles);
+  const { data: exclusive } = useSuspenseQuery({
+    queryKey: ['exclusive', id],
+    queryFn: () => getExclusiveStatus({ data: { projectId: id, vip_token: vipToken } })
+  });
   const getVipStatus = useServerFn(getMyVipStatus);
   const navigate = Route.useNavigate();
   const { data: roles } = useQuery({
@@ -152,6 +156,22 @@ function ProjectDetail() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (exclusive && !exclusive.showForm) {
+    return (
+      <div className="min-h-screen" dir="rtl">
+        <SiteHeader />
+        <div className="mx-auto max-w-2xl mt-10 p-6 bg-amber-50 border border-amber-300 rounded-xl text-center">
+          <h3 className="text-2xl font-bold mb-2">🔒 هذا المشروع حصري لـ VIP</h3>
+          <p className="text-lg">مدينة: {project.location}</p>
+          <p className="mt-3 text-gray-600">
+            ينتهي الحصر: {new Date(exclusive.vipEndAt).toLocaleString('ar-SA')}
+          </p>
+        </div>
+        <SiteFooter />
+      </div>
+    );
   }
 
   return (
