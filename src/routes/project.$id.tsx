@@ -19,17 +19,18 @@ function CountdownTimer({ target }: { target: string }) {
   const [time, setTime] = useState('');
   useEffect(() => {
     const update = () => {
-      const diff = new Date(target).getTime() - new Date().getTime();
-      const h = Math.floor(diff / 1000 / 60 / 60);
-      const m = Math.floor(diff / 1000 / 60) % 60;
-      const s = Math.floor(diff / 1000) % 60;
+      const diff = new Date(target).getTime() - Date.now();
+      if (diff <= 0) return setTime('انتهى');
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
       setTime(`${h}س ${m}د ${s}ث`);
     };
     update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
+    const i = setInterval(update, 1000);
+    return () => clearInterval(i);
   }, [target]);
-  return <div className="text-3xl font-bold text-amber-600 mt-2">{time}</div>;
+  return <p className="text-2xl font-bold text-amber-600 mt-2">{time}</p>;
 }
 
 function statusLabel(s?: string | null) {
@@ -283,12 +284,14 @@ function ProjectDetail() {
           </section>
         ) : (
         <div className="relative mt-16 max-w-3xl mx-auto">
-          {exclusiveStatus && !exclusiveStatus.showForm && (
-            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-xl border-2 border-amber-400 p-6">
-              <h3 className="text-2xl font-bold mb-2">🔒 هذا المشروع حصري لـ VIP</h3>
-              <p className="text-lg">مدينة: {project.location}</p>
-              <p className="mt-2">ينتهي الحصر خلال:</p>
-              <CountdownTimer target={exclusiveStatus.vipEndAt} />
+          {(project as { is_exclusive?: boolean }).is_exclusive && (project as { vip_end_at?: string | null }).vip_end_at && new Date() < new Date((project as { vip_end_at?: string | null }).vip_end_at!) && (
+            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl border-2 border-amber-400 p-6">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold mb-2">🔒 هذا المشروع حصري لـ VIP</h3>
+                <p className="text-lg">المدينة: {project.location}</p>
+                <p className="mt-2">ينتهي الحصر خلال:</p>
+                <CountdownTimer target={(project as { vip_end_at?: string | null }).vip_end_at!} />
+              </div>
             </div>
           )}
           <section id="apply">
