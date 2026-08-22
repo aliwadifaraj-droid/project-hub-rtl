@@ -71,10 +71,6 @@ function ProjectDetail() {
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const submit = useServerFn(submitBidRequest);
   const getRoles = useServerFn(getMyRoles);
-  const { data: exclusive } = useSuspenseQuery({
-    queryKey: ['exclusive', id],
-    queryFn: () => getExclusiveStatus({ projectId: id })
-  });
   const getVipStatus = useServerFn(getMyVipStatus);
   const navigate = Route.useNavigate();
   const { data: roles } = useQuery({
@@ -287,12 +283,12 @@ function ProjectDetail() {
           </section>
         ) : (
         <div className="relative mt-16 max-w-3xl mx-auto">
-          {exclusive && !exclusive.showForm && (
+          {exclusiveStatus && !exclusiveStatus.showForm && (
             <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-xl border-2 border-amber-400 p-6">
               <h3 className="text-2xl font-bold mb-2">🔒 هذا المشروع حصري لـ VIP</h3>
               <p className="text-lg">مدينة: {project.location}</p>
               <p className="mt-2">ينتهي الحصر خلال:</p>
-              <CountdownTimer target={exclusive.vipEndAt} />
+              <CountdownTimer target={exclusiveStatus.vipEndAt} />
             </div>
           )}
           <section id="apply">
