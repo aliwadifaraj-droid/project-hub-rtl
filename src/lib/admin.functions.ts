@@ -12,9 +12,8 @@ import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
-import { notifyVipSubscribersOfNewProject } from "./vip-notify.server";
-import { applyExclusiveWindow } from "./exclusive-window";
-import { existsDuplicateOffer, DUPLICATE_OFFER_MESSAGE } from "./duplicate-check";
+import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
+import { listActiveByCity } from "./vip.repo";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
@@ -168,7 +167,7 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
 export const updateRequestStatus = createServerFn({ method: "POST" })
  .middleware([requireAuth])
  .inputValidator((d: { id: string; status: string; note?: string }) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
+    z.object({ id: z.string().uuid(), status: z.enum(["pending", "new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
  .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
 
@@ -232,8 +231,8 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       if (apiKey) {
         const proj = req.project_id? await projectsRepo.getById(req.project_id).catch(() => null) : null;
         const projectName = proj?.name || req.company_name || "طلبك";
-        const statusLabels: Record<string, string> = { new: "جديد", reviewing: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض" };
-        const statusColors: Record<string, string> = { new: "#2563eb", reviewing: "#d97706", accepted: "#16a34a", rejected: "#dc2626" };
+        const statusLabels: Record<string, string> = { pending: "قيد الانتظار", new: "جديد", reviewing: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض" };
+        const statusColors: Record<string, string> = { pending: "#6b7280", new: "#2563eb", reviewing: "#d97706", accepted: "#16a34a", rejected: "#dc2626" };
         const label = statusLabels[data.status]?? data.status;
         const color = statusColors[data.status]?? "#111";
         const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb"><div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb"><h2 style="margin:0 0 12px">تحديث حالة طلبك</h2><p>مرحباً،</p><p>نودّ إعلامك بأن حالة طلبك المتعلق بمشروع <strong>"${projectName}"</strong> قد تم تحديثها إلى:</p><p style="font-size:18px;font-weight:bold;color:${color};padding:12px;background:#f3f4f6;border-radius:6px;text-align:center">${label}</p><p>شكراً لاستخدامك <strong>منصة العمران</strong>.</p></div></div>`;
@@ -286,7 +285,13 @@ export const upsertProject = createServerFn({ method: "POST" })
       return { id: data.id };
     }
     const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved" });
-    await applyExclusiveWindow(id, data.location);
+    const city = detectCity(data.location);
+    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+    if (hasVip) {
+      const now = new Date();
+      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+      await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
+    }
     notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
     await invalidateProjectsAll();
     await invalidateQuotes(context.userId);
@@ -451,7 +456,6 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       }
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    if (await existsDuplicateOffer(data.project_id ?? null, data.company_name, data.email)) throw new Error(DUPLICATE_OFFER_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
@@ -476,14 +480,13 @@ export const submitBidRequest = createServerFn({ method: "POST" })
           facility_location: data.facility_location,
           pdf_key: path,
           pdf_filename: data.file_name,
-          source: "add_project",
+          source: "form",
           submitter_type: submitterType,
-          offer_status: "new",
+          offer_status: "pending",
         })),
       );
     } else {
       const proj = data.project_id ? await projectsRepo.getById(data.project_id) : null;
-      const source = "form";
       await notificationsRepo.insertOfferNotificationMany(
         staff.map((uid) => ({
           user_id: uid,
@@ -496,7 +499,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
           email: data.email,
           pdf_key: path,
           pdf_filename: data.file_name,
-          source,
+          source: "form",
           submitter_type: submitterType,
           offer_status: "pending",
         })),
@@ -514,7 +517,6 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    if (await existsDuplicateOffer(null, data.company_name, data.email)) throw new Error(DUPLICATE_OFFER_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
@@ -536,9 +538,9 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
         facility_location: data.facility_location,
         pdf_key: path,
         pdf_filename: data.file_name,
-        source: "add_project",
+        source: "form",
         submitter_type: data.submitter_type,
-        offer_status: "new",
+        offer_status: "pending",
       })),
     );
     return { ok: true };
@@ -582,7 +584,13 @@ export const approveSubmission = createServerFn({ method: "POST" })
     const images = sub.images ?? [];
     const cover = images[0] ?? "placeholder.jpg";
     const newId = await projectsRepo.insertProject({ name: sub.name, description: sub.description, location: sub.location, duration: "غير محدد", cover_image: cover, images, admin_approval: "approved" });
-    await applyExclusiveWindow(newId, sub.location);
+    const city = detectCity(sub.location);
+    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+    if (hasVip) {
+      const now = new Date();
+      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+      await projectsRepo.setProjectExclusive(newId, now.toISOString(), vipEndAt.toISOString());
+    }
     notifyVipSubscribersOfNewProject({ id: newId, name: sub.name, description: sub.description, location: sub.location }).catch((e) => console.error("[vip-notify]", e));
     await submissionsRepo.markSubmissionApproved(data.id, newId);
     return { id: newId };
@@ -691,8 +699,7 @@ export const getExclusivityConfig = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const row = await projectsRepo.getProjectExclusive(data.projectId);
     if (!row) return null;
-    const durationHours = Math.round((new Date(row.vip_end_at).getTime() - new Date(row.vip_start_at).getTime()) / 3600_000);
-    return { vipStartAt: row.vip_start_at, vipEndAt: row.vip_end_at, durationHours };
+    return { vipStartAt: row.vip_start_at, vipEndAt: row.vip_end_at, durationHours: row.duration_hours };
   });
 
 export const updateExclusivity = createServerFn({ method: "POST" })

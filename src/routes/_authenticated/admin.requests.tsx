@@ -24,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/admin/requests")({
 });
 
 const STATUS = {
+  pending: { label: "قيد الانتظار", cls: "bg-gray-500/15 text-gray-700 dark:text-gray-300" },
   new: { label: "جديد", cls: "bg-blue-500/15 text-blue-700 dark:text-blue-300" },
   reviewing: { label: "قيد المراجعة", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
   accepted: { label: "مقبول", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
@@ -79,7 +80,7 @@ function RequestsPage() {
     );
 
   const rows = data ?? [];
-  const newCount = rows.filter((r) => r.status === "new").length;
+  const newCount = rows.filter((r) => r.status === "new" || r.status === "pending").length;
 
   return (
     <div dir="rtl">

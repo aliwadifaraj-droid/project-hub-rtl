@@ -294,7 +294,7 @@ export async function deleteOfferNotification(id: string): Promise<void> {
 export async function countNewOfferNotifications(): Promise<number> {
   await ensureOfferColumns();
   const r = await db.execute(
-    `SELECT COUNT(*) AS c FROM notifications WHERE offer_status = 'new'`,
+    `SELECT COUNT(*) AS c FROM notifications WHERE offer_status IN ('new','pending')`,
   );
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
