@@ -19,7 +19,6 @@ export type ProjectRow = {
   bot_offers_enabled: boolean;
   exclusive_hours: number;
   is_exclusive: boolean;
-  exclusive_from: string | null;
   exclusive_until: string | null;
   is_customer_request: boolean;
   created_at: string;
@@ -46,14 +45,13 @@ function decode(r: any): ProjectRow {
     bot_offers_enabled: Number(r.bot_offers_enabled ?? 1) !== 0,
     exclusive_hours: Number(r.exclusive_hours ?? 6),
     is_exclusive: Number(r.is_exclusive ?? 0) !== 0,
-    exclusive_from: r.exclusive_from ?? null,
     exclusive_until: r.exclusive_until ?? null,
     is_customer_request: Number(r.is_customer_request ?? 0) !== 0,
     created_at: String(r.created_at ?? ""),
   };
 }
 
-const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_from,exclusive_until,is_customer_request";
+const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until,is_customer_request";
 
 let _offersColReady: Promise<void> | null = null;
 export function ensureOffersEnabledColumn(): Promise<void> {
@@ -63,7 +61,6 @@ export function ensureOffersEnabledColumn(): Promise<void> {
       db.execute(`ALTER TABLE projects ADD COLUMN bot_offers_enabled INTEGER NOT NULL DEFAULT 1`).catch(() => undefined),
       db.execute(`ALTER TABLE projects ADD COLUMN exclusive_hours INTEGER NOT NULL DEFAULT 6`).catch(() => undefined),
       db.execute(`ALTER TABLE projects ADD COLUMN is_exclusive INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
-      db.execute(`ALTER TABLE projects ADD COLUMN exclusive_from TEXT`).catch(() => undefined),
       db.execute(`ALTER TABLE projects ADD COLUMN exclusive_until TEXT`).catch(() => undefined),
       db.execute(`ALTER TABLE projects ADD COLUMN is_customer_request INTEGER NOT NULL DEFAULT 0`).catch(() => undefined),
     ]).then(() => undefined);
@@ -189,7 +186,6 @@ export async function updateProject(id: string, patch: Partial<{
   admin_approval: string;
   exclusive_hours: number;
   is_exclusive: boolean;
-  exclusive_from: string | null;
   exclusive_until: string | null;
 }>): Promise<void> {
   const sets: string[] = [];
@@ -208,15 +204,22 @@ export async function updateProject(id: string, patch: Partial<{
 
 export async function deleteProject(id: string): Promise<void> {
   await db.execute(`DELETE FROM projects WHERE id = ?`, [id]);
+  await db.execute(`DELETE FROM project_exclusive WHERE project_id = ?`, [id]).catch(() => undefined);
 }
 
 /** Recalculate the exclusivity window from "now" for the given duration. */
 export async function updateProjectExclusivity(projectId: string, durationHours: number): Promise<void> {
   const now = new Date();
   const endAt = new Date(now.getTime() + durationHours * 3600_000);
+  const { setExclusiveWindow } = await import("./project-exclusive.repo");
+  await setExclusiveWindow({
+    project_id: projectId,
+    vip_start_at: now.toISOString(),
+    vip_end_at: endAt.toISOString(),
+    duration_hours: durationHours,
+  });
   await updateProject(projectId, {
     is_exclusive: durationHours > 0,
-    exclusive_from: durationHours > 0 ? now.toISOString() : null,
     exclusive_until: durationHours > 0 ? endAt.toISOString() : null,
     exclusive_hours: durationHours > 0 ? durationHours : undefined,
   });
@@ -227,23 +230,33 @@ export async function setExclusive(projectId: string, enabled: boolean, hours: n
   if (enabled) {
     const now = new Date();
     const endAt = new Date(now.getTime() + hours * 3600_000);
-    await updateProject(projectId, { is_exclusive: true, exclusive_from: now.toISOString(), exclusive_until: endAt.toISOString(), exclusive_hours: hours });
+    const { setExclusiveWindow } = await import("./project-exclusive.repo");
+    await setExclusiveWindow({
+      project_id: projectId,
+      vip_start_at: now.toISOString(),
+      vip_end_at: endAt.toISOString(),
+      duration_hours: hours,
+    });
+    await updateProject(projectId, { is_exclusive: true, exclusive_until: endAt.toISOString(), exclusive_hours: hours });
   } else {
-    await updateProject(projectId, { is_exclusive: false, exclusive_from: null, exclusive_until: null });
+    await updateProject(projectId, { is_exclusive: false, exclusive_until: null });
   }
 }
 
-// ---------- exclusivity (stored directly on the projects table) ----------
+// ---------- exclusivity (stored in project_exclusive) ----------
 
 export async function setProjectExclusive(
   projectId: string,
   vipStartAt: string,
   vipEndAt: string,
 ): Promise<void> {
-  await updateProject(projectId, {
-    is_exclusive: true,
-    exclusive_from: vipStartAt,
-    exclusive_until: vipEndAt,
+  const { setExclusiveWindow } = await import("./project-exclusive.repo");
+  const durationHours = Math.round((new Date(vipEndAt).getTime() - new Date(vipStartAt).getTime()) / 3600000);
+  await setExclusiveWindow({
+    project_id: projectId,
+    vip_start_at: vipStartAt,
+    vip_end_at: vipEndAt,
+    duration_hours: durationHours > 0 ? durationHours : 6,
   });
 }
 
@@ -251,11 +264,8 @@ export async function getProjectExclusive(projectId: string): Promise<{
   vip_start_at: string;
   vip_end_at: string;
 } | null> {
-  const r = await db.execute(
-    `SELECT exclusive_from, exclusive_until FROM projects WHERE id = ? LIMIT 1`,
-    [projectId],
-  );
-  const row = r.rows[0] as { exclusive_from: string | null; exclusive_until: string | null } | undefined;
-  if (!row || !row.exclusive_from || !row.exclusive_until) return null;
-  return { vip_start_at: String(row.exclusive_from), vip_end_at: String(row.exclusive_until) };
+  const { getExclusiveWindow } = await import("./project-exclusive.repo");
+  const w = await getExclusiveWindow(projectId);
+  if (!w) return null;
+  return { vip_start_at: w.vip_start_at, vip_end_at: w.vip_end_at };
 }
