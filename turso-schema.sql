@@ -23,7 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles(user_id);
 -- ============ profiles ============
 CREATE TABLE IF NOT EXISTS profiles (
   id           TEXT PRIMARY KEY,
-  user_id      TEXT NOT NULL UNIQUE,
+  user_id       TEXT NOT NULL UNIQUE,
   display_name TEXT,
   avatar_url   TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS files (
   size         INTEGER NOT NULL DEFAULT 0,
   purpose      TEXT,                    -- 'project-image' | 'bid-pdf' | 'vip-receipt' | 'other'
   uploaded_by  TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_files_uploaded_by ON files(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_files_purpose ON files(purpose);
@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS projects (
   reject_reason  TEXT,
   offers_enabled INTEGER NOT NULL DEFAULT 1,   -- 1 = زر "ارسال عرض سعر" مفعّل
   bot_offers_enabled INTEGER NOT NULL DEFAULT 1, -- 1 = البوت يستلم عروض السعر لهذا المشروع
+  exclusive_hours INTEGER NOT NULL DEFAULT 6,
+  is_exclusive INTEGER NOT NULL DEFAULT 0,
+  exclusive_from TEXT,
+  exclusive_until TEXT,
+  is_customer_request INTEGER NOT NULL DEFAULT 0,
   metadata       TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
@@ -228,8 +233,8 @@ CREATE TABLE IF NOT EXISTS support_chats (
   user_id     TEXT,
   status      TEXT NOT NULL DEFAULT 'open',
   assigned_to TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ support_messages ============
