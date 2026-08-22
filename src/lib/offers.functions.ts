@@ -8,6 +8,7 @@ import * as notificationsRepo from "./notifications.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
+import { existsDuplicateOffer, DUPLICATE_OFFER_MESSAGE } from "./duplicate-check";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 
@@ -21,7 +22,7 @@ const submitSchema = z.object({
   visitorToken: z.string().uuid().optional().nullable(),
 });
 
-export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
+export { DUPLICATE_OFFER_MESSAGE as OFFER_DUPLICATE_MESSAGE } from "./duplicate-check";
 
 async function listAdminUserIds(): Promise<string[]> {
   const { db, rowsToObjects } = await import("./db");
@@ -36,9 +37,9 @@ export const submitOffer = createServerFn({ method: "POST" })
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
-    const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
+    const duplicate = await existsDuplicateOffer(null, data.companyName, data.email);
     if (duplicate) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+      return { ok: false as const, message: DUPLICATE_OFFER_MESSAGE };
     }
 
     const staff = await listAdminUserIds();
@@ -94,9 +95,9 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
-    const duplicate = await notificationsRepo.existsDuplicateAddProjectNotification(data.email, data.company_name);
+    const duplicate = await existsDuplicateOffer(null, data.company_name, data.email);
     if (duplicate) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+      return { ok: false as const, message: DUPLICATE_OFFER_MESSAGE };
     }
 
     const bytes = Buffer.from(data.file_base64, "base64");
