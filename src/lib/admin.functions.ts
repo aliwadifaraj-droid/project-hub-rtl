@@ -487,7 +487,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       );
     } else {
       const proj = data.project_id ? await projectsRepo.getById(data.project_id) : null;
-      const source = proj?.is_customer_request ? "add_project" : "platform";
+      const source = "form";
       await notificationsRepo.insertOfferNotificationMany(
         staff.map((uid) => ({
           user_id: uid,
@@ -502,7 +502,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
           pdf_filename: data.file_name,
           source,
           submitter_type: submitterType,
-          offer_status: "new",
+          offer_status: "pending",
         })),
       );
     }
