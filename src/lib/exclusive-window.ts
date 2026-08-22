@@ -1,7 +1,6 @@
-// Shared exclusivity-window logic: after a project is created or approved,
-// check vip_subscribers for the same city and — if any exist — lock the project
-// for the number of hours configured in site_settings.exclusive_hours (default 6).
+// Shared exclusivity-window logic for project_exclusive.
 import { db } from "./db";
+import { setExclusiveWindow } from "./project-exclusive.repo";
 
 const DEFAULT_HOURS = 6;
 
@@ -15,19 +14,12 @@ async function getExclusiveHours(): Promise<number> {
       const n = Number(JSON.parse(row.value));
       if (Number.isFinite(n) && n > 0) return Math.min(n, 720);
     }
-  } catch { /* ignore */ }
+  } catch {
+    return DEFAULT_HOURS;
+  }
   return DEFAULT_HOURS;
 }
 
-/**
- * After inserting/approving a project, check vip_subscribers on the same city.
- * If subscribers exist, set the project's is_exclusive / exclusive_from /
- * exclusive_until / exclusive_hours columns.
- *
- * @param projectId  The project id (already in the `projects` table).
- * @param location   Free-text location of the project (used to detect the city).
- * @param city       The detected city, or null to auto-detect from location.
- */
 export async function applyExclusiveWindow(
   projectId: string,
   location: string | null | undefined,
@@ -38,18 +30,17 @@ export async function applyExclusiveWindow(
   if (!detected) return;
 
   const { listActiveByCity } = await import("./vip.repo");
-  const subs = await listActiveByCity(detected).catch(() => []);
-  if (subs.length === 0) return;
+  const subscribers = await listActiveByCity(detected).catch(() => []);
+  if (subscribers.length === 0) return;
 
-  const hours = await getExclusiveHours();
-  const now = new Date();
-  const lockedUntil = new Date(now.getTime() + hours * 3600_000);
+  const durationHours = await getExclusiveHours();
+  const startedAt = new Date();
+  const expiresAt = new Date(startedAt.getTime() + durationHours * 3600000);
 
-  const { updateProject } = await import("./projects.repo");
-  await updateProject(projectId, {
-    is_exclusive: true,
-    exclusive_from: now.toISOString(),
-    exclusive_until: lockedUntil.toISOString(),
-    exclusive_hours: hours,
-  }).catch(() => undefined);
+  await setExclusiveWindow({
+    project_id: projectId,
+    vip_start_at: startedAt.toISOString(),
+    vip_end_at: expiresAt.toISOString(),
+    duration_hours: durationHours,
+  });
 }
