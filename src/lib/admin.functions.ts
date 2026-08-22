@@ -14,6 +14,7 @@ import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
 import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
 import { listActiveByCity } from "./vip.repo";
+import { existsDuplicateOffer, DUPLICATE_OFFER_MESSAGE } from "./duplicate-check";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
@@ -456,6 +457,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       }
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    if (await existsDuplicateOffer(data.project_id ?? null, data.company_name, data.email)) throw new Error(DUPLICATE_OFFER_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
@@ -518,6 +520,7 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    if (await existsDuplicateOffer(null, data.company_name, data.email)) throw new Error(DUPLICATE_OFFER_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
