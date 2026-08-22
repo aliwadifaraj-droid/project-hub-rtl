@@ -15,6 +15,23 @@ import { Toaster } from "@/components/ui/sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
+function CountdownTimer({ target }: { target: string }) {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const update = () => {
+      const diff = new Date(target).getTime() - new Date().getTime();
+      const h = Math.floor(diff / 1000 / 60 / 60);
+      const m = Math.floor(diff / 1000 / 60) % 60;
+      const s = Math.floor(diff / 1000) % 60;
+      setTime(`${h}س ${m}د ${s}ث`);
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [target]);
+  return <div className="text-3xl font-bold text-amber-600 mt-2">{time}</div>;
+}
+
 function statusLabel(s?: string | null) {
   if (s === "delivered") return "تم التسليم";
   if (s === "cancelled") return "ملغي";
@@ -56,7 +73,7 @@ function ProjectDetail() {
   const getRoles = useServerFn(getMyRoles);
   const { data: exclusive } = useSuspenseQuery({
     queryKey: ['exclusive', id],
-    queryFn: () => getExclusiveStatus({ data: { projectId: id, vip_token: vipToken } })
+    queryFn: () => getExclusiveStatus({ projectId: id })
   });
   const getVipStatus = useServerFn(getMyVipStatus);
   const navigate = Route.useNavigate();
@@ -156,22 +173,6 @@ function ProjectDetail() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  if (exclusive && !exclusive.showForm) {
-    return (
-      <div className="min-h-screen" dir="rtl">
-        <SiteHeader />
-        <div className="mx-auto max-w-2xl mt-10 p-6 bg-amber-50 border border-amber-300 rounded-xl text-center">
-          <h3 className="text-2xl font-bold mb-2">🔒 هذا المشروع حصري لـ VIP</h3>
-          <p className="text-lg">مدينة: {project.location}</p>
-          <p className="mt-3 text-gray-600">
-            ينتهي الحصر: {new Date(exclusive.vipEndAt).toLocaleString('ar-SA')}
-          </p>
-        </div>
-        <SiteFooter />
-      </div>
-    );
   }
 
   return (
@@ -285,7 +286,16 @@ function ProjectDetail() {
             </div>
           </section>
         ) : (
-        <section id="apply" className="mt-16 max-w-3xl mx-auto">
+        <div className="relative mt-16 max-w-3xl mx-auto">
+          {exclusive && !exclusive.showForm && (
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-xl border-2 border-amber-400 p-6">
+              <h3 className="text-2xl font-bold mb-2">🔒 هذا المشروع حصري لـ VIP</h3>
+              <p className="text-lg">مدينة: {project.location}</p>
+              <p className="mt-2">ينتهي الحصر خلال:</p>
+              <CountdownTimer target={exclusive.vipEndAt} />
+            </div>
+          )}
+          <section id="apply">
           <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
             <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -357,6 +367,7 @@ function ProjectDetail() {
             </form>
           </div>
         </section>
+        </div>
         )}
       </article>
 
