@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/admin/offers")({
 });
 
 const STATUS_LABEL: Record<string, string> = {
-  new: "جديد", reviewing: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض",
+  new: "جديد", pending: "بانتظار الموافقة", reviewing: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض",
 };
 
 function AdminOffersPage() {
@@ -41,7 +41,7 @@ function AdminOffersPage() {
     window.open(url, "_blank", "noopener");
   }
 
-  async function setStatus(id: string, status: "new" | "reviewing" | "accepted" | "rejected") {
+  async function setStatus(id: string, status: "new" | "pending" | "reviewing" | "accepted" | "rejected") {
     await updateFn({ data: { id, status } });
     qc.invalidateQueries({ queryKey: ["admin-offers"] });
   }
