@@ -68,7 +68,6 @@ CREATE TABLE IF NOT EXISTS projects (
   bot_offers_enabled INTEGER NOT NULL DEFAULT 1, -- 1 = البوت يستلم عروض السعر لهذا المشروع
   exclusive_hours INTEGER NOT NULL DEFAULT 6,
   is_exclusive INTEGER NOT NULL DEFAULT 0,
-  exclusive_from TEXT,
   exclusive_until TEXT,
   is_customer_request INTEGER NOT NULL DEFAULT 0,
   metadata       TEXT,
@@ -79,79 +78,23 @@ CREATE INDEX IF NOT EXISTS idx_projects_owner    ON projects(created_by);
 CREATE INDEX IF NOT EXISTS idx_projects_status   ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_projects_approval ON projects(admin_approval);
 
+-- ============ site_settings (singleton key/value) ============
+CREATE TABLE IF NOT EXISTS site_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
+
 -- ============ ads ============
 CREATE TABLE IF NOT EXISTS ads (
-  id           TEXT PRIMARY KEY,
+  id          TEXT PRIMARY KEY,
   title        TEXT NOT NULL,
-  body         TEXT,
-  image_key    TEXT,
-  link         TEXT,
-  is_active    INTEGER NOT NULL DEFAULT 1,
-  sort_order   INTEGER NOT NULL DEFAULT 0,
-  created_by   TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_ads_active ON ads(is_active);
-
--- ============ ad_comments ============
-CREATE TABLE IF NOT EXISTS ad_comments (
-  id         TEXT PRIMARY KEY,
-  ad_id      TEXT NOT NULL,
-  user_id    TEXT,
-  author     TEXT,
-  body       TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_ad_comments_ad ON ad_comments(ad_id);
-
--- ============ project_requests ============
-CREATE TABLE IF NOT EXISTS project_requests (
-  id                TEXT PRIMARY KEY,
-  project_id        TEXT,
-  company_name      TEXT,
-  facility_location TEXT,
-  email             TEXT,
-  phone             TEXT,
-  pdf_url           TEXT,
-  submitter_type    TEXT,
-  status            TEXT NOT NULL DEFAULT 'new',
-  note              TEXT,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_project_requests_project ON project_requests(project_id);
-
--- ============ project_submissions ============
-CREATE TABLE IF NOT EXISTS project_submissions (
-  id           TEXT PRIMARY KEY,
-  submitter_id TEXT,
-  name         TEXT,
-  description  TEXT,
-  location     TEXT,
-  duration     TEXT,
-  cover_image  TEXT,
-  images       TEXT NOT NULL DEFAULT '[]',
-  status       TEXT NOT NULL DEFAULT 'pending',
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- ============ contact_messages ============
-CREATE TABLE IF NOT EXISTS contact_messages (
-  id           TEXT PRIMARY KEY,
-  name         TEXT,
-  email        TEXT,
-  message      TEXT NOT NULL,
-  reply        TEXT,
-  replied_at   TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- ============ site_settings (singleton) ============
-CREATE TABLE IF NOT EXISTS site_settings (
-  id         INTEGER PRIMARY KEY,
-  key        TEXT NOT NULL UNIQUE,
-  value      TEXT,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  description TEXT,
+  image_url   TEXT,
+  link_url    TEXT,
+  position    TEXT NOT NULL DEFAULT 'sidebar',
+  is_active   INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ bot_qa ============
@@ -159,12 +102,7 @@ CREATE TABLE IF NOT EXISTS bot_qa (
   id         TEXT PRIMARY KEY,
   question   TEXT NOT NULL,
   answer     TEXT NOT NULL,
-  keywords   TEXT NOT NULL DEFAULT '[]',
-  is_active  INTEGER NOT NULL DEFAULT 1,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  action     TEXT NOT NULL DEFAULT 'none',
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ bot_settings (singleton) ============
@@ -316,10 +254,10 @@ CREATE TABLE IF NOT EXISTS offers (
 );
 CREATE INDEX IF NOT EXISTS idx_offers_created ON offers(created_at DESC);
 
--- ============ project_exclusive (offers from platform project pages) ============
+-- ============ project_exclusive (exclusivity windows + offers from platform project pages) ============
 CREATE TABLE IF NOT EXISTS project_exclusive (
   id                TEXT PRIMARY KEY,
-  project_id        TEXT NOT NULL,
+  project_id        TEXT NOT NULL UNIQUE,
   project_name      TEXT,
   company_name      TEXT,
   facility_location TEXT,
@@ -329,7 +267,16 @@ CREATE TABLE IF NOT EXISTS project_exclusive (
   status            TEXT NOT NULL DEFAULT 'new',
   submitter_type    TEXT,
   note              TEXT,
-  created_at        TEXT NOT NULL
+  vip_start_at      TEXT,
+  vip_end_at        TEXT,
+  duration_hours    INTEGER,
+  is_exclusive      INTEGER NOT NULL DEFAULT 0,
+  remaining_hours   REAL,
+  exclusive_until   TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_project ON project_exclusive(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_created ON project_exclusive(created_at DESC);
+
+-- Drop the incorrect table if it was created by a previous bug.
+DROP TABLE IF EXISTS project_vip_windows;
