@@ -448,7 +448,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
       const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
       if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-        if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
+        if (!data.vip_token) throw new Error(`هذا المشروع حصري لـ VIP ${proj.location}`);
         const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
         const tokenResult = await validateVipToken(data.vip_token, data.project_id);
         if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
