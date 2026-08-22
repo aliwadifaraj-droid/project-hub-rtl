@@ -12,8 +12,8 @@ import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
-import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
-import { listActiveByCity } from "./vip.repo";
+import { notifyVipSubscribersOfNewProject } from "./vip-notify.server";
+import { applyExclusiveWindow } from "./exclusive-window";
 import { existsDuplicateOffer, DUPLICATE_OFFER_MESSAGE } from "./duplicate-check";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
@@ -286,13 +286,7 @@ export const upsertProject = createServerFn({ method: "POST" })
       return { id: data.id };
     }
     const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file ?? null, created_by: context.userId, admin_approval: "approved" });
-    const city = detectCity(data.location);
-    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
-    if (hasVip) {
-      const now = new Date();
-      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
-      await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
-    }
+    await applyExclusiveWindow(id, data.location);
     notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
     await invalidateProjectsAll();
     await invalidateQuotes(context.userId);
@@ -588,13 +582,7 @@ export const approveSubmission = createServerFn({ method: "POST" })
     const images = sub.images ?? [];
     const cover = images[0] ?? "placeholder.jpg";
     const newId = await projectsRepo.insertProject({ name: sub.name, description: sub.description, location: sub.location, duration: "غير محدد", cover_image: cover, images, admin_approval: "approved" });
-    const city = detectCity(sub.location);
-    const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
-    if (hasVip) {
-      const now = new Date();
-      const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
-      await projectsRepo.setProjectExclusive(newId, now.toISOString(), vipEndAt.toISOString());
-    }
+    await applyExclusiveWindow(newId, sub.location);
     notifyVipSubscribersOfNewProject({ id: newId, name: sub.name, description: sub.description, location: sub.location }).catch((e) => console.error("[vip-notify]", e));
     await submissionsRepo.markSubmissionApproved(data.id, newId);
     return { id: newId };
@@ -703,7 +691,8 @@ export const getExclusivityConfig = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const row = await projectsRepo.getProjectExclusive(data.projectId);
     if (!row) return null;
-    return { vipStartAt: row.vip_start_at, vipEndAt: row.vip_end_at, durationHours: row.duration_hours };
+    const durationHours = Math.round((new Date(row.vip_end_at).getTime() - new Date(row.vip_start_at).getTime()) / 3600_000);
+    return { vipStartAt: row.vip_start_at, vipEndAt: row.vip_end_at, durationHours };
   });
 
 export const updateExclusivity = createServerFn({ method: "POST" })
