@@ -37,7 +37,7 @@ export const submitOffer = createServerFn({ method: "POST" })
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
-    const duplicate = await existsDuplicateOffer(null, data.companyName, data.email);
+    const duplicate = await existsDuplicateOffer(null, data.companyName, data.email, data.projectName);
     if (duplicate) {
       return { ok: false as const, message: DUPLICATE_OFFER_MESSAGE };
     }
