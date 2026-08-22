@@ -179,7 +179,7 @@ export const adminCountNewOffers = createServerFn({ method: "GET" })
 export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]) }).parse(d))
+    z.object({ id: z.string().uuid(), status: z.enum(["new", "pending", "reviewing", "accepted", "rejected"]) }).parse(d))
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     if (data.status === "accepted") {
