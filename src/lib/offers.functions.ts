@@ -39,9 +39,11 @@ export const submitOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "المشروع غير موجود" };
     }
 
-    if (project.is_exclusive === true) {
-      return { ok: false as const, message: "المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP فقط" };
-    }
+   // تشيك الحصرية من جدول project_exclusive
+const isExclusive = await projectsRepo.isProjectExclusive(project.id);
+if (isExclusive === true) {
+  return { ok: false as const, message: "فقط المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP" };
+} 
 
     const oldOffer = await notificationsRepo.existsDuplicateOfferNotification(
       data.projectName,
