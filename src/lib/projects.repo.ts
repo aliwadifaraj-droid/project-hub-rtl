@@ -278,3 +278,10 @@ export async function getProjectExclusive(projectId: string): Promise<{
   if (!w) return null;
   return { vip_start_at: w.vip_start_at, vip_end_at: w.vip_end_at };
 }
+
+export async function isProjectExclusive(projectId: string): Promise<boolean> {
+  const { getExclusiveWindow } = await import("./project-exclusive.repo");
+  const w = await getExclusiveWindow(projectId);
+  if (!w) return false;
+  return new Date(w.vip_end_at) > new Date(); // يرجع true بس لو الحصرية لسه ما انتهت
+}
