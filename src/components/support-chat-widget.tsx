@@ -332,7 +332,7 @@ export function SupportChatWidget() {
   }
 
   const canShowQuickQuestions = useMemo(
-    () => status === "bot" && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
+    () => (status === "bot" || status === "bot_mode") && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
     [status, qaList.length, botSettings?.show_suggested_questions],
   );
 
@@ -398,7 +398,7 @@ export function SupportChatWidget() {
               if (isSystem) {
                 return (
                   <div key={m.id} className="mx-auto max-w-[85%] rounded-md bg-accent/15 px-3 py-1.5 text-center text-[11px] text-foreground/70">
-                    {m.body}
+                    {m.body === "__ALERT_SENT__" ? "تم إشعار الدعم الفني بوجودك" : m.body}
                   </div>
                 );
               }
