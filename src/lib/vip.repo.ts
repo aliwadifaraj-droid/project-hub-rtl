@@ -70,7 +70,28 @@ export async function listVipSubscribers(): Promise<VipSubscriberRow[]> {
 export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { project_name: string | null })[]> {
   await ensureColumns();
   const r = await db.execute(
-    `SELECT v.*, p.name AS project_name
+    `SELECT v.*,
+       COALESCE(
+         p.name,
+         (
+           SELECT p2.name
+           FROM projects p2
+           INNER JOIN project_exclusive pe2 ON pe2.project_id = p2.id
+           WHERE p2.location IS NOT NULL
+             AND v.city IS NOT NULL
+             AND (
+               TRIM(LOWER(p2.location)) = TRIM(LOWER(v.city))
+               OR TRIM(LOWER(p2.location)) LIKE TRIM(LOWER(v.city)) || ' -%'
+             )
+             AND pe2.is_exclusive = 1
+             AND pe2.vip_start_at IS NOT NULL
+             AND datetime(pe2.vip_start_at) <= datetime('now')
+             AND pe2.vip_end_at IS NOT NULL
+             AND datetime(pe2.vip_end_at) > datetime('now')
+           ORDER BY pe2.vip_start_at DESC
+           LIMIT 1
+         )
+       ) AS project_name
      FROM vip_subscribers v
      LEFT JOIN projects p ON p.id = v.project_id
      ORDER BY v.created_at DESC`,
