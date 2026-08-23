@@ -53,11 +53,16 @@ export const getProject = createServerFn({ method: "GET" })
       const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
       const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
       const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "";
+      const exclusive = await projectsRepo.getProjectExclusive(p.id).catch(() => null);
+      const hasActiveExclusiveWindow = !!exclusive && new Date(exclusive.vip_end_at).getTime() > Date.now();
       return {
         id: p.id, name: p.name, description: p.description, location: p.location,
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
+        is_exclusive: hasActiveExclusiveWindow,
+        exclusive_until: hasActiveExclusiveWindow ? exclusive.vip_end_at : null,
+        vip_end_at: hasActiveExclusiveWindow ? exclusive.vip_end_at : null,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {
