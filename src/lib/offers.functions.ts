@@ -39,7 +39,7 @@ export const submitOffer = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
-      return { ok: false as const, message: BLOCKED_MESSAGE };
+      throw new Error(BLOCKED_MESSAGE);
     }
     const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
     if (duplicate) {
@@ -134,7 +134,7 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const blocked = await blockedRepo.isBlocked(data.company_name, data.email);
     if (blocked) {
-      return { ok: false as const, message: BLOCKED_MESSAGE };
+      throw new Error(BLOCKED_MESSAGE);
     }
 
     const duplicate = await notificationsRepo.existsDuplicateAddProjectNotification(data.email, data.company_name);

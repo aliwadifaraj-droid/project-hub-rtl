@@ -53,11 +53,20 @@ export async function isBlocked(
   const e = (email ?? "").trim().toLowerCase();
   if (!c && !e) return false;
   const r = await db.execute(
-    `SELECT 1 FROM blocked_users
+    `SELECT block_type FROM blocked_users
      WHERE (? != '' AND LOWER(TRIM(COALESCE(company_name,''))) = ?)
         OR (? != '' AND LOWER(TRIM(COALESCE(email,''))) = ?)
      LIMIT 1`,
     [c, c, e, e],
   );
-  return rowsToObjects(r).length > 0;
+  const rows = rowsToObjects(r);
+  if (rows.length === 0) return false;
+  const blockType = String(rows[0].block_type ?? "حظر بالبريد والمؤسسة");
+  if (blockType === "حظر بالبريد فقط") {
+    return !!e;
+  }
+  if (blockType === "حظر بالمؤسسة فقط") {
+    return !!c;
+  }
+  return true;
 }
