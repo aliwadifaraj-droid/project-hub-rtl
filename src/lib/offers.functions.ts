@@ -33,9 +33,14 @@ async function listAdminUserIds(): Promise<string[]> {
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
+    await projectsRepo.ensureOffersEnabledColumn();
     const project = await projectsRepo.getByNameExact(data.projectName);
     if (!project) {
       return { ok: false as const, message: "المشروع غير موجود" };
+    }
+
+    if (project.is_exclusive === true) {
+      return { ok: false as const, message: "المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP فقط" };
     }
 
     const oldOffer = await notificationsRepo.existsDuplicateOfferNotification(
@@ -45,10 +50,6 @@ export const submitOffer = createServerFn({ method: "POST" })
     );
     if (oldOffer) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
-    }
-
-    if (project.is_exclusive === true) {
-      return { ok: false as const, message: "المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP فقط" };
     }
 
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
