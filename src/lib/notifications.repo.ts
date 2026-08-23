@@ -365,9 +365,13 @@ export async function searchOfferNotificationsByCompany(name: string, limit = 50
   const n = (name ?? "").trim().toLowerCase();
   if (!n) return [];
   const r = await db.execute(
-    `SELECT id,user_id,title,body,link,read,created_at,${OFFER_COLS} FROM notifications
-     WHERE offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(company_name,''))) LIKE ?
-     ORDER BY created_at DESC LIMIT ?`,
+    `SELECT n.id,n.user_id,n.title,n.body,n.link,n.read,n.created_at,
+            COALESCE(n.project_name, p.name) as project_name,
+            n.project_id,n.company_name,n.email,n.facility_location,n.pdf_key,n.pdf_filename,n.amount,n.source,n.submitter_type,n.offer_status,n.status 
+     FROM notifications n
+     LEFT JOIN projects p ON n.project_id = p.id
+     WHERE n.offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(n.company_name,''))) LIKE ?
+     ORDER BY n.created_at DESC LIMIT ?`,
     [`%${n}%`, limit],
   );
   return rowsToObjects(r).map(decode);
