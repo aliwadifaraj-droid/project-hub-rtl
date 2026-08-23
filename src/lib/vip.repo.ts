@@ -285,7 +285,7 @@ export async function updateVipStatus(id: string, status: "active" | "rejected")
   } else {
     await db.execute(`UPDATE vip_subscribers SET status = ?, expires_at = NULL WHERE id = ?`, [status, id]);
   }
-  const r = await db.execute(`SELECT * FROM vip_subscribers WHERE id = ? LIMIT 1`);
+  const r = await db.execute(`SELECT * FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
   const row = rowsToObjects(r)[0];
   return row ? decode(row) : null;
 }
