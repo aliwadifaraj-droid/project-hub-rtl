@@ -382,7 +382,7 @@ export function SupportChatWidget() {
               <div>
                 <div className="text-sm font-bold">دعم العمران</div>
                 <div className="text-[11px] opacity-80">
-                  {status === "escalated" ? "متصل مع موظف" : status === "closed" ? "المحادثة مغلقة" : "المساعد الآلي"}
+                  {status === "waiting_for_agent" ? "بانتظار موظف" : status === "bot_mode" ? "المساعد الآلي" : status === "closed" ? "المحادثة مغلقة" : "المساعد الآلي"}
                 </div>
               </div>
             </div>
