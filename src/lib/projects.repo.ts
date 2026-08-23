@@ -109,15 +109,6 @@ export async function searchByName(query: string): Promise<ProjectRow[]> {
   return rowsToObjects<ProjectRow>(r).map(decode);
 }
 
-export async function getByNameExact(name: string): Promise<ProjectRow | null> {
-  const r = await db.execute(
-    `SELECT ${COLS} FROM projects WHERE name = ? COLLATE NOCASE LIMIT 1`,
-    [name],
-  );
-  const rows = rowsToObjects<ProjectRow>(r);
-  return rows[0] ? decode(rows[0]) : null;
-}
-
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE created_by = ? ORDER BY created_at DESC`, [userId]);
@@ -216,72 +207,65 @@ export async function deleteProject(id: string): Promise<void> {
   await db.execute(`DELETE FROM project_exclusive WHERE project_id = ?`, [id]).catch(() => undefined);
 }
 
-/** Recalculate the exclusivity window from "now" for the given duration. */
-export async function updateProjectExclusivity(projectId: string, durationHours: number): Promise<void> {
-  const now = new Date();
-  const endAt = new Date(now.getTime() + durationHours * 3600_000);
-  const { setExclusiveWindow } = await import("./project-exclusive.repo");
-  await setExclusiveWindow({
-    project_id: projectId,
-    vip_start_at: now.toISOString(),
-    vip_end_at: endAt.toISOString(),
-    duration_hours: durationHours,
-  });
-  await updateProject(projectId, {
-    is_exclusive: durationHours > 0,
-    exclusive_until: durationHours > 0 ? endAt.toISOString() : null,
-    exclusive_hours: durationHours > 0 ? durationHours : undefined,
-  });
-}
+// ---------- project_exclusive (time-based) ----------
 
-/** Convenience: set is_exclusive flag + exclusive_hours on a project. */
-export async function setExclusive(projectId: string, enabled: boolean, hours: number): Promise<void> {
-  if (enabled) {
-    const now = new Date();
-    const endAt = new Date(now.getTime() + hours * 3600_000);
-    const { setExclusiveWindow } = await import("./project-exclusive.repo");
-    await setExclusiveWindow({
-      project_id: projectId,
-      vip_start_at: now.toISOString(),
-      vip_end_at: endAt.toISOString(),
-      duration_hours: hours,
-    });
-    await updateProject(projectId, { is_exclusive: true, exclusive_until: endAt.toISOString(), exclusive_hours: hours });
-  } else {
-    await updateProject(projectId, { is_exclusive: false, exclusive_until: null });
-  }
+let _exclReady: Promise<void> | null = null;
+function ensureExclusiveTable(): Promise<void> {
+  if (_exclReady) return _exclReady;
+  _exclReady = db.execute(
+    `CREATE TABLE IF NOT EXISTS project_exclusive (
+       id           TEXT PRIMARY KEY,
+       project_id   TEXT NOT NULL UNIQUE,
+       vip_start_at TEXT NOT NULL,
+       vip_end_at   TEXT NOT NULL,
+       created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+     )`,
+  ).then(() => undefined).catch(() => undefined);
+  return _exclReady;
 }
-
-// ---------- exclusivity (stored in project_exclusive) ----------
 
 export async function setProjectExclusive(
   projectId: string,
   vipStartAt: string,
   vipEndAt: string,
 ): Promise<void> {
-  const { setExclusiveWindow } = await import("./project-exclusive.repo");
-  const durationHours = Math.round((new Date(vipEndAt).getTime() - new Date(vipStartAt).getTime()) / 3600000);
-  await setExclusiveWindow({
-    project_id: projectId,
-    vip_start_at: vipStartAt,
-    vip_end_at: vipEndAt,
-    duration_hours: durationHours > 0 ? durationHours : 6,
-  });
+  await ensureExclusiveTable();
+  const id = crypto.randomUUID();
+  await db.execute(
+    `INSERT INTO project_exclusive (id, project_id, vip_start_at, vip_end_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(project_id) DO UPDATE SET vip_start_at = excluded.vip_start_at, vip_end_at = excluded.vip_end_at`,
+    [id, projectId, vipStartAt, vipEndAt],
+  );
 }
 
 export async function getProjectExclusive(projectId: string): Promise<{
   vip_start_at: string;
   vip_end_at: string;
 } | null> {
-  const { getExclusiveWindow } = await import("./project-exclusive.repo");
-  const w = await getExclusiveWindow(projectId);
-  if (!w) return null;
-  return { vip_start_at: w.vip_start_at, vip_end_at: w.vip_end_at };
+  await ensureExclusiveTable();
+  const r = await db.execute(`SELECT vip_start_at, vip_end_at FROM project_exclusive WHERE project_id = ? LIMIT 1`, [projectId]);
+  const row = rowsToObjects<any>(r)[0];
+  return row ? { vip_start_at: String(row.vip_start_at), vip_end_at: String(row.vip_end_at) } : null;
 }
 
-export async function isProjectExclusive(projectId: string): Promise<boolean> {
-  const { getExclusiveWindow } = await import("./project-exclusive.repo");
-  const w = await getExclusiveWindow(projectId);
-  if (!w) return false;
-  return new Date(w.vip_end_at) > new Date(); // يرجع true بس لو الحصرية لسه ما انتهت
+export async function getExclusiveHoursFromSettings(): Promise<number> {
+  try {
+    const r = await db.execute(`SELECT value FROM site_settings WHERE key = 'exclusive_hours' LIMIT 1`);
+    const row = rowsToObjects<{ value: string | null }>(r)[0];
+    if (row?.value) {
+      const parsed = JSON.parse(row.value);
+      const hours = Number(parsed?.hours ?? parsed);
+      if (Number.isFinite(hours) && hours > 0) return hours;
+    }
+  } catch { /* fall through to default */ }
+  return 6;
+}
+
+export async function setExclusiveHoursInSettings(hours: number): Promise<void> {
+  await db.execute(
+    `INSERT INTO site_settings (key, value, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    ["exclusive_hours", JSON.stringify({ hours }), new Date().toISOString()],
+  );
 }

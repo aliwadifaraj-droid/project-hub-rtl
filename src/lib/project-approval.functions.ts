@@ -4,9 +4,8 @@ import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as projectsRepo from "./projects.repo";
 import { findUserById } from "./users.repo";
 import { invalidateProjectsAll, invalidateQuotes } from "./cache";
-import { autoActivateByCity } from "./vip.repo";
-import { notifyVipSubscribersOfNewProject } from "./vip-notify.server";
-import { applyExclusiveWindow } from "./exclusive-window";
+import { autoActivateByCity, listActiveByCity } from "./vip.repo";
+import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
 
 
 export const listPendingProjects = createServerFn({ method: "GET" })
@@ -39,8 +38,20 @@ export const approveProject = createServerFn({ method: "POST" })
     // Auto-start VIP exclusivity window + activate subscribers if the project's city has VIP members.
     if (row.location) {
       try {
-        await applyExclusiveWindow(data.id, row.location);
-        await autoActivateByCity(row.location, 6);
+        const city = detectCity(row.location);
+        const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+        if (hasVip) {
+          const hours = await projectsRepo.getExclusiveHoursFromSettings();
+          const now = new Date();
+          const vipEndAt = new Date(now.getTime() + hours * 3600_000);
+          await projectsRepo.setProjectExclusive(data.id, now.toISOString(), vipEndAt.toISOString());
+          await projectsRepo.updateProject(data.id, {
+            is_exclusive: true,
+            exclusive_until: vipEndAt.toISOString(),
+            exclusive_hours: hours,
+          });
+          await autoActivateByCity(row.location, hours);
+        }
       } catch (e) {
         console.error("auto vip activation error", e);
       }
