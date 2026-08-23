@@ -139,7 +139,7 @@ function AdminSupportPage() {
               <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-3">
                 {messages.map((m) => {
                   if (m.sender === "system") {
-                    return <div key={m.id} className="mx-auto max-w-[80%] rounded-md bg-accent/15 px-3 py-1.5 text-center text-[11px] text-foreground/70">{m.body}</div>;
+                    return <div key={m.id} className="mx-auto max-w-[80%] rounded-md bg-accent/15 px-3 py-1.5 text-center text-[11px] text-foreground/70">{m.body === "__ALERT_SENT__" ? "🔔 تم إرسال إشعار للإدارة" : m.body}</div>;
                   }
                   const isAdminMsg = m.sender === "admin";
                   return (
