@@ -81,10 +81,8 @@ function ProjectDetail() {
   });
   const isAdmin = hasAdminRole(roles);
 
-  const projectExclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until ?? null;
-  const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive && projectExclusiveUntil
-    ? new Date(projectExclusiveUntil).getTime() > Date.now()
-    : false;
+  const vipEndAt = (project as { vip_end_at?: string | null }).vip_end_at ?? null;
+  const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive;
   const projectCity = (project.location ?? "").split("-")[0].trim();
 
   const { data: exclusiveStatus } = useQuery({
@@ -102,17 +100,18 @@ function ProjectDetail() {
   const isVipInCity = isExclusive
     ? !!vipStatus?.isVip && (vipStatus?.city ?? "").trim() === projectCity
     : false;
-  const showExclusiveGate = isExclusive && !isVipInCity && !exclusiveStatus?.showForm;
+  const hasVipAccess = isVipInCity || !!exclusiveStatus?.vipBypass;
+  const showExclusiveGate = isExclusive && !hasVipAccess && !exclusiveStatus?.showForm;
 
   const [remainingMs, setRemainingMs] = useState(0);
   useEffect(() => {
-    if (!projectExclusiveUntil) return;
-    const end = new Date(projectExclusiveUntil).getTime();
+    if (!vipEndAt) return;
+    const end = new Date(vipEndAt).getTime();
     const tick = () => setRemainingMs(Math.max(0, end - Date.now()));
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, [projectExclusiveUntil]);
+  }, [vipEndAt]);
   const hoursLeft = Math.floor(remainingMs / 3600_000);
   const minutesLeft = Math.floor((remainingMs % 3600_000) / 60_000);
   const secondsLeft = Math.floor((remainingMs % 60_000) / 1000);
@@ -284,16 +283,6 @@ function ProjectDetail() {
           </section>
         ) : (
         <div className="relative mt-16 max-w-3xl mx-auto">
-          {(project as { is_exclusive?: boolean }).is_exclusive && (project as { vip_end_at?: string | null }).vip_end_at && new Date() < new Date((project as { vip_end_at?: string | null }).vip_end_at!) && (
-            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl border-2 border-amber-400 p-6">
-              <div className="text-center">
-                <h3 className="text-2xl font-bold mb-2">🔒 هذا المشروع حصري لـ VIP</h3>
-                <p className="text-lg">المدينة: {project.location}</p>
-                <p className="mt-2">ينتهي الحصر خلال:</p>
-                <CountdownTimer target={(project as { vip_end_at?: string | null }).vip_end_at!} />
-              </div>
-            </div>
-          )}
           <section id="apply">
           <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
             <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
