@@ -1,0 +1,435 @@
+import { c as createServerRpc } from "./createServerRpc-DYLDSQ_Q.mjs";
+import { c as createServerFn } from "./server-COznR7QB.mjs";
+import { a as requireAdmin, r as requireAuth } from "./auth-middleware.server-B9hAjfqi.mjs";
+import { listVipWithProjectNames, approveByProject, cancelByProject, listAllApprovedWithProject, stopVipByCity, startVipByCity, extendVipByCity, getActiveVipByEmail, listApprovedByProject, insertVipSubscriber, updateVipReceipt, updateVipStatus, createTrialVip, markExpired, findExpiringSoon } from "./vip.repo-CycBrLVA.mjs";
+import { l as listUsersWithRoles } from "./users.repo-HvqqZq_-.mjs";
+
+import "../_libs/seroval.mjs";
+import "../_libs/react.mjs";
+import "../_libs/bcryptjs.mjs";
+import "../_libs/libsql__isomorphic-ws.mjs";
+import "../_libs/libsql__hrana-client.mjs";
+import "../_libs/promise-limit.mjs";
+
+import "../_libs/h3-v2.mjs";
+import "../_libs/unenv.mjs";
+
+
+import "../_libs/rou3.mjs";
+import "../_libs/srvx.mjs";
+
+
+
+
+
+import "../_libs/tanstack__router-core.mjs";
+import "../_libs/tanstack__history.mjs";
+import "../_libs/cookie-es.mjs";
+import "../_libs/seroval-plugins.mjs";
+
+import "../_libs/tanstack__react-router.mjs";
+import "../_libs/react-dom.mjs";
+import "../_libs/isbot.mjs";
+import "./db-D5OYORU-.mjs";
+import "../_libs/libsql__client.mjs";
+import "../_libs/libsql__core.mjs";
+import "../_libs/js-base64.mjs";
+import "../_libs/jose.mjs";
+
+const listVipSubscribers_createServerFn_handler = createServerRpc({
+  id: "e337182b5923487d34c98e8e407f69fa815e9efcdf2c402e545c2cff02bf1358",
+  name: "listVipSubscribers",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => listVipSubscribers.__executeServer(opts));
+const listVipSubscribers = createServerFn({
+  method: "GET"
+}).middleware([requireAdmin]).handler(listVipSubscribers_createServerFn_handler, async () => {
+  const data = await listVipWithProjectNames();
+  const rows = await Promise.all(data.map(async (r) => {
+    let receipt_url = null;
+    if (r.receipt_path) {
+      const {
+        signGetUrl
+      } = await import("./r2-CJ2zxhhj.mjs");
+      receipt_url = await signGetUrl(r.receipt_path, 3600).catch(() => null);
+    }
+    return {
+      ...r,
+      receipt_url
+    };
+  }));
+  return rows;
+});
+const approveVipByProject_createServerFn_handler = createServerRpc({
+  id: "f891f100da2378879fcd70938136c67e280423cae8700d3589510fa328eec3b2",
+  name: "approveVipByProject",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => approveVipByProject.__executeServer(opts));
+const approveVipByProject = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((d) => {
+  if (!d?.project_id) throw new Error("project_id مطلوب");
+  return d;
+}).handler(approveVipByProject_createServerFn_handler, async ({
+  data
+}) => {
+  const row = await approveByProject(data.project_id);
+  if (!row) throw new Error("لا يوجد مشترك مرتبط بهذا المشروع");
+  if (row.email) {
+    try {
+      const {
+        sendResendEmail
+      } = await import("./resend-send.server-Cc6n_-h6.mjs");
+      await sendResendEmail({
+        to: row.email,
+        subject: "تم تفعيل الحصرية VIP ✅",
+        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> الحصرية لمشروعك لمدة 30 يوماً.</p></div>`
+      });
+    } catch (e) {
+      console.error("vip project approval email error", e);
+    }
+  }
+  return {
+    ok: true
+  };
+});
+const cancelVipByProject_createServerFn_handler = createServerRpc({
+  id: "177b456e028ec263041006282f11f32836be03f38b846b7d927caf195c7a5f8d",
+  name: "cancelVipByProject",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => cancelVipByProject.__executeServer(opts));
+const cancelVipByProject = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((d) => {
+  if (!d?.project_id) throw new Error("project_id مطلوب");
+  return d;
+}).handler(cancelVipByProject_createServerFn_handler, async ({
+  data
+}) => {
+  await cancelByProject(data.project_id);
+  return {
+    ok: true
+  };
+});
+const listAllProjectVipStatus_createServerFn_handler = createServerRpc({
+  id: "6319f7726de73fa9273d35ad6b8c33dd3575d1f8a6bc610d6688e7580f07d2f1",
+  name: "listAllProjectVipStatus",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => listAllProjectVipStatus.__executeServer(opts));
+const listAllProjectVipStatus = createServerFn({
+  method: "GET"
+}).middleware([requireAdmin]).handler(listAllProjectVipStatus_createServerFn_handler, async () => {
+  return listAllApprovedWithProject();
+});
+const adminStopVip_createServerFn_handler = createServerRpc({
+  id: "e5da0a8610e2604ca8e6194cfced547a3621601f20e383f10fa825e92e526a6f",
+  name: "adminStopVip",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => adminStopVip.__executeServer(opts));
+const adminStopVip = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((d) => {
+  if (!d?.city) throw new Error("city مطلوبة");
+  return d;
+}).handler(adminStopVip_createServerFn_handler, async ({
+  data
+}) => {
+  return stopVipByCity(data.city);
+});
+const adminStartVip_createServerFn_handler = createServerRpc({
+  id: "b192b513e35f0d2b51783cbde58b942245d43109a88d04aa3bdb2052a8c43af4",
+  name: "adminStartVip",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => adminStartVip.__executeServer(opts));
+const adminStartVip = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((d) => {
+  if (!d?.city) throw new Error("city مطلوبة");
+  if (!Number.isFinite(d.hours) || d.hours <= 0) throw new Error("hours يجب أن يكون رقماً موجباً");
+  return d;
+}).handler(adminStartVip_createServerFn_handler, async ({
+  data
+}) => {
+  return startVipByCity(data.city, data.hours);
+});
+const adminExtendVip_createServerFn_handler = createServerRpc({
+  id: "778e376f08f5a466c5d0d2f160deb9c34f2cd4c35b8fc4a5e49228dc28cf6175",
+  name: "adminExtendVip",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => adminExtendVip.__executeServer(opts));
+const adminExtendVip = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((d) => {
+  if (!d?.city) throw new Error("city مطلوبة");
+  if (!Number.isFinite(d.hours) || d.hours <= 0) throw new Error("hours يجب أن يكون رقماً موجباً");
+  return d;
+}).handler(adminExtendVip_createServerFn_handler, async ({
+  data
+}) => {
+  return extendVipByCity(data.city, data.hours);
+});
+const getMyVipStatus_createServerFn_handler = createServerRpc({
+  id: "d4a5463d770cb7a3de60f99dac907f972b4526f5fcfe984ef7f58be9a90b39a4",
+  name: "getMyVipStatus",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => getMyVipStatus.__executeServer(opts));
+const getMyVipStatus = createServerFn({
+  method: "GET"
+}).middleware([requireAuth]).inputValidator((d) => {
+  if (!d?.project_id) throw new Error("project_id مطلوب");
+  return d;
+}).handler(getMyVipStatus_createServerFn_handler, async ({
+  data,
+  context
+}) => {
+  const email = context.email;
+  if (!email) return {
+    isVip: false,
+    city: null
+  };
+  const row = await getActiveVipByEmail(email);
+  if (!row) return {
+    isVip: false,
+    city: null
+  };
+  const expired = row.expires_at ? new Date(row.expires_at).getTime() < Date.now() : false;
+  return {
+    isVip: !expired,
+    city: row.city ?? null
+  };
+});
+const listVipByProject_createServerFn_handler = createServerRpc({
+  id: "dd143bd7f19d33191eacfa211873d914aaadb0c9a4128aa79b89b3c3b41b4f77",
+  name: "listVipByProject",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => listVipByProject.__executeServer(opts));
+const listVipByProject = createServerFn({
+  method: "GET"
+}).middleware([requireAdmin]).inputValidator((d) => {
+  if (!d?.project_id) throw new Error("project_id مطلوب");
+  return d;
+}).handler(listVipByProject_createServerFn_handler, async ({
+  data
+}) => {
+  const rows = await listApprovedByProject(data.project_id);
+  return rows;
+});
+const submitVipSubscription_createServerFn_handler = createServerRpc({
+  id: "16df0d113af31fa0a7330a7b7426337f0dfbfbd1facc9a4426d0eb75efe4cc8b",
+  name: "submitVipSubscription",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => submitVipSubscription.__executeServer(opts));
+const submitVipSubscription = createServerFn({
+  method: "POST"
+}).inputValidator((data) => {
+  if (!data?.name?.trim() || !data?.email?.trim()) throw new Error("الاسم والبريد مطلوبان");
+  if (!data?.receipt_path?.trim()) throw new Error("إيصال التحويل مطلوب");
+  if (!data?.plan?.trim()) throw new Error("اختر الباقة");
+  if (!data?.city?.trim()) throw new Error("اختر المدينة");
+  return {
+    name: data.name.trim(),
+    email: data.email.trim(),
+    receipt_path: data.receipt_path.trim(),
+    plan: data.plan.trim(),
+    city: data.city.trim()
+  };
+}).handler(submitVipSubscription_createServerFn_handler, async ({
+  data
+}) => {
+  const id = await insertVipSubscriber(data);
+  const admins = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin"));
+  if (admins.length > 0) {
+    const {
+      insertMany
+    } = await import("./notifications.repo-vog42ua4.mjs");
+    await insertMany(admins.map((a) => ({
+      user_id: a.id,
+      title: "طلب اشتراك VIP جديد",
+      body: "تم رفع إيصال جديد بانتظار الموافقة",
+      link: "/admin/vip"
+    })));
+  }
+  return {
+    id
+  };
+});
+const attachVipReceipt_createServerFn_handler = createServerRpc({
+  id: "05df53a3a9cdbd8017df512a038428c80f447054678e91faa6a87562fc4c5cab",
+  name: "attachVipReceipt",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => attachVipReceipt.__executeServer(opts));
+const attachVipReceipt = createServerFn({
+  method: "POST"
+}).inputValidator((data) => {
+  if (!data?.id || !data.receipt_path) throw new Error("بيانات ناقصة");
+  return data;
+}).handler(attachVipReceipt_createServerFn_handler, async ({
+  data
+}) => {
+  await updateVipReceipt(data.id, data.receipt_path);
+  const admins = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin"));
+  if (admins.length > 0) {
+    const {
+      insertMany
+    } = await import("./notifications.repo-vog42ua4.mjs");
+    await insertMany(admins.map((a) => ({
+      user_id: a.id,
+      title: "طلب اشتراك VIP جديد",
+      body: "تم رفع إيصال جديد بانتظار الموافقة",
+      link: "/admin/vip"
+    })));
+  }
+  return {
+    ok: true
+  };
+});
+const approveVipSubscriber_createServerFn_handler = createServerRpc({
+  id: "6f67ec444785cb548e0eef51091b2b8814bd502dfc31d19f4b38b984fca8599c",
+  name: "approveVipSubscriber",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => approveVipSubscriber.__executeServer(opts));
+const approveVipSubscriber = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((data) => data).handler(approveVipSubscriber_createServerFn_handler, async ({
+  data
+}) => {
+  const row = await updateVipStatus(data.id, "active");
+  if (row?.email) {
+    try {
+      const {
+        sendResendEmail
+      } = await import("./resend-send.server-Cc6n_-h6.mjs");
+      const planText = row.plan ? ` (${row.plan})` : "";
+      await sendResendEmail({
+        to: row.email,
+        subject: "تم تفعيل اشتراك VIP ✅",
+        html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>تم <strong>تفعيل</strong> اشتراكك في باقة VIP${planText} بنجاح.</p><p>يمكنك الآن الاستفادة من جميع مزايا الاشتراك.</p><p>شكراً لثقتك بنا.</p></div>`
+      });
+    } catch (e) {
+      console.error("vip approval email error", e);
+    }
+  }
+  return {
+    ok: true
+  };
+});
+const rejectVipSubscriber_createServerFn_handler = createServerRpc({
+  id: "152810f0035020059e45b5a70cb4c8db932fc33791b9447eb8aa92ef6ebb816f",
+  name: "rejectVipSubscriber",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => rejectVipSubscriber.__executeServer(opts));
+const rejectVipSubscriber = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((data) => data).handler(rejectVipSubscriber_createServerFn_handler, async ({
+  data
+}) => {
+  await updateVipStatus(data.id, "rejected");
+  return {
+    ok: true
+  };
+});
+const createTrialVipSubscription_createServerFn_handler = createServerRpc({
+  id: "5dffbc3f06512d6fb9ac263e257db41cb7931a7afa75aaedf5eb2ca77adb4729",
+  name: "createTrialVipSubscription",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => createTrialVipSubscription.__executeServer(opts));
+const createTrialVipSubscription = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).inputValidator((data) => {
+  if (!data?.email?.trim()) throw new Error("البريد الإلكتروني مطلوب");
+  if (!Number.isFinite(data.duration_minutes) || data.duration_minutes <= 0) throw new Error("مدة التجربة يجب أن تكون رقماً موجباً");
+  return {
+    email: data.email.trim(),
+    duration_minutes: data.duration_minutes
+  };
+}).handler(createTrialVipSubscription_createServerFn_handler, async ({
+  data
+}) => {
+  const row = await createTrialVip(data.email, data.duration_minutes);
+  return {
+    id: row.id,
+    email: row.email ?? data.email
+  };
+});
+async function runVipExpiryCheckRaw() {
+  const {
+    expired,
+    rows
+  } = await markExpired();
+  let expiredEmailed = 0;
+  let expiredEmailFailed = 0;
+  const {
+    sendResendEmail
+  } = await import("./resend-send.server-Cc6n_-h6.mjs");
+  for (const row of rows) {
+    if (!row.email) continue;
+    const ok = await sendResendEmail({
+      to: row.email,
+      subject: "انتهى اشتراك VIP",
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>نود إعلامك بأن <strong>اشتراكك في باقة VIP قد انتهى</strong>.</p><p>للتجديد أو الاستفسار، يرجى التواصل معنا.</p><p>شكراً لثقتك بمنصة العمران.</p></div>`
+    });
+    if (ok) expiredEmailed++;
+    else expiredEmailFailed++;
+  }
+  const soon = await findExpiringSoon(24);
+  let emailed = 0;
+  let reminderEmailFailed = 0;
+  for (const row of soon) {
+    if (!row.email) continue;
+    const ok = await sendResendEmail({
+      to: row.email,
+      subject: "تذكير: اشتراك VIP ينتهي قريباً",
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name ?? ""},</h2><p>ينتهي اشتراكك خلال 24 ساعة.</p></div>`
+    });
+    if (ok) emailed++;
+    else reminderEmailFailed++;
+  }
+  return {
+    processed: soon.length,
+    expired,
+    emailed,
+    expiredEmailed,
+    expiredEmailFailed,
+    reminderEmailFailed
+  };
+}
+const testVipExpiry_createServerFn_handler = createServerRpc({
+  id: "4e31fed744f1502c4fd3a455de3b458646141693e4fb894e3244a524fa9e09f0",
+  name: "testVipExpiry",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => testVipExpiry.__executeServer(opts));
+const testVipExpiry = createServerFn({
+  method: "POST"
+}).middleware([requireAdmin]).handler(testVipExpiry_createServerFn_handler, async () => runVipExpiryCheckRaw());
+const cronVipExpiry_createServerFn_handler = createServerRpc({
+  id: "69d407fbdbcf3b34e77d9a628c0a3b99e32de0b96ed945a3cd4aa6eef2f6af40",
+  name: "cronVipExpiry",
+  filename: "src/lib/vip.functions.ts"
+}, (opts) => cronVipExpiry.__executeServer(opts));
+const cronVipExpiry = createServerFn({
+  method: "GET"
+}).handler(cronVipExpiry_createServerFn_handler, async () => {
+  const result = await runVipExpiryCheckRaw();
+  return {
+    ok: true,
+    ...result
+  };
+});
+export {
+  adminExtendVip_createServerFn_handler,
+  adminStartVip_createServerFn_handler,
+  adminStopVip_createServerFn_handler,
+  approveVipByProject_createServerFn_handler,
+  approveVipSubscriber_createServerFn_handler,
+  attachVipReceipt_createServerFn_handler,
+  cancelVipByProject_createServerFn_handler,
+  createTrialVipSubscription_createServerFn_handler,
+  cronVipExpiry_createServerFn_handler,
+  getMyVipStatus_createServerFn_handler,
+  listAllProjectVipStatus_createServerFn_handler,
+  listVipByProject_createServerFn_handler,
+  listVipSubscribers_createServerFn_handler,
+  rejectVipSubscriber_createServerFn_handler,
+  submitVipSubscription_createServerFn_handler,
+  testVipExpiry_createServerFn_handler
+};

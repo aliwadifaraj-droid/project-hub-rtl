@@ -1,0 +1,180 @@
+import { QueryClient, QueryClientProvider, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  Outlet,
+  Link,
+  redirect,
+  createRootRouteWithContext,
+  useRouter,
+  useRouterState,
+  HeadContent,
+  Scripts,
+} from "@tanstack/react-router";
+import { useEffect, type ReactNode } from "react";
+
+import appCss from "../styles.css?url";
+import { reportLovableError } from "../lib/lovable-error-reporting";
+import { MaintenanceGate } from "../components/maintenance-gate";
+import { SupportChatWidget } from "../components/support-chat-widget";
+import { getHideSupportChat } from "@/lib/site-settings.functions";
+import { getMaintenance } from "@/lib/maintenance.functions";
+import { getMe } from "@/lib/auth.functions";
+import { hasAdminRole } from "@/lib/role-label";
+
+function NotFoundComponent() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-7xl font-bold text-foreground">404</h1>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The page you're looking for doesn't exist or has been moved.
+        </p>
+        <div className="mt-6">
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Go home
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  console.error(error);
+  const router = useRouter();
+  useEffect(() => {
+    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+  }, [error]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          This page didn't load
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Something went wrong on our end. You can try refreshing or head back home.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Try again
+          </button>
+          <a
+            href="/"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Go home
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const hideSupportChatQuery = { queryKey: ["hide-support-chat-public"] as const, queryFn: () => getHideSupportChat() };
+
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  head: () => ({
+    meta: [
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "العمران — منصة مشاريع المقاولات" },
+      { name: "description", content: "تصفح أحدث مشاريع المقاولات وقدّم عرض السعر الخاص بك مباشرة." },
+      { property: "og:title", content: "العمران — منصة مشاريع المقاولات" },
+      { property: "og:description", content: "تصفح أحدث مشاريع المقاولات وقدّم عرض السعر الخاص بك مباشرة." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:title", content: "العمران — منصة مشاريع المقاولات" },
+      { name: "twitter:description", content: "تصفح أحدث مشاريع المقاولات وقدّم عرض السعر الخاص بك مباشرة." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f3cf0c36-d7d5-4aee-8c13-493bd552b646/id-preview-02ae6275--14273433-916d-4fa8-a232-1ef6c9dabe2b.lovable.app-1780535238442.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f3cf0c36-d7d5-4aee-8c13-493bd552b646/id-preview-02ae6275--14273433-916d-4fa8-a232-1ef6c9dabe2b.lovable.app-1780535238442.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", type: "image/png", href: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f3cf0c36-d7d5-4aee-8c13-493bd552b646/id-preview-02ae6275--14273433-916d-4fa8-a232-1ef6c9dabe2b.lovable.app-1780535238442.png" },
+      { rel: "apple-touch-icon", href: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f3cf0c36-d7d5-4aee-8c13-493bd552b646/id-preview-02ae6275--14273433-916d-4fa8-a232-1ef6c9dabe2b.lovable.app-1780535238442.png" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" },
+    ],
+  }),
+  beforeLoad: async ({ location }) => {
+    const p = location.pathname;
+    if (p.startsWith("/lovable/") || p === "/email/unsubscribe") return;
+    if (p === "/index") {
+      throw redirect({ to: "/" });
+    }
+
+    // Admin routes bypass the server-side maintenance gate; the client-side
+    // MaintenanceGate component still redirects non-admins after getMe() resolves.
+    const ALLOW_PREFIXES = ["/maintenance", "/auth", "/reset-password", "/api/", "/admin"];
+    const allowed = ALLOW_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
+    if (allowed) return;
+
+    const [m, me] = await Promise.all([
+      getMaintenance(),
+      getMe().catch(() => null),
+    ]);
+
+    if (m.enabled && !(me && hasAdminRole(me.roles))) {
+      throw redirect({ to: "/maintenance", replace: true });
+    }
+  },
+  loader: ({ context }) => context.queryClient.ensureQueryData(hideSupportChatQuery),
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent,
+});
+
+function RootShell({ children }: { children: ReactNode }) {
+  return (
+    <html lang="ar" dir="rtl">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+function RootComponent() {
+  const { queryClient } = Route.useRouteContext();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MaintenanceGate />
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <Outlet />
+      <PublicSupportWidget />
+    </QueryClientProvider>
+  );
+}
+
+function PublicSupportWidget() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const { data: hideChat } = useSuspenseQuery(hideSupportChatQuery);
+  // Hide widget on admin/auth/lovable/email internal routes
+  if (
+    path.startsWith("/admin") ||
+    path.startsWith("/auth") ||
+    path.startsWith("/reset-password") ||
+    path.startsWith("/lovable/") ||
+    path.startsWith("/email/") ||
+    path === "/maintenance"
+  ) return null;
+  if (hideChat?.enabled) return null;
+  return <SupportChatWidget />;
+}

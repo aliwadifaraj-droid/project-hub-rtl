@@ -1,0 +1,160 @@
+import { listActiveByCity } from "./vip.repo-CycBrLVA.mjs";
+import { S as SAUDI_CITIES } from "./saudi-cities-D2sGDQV3.mjs";
+import { sendResendEmail } from "./resend-send.server-Cc6n_-h6.mjs";
+import { d as db, r as rowsToObjects } from "./db-D5OYORU-.mjs";
+import "../_libs/bcryptjs.mjs";
+
+
+
+import "../_libs/seroval.mjs";
+import "../_libs/unenv.mjs";
+
+
+import "../_libs/react.mjs";
+import "../_libs/libsql__isomorphic-ws.mjs";
+import "../_libs/libsql__hrana-client.mjs";
+import "../_libs/js-base64.mjs";
+import "../_libs/promise-limit.mjs";
+import "./server-COznR7QB.mjs";
+import "../_libs/h3-v2.mjs";
+import "../_libs/rou3.mjs";
+import "../_libs/srvx.mjs";
+
+
+
+
+
+import "../_libs/tanstack__router-core.mjs";
+import "../_libs/tanstack__history.mjs";
+import "../_libs/cookie-es.mjs";
+import "../_libs/seroval-plugins.mjs";
+
+import "../_libs/tanstack__react-router.mjs";
+import "../_libs/react-dom.mjs";
+import "../_libs/isbot.mjs";
+import "../_libs/libsql__client.mjs";
+import "../_libs/libsql__core.mjs";
+import "../_libs/jose.mjs";
+let _tableReady = null;
+function ensureTable() {
+  if (_tableReady) return _tableReady;
+  _tableReady = db.execute(
+    `CREATE TABLE IF NOT EXISTS vip_tokens (
+         id          TEXT PRIMARY KEY,
+         token       TEXT NOT NULL UNIQUE,
+         project_id  TEXT NOT NULL,
+         vip_email   TEXT NOT NULL,
+         expires_at  TEXT NOT NULL,
+         used        INTEGER NOT NULL DEFAULT 0,
+         created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+       )`
+  ).then(
+    () => db.execute(
+      `CREATE INDEX IF NOT EXISTS idx_vip_tokens_token ON vip_tokens(token)`
+    ).catch(() => void 0)
+  ).then(() => void 0).catch(() => void 0);
+  return _tableReady;
+}
+async function createVipToken(projectId, vipEmail, expiresAt) {
+  await ensureTable();
+  const id = crypto.randomUUID();
+  const token = crypto.randomUUID();
+  await db.execute(
+    `INSERT INTO vip_tokens (id, token, project_id, vip_email, expires_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [id, token, projectId, vipEmail, expiresAt]
+  );
+  return token;
+}
+async function validateVipToken(token, projectId) {
+  await ensureTable();
+  const r = await db.execute(
+    `SELECT vip_email, expires_at, used FROM vip_tokens
+      WHERE token = ? AND project_id = ? LIMIT 1`,
+    [token, projectId]
+  );
+  const row = rowsToObjects(r)[0];
+  if (!row) return { valid: false, email: null };
+  if (Number(row.used) !== 0) return { valid: false, email: null };
+  const expired = new Date(row.expires_at).getTime() < Date.now();
+  if (expired) return { valid: false, email: null };
+  return { valid: true, email: String(row.vip_email) };
+}
+async function consumeVipToken(token) {
+  await ensureTable();
+  await db.execute(`UPDATE vip_tokens SET used = 1 WHERE token = ?`, [token]);
+}
+const vipTokens_repo = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  consumeVipToken,
+  createVipToken,
+  validateVipToken
+}, Symbol.toStringTag, { value: "Module" }));
+function siteUrl() {
+  return "https://ali-alhaddad.com".replace(/\/$/, "");
+}
+function detectCity(location) {
+  if (!location) return null;
+  const text = String(location);
+  const match = SAUDI_CITIES.find((c) => text.includes(c));
+  return match ?? null;
+}
+function esc(s) {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+const TOKEN_TTL_MS = 6 * 36e5;
+async function notifyVipSubscribersOfNewProject(project) {
+  try {
+    const city = detectCity(project.location);
+    if (!city) return;
+    const subs = await listActiveByCity(city);
+    if (subs.length === 0) return;
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+    for (const s of subs) {
+      if (!s.email) continue;
+      let token;
+      try {
+        token = await createVipToken(project.id, s.email, expiresAt);
+      } catch (e) {
+        console.error("[vip-notify] token creation failed", e);
+        continue;
+      }
+      const link = `${siteUrl()}/project/${project.id}?vip_token=${token}`;
+      const html = `
+      <div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;line-height:1.9;background:#fff">
+        <h2 style="margin:0 0 12px">مشروع جديد في ${esc(city)} 🎉</h2>
+        <p style="margin:0 0 16px">تم إضافة مشروع جديد في مدينتك، وهذه تفاصيله:</p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr><td style="padding:8px 0;color:#666">اسم المشروع</td><td style="padding:8px 0;font-weight:bold">${esc(project.name)}</td></tr>
+          <tr><td style="padding:8px 0;color:#666">الموقع</td><td style="padding:8px 0;font-weight:bold">${esc(project.location ?? city)}</td></tr>
+          ${project.duration ? `<tr><td style="padding:8px 0;color:#666">المدة</td><td style="padding:8px 0;font-weight:bold">${esc(project.duration)}</td></tr>` : ""}
+          ${project.description ? `<tr><td style="padding:8px 0;color:#666">الوصف</td><td style="padding:8px 0">${esc(project.description)}</td></tr>` : ""}
+        </table>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#111;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:bold;display:inline-block">
+            التقديم على المشروع
+          </a>
+        </p>
+        <p style="margin:0;font-size:12px;color:#888">وصلتك هذه الرسالة لأنك مشترك VIP في مدينة ${esc(city)}.</p>
+      </div>`;
+      await sendResendEmail({
+        to: s.email,
+        subject: `مشروع جديد في ${city}: ${project.name}`,
+        html
+      });
+    }
+  } catch (e) {
+    console.error("[vip-notify] failed", e);
+  }
+}
+const vipNotify_server = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  detectCity,
+  notifyVipSubscribersOfNewProject
+}, Symbol.toStringTag, { value: "Module" }));
+export {
+  vipNotify_server as a,
+  detectCity as d,
+  notifyVipSubscribersOfNewProject as n,
+  vipTokens_repo as v
+};

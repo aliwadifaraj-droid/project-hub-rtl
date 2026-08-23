@@ -1,0 +1,363 @@
+import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { signOut } from "@/lib/auth.functions";
+import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.functions";
+import { countPendingAds } from "@/lib/ads.functions";
+import { countPendingProjects } from "@/lib/project-approval.functions";
+import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
+import { countUnreadTeamMessages } from "@/lib/chat.functions";
+import { adminCountOpenSupportChats } from "@/lib/support.functions";
+import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText } from "lucide-react";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+
+const TEAM_CHAT_SEEN_KEY = "team_chat_last_seen";
+
+export const Route = createFileRoute("/_authenticated/admin")({
+  component: AdminLayout,
+});
+
+function AdminLayout() {
+  const navigate = useNavigate();
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const getRoles = useServerFn(getMyRoles);
+  const countPending = useServerFn(countPendingAds);
+  const countPendingProj = useServerFn(countPendingProjects);
+  const countUnread = useServerFn(countMyUnreadNotifications);
+  const countTeamUnread = useServerFn(countUnreadTeamMessages);
+  const countOpenSupport = useServerFn(adminCountOpenSupportChats);
+  const doSignOut = useServerFn(signOut);
+  const listNotifs = useServerFn(listMyNotifications);
+  const markRead = useServerFn(markNotificationRead);
+  const markAllRead = useServerFn(markAllNotificationsRead);
+  const countContactsFn = useServerFn(countContactMessages);
+  const qc = useQueryClient();
+  const { data: roles } = useQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => getRoles(),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+  const isAdmin = hasAdminRole(roles);
+  const primaryRole = isAdmin ? "admin" : roles?.[0];
+  const roleLabel = getRoleLabel(primaryRole);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["pending-ads-count"],
+    queryFn: () => countPending(),
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 30000,
+  });
+  const { data: pendingProjectsCount = 0 } = useQuery({
+    queryKey: ["pending-projects-count"],
+    queryFn: () => countPendingProj(),
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notif-unread-count"],
+    queryFn: () => countUnread(),
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 30000,
+  });
+  const { data: teamChatUnread = 0, refetch: refetchTeamChatUnread } = useQuery({
+    queryKey: ["chat-unread-count"],
+    queryFn: async () => {
+      const since = typeof window !== "undefined" ? localStorage.getItem(TEAM_CHAT_SEEN_KEY) : null;
+      const res = await countTeamUnread({ data: { since } });
+      return res.count;
+    },
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 30000,
+  });
+  const { data: supportEscalatedCount = 0, refetch: refetchSupportEscalated } = useQuery({
+    queryKey: ["support-escalated-count"],
+    queryFn: async () => {
+      const res = await countOpenSupport();
+      return res.count;
+    },
+    enabled: !!roles && roles.length > 0,
+    refetchInterval: 15000,
+  });
+  const { data: notifs } = useQuery({
+    queryKey: ["my-notifications"],
+    queryFn: () => listNotifs(),
+    enabled: notifOpen,
+  });
+
+  const CONTACT_SEEN_KEY = "admin_contact_msgs_last_seen";
+  const { data: contactUnread = 0, refetch: refetchContact } = useQuery({
+    queryKey: ["contact-messages-unread"],
+    queryFn: async () => {
+      const since = typeof window !== "undefined" ? localStorage.getItem(CONTACT_SEEN_KEY) : null;
+      const res = await countContactsFn({ data: { since } });
+      return res.count;
+    },
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+
+  function handleContactBellClick() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CONTACT_SEEN_KEY, new Date().toISOString());
+    }
+    qc.setQueryData(["contact-messages-unread"], 0);
+  }
+
+  function handleTeamChatBellClick() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TEAM_CHAT_SEEN_KEY, new Date().toISOString());
+    }
+    qc.setQueryData(["chat-unread-count"], 0);
+  }
+
+  async function logout() {
+    await doSignOut();
+    navigate({ to: "/auth", replace: true });
+  }
+
+  const items = [
+    { to: "/admin/projects", label: "كل المشاريع", icon: FolderKanban, show: true },
+    { to: "/admin/requests", label: "الطلبات", icon: ClipboardList, show: true },
+    { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: isAdmin },
+    { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
+    { to: "/admin/support", label: "دعم العملاء", icon: Headphones, show: true },
+    { to: "/admin/bot-training", label: "تدريب البوت", icon: Bot, show: isAdmin },
+    { to: "/admin/bot-settings", label: "إعدادات البوت", icon: Settings2, show: isAdmin },
+    { to: "/admin/groq-settings", label: "إعدادات Groq", icon: Bot, show: isAdmin },
+    { to: "/admin/bot-test", label: "تجربة البوت", icon: Bot, show: isAdmin },
+    { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
+    { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
+    { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
+    { to: "/admin/exclusivity", label: "الحصرية", icon: Lock, show: isAdmin },
+    { to: "/admin/vip", label: "العملاء المميزون", icon: Star, show: isAdmin },
+    { to: "/admin/settings", label: "الإعدادات", icon: Settings2, show: isAdmin },
+  ];
+
+  async function openNotif(open: boolean) {
+    setNotifOpen(open);
+    if (open && unreadCount > 0) {
+      await markAllRead();
+      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
+    }
+  }
+
+
+  return (
+    <div className="min-h-screen bg-secondary/30">
+      <Toaster position="top-center" dir="rtl" />
+      <header className="border-b border-border bg-background">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+          <Link to="/admin" className="flex items-center gap-2 font-bold">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
+              <Building2 className="h-5 w-5" />
+            </span>
+            لوحة التحكم
+          </Link>
+          <div className="flex items-center gap-2">
+            {/* Notifications bell with dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => openNotif(!notifOpen)}
+                aria-label="إشعاراتي"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  unreadCount > 0
+                    ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <div className="absolute end-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                  <div className="border-b border-border px-3 py-2 text-sm font-semibold">إشعاراتي</div>
+                  <div className="max-h-96 overflow-auto">
+                    {(notifs ?? []).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">لا توجد إشعارات</div>
+                    ) : (
+                      (notifs ?? []).map((n) => {
+                        const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+                          n.link ? (
+                            <Link
+                              to={n.link as never}
+                              onClick={async () => {
+                                await markRead({ data: { id: n.id } });
+                                qc.invalidateQueries({ queryKey: ["my-notifications"] });
+                                setNotifOpen(false);
+                              }}
+                              className="block"
+                            >
+                              {children}
+                            </Link>
+                          ) : (
+                            <div>{children}</div>
+                          );
+                        return (
+                          <Wrapper key={n.id}>
+                            <div className={`border-b border-border px-3 py-2 text-xs hover:bg-secondary ${n.read ? "" : "bg-primary/5"}`}>
+                              <div className="font-semibold">{n.title}</div>
+                              {n.body ? <div className="mt-0.5 text-muted-foreground">{n.body}</div> : null}
+                              <div className="mt-1 text-[10px] text-muted-foreground">
+                                {new Date(n.created_at).toLocaleString("ar")}
+                              </div>
+                            </div>
+                          </Wrapper>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Link
+              to="/admin/ads"
+              aria-label="الإعلانات المعلقة"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                pendingCount > 0
+                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
+            >
+              <Megaphone className="h-4 w-4" />
+              {pendingCount > 0 && (
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {pendingCount > 99 ? "99+" : pendingCount}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/admin/chat"
+              onClick={handleTeamChatBellClick}
+              aria-label="رسائل شات الفريق"
+              title="رسائل شات الفريق"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                teamChatUnread > 0
+                  ? "border-primary bg-primary text-primary-foreground animate-pulse hover:bg-primary/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
+            >
+              <MessagesSquare className="h-4 w-4" />
+              {teamChatUnread > 0 && (
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  {teamChatUnread > 99 ? "99+" : teamChatUnread}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/admin/support"
+              aria-label="دعم العملاء - محادثات محوَّلة"
+              title="عملاء بحاجة إلى موظف"
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                supportEscalatedCount > 0
+                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                  : "border-border bg-background hover:bg-secondary"
+              }`}
+            >
+              <Headphones className="h-4 w-4" />
+              {supportEscalatedCount > 0 && (
+                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
+                </span>
+              )}
+            </Link>
+            {isAdmin && (
+              <Link
+                to="/admin/messages"
+                onClick={handleContactBellClick}
+                aria-label="رسائل التواصل"
+                title="رسائل التواصل"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  contactUnread > 0
+                    ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                {contactUnread > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {contactUnread > 99 ? "99+" : contactUnread}
+                  </span>
+                )}
+              </Link>
+            )}
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  const to = window.prompt("أدخل البريد لإرسال بريد تجريبي:", "");
+                  if (!to) return;
+                  const tId = toast.loading("جارٍ إرسال البريد التجريبي...");
+                  try {
+                    const r = await sendTestEmail({ data: { to } });
+                    toast.success(`تم الإرسال بنجاح إلى ${r.to}${r.id ? ` (ID: ${r.id})` : ""}`, { id: tId });
+                  } catch (e: any) {
+                    toast.error(`فشل الإرسال: ${e?.message ?? "خطأ غير معروف"}`, { id: tId, duration: 8000 });
+                  }
+                }}
+                aria-label="إرسال بريد تجريبي"
+                title="إرسال بريد تجريبي"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
+              >
+                <Mail className="h-4 w-4" />
+              </button>
+            )}
+            <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
+              {roleLabel}
+            </span>
+            <button onClick={logout} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-secondary">
+              <LogOut className="h-4 w-4" /> خروج
+            </button>
+          </div>
+        </div>
+        <nav className="container mx-auto flex gap-1 overflow-x-auto px-2 pb-2">
+          {items.filter((i) => i.show).map((i) => {
+            const active = path.startsWith(i.to);
+            const isAdsItem = i.to === "/admin/ads";
+            const isPendingProjItem = i.to === "/admin/pending-projects";
+            return (
+              <Link
+                key={i.to} to={i.to}
+                className={`relative inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-secondary"}`}
+              >
+                <i.icon className="h-4 w-4" /> {i.label}
+                {isAdsItem && pendingCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
+                {i.to === "/admin/chat" && teamChatUnread > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {teamChatUnread > 99 ? "99+" : teamChatUnread}
+                  </span>
+                )}
+                {i.to === "/admin/support" && supportEscalatedCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground animate-pulse">
+                    {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
+                  </span>
+                )}
+                {isPendingProjItem && pendingProjectsCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {pendingProjectsCount > 99 ? "99+" : pendingProjectsCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+      </header>
+      <main className="container mx-auto px-4 py-8">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
