@@ -13,6 +13,7 @@ import { detectCity } from "./vip-notify.server";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 export const OFFER_EXCLUSIVE_MESSAGE = "هذا المشروع في فترة الحصرية";
+export const OFFER_PROJECT_NOT_FOUND_MESSAGE = "المشروع غير موجود";
 
 const submitSchema = z.object({
   projectName: z.string().trim().min(2).max(200),
@@ -45,40 +46,41 @@ export const submitOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
 
-    const matchingProjects = await projectsRepo.searchByName(data.projectName).catch(() => []);
-    const project = matchingProjects.length > 0 ? matchingProjects[0] : null;
-    if (project) {
-      const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
-      if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-        let hasVipAccess = false;
-        if (data.vipToken) {
-          const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
-          const tokenResult = await validateVipToken(data.vipToken, project.id);
-          if (tokenResult.valid) {
-            hasVipAccess = true;
-            await consumeVipToken(data.vipToken);
-          }
+    const project = await projectsRepo.getByNameExact(data.projectName).catch(() => null);
+    if (!project) {
+      return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND_MESSAGE };
+    }
+
+    const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
+    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+      let hasVipAccess = false;
+      if (data.vipToken) {
+        const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
+        const tokenResult = await validateVipToken(data.vipToken, project.id);
+        if (tokenResult.valid) {
+          hasVipAccess = true;
+          await consumeVipToken(data.vipToken);
         }
-        if (!hasVipAccess) {
-          let email: string | null = null;
-          try {
-            const { getSessionClaims } = await import("./auth.server");
-            const claims = await getSessionClaims();
-            email = claims?.email ?? null;
-          } catch { /* not logged in */ }
-          if (email) {
-            const vip = await (await import("./vip.repo")).getActiveVipByEmail(email);
-            const projectCity = detectCity(project.location ?? "");
-            const vipCity = vip?.city?.trim().toLowerCase();
-            hasVipAccess = !!vip
-              && (!vip.expires_at || new Date(vip.expires_at).getTime() >= Date.now())
-              && !!projectCity && !!vipCity
-              && projectCity.trim().toLowerCase() === vipCity;
-          }
+      }
+      if (!hasVipAccess) {
+        let email: string | null = null;
+        try {
+          const { getSessionClaims } = await import("./auth.server");
+          const claims = await getSessionClaims();
+          email = claims?.email ?? null;
+        } catch { /* not logged in */ }
+        if (email) {
+          const vip = await (await import("./vip.repo")).getActiveVipByEmail(email);
+          const projectCity = detectCity(project.location ?? "");
+          const vipCity = vip?.city?.trim().toLowerCase();
+          hasVipAccess = !!vip
+            && (!vip.expires_at || new Date(vip.expires_at).getTime() >= Date.now())
+            && !!projectCity && !!vipCity
+            && projectCity.trim().toLowerCase() === vipCity;
         }
-        if (!hasVipAccess) {
-          return { ok: false as const, message: OFFER_EXCLUSIVE_MESSAGE };
-        }
+      }
+      if (!hasVipAccess) {
+        return { ok: false as const, message: OFFER_EXCLUSIVE_MESSAGE };
       }
     }
 

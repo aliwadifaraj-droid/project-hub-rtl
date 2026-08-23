@@ -109,6 +109,15 @@ export async function searchByName(query: string): Promise<ProjectRow[]> {
   return rowsToObjects<ProjectRow>(r).map(decode);
 }
 
+export async function getByNameExact(name: string): Promise<ProjectRow | null> {
+  const r = await db.execute(
+    `SELECT ${COLS} FROM projects WHERE name = ? COLLATE NOCASE LIMIT 1`,
+    [name],
+  );
+  const rows = rowsToObjects<ProjectRow>(r);
+  return rows[0] ? decode(rows[0]) : null;
+}
+
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE created_by = ? ORDER BY created_at DESC`, [userId]);
