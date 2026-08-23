@@ -35,7 +35,7 @@ export const listProjects = createServerFn({ method: "GET" }).handler(async () =
         pdf_file: p.pdf_file, created_by: p.created_by, status: p.status,
         admin_approval: p.admin_approval,
         cover_url: await resolveStoragePath(p.cover_image).catch(() => ""),
-        pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => ""),
+        pdf_url: p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "",
       })))
     });
   } catch (e) {
