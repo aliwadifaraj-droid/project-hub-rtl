@@ -5,6 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
 import * as notificationsRepo from "./notifications.repo";
+import * as projectsRepo from "./projects.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
@@ -32,15 +33,28 @@ async function listAdminUserIds(): Promise<string[]> {
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
+    const project = await projectsRepo.getByNameExact(data.projectName);
+    if (!project) {
+      return { ok: false as const, message: "المشروع غير موجود" };
+    }
+
+    const oldOffer = await notificationsRepo.existsDuplicateOfferNotification(
+      data.projectName,
+      data.email,
+      data.companyName,
+    );
+    if (oldOffer) {
+      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+    }
+
+    if (project.is_exclusive === true) {
+      return { ok: false as const, message: "المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP فقط" };
+    }
+
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
-    const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
-    if (duplicate) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
-    }
-
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${data.companyName} — ${data.projectName} — ${data.amount}`;
