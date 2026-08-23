@@ -266,24 +266,26 @@ const PLAN_DURATION_DAYS: Record<string, number> = {
 
 export function planDurationDays(plan: string | null): number {
   if (!plan) return 30;
-  return PLAN_DURATION_DAYS[plan.trim()] ?? 30;
+  const normalized = plan.trim();
+  if (PLAN_DURATION_DAYS[normalized]) return PLAN_DURATION_DAYS[normalized];
+  if (normalized.includes("90")) return 90;
+  if (normalized.includes("60")) return 60;
+  if (normalized.includes("30")) return 30;
+  return 30;
 }
 
 export async function updateVipStatus(id: string, status: "active" | "rejected"): Promise<VipSubscriberRow | null> {
   await ensureCityColumn();
   if (status === "active") {
-    const existing = await db.execute(`SELECT expires_at, plan FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
+    const existing = await db.execute(`SELECT plan FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
     const existingRow = rowsToObjects<any>(existing)[0];
-    let expiresAt: string | null = existingRow?.expires_at ?? null;
-    if (!expiresAt || new Date(expiresAt).getTime() < Date.now()) {
-      const days = planDurationDays(existingRow?.plan ?? null);
-      expiresAt = new Date(Date.now() + days * 24 * 3600_000).toISOString();
-    }
+    const days = planDurationDays(existingRow?.plan ?? null);
+    const expiresAt = new Date(Date.now() + days * 24 * 3600_000).toISOString();
     await db.execute(`UPDATE vip_subscribers SET status = 'active', expires_at = ? WHERE id = ?`, [expiresAt, id]);
   } else {
     await db.execute(`UPDATE vip_subscribers SET status = ?, expires_at = NULL WHERE id = ?`, [status, id]);
   }
-  const r = await db.execute(`SELECT * FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
+  const r = await db.execute(`SELECT * FROM vip_subscribers WHERE id = ? LIMIT 1`);
   const row = rowsToObjects(r)[0];
   return row ? decode(row) : null;
 }
