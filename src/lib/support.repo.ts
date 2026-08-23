@@ -105,6 +105,6 @@ export async function deleteAllSupport(): Promise<void> {
 }
 
 export async function countEscalatedChats(): Promise<number> {
-  const r = await db.execute(`SELECT COUNT(*) AS c FROM support_chats WHERE status = 'escalated'`);
+  const r = await db.execute(`SELECT COUNT(*) AS c FROM support_chats WHERE status = 'waiting_for_agent'`);
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
