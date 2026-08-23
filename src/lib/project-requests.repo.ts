@@ -91,6 +91,15 @@ export async function listPlatformRequests(): Promise<ProjectRequestRow[]> {
   return rowsToObjects(r).map(decode);
 }
 
+export async function listAddProjectRequests(): Promise<ProjectRequestRow[]> {
+  await ensureNoteColumn();
+  await ensureProjectTypeColumn();
+  const r = await db.execute(
+    `SELECT ${COLS} FROM project_requests WHERE project_type = 'add_project' ORDER BY created_at DESC`,
+  );
+  return rowsToObjects(r).map(decode);
+}
+
 export async function searchRequestsByCompany(q: string): Promise<ProjectRequestRow[]> {
   await ensureNoteColumn();
   await ensureProjectTypeColumn();

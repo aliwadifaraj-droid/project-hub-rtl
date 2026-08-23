@@ -22,6 +22,7 @@ export type NotificationRow = {
   source: string | null;
   submitter_type: string | null;
   offer_status: string | null;
+  status: string | null;
 };
 
 function decode(row: any): NotificationRow {
@@ -44,11 +45,12 @@ function decode(row: any): NotificationRow {
     source: row.source ?? null,
     submitter_type: row.submitter_type ?? null,
     offer_status: row.offer_status ?? null,
+    status: row.status ?? null,
   };
 }
 
 const OFFER_COLS =
-  "project_id,project_name,company_name,email,facility_location,pdf_key,pdf_filename,amount,source,submitter_type,offer_status";
+  "project_id,project_name,company_name,email,facility_location,pdf_key,pdf_filename,amount,source,submitter_type,offer_status,status";
 
 // --- column migration helpers (idempotent) ---
 let _offerColsReady: Promise<void> | null = null;
@@ -67,6 +69,7 @@ export function ensureOfferColumns(): Promise<void> {
         "source TEXT",
         "submitter_type TEXT",
         "offer_status TEXT",
+        "status TEXT",
       ];
       for (const c of cols) {
         const colName = c.split(" ")[0];
@@ -176,6 +179,7 @@ export type OfferNotificationInsert = {
   source?: string | null;
   submitter_type?: string | null;
   offer_status?: string | null;
+  status?: string | null;
 };
 
 export async function insertOfferNotification(n: OfferNotificationInsert): Promise<string> {
@@ -183,7 +187,7 @@ export async function insertOfferNotification(n: OfferNotificationInsert): Promi
   const id = crypto.randomUUID();
   await db.execute(
     `INSERT INTO notifications (id, user_id, title, body, link, read, created_at, ${OFFER_COLS})
-     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       n.user_id,
@@ -202,6 +206,7 @@ export async function insertOfferNotification(n: OfferNotificationInsert): Promi
       n.source ?? null,
       n.submitter_type ?? null,
       n.offer_status ?? "new",
+      n.status ?? "pending",
     ],
   );
   return id;
@@ -215,7 +220,7 @@ export async function insertOfferNotificationMany(items: OfferNotificationInsert
   await db.batch(
     items.map((n, i) => ({
       sql: `INSERT INTO notifications (id, user_id, title, body, link, read, created_at, ${OFFER_COLS})
-            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         ids[i],
         n.user_id,
@@ -234,6 +239,7 @@ export async function insertOfferNotificationMany(items: OfferNotificationInsert
         n.source ?? null,
         n.submitter_type ?? null,
         n.offer_status ?? "new",
+        n.status ?? "pending",
       ],
     })),
   );
@@ -284,7 +290,7 @@ export async function getOfferNotificationByPdfPath(path: string): Promise<Notif
 
 export async function updateOfferNotificationStatus(id: string, status: string): Promise<void> {
   await ensureOfferColumns();
-  await db.execute(`UPDATE notifications SET offer_status = ? WHERE id = ?`, [status, id]);
+  await db.execute(`UPDATE notifications SET offer_status = ?, status = ? WHERE id = ?`, [status, status, id]);
 }
 
 export async function deleteOfferNotification(id: string): Promise<void> {
@@ -294,7 +300,7 @@ export async function deleteOfferNotification(id: string): Promise<void> {
 export async function countNewOfferNotifications(): Promise<number> {
   await ensureOfferColumns();
   const r = await db.execute(
-    `SELECT COUNT(*) AS c FROM notifications WHERE offer_status IN ('new','pending')`,
+    `SELECT COUNT(*) AS c FROM notifications WHERE offer_status = 'new'`,
   );
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
