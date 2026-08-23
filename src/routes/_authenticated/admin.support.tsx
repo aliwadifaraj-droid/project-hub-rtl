@@ -109,11 +109,12 @@ function AdminSupportPage() {
                   {c.visitor_name || `زائر ${c.id.slice(0, 6)}`}
                 </span>
                 <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                  c.status === "escalated" ? "bg-accent text-accent-foreground"
+                  c.status === "waiting_for_agent" ? "bg-accent text-accent-foreground"
+                  : c.status === "bot_mode" ? "bg-secondary text-secondary-foreground"
                   : c.status === "closed" ? "bg-muted text-muted-foreground"
                   : "bg-secondary text-secondary-foreground"
                 }`}>
-                  {c.status === "escalated" ? "بحاجة موظف" : c.status === "closed" ? "مغلق" : "بوت"}
+                  {c.status === "waiting_for_agent" ? "بحاجة موظف" : c.status === "bot_mode" ? "بوت" : c.status === "closed" ? "مغلق" : "بوت"}
                 </span>
               </div>
               <div className="mt-0.5 text-[11px] text-muted-foreground">
