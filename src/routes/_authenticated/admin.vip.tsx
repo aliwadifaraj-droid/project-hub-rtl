@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listVipSubscribers, approveVipByProject, cancelVipByProject, approveVipSubscriber, rejectVipSubscriber, testVipExpiry, createTrialVipSubscription } from "@/lib/vip.functions";
 import { createPackageTrialSubscription } from "@/lib/support.functions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,11 +35,25 @@ function statusBadge(s: string) {
   );
 }
 
-function hoursRemaining(expiresAt: string | null): number | null {
+function remainingTime(expiresAt: string | null, now: number): { hours: number; minutes: number } | null {
   if (!expiresAt) return null;
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return 0;
-  return Math.ceil(diff / 3600_000);
+  const expires = new Date(expiresAt).getTime();
+  if (!Number.isFinite(expires)) return null;
+  const diff = Math.max(0, expires - now);
+  return {
+    hours: Math.floor(diff / 3600_000),
+    minutes: Math.floor((diff % 3600_000) / 60_000),
+  };
+}
+
+function formatExpiry(expiresAt: string | null): string {
+  if (!expiresAt) return "—";
+  const date = new Date(expiresAt);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return date.toLocaleString("ar-SA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function AdminVipPage() {
@@ -49,6 +63,12 @@ function AdminVipPage() {
   const approveFn = useServerFn(approveVipSubscriber);
   const rejectFn = useServerFn(rejectVipSubscriber);
   const qc = useQueryClient();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["vip-subscribers"],
@@ -280,32 +300,41 @@ function AdminVipPage() {
               <TableRow>
                 <TableHead>الاسم</TableHead>
                 <TableHead>البريد</TableHead>
+                <TableHead>الباقة</TableHead>
+                <TableHead>المدينة</TableHead>
                 <TableHead>المشروع</TableHead>
                 <TableHead>الحالة</TableHead>
-                <TableHead>ينتهي خلال</TableHead>
+                <TableHead>تاريخ الانتهاء</TableHead>
+                <TableHead>العداد</TableHead>
                 <TableHead>الإيصال</TableHead>
                 <TableHead>إجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(data ?? []).map((s) => {
-                const hours = hoursRemaining((s as { expires_at?: string | null }).expires_at ?? null);
+                const expiresAt = (s as { expires_at?: string | null }).expires_at ?? null;
+                const remaining = remainingTime(expiresAt, now);
                 const isApproved = s.status === "approved" || s.status === "active";
                 const hasProject = !!(s as { project_id?: string | null }).project_id;
                 return (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.name ?? "—"}</TableCell>
                     <TableCell className="text-xs">{s.email ?? "—"}</TableCell>
+                    <TableCell className="text-xs font-medium">{s.plan ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{s.city ?? "—"}</TableCell>
                     <TableCell className="text-xs">
                       {(s as { project_name?: string | null }).project_name ?? "—"}
                     </TableCell>
                     <TableCell>{statusBadge(s.status)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">{formatExpiry(expiresAt)}</TableCell>
                     <TableCell>
-                      {isApproved && hours !== null ? (
+                      {isApproved && remaining !== null ? (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          hours > 24 ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                          remaining.hours > 24 ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
                         }`}>
-                          {hours === 0 ? "منتهٍ الآن" : `${hours} ساعة`}
+                          {remaining.hours === 0 && remaining.minutes === 0
+                            ? "منتهٍ الآن"
+                            : `${remaining.hours}س ${remaining.minutes}د`}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
