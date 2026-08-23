@@ -9,7 +9,6 @@ import {
 import { getBotSettings } from "@/lib/bot-settings.functions";
 import { submitOffer } from "@/lib/offers.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
-import { listProjects } from "@/lib/admin.functions";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 
@@ -61,7 +60,6 @@ export function SupportChatWidget() {
   const [offerMsgId, setOfferMsgId] = useState<string | null>(null);
   const [offerStep, setOfferStep] = useState<"terms" | "form" | "done" | null>(null);
   const [offerForm, setOfferForm] = useState({ projectName: "", companyName: "", email: "", amount: "" });
-  const [offerProjectId, setOfferProjectId] = useState("");
   const [offerFile, setOfferFile] = useState<File | null>(null);
   const [offerBusy, setOfferBusy] = useState(false);
   const [offerError, setOfferError] = useState<string | null>(null);
@@ -82,7 +80,6 @@ export function SupportChatWidget() {
   const getSettings = useServerFn(getBotSettings);
   const submitOfferFn = useServerFn(submitOffer);
   const submitVipFn = useServerFn(submitVipSubscription);
-  const listProjectsFn = useServerFn(listProjects);
 
 
   useEffect(() => { setMounted(true); }, []);
@@ -174,13 +171,6 @@ export function SupportChatWidget() {
     staleTime: 60_000,
   });
 
-  const { data: projectsList = [] } = useQuery({
-    queryKey: ["projects-public-list"],
-    queryFn: () => listProjectsFn(),
-    enabled: open,
-    staleTime: 60_000,
-  });
-
   const { data: chatData } = useQuery({
     queryKey: ["support-visitor-chat", token],
     queryFn: () => getMsgs({ data: { visitorToken: token, sinceIso: null } }),
@@ -206,7 +196,6 @@ export function SupportChatWidget() {
     setOfferError(null);
     setOfferFile(null);
     setOfferForm({ projectName: "", companyName: "", email: "", amount: "" });
-    setOfferProjectId("");
   }, [offerTriggerId, offerMsgId]);
 
   const vipTriggerId = useMemo(() => {
@@ -264,12 +253,8 @@ export function SupportChatWidget() {
 
   async function handleOfferSubmit() {
     if (offerBusy) return;
-    const { companyName, email, amount } = offerForm;
-    if (!offerProjectId) {
-      setOfferError("يرجى اختيار مشروع.");
-      return;
-    }
-    if (!companyName.trim() || !email.trim() || !amount.trim()) {
+    const { projectName, companyName, email, amount } = offerForm;
+    if (!projectName.trim() || !companyName.trim() || !email.trim() || !amount.trim()) {
       setOfferError("يرجى إكمال جميع الحقول.");
       return;
     }
@@ -296,8 +281,7 @@ export function SupportChatWidget() {
         : null;
       const result = await submitOfferFn({
         data: {
-          project_id: offerProjectId,
-          projectName: projectsList.find((p: { id: string }) => p.id === offerProjectId)?.name ?? "",
+          projectName: projectName.trim(),
           companyName: companyName.trim(),
           email: email.trim(),
           amount: amount.trim(),
@@ -448,17 +432,8 @@ export function SupportChatWidget() {
             {offerStep === "form" && (
               <div className="space-y-2 rounded-xl border border-border bg-background p-3">
                 <div className="text-[11px] font-semibold text-muted-foreground">بيانات عرض السعر:</div>
-                <select
-                  value={offerProjectId}
-                  onChange={(e) => setOfferProjectId(e.target.value)}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="">اختر المشروع</option>
-                  {projectsList.map((p: { id: string; name: string }) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
                 {([
+                  ["projectName", "اسم المشروع"],
                   ["companyName", "اسم الشركة"],
                   ["email", "البريد الإلكتروني"],
                   ["amount", "قيمة العرض"],

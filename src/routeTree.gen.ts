@@ -52,7 +52,6 @@ import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
 import { Route as ApiAdminR2RouteImport } from './routes/api/admin/r2'
-import { Route as ApiCronVipExpiryRouteImport } from './routes/api/cron/vip-expiry'
 import { Route as ApiPublicUploadRouteImport } from './routes/api/public/upload'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -287,11 +286,6 @@ const ApiAdminR2Route = ApiAdminR2RouteImport.update({
   path: '/api/admin/r2',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCronVipExpiryRoute = ApiCronVipExpiryRouteImport.update({
-  id: '/api/cron/vip-expiry',
-  path: '/api/cron/vip-expiry',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicUploadRoute = ApiPublicUploadRouteImport.update({
   id: '/api/public/upload',
   path: '/api/public/upload',
@@ -363,7 +357,6 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
-  '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -411,7 +404,6 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
-  '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -463,7 +455,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
-  '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -515,7 +506,6 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vip'
     | '/api/admin/r2'
-    | '/api/cron/vip-expiry'
     | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/admin/'
@@ -563,7 +553,6 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vip'
     | '/api/admin/r2'
-    | '/api/cron/vip-expiry'
     | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/admin'
@@ -614,7 +603,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
     | '/api/admin/r2'
-    | '/api/cron/vip-expiry'
     | '/api/public/upload'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
@@ -641,7 +629,6 @@ export interface RootRouteChildren {
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
   ApiAdminR2Route: typeof ApiAdminR2Route
-  ApiCronVipExpiryRoute: typeof ApiCronVipExpiryRoute
   ApiPublicUploadRoute: typeof ApiPublicUploadRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -952,13 +939,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminR2RouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cron/vip-expiry': {
-      id: '/api/cron/vip-expiry'
-      path: '/api/cron/vip-expiry'
-      fullPath: '/api/cron/vip-expiry'
-      preLoaderRoute: typeof ApiCronVipExpiryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/upload': {
       id: '/api/public/upload'
       path: '/api/public/upload'
@@ -1102,7 +1082,6 @@ const rootRouteChildren: RootRouteChildren = {
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ProjectIdRoute: ProjectIdRoute,
   ApiAdminR2Route: ApiAdminR2Route,
-  ApiCronVipExpiryRoute: ApiCronVipExpiryRoute,
   ApiPublicUploadRoute: ApiPublicUploadRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

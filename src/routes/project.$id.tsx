@@ -15,6 +15,24 @@ import { Toaster } from "@/components/ui/sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
+function CountdownTimer({ target }: { target: string }) {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const update = () => {
+      const diff = new Date(target).getTime() - Date.now();
+      if (diff <= 0) return setTime('انتهى');
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTime(`${h}س ${m}د ${s}ث`);
+    };
+    update();
+    const i = setInterval(update, 1000);
+    return () => clearInterval(i);
+  }, [target]);
+  return <p className="text-2xl font-bold text-amber-600 mt-2">{time}</p>;
+}
+
 function statusLabel(s?: string | null) {
   if (s === "delivered") return "تم التسليم";
   if (s === "cancelled") return "ملغي";
@@ -63,10 +81,8 @@ function ProjectDetail() {
   });
   const isAdmin = hasAdminRole(roles);
 
-  const projectExclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until ?? null;
-  const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive && projectExclusiveUntil
-    ? new Date(projectExclusiveUntil).getTime() > Date.now()
-    : false;
+  const vipEndAt = (project as { vip_end_at?: string | null }).vip_end_at ?? null;
+  const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive;
   const projectCity = (project.location ?? "").split("-")[0].trim();
 
   const { data: exclusiveStatus } = useQuery({
@@ -84,17 +100,18 @@ function ProjectDetail() {
   const isVipInCity = isExclusive
     ? !!vipStatus?.isVip && (vipStatus?.city ?? "").trim() === projectCity
     : false;
-  const showExclusiveGate = isExclusive && !isVipInCity && !exclusiveStatus?.showForm;
+  const hasVipAccess = isVipInCity || !!exclusiveStatus?.vipBypass;
+  const showExclusiveGate = isExclusive && !hasVipAccess && !exclusiveStatus?.showForm;
 
   const [remainingMs, setRemainingMs] = useState(0);
   useEffect(() => {
-    if (!projectExclusiveUntil) return;
-    const end = new Date(projectExclusiveUntil).getTime();
+    if (!vipEndAt) return;
+    const end = new Date(vipEndAt).getTime();
     const tick = () => setRemainingMs(Math.max(0, end - Date.now()));
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, [projectExclusiveUntil]);
+  }, [vipEndAt]);
   const hoursLeft = Math.floor(remainingMs / 3600_000);
   const minutesLeft = Math.floor((remainingMs % 3600_000) / 60_000);
   const secondsLeft = Math.floor((remainingMs % 60_000) / 1000);
@@ -265,7 +282,8 @@ function ProjectDetail() {
             </div>
           </section>
         ) : (
-        <section id="apply" className="mt-16 max-w-3xl mx-auto">
+        <div className="relative mt-16 max-w-3xl mx-auto">
+          <section id="apply">
           <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
             <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -337,6 +355,7 @@ function ProjectDetail() {
             </form>
           </div>
         </section>
+        </div>
         )}
       </article>
 

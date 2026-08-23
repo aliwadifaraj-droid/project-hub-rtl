@@ -47,11 +47,17 @@ export const getProject = createServerFn({ method: "GET" })
       const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
       const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
       const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "";
+      const exclusive = await projectsRepo.getProjectExclusive(data.id);
+      const vip_end_at = exclusive?.vip_end_at ?? null;
+      const is_exclusive = vip_end_at ? Date.now() < new Date(vip_end_at).getTime() : false;
       return {
         id: p.id, name: p.name, description: p.description, location: p.location,
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
+        is_exclusive,
+        exclusive_until: p.exclusive_until,
+        vip_end_at,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {
@@ -448,7 +454,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       if (!proj.offers_enabled) throw new Error("تقديم عروض الأسعار متوقف حالياً لهذا المشروع");
       const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
       if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-        if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
+        if (!data.vip_token) throw new Error(`هذا المشروع حصري لـ VIP ${proj.location}`);
         const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
         const tokenResult = await validateVipToken(data.vip_token, data.project_id);
         if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
