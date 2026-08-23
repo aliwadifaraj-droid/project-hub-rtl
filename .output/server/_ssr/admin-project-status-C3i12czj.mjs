@@ -1,0 +1,94 @@
+import { j as jsxRuntimeExports } from "../_libs/react.mjs";
+import { u as useServerFn, k as getMyRoles, E as updateProjectStatus, h as hasAdminRole } from "./router-pxcAI1C5.mjs";
+import { b as useQueryClient, u as useQuery, c as useMutation } from "../_libs/tanstack__react-query.mjs";
+import { t as toast } from "../_libs/sonner.mjs";
+import { L as LoaderCircle } from "../_libs/lucide-react.mjs";
+const labels = {
+  active: "مفتوح للعروض",
+  delivered: "تم التسليم",
+  cancelled: "ملغي"
+};
+const styles = {
+  active: "bg-secondary text-secondary-foreground",
+  delivered: "bg-emerald-100 text-emerald-700",
+  cancelled: "bg-red-100 text-red-700"
+};
+function ProjectStatusBadge({ status }) {
+  const key = status ?? "active";
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "span",
+    {
+      className: `inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${styles[key] ?? styles.active}`,
+      children: labels[key] ?? labels.active
+    }
+  );
+}
+const statusButtons = [
+  { status: "cancelled", label: "ملغي", icon: "❌", color: "#dc3545" },
+  { status: "delivered", label: "تم التسليم", icon: "✅", color: "#28a745" },
+  { status: "active", label: "مفتوح للعروض", icon: "🟡", color: "#ffc107" }
+];
+const statusLabels = {
+  active: "مفتوح للعروض",
+  delivered: "تم التسليم",
+  cancelled: "ملغي"
+};
+function AdminProjectStatus({
+  projectId,
+  currentStatus,
+  queryKey
+}) {
+  const getRoles = useServerFn(getMyRoles);
+  const update = useServerFn(updateProjectStatus);
+  const qc = useQueryClient();
+  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles(), retry: false });
+  const isAdmin = hasAdminRole(roles);
+  const mut = useMutation({
+    mutationFn: (status) => update({ data: { id: projectId, status } }),
+    onSuccess: (_r, status) => {
+      toast.success(`تم تحديث الحالة إلى: ${statusLabels[status]}`);
+      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["admin-projects"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: (e) => toast.error(e.message)
+  });
+  if (!isAdmin) return null;
+  function confirmAnd(status, label) {
+    if (confirm(`تأكيد تغيير حالة المشروع إلى: ${label}؟`)) mut.mutate(status);
+  }
+  const currentLabel = currentStatus ? statusLabels[currentStatus] ?? null : null;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-5 border-t border-border/60 pt-4", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-2 text-xs font-semibold text-muted-foreground", children: [
+      "إجراءات المشرف ",
+      currentLabel ? `• الحالة الحالية: ${currentLabel}` : ""
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex gap-2.5", children: statusButtons.map((btn) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "button",
+      {
+        type: "button",
+        disabled: mut.isPending,
+        onClick: () => confirmAnd(btn.status, btn.label),
+        style: {
+          backgroundColor: btn.color,
+          color: "#ffffff",
+          fontWeight: "bold",
+          fontSize: "14px",
+          padding: "10px 14px",
+          borderRadius: "8px",
+          width: "auto"
+        },
+        className: "inline-flex items-center justify-center gap-1.5 disabled:opacity-60",
+        children: [
+          mut.isPending ? /* @__PURE__ */ jsxRuntimeExports.jsx(LoaderCircle, { className: "h-4 w-4 animate-spin" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "16px" }, children: btn.icon }),
+          btn.label
+        ]
+      },
+      btn.status
+    )) })
+  ] });
+}
+export {
+  AdminProjectStatus as A,
+  ProjectStatusBadge as P
+};

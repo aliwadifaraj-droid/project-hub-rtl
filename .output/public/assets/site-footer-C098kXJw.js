@@ -1,1 +1,0 @@
-import{j as e}from"./index-BMQ2zbmq.js";function r(){return e.jsx("footer",{className:"border-t border-border/60 bg-secondary/40 mt-20",children:e.jsxs("div",{className:"container mx-auto px-4 py-8 text-center text-sm text-muted-foreground",children:["© ",new Date().getFullYear()," العمران — منصة عرض مشاريع المقاولات"]})})}export{r as S};

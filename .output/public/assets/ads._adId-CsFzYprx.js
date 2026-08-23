@@ -1,1 +1,0 @@
-import{j as e}from"./index-BMQ2zbmq.js";const s=({error:r})=>e.jsx("div",{className:"grid min-h-screen place-items-center p-6 text-center",children:e.jsx("p",{className:"text-destructive",children:r.message})});export{s as errorComponent};

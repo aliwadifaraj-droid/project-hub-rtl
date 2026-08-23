@@ -560,7 +560,7 @@ function MessageModal({ target, onClose }: { target: { email: string; company: s
     }
     setSending(true);
     try {
-      await send({ data: { email: target.email, company: target.company, message: message.trim() } });
+      await send({ data: { to: target.email, message: `الشركة: ${target.company}\n\n${message.trim()}` } });
       toast.success("تم إرسال الرسالة");
       onClose();
     } catch (err) {

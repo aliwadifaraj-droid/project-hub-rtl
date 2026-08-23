@@ -1,0 +1,1 @@
+import{j as e}from"./index-BZhU153J.js";const n=()=>e.jsx("div",{className:"grid min-h-screen place-items-center p-6 text-center",children:e.jsx("p",{className:"text-muted-foreground",children:"الإعلان غير متوفر."})});export{n as notFoundComponent};

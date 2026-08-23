@@ -1,0 +1,1 @@
+import{j as e}from"./index-BZhU153J.js";const s=({error:r})=>e.jsx("div",{className:"grid min-h-screen place-items-center p-6 text-center",children:e.jsx("p",{className:"text-destructive",children:r.message})});export{s as errorComponent};
