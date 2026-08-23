@@ -52,7 +52,7 @@ export const getProject = createServerFn({ method: "GET" })
       if (!p) return null;
       const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
       const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
-      const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => ""),
+      const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "";
       return {
         id: p.id, name: p.name, description: p.description, location: p.location,
         duration: p.duration, cover_image: p.cover_image, images: p.images,
