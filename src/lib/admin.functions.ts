@@ -463,7 +463,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       }
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    if (await existsDuplicateOffer(data.project_id ?? null, data.company_name, data.email)) throw new Error(DUPLICATE_OFFER_MESSAGE);
+    if (await existsDuplicateOffer(data.project_id ?? null, data.company_name, data.email, data.project_name ?? null)) throw new Error(DUPLICATE_OFFER_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
