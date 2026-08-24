@@ -1,12 +1,13 @@
 // Price-offer server functions (submitted by visitors from the support bot).
 // Offers are saved into the `notifications` table (as offer-notifications) and
-// moved to `project_requests` when an admin accepts them.
+// moved to `project_exclusive` when an admin accepts them.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
 import * as notificationsRepo from "./notifications.repo";
 import * as projectsRepo from "./projects.repo";
 import * as blockedRepo from "./blocked.repo";
+import * as exclusiveRepo from "./project-exclusive.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
 
@@ -204,19 +205,17 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
     if (data.status === "accepted") {
       const offer = await notificationsRepo.getOfferNotificationById(data.id);
       if (!offer) return { ok: false as const, message: "العرض غير موجود" };
-      const requests = await import("./project-requests.repo");
-      const requestId = await requests.insertRequest({
-        project_id: offer.project_id ?? null,
+      const exclusiveId = await exclusiveRepo.insertExclusive({
+        project_id: offer.project_id ?? "",
         company_name: offer.company_name ?? "",
         facility_location: offer.facility_location ?? offer.project_name ?? "",
         email: offer.email ?? "",
         pdf_url: offer.pdf_key ?? "",
         submitter_type: offer.submitter_type ?? "offer",
-        project_type: offer.source ?? "platform",
       });
-      await requests.updateRequestStatus(requestId, "new");
+      await exclusiveRepo.updateExclusiveStatus(exclusiveId, "new");
       await notificationsRepo.deleteOfferNotification(offer.id);
-      return { ok: true as const, moved: true, requestId };
+      return { ok: true as const, moved: true, exclusiveId };
     }
     await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
     return { ok: true as const };
