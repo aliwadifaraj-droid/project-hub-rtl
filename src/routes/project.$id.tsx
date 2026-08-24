@@ -116,6 +116,7 @@ function ProjectDetail() {
   const minutesLeft = Math.floor((remainingMs % 3600_000) / 60_000);
   const secondsLeft = Math.floor((remainingMs % 60_000) / 1000);
   const countdownLabel = `${String(hoursLeft).padStart(2, "0")}:${String(minutesLeft).padStart(2, "0")}:${String(secondsLeft).padStart(2, "0")}`;
+  const countdownEnded = remainingMs === 0;
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -170,6 +171,9 @@ function ProjectDetail() {
       setSubmitting(false);
     }
   }
+
+  const offersDisabled = (project as { offers_enabled?: boolean }).offers_enabled === false;
+  const showOfferForm = !showExclusiveGate && !offersDisabled && (!isExclusive || countdownEnded || hasVipAccess);
 
   return (
     <div className="min-h-screen" dir="rtl">
@@ -259,7 +263,7 @@ function ProjectDetail() {
               </p>
             </div>
           </section>
-        ) : isExclusive && vipEndAt ? (
+        ) : isExclusive && vipEndAt && !countdownEnded ? (
           <section className="mt-10 max-w-3xl mx-auto">
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-center shadow-sm">
               <p className="text-sm font-semibold text-amber-900">
@@ -271,7 +275,7 @@ function ProjectDetail() {
             </div>
           </section>
         ) : null}
-        {(project as { offers_enabled?: boolean }).offers_enabled === false && !showExclusiveGate ? (
+        {showExclusiveGate || (isExclusive && vipEndAt && !countdownEnded) ? null : offersDisabled ? (
           <section className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
               <p className="text-sm font-semibold text-orange-900">
@@ -293,7 +297,7 @@ function ProjectDetail() {
               </button>
             </div>
           </section>
-        ) : (
+        ) : showOfferForm ? (
         <div className="relative mt-16 max-w-3xl mx-auto">
           <section id="apply">
           <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
@@ -368,7 +372,7 @@ function ProjectDetail() {
           </div>
         </section>
         </div>
-        )}
+        ) : null}
       </article>
 
       <SiteFooter />
