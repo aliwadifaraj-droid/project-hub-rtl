@@ -109,6 +109,22 @@ export async function searchByName(query: string): Promise<ProjectRow[]> {
   return rowsToObjects<ProjectRow>(r).map(decode);
 }
 
+export async function getByNameExact(name: string): Promise<ProjectRow | null> {
+  await ensureOffersEnabledColumn();
+  const r = await db.execute(
+    `SELECT ${COLS} FROM projects WHERE name = ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 1`,
+    [name.trim()],
+  );
+  const rows = rowsToObjects(r);
+  return rows[0] ? decode(rows[0]) : null;
+}
+
+export async function isProjectExclusive(projectId: string): Promise<boolean> {
+  const excl = await getProjectExclusive(projectId);
+  if (!excl) return false;
+  return Date.now() < new Date(excl.vip_end_at).getTime();
+}
+
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE created_by = ? ORDER BY created_at DESC`, [userId]);
