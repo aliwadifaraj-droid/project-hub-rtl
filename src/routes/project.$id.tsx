@@ -83,7 +83,7 @@ function ProjectDetail() {
 
   const vipEndAt = (project as { vip_end_at?: string | null }).vip_end_at ?? null;
   const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive;
-  const projectCity = (project.location ?? "").split("-")[0].trim();
+  const projectCity = SAUDI_CITIES.find((c) => (project.location ?? "").includes(c)) ?? (project.location ?? "").split("-")[0].trim();
 
   const { data: exclusiveStatus } = useQuery({
     queryKey: ["exclusive-status", id, vipToken],
@@ -93,7 +93,7 @@ function ProjectDetail() {
   });
   const { data: vipStatus } = useQuery({
     queryKey: ["my-vip-status", id],
-    queryFn: () => getVipStatus({ data: { project_id: id } }),
+    queryFn: () => getVipStatus({ data: { project_id: id } }).catch(() => ({ isVip: false, city: null })),
     enabled: isExclusive,
     retry: false,
   });
