@@ -1,13 +1,11 @@
 // Price-offer server functions (submitted by visitors from the support bot).
 // Offers are saved into the `notifications` table (as offer-notifications) and
-// moved to `project_exclusive` when an admin accepts them.
+// moved to `project_requests` when an admin accepts them.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
 import * as notificationsRepo from "./notifications.repo";
-import * as projectsRepo from "./projects.repo";
 import * as blockedRepo from "./blocked.repo";
-import * as exclusiveRepo from "./project-exclusive.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
 
@@ -34,31 +32,15 @@ async function listAdminUserIds(): Promise<string[]> {
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
-    await projectsRepo.ensureOffersEnabledColumn();
-    const project = await projectsRepo.getByNameExact(data.projectName);
-    if (!project) {
-      return { ok: false as const, message: "المشروع غير موجود" };
-    }
-
-   // تشيك الحصرية من جدول project_exclusive
-const isExclusive = await projectsRepo.isProjectExclusive(project.id);
-if (isExclusive === true) {
-  return { ok: false as const, message: "فقط المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP" };
-} 
-
-    const oldOffer = await notificationsRepo.existsDuplicateOfferNotification(
-      data.projectName,
-      data.email,
-      data.companyName,
-    );
-    if (oldOffer) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
-    }
-
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
+    const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
+    if (duplicate) {
+      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+    }
+
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${data.companyName} — ${data.projectName} — ${data.amount}`;
@@ -76,10 +58,18 @@ if (isExclusive === true) {
         pdf_filename: data.pdfFilename,
         source: "platform",
         offer_status: "new",
-        status: "pending",
       })),
     );
     const id = ids[0] ?? "";
+
+    await notificationsRepo.insertMany(
+      staff.map((uid) => ({
+        user_id: uid,
+        title,
+        body,
+        link: "/admin/offers",
+      })),
+    );
 
     if (data.visitorToken) {
       try {
@@ -154,7 +144,15 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
         source: "add_project",
         submitter_type: submitterType,
         offer_status: "new",
-        status: "pending",
+      })),
+    );
+
+    await notificationsRepo.insertMany(
+      staff.map((uid) => ({
+        user_id: uid,
+        title,
+        body,
+        link: "/admin/offers",
       })),
     );
 
@@ -199,23 +197,24 @@ export const adminCountNewOffers = createServerFn({ method: "GET" })
 export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]) }).parse(d))
+    z.object({ id: z.string().uuid(), status: z.enum(["pending", "new", "reviewing", "accepted", "rejected"]) }).parse(d))
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     if (data.status === "accepted") {
       const offer = await notificationsRepo.getOfferNotificationById(data.id);
       if (!offer) return { ok: false as const, message: "العرض غير موجود" };
-      const exclusiveId = await exclusiveRepo.insertExclusive({
-        project_id: offer.project_id ?? "",
+      const requests = await import("./project-requests.repo");
+      const requestId = await requests.insertRequest({
+        project_id: offer.project_id ?? null,
         company_name: offer.company_name ?? "",
         facility_location: offer.facility_location ?? offer.project_name ?? "",
         email: offer.email ?? "",
         pdf_url: offer.pdf_key ?? "",
         submitter_type: offer.submitter_type ?? "offer",
       });
-      await exclusiveRepo.updateExclusiveStatus(exclusiveId, "new");
+      await requests.updateRequestStatus(requestId, "new");
       await notificationsRepo.deleteOfferNotification(offer.id);
-      return { ok: true as const, moved: true, exclusiveId };
+      return { ok: true as const, moved: true, requestId };
     }
     await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
     return { ok: true as const };
