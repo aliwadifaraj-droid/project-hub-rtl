@@ -1,7 +1,7 @@
 import { db, rowsToObjects } from "./db";
 import { ensureOfferColumns } from "./notifications.repo";
 
-export const DUPLICATE_OFFER_MESSAGE = "لقد قمت بتقديم عرض مسبقاً لهذا المشروع. لا يمكن تكرار التقديم";
+export const DUPLICATE_OFFER_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
 
 const COMPANY_PREFIXES = ["مؤسسة", "شركة", "لل", "ل"];
 
@@ -18,11 +18,14 @@ export function normalizeEmail(email: string): string {
 }
 
 /**
- * Checks whether an offer already exists for the same project + company/email.
- * - When projectId is provided, matches by project_id.
- * - When projectId is null (bot flow), matches by project_name instead.
- * - Checks notifications (any offer_status except 'rejected') and
- *   project_requests (any status except 'rejected').
+ * Unified duplicate-offer check across both submission paths (bot + form).
+ *
+ * - When projectId is provided (form flow), matches notifications by
+ *   project_id OR by project_name (so bot offers with null project_id
+ *   but the same project name are also caught).
+ * - When projectId is null (bot flow), matches by project_name.
+ * - Always checks both `notifications` (non-rejected offer_status) and
+ *   `project_requests` (non-rejected status).
  * - Match is determined by: same project AND (normalized company name OR email).
  */
 export async function existsDuplicateOffer(
@@ -41,13 +44,14 @@ export async function existsDuplicateOffer(
   let notifRows: { company_name: string | null; email: string | null; project_name: string | null; project_id: string | null }[];
 
   if (pid) {
+    // Form flow: match by project_id OR by project_name (catches bot offers)
     const notifR = await db.execute(
       `SELECT company_name, email, project_name, project_id FROM notifications
        WHERE offer_status IS NOT NULL
          AND offer_status != 'rejected'
-         AND COALESCE(project_id, '') = ?
+         AND (COALESCE(project_id, '') = ? OR LOWER(TRIM(COALESCE(project_name,''))) = ?)
        LIMIT 200`,
-      [pid],
+      [pid, normProjectName],
     );
     notifRows = rowsToObjects(notifR);
   } else {
@@ -83,8 +87,7 @@ export async function existsDuplicateOffer(
     );
     reqRows = rowsToObjects(reqR);
   } else {
-    // No project_id to match on in project_requests for the bot flow;
-    // match by company name or email alone
+    // Bot flow: match by company name or email alone (no project_id to match)
     const reqR = await db.execute(
       `SELECT company_name, email FROM project_requests
        WHERE status != 'rejected'
