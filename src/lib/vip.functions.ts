@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAuth, requireAdmin } from "./auth-middleware.server";
+import { requireAdmin } from "./auth-middleware.server";
+import { getSessionClaims } from "./auth.server";
 import * as vipRepo from "./vip.repo";
 import { listUsersWithRoles } from "./users.repo";
 
@@ -94,13 +95,13 @@ export const adminExtendVip = createServerFn({ method: "POST" })
   });
 
 export const getMyVipStatus = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
   .inputValidator((d: { project_id: string }) => {
     if (!d?.project_id) throw new Error("project_id مطلوب");
     return d;
   })
-  .handler(async ({ data, context }) => {
-    const email = context.email;
+  .handler(async ({ data }) => {
+    const claims = await getSessionClaims();
+    const email = claims?.email ?? null;
     if (!email) return { isVip: false, city: null } as const;
     const row = await vipRepo.getActiveVipByEmail(email);
     if (!row) return { isVip: false, city: null } as const;
