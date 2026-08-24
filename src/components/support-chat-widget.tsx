@@ -298,7 +298,14 @@ export function SupportChatWidget() {
       setOfferStep("done");
       qc.invalidateQueries({ queryKey: ["support-visitor-chat", token] });
     } catch (e) {
-      setOfferError(e instanceof Error ? e.message : "تعذر إرسال العرض، حاول مرة أخرى.");
+      const raw = e instanceof Error ? e.message : String(e);
+      let msg = "تعذر إرسال العرض، حاول مرة أخرى.";
+      if (raw.includes("is not a function") || raw.includes("undefined")) {
+        msg = "تعذر معالجة الطلب حالياً. يرجى المحاولة مرة أخرى لاحقاً.";
+      } else if (raw.length > 0 && raw.length < 200) {
+        msg = raw;
+      }
+      setOfferError(msg);
     } finally {
       setOfferBusy(false);
     }
@@ -332,7 +339,7 @@ export function SupportChatWidget() {
   }
 
   const canShowQuickQuestions = useMemo(
-    () => (status === "bot" || status === "bot_mode") && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
+    () => status === "bot" && qaList.length > 0 && (botSettings?.show_suggested_questions ?? true),
     [status, qaList.length, botSettings?.show_suggested_questions],
   );
 
@@ -382,7 +389,7 @@ export function SupportChatWidget() {
               <div>
                 <div className="text-sm font-bold">دعم العمران</div>
                 <div className="text-[11px] opacity-80">
-                  {status === "waiting_for_agent" ? "بانتظار موظف" : status === "bot_mode" ? "المساعد الآلي" : status === "closed" ? "المحادثة مغلقة" : "المساعد الآلي"}
+                  {status === "escalated" ? "متصل مع موظف" : status === "closed" ? "المحادثة مغلقة" : "المساعد الآلي"}
                 </div>
               </div>
             </div>
@@ -398,7 +405,7 @@ export function SupportChatWidget() {
               if (isSystem) {
                 return (
                   <div key={m.id} className="mx-auto max-w-[85%] rounded-md bg-accent/15 px-3 py-1.5 text-center text-[11px] text-foreground/70">
-                    {m.body === "__ALERT_SENT__" ? "تم إشعار الدعم الفني بوجودك" : m.body}
+                    {m.body}
                   </div>
                 );
               }

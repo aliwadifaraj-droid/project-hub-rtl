@@ -259,7 +259,19 @@ function ProjectDetail() {
               </p>
             </div>
           </section>
-        ) : (project as { offers_enabled?: boolean }).offers_enabled === false ? (
+        ) : isExclusive && vipEndAt ? (
+          <section className="mt-10 max-w-3xl mx-auto">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-center shadow-sm">
+              <p className="text-sm font-semibold text-amber-900">
+                ⏳ هذا المشروع حصري — الوقت المتبقي:
+              </p>
+              <p className="mt-2 text-2xl font-mono font-bold text-amber-700 tabular-nums tracking-wider">
+                {countdownLabel}
+              </p>
+            </div>
+          </section>
+        ) : null}
+        {(project as { offers_enabled?: boolean }).offers_enabled === false && !showExclusiveGate ? (
           <section className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
               <p className="text-sm font-semibold text-orange-900">
