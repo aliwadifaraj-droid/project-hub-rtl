@@ -13,5 +13,22 @@ export const submitContactMessage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (await blockedRepo.isBlocked(data.name, data.email)) throw new Error(BLOCKED_MESSAGE);
     await insertContactMessage(data);
+    try {
+      const { listUsersWithRoles } = await import("./users.repo");
+      const { insertMany } = await import("./notifications.repo");
+      const staff = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin") || u.roles.includes("employee"));
+      if (staff.length > 0) {
+        await insertMany(
+          staff.map((s) => ({
+            user_id: s.id,
+            title: "رسالة تواصل جديدة",
+            body: `${data.name} — ${data.email}`,
+            link: "/admin/messages",
+          })),
+        );
+      }
+    } catch (e) {
+      console.error("contact notification failed", e);
+    }
     return { ok: true };
   });

@@ -325,6 +325,55 @@ export async function existsDuplicateOfferNotification(
   return rowsToObjects(r).length > 0;
 }
 
+export async function checkDuplicateOffer(opts: {
+  projectName: string;
+  companyName: string;
+  userId?: string | null;
+  projectId?: string | null;
+}): Promise<boolean> {
+  await ensureOfferColumns();
+  const p = (opts.projectName ?? "").trim().toLowerCase();
+  const c = (opts.companyName ?? "").trim().toLowerCase();
+  const u = (opts.userId ?? "").trim();
+  const pid = (opts.projectId ?? "").trim();
+
+  const notifWhere: string[] = [
+    "n.offer_status IS NOT NULL",
+    "n.status != 'rejected'",
+    "LOWER(TRIM(COALESCE(n.project_name,''))) = ?",
+    "LOWER(TRIM(COALESCE(n.company_name,''))) = ?",
+  ];
+  const notifArgs: any[] = [p, c];
+  if (u) { notifWhere.push("n.user_id = ?"); notifArgs.push(u); }
+  if (pid) { notifWhere.push("(n.project_id = ? OR n.project_id IS NULL)"); notifArgs.push(pid); }
+
+  const r1 = await db.execute(
+    `SELECT 1 FROM notifications n WHERE ${notifWhere.join(" AND ")} LIMIT 1`,
+    notifArgs,
+  );
+  if (rowsToObjects(r1).length > 0) return true;
+
+  const reqWhere: string[] = [
+    "pr.status != 'rejected'",
+    "LOWER(TRIM(COALESCE(pr.company_name,''))) = ?",
+  ];
+  const reqArgs: any[] = [c];
+  if (pid) {
+    reqWhere.push("pr.project_id = ?");
+    reqArgs.push(pid);
+  } else {
+    reqWhere.push("EXISTS (SELECT 1 FROM projects pp WHERE pp.id = pr.project_id AND LOWER(TRIM(pp.name)) = ?)");
+    reqArgs.push(p);
+  }
+  if (u) { reqWhere.push("pr.submitter_type = ?"); reqArgs.push(u); }
+
+  const r2 = await db.execute(
+    `SELECT 1 FROM project_requests pr WHERE ${reqWhere.join(" AND ")} LIMIT 1`,
+    reqArgs,
+  );
+  return rowsToObjects(r2).length > 0;
+}
+
 export async function existsDuplicateAddProjectNotification(
   email: string,
   companyName: string,
@@ -349,8 +398,8 @@ export async function searchOfferNotificationsByEmail(email: string, limit = 50)
   if (!e) return [];
   const r = await db.execute(
     `SELECT n.id,n.user_id,n.title,n.body,n.link,n.read,n.created_at,
-            COALESCE(n.project_name, p.name) as project_name,
-            n.project_id,n.company_name,n.email,n.facility_location,n.pdf_key,n.pdf_filename,n.amount,n.source,n.submitter_type,n.offer_status,n.status 
+            COALESCE(n.project_name, p.name, '-') as project_name,
+            n.project_id,n.company_name,n.email,n.facility_location,n.pdf_key,n.pdf_filename,n.amount,n.source,n.submitter_type,n.offer_status,n.status
      FROM notifications n
      LEFT JOIN projects p ON n.project_id = p.id
      WHERE n.offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(n.email,''))) = ?
@@ -366,8 +415,8 @@ export async function searchOfferNotificationsByCompany(name: string, limit = 50
   if (!n) return [];
   const r = await db.execute(
     `SELECT n.id,n.user_id,n.title,n.body,n.link,n.read,n.created_at,
-            COALESCE(n.project_name, p.name) as project_name,
-            n.project_id,n.company_name,n.email,n.facility_location,n.pdf_key,n.pdf_filename,n.amount,n.source,n.submitter_type,n.offer_status,n.status 
+            COALESCE(n.project_name, p.name, '-') as project_name,
+            n.project_id,n.company_name,n.email,n.facility_location,n.pdf_key,n.pdf_filename,n.amount,n.source,n.submitter_type,n.offer_status,n.status
      FROM notifications n
      LEFT JOIN projects p ON n.project_id = p.id
      WHERE n.offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(n.company_name,''))) LIKE ?

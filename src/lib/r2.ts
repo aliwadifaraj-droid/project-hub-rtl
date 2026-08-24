@@ -113,6 +113,7 @@ export function getPublicUrl(key: string): string {
 /** Build a deterministic object key: <prefix>/<uuid>-<filename>. */
 export function makeKey(prefix: string, filename: string): string {
   const clean = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
-  const id = crypto.randomUUID();
+  const id = globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
   return `${prefix.replace(/^\/+|\/+$/g, "")}/${id}-${clean}`;
 }

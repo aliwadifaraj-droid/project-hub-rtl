@@ -376,22 +376,19 @@ const ALERT_MARKER = "__ALERT_SENT__";
 const BUSY_REPLY = "الموظفين مشغولين حالياً. كيف أقدر أساعدك؟";
 
 async function sendWaitingAlert(chatId: string, visitorName: string | null) {
+  const { sendResendEmail } = await import("./resend-send.server");
   const to = process.env.VITE_ALERT_EMAIL || process.env.ALERT_EMAIL;
-  const key = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
-  if (!to || !key) { console.error("alert email/key missing"); return; }
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        from: "Alamran <send@ali-alhaddad.com>",
-        to: [to],
-        subject: "🚨 عميل ينتظر",
-        html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>`,
-      }),
-    });
-    if (!res.ok) console.error("waiting alert failed", res.status, await res.text());
-  } catch (e) { console.error("waiting alert exception", e); }
+  if (!to) { console.error("alert email missing — set ALERT_EMAIL"); return; }
+  await sendResendEmail({
+    to,
+    subject: "🚨 عميل ينتظر",
+    html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;max-width:600px;margin:0 auto">
+      <h2 style="color:#dc2626">🚨 عميل ينتظر</h2>
+      <p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p>
+      <p><strong>customer_id:</strong> ${chatId}</p>
+      <p>الرجاء الدخول للوحة الإدارة والرد على المحادثة.</p>
+    </div>`,
+  });
 }
 
 async function agentRepliedSince(chatId: string, sinceIso: string): Promise<boolean> {
@@ -409,10 +406,16 @@ async function recentAlertExists(chatId: string): Promise<boolean> {
   return rowsToObjects(r).length > 0;
 }
 
+async function chatStatusIs(chatId: string, status: string): Promise<boolean> {
+  const chat = await supportRepo.getChatById(chatId);
+  return chat?.status === status;
+}
+
 function scheduleEscalationWatchers(chatId: string, visitorName: string | null, startIso: string) {
   setTimeout(async () => {
     try {
       if (await agentRepliedSince(chatId, startIso)) return;
+      if (!(await chatStatusIs(chatId, "waiting_for_agent"))) return;
       if (await recentAlertExists(chatId)) return;
       await sendWaitingAlert(chatId, visitorName);
       await supportRepo.addSupportMessage(chatId, "system", ALERT_MARKER);
@@ -422,7 +425,9 @@ function scheduleEscalationWatchers(chatId: string, visitorName: string | null, 
   setTimeout(async () => {
     try {
       if (await agentRepliedSince(chatId, startIso)) return;
+      if (!(await chatStatusIs(chatId, "waiting_for_agent"))) return;
       await supportRepo.addSupportMessage(chatId, "bot", BUSY_REPLY);
+      await supportRepo.updateChatStatus(chatId, "bot_mode");
     } catch (e) { console.error("watcher-60s", e); }
   }, 60_000);
 }
@@ -434,11 +439,31 @@ async function escalateOrOffHours(chatId: string) {
     await supportRepo.addSupportMessage(chatId, "bot", settings?.off_hours_message?.trim() || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
     return { escalated: false };
   }
-  await supportRepo.updateChatStatus(chatId, "escalated");
+  await supportRepo.updateChatStatus(chatId, "waiting_for_agent");
   await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
   const chat = await supportRepo.getChatById(chatId);
   scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
-  return { escalated: true };
+
+  try {
+    const { listUsersWithRoles } = await import("./users.repo");
+    const { insertMany } = await import("./notifications.repo");
+    const staff = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin") || u.roles.includes("employee"));
+    if (staff.length > 0) {
+      const visitorLabel = chat?.visitor_name?.trim() || `زائر ${chatId.slice(0, 6)}`;
+      await insertMany(
+        staff.map((s) => ({
+          user_id: s.id,
+          title: "عميل يطلب موظف دعم",
+          body: `${visitorLabel} — محادثة رقم ${chatId.slice(0, 8)}`,
+          link: "/admin/support",
+        })),
+      );
+    }
+  } catch (e) {
+    console.error("escalation notification failed", e);
+  }
+
+  return { escalated: true, status: "waiting_for_agent" };
 }
 
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
@@ -471,7 +496,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     await invalidateChat(data.visitorToken);
     const chat = await getOrCreateVisitorChat(data.visitorToken);
     await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
-    if (chat.status !== "bot") {
+    if (chat.status !== "bot" && chat.status !== "bot_mode") {
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
@@ -589,7 +614,7 @@ export const adminReplyChat = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     await supportRepo.addSupportMessage(data.chatId, "admin", data.body);
-    await supportRepo.updateChatStatus(data.chatId, "escalated");
+    await supportRepo.updateChatStatus(data.chatId, "bot");
     const chat = await supportRepo.getChatById(data.chatId);
     if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
@@ -799,8 +824,7 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
     return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
   }
   if (Math.abs(amount - packageAmount) > 0.01) {
-    return {
-      approved: false,
+    return {approved: false,
       reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
     };
   }
