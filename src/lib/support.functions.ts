@@ -282,7 +282,6 @@ function asksAboutVip(text: string): boolean {
 
 
 
-
 /** Ask Groq (llama-3.3-70b-versatile) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
   systemInstruction?: string | null;
@@ -376,12 +375,6 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
 const ALERT_MARKER = "__ALERT_SENT__";
 const BUSY_REPLY = "الموظفين مشغولين حالياً. كيف أقدر أساعدك؟";
 
-async function listStaffUserIds(): Promise<string[]> {
-  const { db, rowsToObjects } = await import("./db");
-  const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
-  return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
-}
-
 async function sendWaitingAlert(chatId: string, visitorName: string | null) {
   const { sendResendEmail } = await import("./resend-send.server");
   const to = process.env.VITE_ALERT_EMAIL || process.env.ALERT_EMAIL;
@@ -396,24 +389,6 @@ async function sendWaitingAlert(chatId: string, visitorName: string | null) {
       <p>الرجاء الدخول للوحة الإدارة والرد على المحادثة.</p>
     </div>`,
   });
-}
-
-async function notifyStaffEscalation(chatId: string, visitorName: string | null) {
-  try {
-    const { insertMany } = await import("./notifications.repo");
-    const staff = await listStaffUserIds();
-    if (!staff.length) return;
-    await insertMany(
-      staff.map((uid) => ({
-        user_id: uid,
-        title: "محادثة جديدة بحاجة لموظف",
-        body: visitorName ? `العميل: ${visitorName}` : "عميل ينتظر رد موظف",
-        link: "/admin/support",
-      })),
-    );
-  } catch (e) {
-    console.error("escalation notification failed", e);
-  }
 }
 
 async function agentRepliedSince(chatId: string, sinceIso: string): Promise<boolean> {
@@ -443,7 +418,6 @@ function scheduleEscalationWatchers(chatId: string, visitorName: string | null, 
       if (!(await chatStatusIs(chatId, "waiting_for_agent"))) return;
       if (await recentAlertExists(chatId)) return;
       await sendWaitingAlert(chatId, visitorName);
-      await notifyStaffEscalation(chatId, visitorName);
       await supportRepo.addSupportMessage(chatId, "system", ALERT_MARKER);
     } catch (e) { console.error("watcher-30s", e); }
   }, 30_000);
@@ -467,9 +441,28 @@ async function escalateOrOffHours(chatId: string) {
   }
   await supportRepo.updateChatStatus(chatId, "waiting_for_agent");
   await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
-  await notifyStaffEscalation(chatId, chat?.visitor_name ?? null);
   const chat = await supportRepo.getChatById(chatId);
   scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
+
+  try {
+    const { listUsersWithRoles } = await import("./users.repo");
+    const { insertMany } = await import("./notifications.repo");
+    const staff = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin") || u.roles.includes("employee"));
+    if (staff.length > 0) {
+      const visitorLabel = chat?.visitor_name?.trim() || `زائر ${chatId.slice(0, 6)}`;
+      await insertMany(
+        staff.map((s) => ({
+          user_id: s.id,
+          title: "عميل يطلب موظف دعم",
+          body: `${visitorLabel} — محادثة رقم ${chatId.slice(0, 8)}`,
+          link: "/admin/support",
+        })),
+      );
+    }
+  } catch (e) {
+    console.error("escalation notification failed", e);
+  }
+
   return { escalated: true, status: "waiting_for_agent" };
 }
 
