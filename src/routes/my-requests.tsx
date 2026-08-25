@@ -82,9 +82,9 @@ function MyRequests() {
                     <div key={r.id} className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <h3 className="font-bold">{r.projects?.name ?? "مشروع"}</h3>
+                          <h3 className="font-bold">{r.projects?.name ?? r.facility_location}</h3>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            <span className="font-medium text-foreground">{r.company_name}</span> • {r.facility_location}
+                            <span className="font-medium text-foreground">{r.company_name}</span>
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString("ar")}</p>
                         </div>
