@@ -109,22 +109,6 @@ export async function searchByName(query: string): Promise<ProjectRow[]> {
   return rowsToObjects<ProjectRow>(r).map(decode);
 }
 
-export async function getByNameExact(name: string): Promise<ProjectRow | null> {
-  await ensureOffersEnabledColumn();
-  const r = await db.execute(
-    `SELECT ${COLS} FROM projects WHERE name = ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 1`,
-    [name.trim()],
-  );
-  const rows = rowsToObjects(r);
-  return rows[0] ? decode(rows[0]) : null;
-}
-
-export async function isProjectExclusive(projectId: string): Promise<boolean> {
-  const excl = await getProjectExclusive(projectId);
-  if (!excl) return false;
-  return Date.now() < new Date(excl.vip_end_at).getTime();
-}
-
 export async function listByOwner(userId: string): Promise<ProjectRow[]> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(`SELECT ${COLS} FROM projects WHERE created_by = ? ORDER BY created_at DESC`, [userId]);
@@ -264,24 +248,13 @@ export async function getProjectExclusive(projectId: string): Promise<{
   return row ? { vip_start_at: String(row.vip_start_at), vip_end_at: String(row.vip_end_at) } : null;
 }
 
-export async function getExclusiveHoursFromSettings(): Promise<number> {
-  try {
-    const r = await db.execute(`SELECT value FROM site_settings WHERE key = 'exclusive_hours' LIMIT 1`);
-    const row = rowsToObjects<{ value: string | null }>(r)[0];
-    if (row?.value) {
-      const parsed = JSON.parse(row.value);
-      const hours = Number(parsed?.hours ?? parsed);
-      if (Number.isFinite(hours) && hours > 0) return hours;
-    }
-  } catch { /* fall through to default */ }
-  return 6;
-}
-
-export async function setExclusiveHoursInSettings(hours: number): Promise<void> {
-  await db.execute(
-    `INSERT INTO site_settings (key, value, updated_at)
-     VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-    ["exclusive_hours", JSON.stringify({ hours }), new Date().toISOString()],
+export async function clearExpiredExclusivity(): Promise<number> {
+  await ensureOffersEnabledColumn();
+  const r = await db.execute(
+    `UPDATE projects SET is_exclusive = 0, exclusive_until = NULL, updated_at = ?
+      WHERE is_exclusive = 1 AND exclusive_until IS NOT NULL
+        AND datetime(exclusive_until) <= datetime('now')`,
+    [new Date().toISOString()],
   );
+  return r.rowsAffected ?? 0;
 }

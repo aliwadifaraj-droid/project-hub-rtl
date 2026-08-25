@@ -70,28 +70,7 @@ export async function listVipSubscribers(): Promise<VipSubscriberRow[]> {
 export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { project_name: string | null })[]> {
   await ensureColumns();
   const r = await db.execute(
-    `SELECT v.*,
-       COALESCE(
-         p.name,
-         (
-           SELECT p2.name
-           FROM projects p2
-           INNER JOIN project_exclusive pe2 ON pe2.project_id = p2.id
-           WHERE p2.location IS NOT NULL
-             AND v.city IS NOT NULL
-             AND (
-               TRIM(LOWER(p2.location)) = TRIM(LOWER(v.city))
-               OR TRIM(LOWER(p2.location)) LIKE TRIM(LOWER(v.city)) || ' -%'
-             )
-             AND pe2.is_exclusive = 1
-             AND pe2.vip_start_at IS NOT NULL
-             AND datetime(pe2.vip_start_at) <= datetime('now')
-             AND pe2.vip_end_at IS NOT NULL
-             AND datetime(pe2.vip_end_at) > datetime('now')
-           ORDER BY pe2.vip_start_at DESC
-           LIMIT 1
-         )
-       ) AS project_name
+    `SELECT v.*, p.name AS project_name
      FROM vip_subscribers v
      LEFT JOIN projects p ON p.id = v.project_id
      ORDER BY v.created_at DESC`,
@@ -209,7 +188,7 @@ export async function getActiveVipByEmail(email: string): Promise<VipSubscriberR
   const r = await db.execute(
     `SELECT * FROM vip_subscribers
       WHERE email IS NOT NULL AND TRIM(LOWER(email)) = TRIM(LOWER(?))
-        AND status = 'active'
+        AND status IN ('active', 'approved')
       ORDER BY created_at DESC LIMIT 1`,
     [email],
   );
@@ -279,33 +258,9 @@ export async function updateVipReceipt(id: string, receiptPath: string): Promise
   await db.execute(`UPDATE vip_subscribers SET receipt_key = ? WHERE id = ?`, [receiptPath, id]);
 }
 
-const PLAN_DURATION_DAYS: Record<string, number> = {
-  "شهر": 30,
-  "شهرين": 60,
-  "3 شهور": 90,
-};
-
-export function planDurationDays(plan: string | null): number {
-  if (!plan) return 30;
-  const normalized = plan.trim();
-  if (PLAN_DURATION_DAYS[normalized]) return PLAN_DURATION_DAYS[normalized];
-  if (normalized.includes("90")) return 90;
-  if (normalized.includes("60")) return 60;
-  if (normalized.includes("30")) return 30;
-  return 30;
-}
-
 export async function updateVipStatus(id: string, status: "active" | "rejected"): Promise<VipSubscriberRow | null> {
   await ensureCityColumn();
-  if (status === "active") {
-    const existing = await db.execute(`SELECT plan FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
-    const existingRow = rowsToObjects<any>(existing)[0];
-    const days = planDurationDays(existingRow?.plan ?? null);
-    const expiresAt = new Date(Date.now() + days * 24 * 3600_000).toISOString();
-    await db.execute(`UPDATE vip_subscribers SET status = 'active', expires_at = ? WHERE id = ?`, [expiresAt, id]);
-  } else {
-    await db.execute(`UPDATE vip_subscribers SET status = ?, expires_at = NULL WHERE id = ?`, [status, id]);
-  }
+  await db.execute(`UPDATE vip_subscribers SET status = ? WHERE id = ?`, [status, id]);
   const r = await db.execute(`SELECT * FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
   const row = rowsToObjects(r)[0];
   return row ? decode(row) : null;
