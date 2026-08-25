@@ -14,7 +14,7 @@ import { detectCity } from "./vip-notify.server";
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 export function exclusiveMessage(city: string | null): string {
   return city
-    ? `هذا المشروع حصري لمشتركي ${city}`
+    ? `هذا المشروع حصري لمشتركي VIP في مدينة ${city}`
     : "هذا المشروع حصري لمشتركي VIP";
 }
 export const OFFER_PROJECT_NOT_FOUND_MESSAGE = "المشروع غير موجود";
@@ -45,18 +45,18 @@ export const submitOffer = createServerFn({ method: "POST" })
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
-    const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
-    if (duplicate) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
-    }
-
     const project = await projectsRepo.getByNameExact(data.projectName).catch(() => null);
     if (!project) {
       return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND_MESSAGE };
     }
 
+    const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
+    if (duplicate) {
+      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+    }
+
     const requests = await import("./project-requests.repo");
-    const dupRequest = await requests.existsDuplicateRequestByCompanyOrEmail(data.email, data.companyName).catch(() => false);
+    const dupRequest = await requests.existsDuplicateRequestForProject(project.id, data.email, data.companyName).catch(() => false);
     if (dupRequest) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }

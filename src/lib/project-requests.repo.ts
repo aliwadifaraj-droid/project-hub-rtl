@@ -170,6 +170,25 @@ export async function existsDuplicateRequestByCompanyOrEmail(
   return rowsToObjects(r).length > 0;
 }
 
+export async function existsDuplicateRequestForProject(
+  projectId: string,
+  email: string,
+  companyName: string,
+): Promise<boolean> {
+  await ensureProjectTypeColumn();
+  const e = (email ?? "").trim().toLowerCase();
+  const c = (companyName ?? "").trim().toLowerCase();
+  const r = await db.execute(
+    `SELECT 1 FROM project_requests
+     WHERE project_id = ?
+       AND LOWER(TRIM(COALESCE(email,''))) = ?
+       AND LOWER(TRIM(COALESCE(company_name,''))) = ?
+     LIMIT 1`,
+    [projectId, e, c],
+  );
+  return rowsToObjects(r).length > 0;
+}
+
 export async function updateRequestStatus(id: string, status: string, note?: string | null): Promise<void> {
   await ensureNoteColumn();
   await ensureProjectTypeColumn();

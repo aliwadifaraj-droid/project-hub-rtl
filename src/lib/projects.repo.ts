@@ -101,6 +101,16 @@ export async function setAllBotOffersEnabled(enabled: boolean): Promise<void> {
   await db.execute(`UPDATE projects SET bot_offers_enabled = ?, updated_at = ?`, [enabled ? 1 : 0, new Date().toISOString()]);
 }
 
+export async function getByNameExact(name: string): Promise<ProjectRow | null> {
+  await ensureOffersEnabledColumn();
+  const r = await db.execute(
+    `SELECT ${COLS} FROM projects WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1`,
+    [name.trim()],
+  );
+  const rows = rowsToObjects(r);
+  return rows[0] ? decode(rows[0]) : null;
+}
+
 export async function searchByName(query: string): Promise<ProjectRow[]> {
   const r = await db.execute(
     `SELECT ${COLS} FROM projects WHERE name LIKE ? COLLATE NOCASE ORDER BY created_at DESC LIMIT 50`,
