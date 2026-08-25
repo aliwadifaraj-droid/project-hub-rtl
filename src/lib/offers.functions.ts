@@ -5,12 +5,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
 import * as notificationsRepo from "./notifications.repo";
-import * as projectsRepo from "./projects.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
+import * as projectsRepo from "./projects.repo";
+import { detectCity } from "./vip-notify.server";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
+export const OFFER_EXCLUSIVE_MESSAGE = "هذا المشروع في فترة الحصرية";
+export const OFFER_PROJECT_NOT_FOUND_MESSAGE = "المشروع غير موجود";
 
 const submitSchema = z.object({
   projectName: z.string().trim().min(2).max(200),
@@ -20,6 +23,7 @@ const submitSchema = z.object({
   pdfKey: z.string().trim().min(1).max(500),
   pdfFilename: z.string().trim().min(1).max(200),
   visitorToken: z.string().uuid().optional().nullable(),
+  vipToken: z.string().optional().nullable(),
 });
 
 export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
@@ -33,29 +37,59 @@ async function listAdminUserIds(): Promise<string[]> {
 export const submitOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitSchema.parse(d))
   .handler(async ({ data }) => {
-    await projectsRepo.ensureOffersEnabledColumn();
-    const project = await projectsRepo.getByNameExact(data.projectName);
-    if (!project) {
-      return { ok: false as const, message: "المشروع غير موجود" };
-    }
-
-    if (project.is_exclusive === true) {
-      return { ok: false as const, message: "المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP فقط" };
-    }
-
-    const dup = await notificationsRepo.checkDuplicateOffer({
-      projectName: data.projectName,
-      companyName: data.companyName,
-      projectId: project.id,
-    });
-    if (dup) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
-    }
-
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
+    const duplicate = await notificationsRepo.existsDuplicateOfferNotification(data.projectName, data.email, data.companyName);
+    if (duplicate) {
+      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+    }
+
+    const project = await projectsRepo.getByNameExact(data.projectName).catch(() => null);
+    if (!project) {
+      return { ok: false as const, message: OFFER_PROJECT_NOT_FOUND_MESSAGE };
+    }
+
+    const requests = await import("./project-requests.repo");
+    const dupRequest = await requests.existsDuplicateRequestByCompanyOrEmail(data.email, data.companyName).catch(() => false);
+    if (dupRequest) {
+      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+    }
+
+    const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
+    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+      let hasVipAccess = false;
+      if (data.vipToken) {
+        const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
+        const tokenResult = await validateVipToken(data.vipToken, project.id);
+        if (tokenResult.valid) {
+          hasVipAccess = true;
+          await consumeVipToken(data.vipToken);
+        }
+      }
+      if (!hasVipAccess) {
+        let email: string | null = null;
+        try {
+          const { getSessionClaims } = await import("./auth.server");
+          const claims = await getSessionClaims();
+          email = claims?.email ?? null;
+        } catch { /* not logged in */ }
+        if (email) {
+          const vip = await (await import("./vip.repo")).getActiveVipByEmail(email);
+          const projectCity = detectCity(project.location ?? "");
+          const vipCity = vip?.city?.trim().toLowerCase();
+          hasVipAccess = !!vip
+            && (!vip.expires_at || new Date(vip.expires_at).getTime() >= Date.now())
+            && !!projectCity && !!vipCity
+            && projectCity.trim().toLowerCase() === vipCity;
+        }
+      }
+      if (!hasVipAccess) {
+        return { ok: false as const, message: OFFER_EXCLUSIVE_MESSAGE };
+      }
+    }
+
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${data.companyName} — ${data.projectName} — ${data.amount}`;
@@ -73,7 +107,6 @@ export const submitOffer = createServerFn({ method: "POST" })
         pdf_filename: data.pdfFilename,
         source: "platform",
         offer_status: "new",
-        status: "pending",
       })),
     );
     const id = ids[0] ?? "";
@@ -115,6 +148,12 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
 
+    const requestsRepo = await import("./project-requests.repo");
+    const dupRequest = await requestsRepo.existsDuplicateRequestByCompanyOrEmail(data.email, data.company_name).catch(() => false);
+    if (dupRequest) {
+      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+    }
+
     const bytes = Buffer.from(data.file_base64, "base64");
     if (bytes.length === 0) throw new Error("الملف فارغ");
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
@@ -151,7 +190,6 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
         source: "add_project",
         submitter_type: submitterType,
         offer_status: "new",
-        status: "pending",
       })),
     );
 
@@ -196,7 +234,7 @@ export const adminCountNewOffers = createServerFn({ method: "GET" })
 export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]) }).parse(d))
+    z.object({ id: z.string().uuid(), status: z.enum(["pending", "new", "reviewing", "accepted", "rejected"]) }).parse(d))
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     if (data.status === "accepted") {
@@ -210,7 +248,6 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
         email: offer.email ?? "",
         pdf_url: offer.pdf_key ?? "",
         submitter_type: offer.submitter_type ?? "offer",
-        project_type: offer.source ?? "platform",
       });
       await requests.updateRequestStatus(requestId, "new");
       await notificationsRepo.deleteOfferNotification(offer.id);
