@@ -120,7 +120,7 @@ function RequestsPage() {
                 <tr key={r.id} className="border-t border-slate-800 hover:bg-slate-800/50">
                   <td className="p-3 font-medium">{r.company_name}</td>
                   <td className="p-3 text-slate-300">
-                    <div>{(r.projects as { name: string } | null)?.name ?? "-"}</div>
+                    <div>{(r.projects as { name: string } | null)?.name ?? r.facility_location ?? "-"}</div>
                     {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
                   </td>
                   <td className="p-3 text-slate-300 ltr text-left" dir="ltr">
@@ -196,7 +196,7 @@ function RequestsPage() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="font-bold">{r.company_name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{(r.projects as { name: string } | null)?.name ?? "-"}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{(r.projects as { name: string } | null)?.name ?? r.facility_location ?? "-"}</div>
                   {r.submitter_type && <SubmitterBadge type={r.submitter_type as "guest" | "user"} />}
                 </div>
                 {(isAdmin || r.can_manage) ? (
