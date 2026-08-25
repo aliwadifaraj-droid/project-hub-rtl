@@ -111,23 +111,23 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const offers = await notificationsRepo.listOfferNotificationsBySource("platform");
-    return Promise.all(offers.map(async (o) => {
-      const proj = o.project_id ? await projectsRepo.getById(o.project_id).catch(() => null) : null;
+    const rows = await requestsRepo.listAllRequests();
+    return Promise.all(rows.map(async (r) => {
+      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
       const canManage = !!proj && proj.created_by === context.userId;
       return {
-        id: o.id,
-        project_id: o.project_id,
-        company_name: o.company_name ?? "",
-        facility_location: o.facility_location ?? null,
-        email: isAdmin || canManage ? o.email : null,
-        pdf_url: o.pdf_key,
-        status: o.offer_status ?? "new",
-        submitter_type: o.submitter_type ?? "visitor",
-        project_type: "platform",
-        note: null,
-        created_at: o.created_at,
-        projects: proj ? { name: proj.name } : (o.project_name ? { name: o.project_name } : null),
+        id: r.id,
+        project_id: r.project_id,
+        company_name: r.company_name ?? "",
+        facility_location: r.facility_location ?? null,
+        email: isAdmin || canManage ? r.email : null,
+        pdf_url: r.pdf_url,
+        status: r.status,
+        submitter_type: r.submitter_type ?? "visitor",
+        project_type: r.project_type ?? "platform",
+        note: isAdmin || canManage ? r.note : null,
+        created_at: r.created_at,
+        projects: proj ? { name: proj.name } : null,
         can_manage: canManage,
       };
     }));
