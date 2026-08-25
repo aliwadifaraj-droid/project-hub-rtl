@@ -56,7 +56,7 @@ export const submitOffer = createServerFn({ method: "POST" })
     }
 
     const requests = await import("./project-requests.repo");
-    const dupRequest = await requests.existsDuplicateRequestForProject(project.id, data.email, data.companyName).catch(() => false);
+    const dupRequest = await requests.existsDuplicateRequestByCompanyOrEmail(data.email, data.companyName).catch(() => false);
     if (dupRequest) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
