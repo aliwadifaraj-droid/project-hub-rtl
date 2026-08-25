@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { runVipExpiryCheckRaw } from "@/lib/vip.functions";
+import { clearExpiredExclusivity } from "@/lib/projects.repo";
 
 export const Route = createFileRoute("/api/cron/vip-expiry")({
   server: {
@@ -17,7 +18,8 @@ export const Route = createFileRoute("/api/cron/vip-expiry")({
         }
         try {
           const result = await runVipExpiryCheckRaw();
-          return new Response(JSON.stringify({ ok: true, ...result }), {
+          const cleared = await clearExpiredExclusivity();
+          return new Response(JSON.stringify({ ok: true, ...result, exclusivity_cleared: cleared }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
