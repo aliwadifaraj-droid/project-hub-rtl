@@ -222,7 +222,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       const apiKey = process.env.RESEND_API_KEY;
       if (apiKey) {
         const proj = req.project_id? await projectsRepo.getById(req.project_id).catch(() => null) : null;
-        const projectName = proj?.name || req.project_name || "طلبك";
+        const projectName = proj?.name || req.project_name || null;
         const statusLabels: Record<string, string> = { new: "جديد", reviewing: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض" };
         const statusColors: Record<string, string> = { new: "#2563eb", reviewing: "#d97706", accepted: "#16a34a", rejected: "#dc2626" };
         const label = statusLabels[data.status]?? data.status;
