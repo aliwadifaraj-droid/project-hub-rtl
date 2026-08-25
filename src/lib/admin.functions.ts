@@ -173,6 +173,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
         req = {
           id: notif.id,
           project_id: notif.project_id,
+          project_name: notif.project_name,
           company_name: notif.company_name,
           facility_location: notif.facility_location,
           email: notif.email,
