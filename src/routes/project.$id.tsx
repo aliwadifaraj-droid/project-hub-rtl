@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { getProject, submitBidRequest, getMyRoles, getExclusiveStatus } from "@/lib/admin.functions";
 import { getMyVipStatus } from "@/lib/vip.functions";
 import { hasAdminRole } from "@/lib/role-label";
-import { resolveImage, buildR2Url } from "@/data/projects";
+import { resolveImage } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
@@ -14,24 +14,6 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { AdminProjectStatus } from "@/components/admin-project-status";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
-
-function CountdownTimer({ target }: { target: string }) {
-  const [time, setTime] = useState('');
-  useEffect(() => {
-    const update = () => {
-      const diff = new Date(target).getTime() - Date.now();
-      if (diff <= 0) return setTime('انتهى');
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setTime(`${h}س ${m}د ${s}ث`);
-    };
-    update();
-    const i = setInterval(update, 1000);
-    return () => clearInterval(i);
-  }, [target]);
-  return <p className="text-2xl font-bold text-amber-600 mt-2">{time}</p>;
-}
 
 function statusLabel(s?: string | null) {
   if (s === "delivered") return "تم التسليم";
@@ -51,8 +33,6 @@ const projectQuery = (id: string) =>
 
 function pickImage(p: { cover_url?: string; cover_image: string | null }) {
   if (p.cover_url && (p.cover_url.startsWith("http") || p.cover_url.startsWith("/"))) return p.cover_url;
-  const r2 = buildR2Url(p.cover_image ?? "");
-  if (r2) return r2;
   return resolveImage(p.cover_image ?? "");
 }
 
@@ -81,9 +61,11 @@ function ProjectDetail() {
   });
   const isAdmin = hasAdminRole(roles);
 
-  const vipEndAt = (project as { vip_end_at?: string | null }).vip_end_at ?? null;
-  const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive;
-  const projectCity = SAUDI_CITIES.find((c) => (project.location ?? "").includes(c)) ?? (project.location ?? "").split("-")[0].trim();
+  const projectExclusiveUntil = (project as { exclusive_until?: string | null }).exclusive_until ?? null;
+  const isExclusive = !!(project as { is_exclusive?: boolean }).is_exclusive && projectExclusiveUntil
+    ? new Date(projectExclusiveUntil).getTime() > Date.now()
+    : false;
+  const projectCity = (project.location ?? "").split("-")[0].trim();
 
   const { data: exclusiveStatus } = useQuery({
     queryKey: ["exclusive-status", id, vipToken],
@@ -93,30 +75,28 @@ function ProjectDetail() {
   });
   const { data: vipStatus } = useQuery({
     queryKey: ["my-vip-status", id],
-    queryFn: () => getVipStatus({ data: { project_id: id } }).catch(() => ({ isVip: false, city: null })),
+    queryFn: () => getVipStatus({ data: { project_id: id } }),
     enabled: isExclusive,
     retry: false,
   });
   const isVipInCity = isExclusive
-    ? !!vipStatus?.isVip && (vipStatus?.city ?? "").trim() === projectCity
+    ? !!vipStatus?.isVip && (vipStatus?.city ?? "").trim().toLowerCase() === projectCity.toLowerCase()
     : false;
-  const hasVipAccess = isVipInCity || !!exclusiveStatus?.vipBypass;
-  const showExclusiveGate = isExclusive && !hasVipAccess && !exclusiveStatus?.showForm;
+  const showExclusiveGate = isExclusive && !isVipInCity && !exclusiveStatus?.showForm;
 
   const [remainingMs, setRemainingMs] = useState(0);
   useEffect(() => {
-    if (!vipEndAt) return;
-    const end = new Date(vipEndAt).getTime();
+    if (!projectExclusiveUntil) return;
+    const end = new Date(projectExclusiveUntil).getTime();
     const tick = () => setRemainingMs(Math.max(0, end - Date.now()));
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, [vipEndAt]);
+  }, [projectExclusiveUntil]);
   const hoursLeft = Math.floor(remainingMs / 3600_000);
   const minutesLeft = Math.floor((remainingMs % 3600_000) / 60_000);
   const secondsLeft = Math.floor((remainingMs % 60_000) / 1000);
   const countdownLabel = `${String(hoursLeft).padStart(2, "0")}:${String(minutesLeft).padStart(2, "0")}:${String(secondsLeft).padStart(2, "0")}`;
-  const countdownEnded = remainingMs === 0;
 
   const [companyName, setCompanyName] = useState("");
   const [facilityLocation, setFacilityLocation] = useState("");
@@ -171,9 +151,6 @@ function ProjectDetail() {
       setSubmitting(false);
     }
   }
-
-  const offersDisabled = (project as { offers_enabled?: boolean }).offers_enabled === false;
-  const showOfferForm = !showExclusiveGate && !offersDisabled && (!isExclusive || countdownEnded || hasVipAccess);
 
   return (
     <div className="min-h-screen" dir="rtl">
@@ -263,19 +240,7 @@ function ProjectDetail() {
               </p>
             </div>
           </section>
-        ) : isExclusive && vipEndAt && !countdownEnded ? (
-          <section className="mt-10 max-w-3xl mx-auto">
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-center shadow-sm">
-              <p className="text-sm font-semibold text-amber-900">
-                ⏳ هذا المشروع حصري — الوقت المتبقي:
-              </p>
-              <p className="mt-2 text-2xl font-mono font-bold text-amber-700 tabular-nums tracking-wider">
-                {countdownLabel}
-              </p>
-            </div>
-          </section>
-        ) : null}
-        {showExclusiveGate || (isExclusive && vipEndAt && !countdownEnded) ? null : offersDisabled ? (
+        ) : (project as { offers_enabled?: boolean }).offers_enabled === false ? (
           <section className="mt-16 max-w-3xl mx-auto">
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 text-center shadow-sm">
               <p className="text-sm font-semibold text-orange-900">
@@ -297,9 +262,8 @@ function ProjectDetail() {
               </button>
             </div>
           </section>
-        ) : showOfferForm ? (
-        <div className="relative mt-16 max-w-3xl mx-auto">
-          <section id="apply">
+        ) : (
+        <section id="apply" className="mt-16 max-w-3xl mx-auto">
           <div className="rounded-2xl border border-border bg-card p-6 md:p-10 shadow-[var(--shadow-card)]">
             <h2 className="text-2xl font-bold">تقديم عرض سعر للمشروع</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -371,8 +335,7 @@ function ProjectDetail() {
             </form>
           </div>
         </section>
-        </div>
-        ) : null}
+        )}
       </article>
 
       <SiteFooter />

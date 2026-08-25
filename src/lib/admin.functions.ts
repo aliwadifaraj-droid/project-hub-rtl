@@ -19,7 +19,7 @@ async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
 }
 
-async function listAdminStaffIds(): Promise<string[]> {
+async function listAdminUserIds(): Promise<string[]> {
   const { db, rowsToObjects } = await import("./db");
   const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
   return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
@@ -48,21 +48,19 @@ export const getProject = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     try {
+      await projectsRepo.clearExpiredExclusivity().catch(() => undefined);
       const p = await projectsRepo.getById(data.id);
       if (!p) return null;
       const cover_url = await resolveStoragePath(p.cover_image).catch(() => "");
       const image_urls = await Promise.all((p.images ?? []).map((path) => resolveStoragePath(path).catch(() => "")));
       const pdf_url = p.pdf_file ? await resolveStoragePath(p.pdf_file).catch(() => "") : "";
-      const exclusive = await projectsRepo.getProjectExclusive(p.id).catch(() => null);
-      const hasActiveExclusiveWindow = !!exclusive && new Date(exclusive.vip_end_at).getTime() > Date.now();
       return {
         id: p.id, name: p.name, description: p.description, location: p.location,
         duration: p.duration, cover_image: p.cover_image, images: p.images,
         pdf_file: p.pdf_file, status: p.status,
         offers_enabled: p.offers_enabled,
-        is_exclusive: hasActiveExclusiveWindow,
-        exclusive_until: hasActiveExclusiveWindow ? exclusive.vip_end_at : null,
-        vip_end_at: hasActiveExclusiveWindow ? exclusive.vip_end_at : null,
+        is_exclusive: p.is_exclusive,
+        exclusive_until: p.exclusive_until,
         cover_url, image_urls, pdf_url,
       };
     } catch (e) {
@@ -88,7 +86,8 @@ export const getBidPdfUrl = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
     if (!isAdmin) {
-      const req = await requestsRepo.getRequestByPdfPath(data.path);
+      let req = await requestsRepo.getRequestByPdfPath(data.path);
+      if (!req) req = await notificationsRepo.getOfferNotificationByPdfPath(data.path) as any;
       const proj = req?.project_id ? await projectsRepo.getById(req.project_id) : null;
       if (!proj || proj.created_by !== context.userId) throw new Error("غير مصرح بفتح هذا الملف");
     }
@@ -112,23 +111,23 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const rows = await requestsRepo.listPlatformRequests();
-    return Promise.all(rows.map(async (r) => {
-      const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;
+    const offers = await notificationsRepo.listOfferNotificationsBySource("platform");
+    return Promise.all(offers.map(async (o) => {
+      const proj = o.project_id ? await projectsRepo.getById(o.project_id).catch(() => null) : null;
       const canManage = !!proj && proj.created_by === context.userId;
       return {
-        id: r.id,
-        project_id: r.project_id,
-        company_name: r.company_name,
-        facility_location: r.facility_location,
-        email: isAdmin || canManage ? r.email : null,
-        pdf_url: r.pdf_url,
-        status: r.status,
-        submitter_type: r.submitter_type ?? "visitor",
-        project_type: r.project_type ?? "platform",
-        note: r.note,
-        created_at: r.created_at,
-        projects: proj ? { name: proj.name } : null,
+        id: o.id,
+        project_id: o.project_id,
+        company_name: o.company_name ?? "",
+        facility_location: o.facility_location ?? null,
+        email: isAdmin || canManage ? o.email : null,
+        pdf_url: o.pdf_key,
+        status: o.offer_status ?? "new",
+        submitter_type: o.submitter_type ?? "visitor",
+        project_type: "platform",
+        note: null,
+        created_at: o.created_at,
+        projects: proj ? { name: proj.name } : (o.project_name ? { name: o.project_name } : null),
         can_manage: canManage,
       };
     }));
@@ -138,20 +137,20 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const rows = await requestsRepo.listAddProjectRequests();
-    return rows.map((r) => ({
-      id: r.id,
-      project_id: r.project_id,
-      company_name: r.company_name,
-      facility_location: r.facility_location,
-      email: isAdmin ? r.email : null,
-      pdf_url: r.pdf_url,
-      status: r.status,
-      submitter_type: r.submitter_type ?? "visitor",
+    const offers = await notificationsRepo.listOfferNotificationsBySource("add_project");
+    return offers.map((o) => ({
+      id: o.id,
+      project_id: o.project_id,
+      company_name: o.company_name ?? "",
+      facility_location: o.facility_location ?? null,
+      email: isAdmin ? o.email : null,
+      pdf_url: o.pdf_key,
+      status: o.offer_status ?? "new",
+      submitter_type: o.submitter_type ?? "visitor",
       project_type: "add_project",
-      note: r.note,
-      created_at: r.created_at,
-      projects: null,
+      note: null,
+      created_at: o.created_at,
+      projects: { name: o.project_name ?? o.company_name ?? "" },
       can_manage: false,
     }));
   });
@@ -162,28 +161,12 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
  .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
-
     let req = await requestsRepo.getRequestById(data.id);
-    let isNotification = false;
+    let isOffer = false;
 
     if (!req) {
-      const notif = await notificationsRepo.getOfferNotificationById(data.id);
-      if (notif) {
-        isNotification = true;
-        req = {
-          id: notif.id,
-          project_id: notif.project_id,
-          company_name: notif.company_name,
-          facility_location: notif.facility_location,
-          email: notif.email,
-          pdf_url: notif.pdf_key,
-          status: notif.status ?? notif.offer_status ?? "new",
-          submitter_type: notif.submitter_type,
-          project_type: notif.source,
-          note: null,
-          created_at: notif.created_at,
-        } as any;
-      }
+      req = await notificationsRepo.getOfferNotificationById(data.id) as any;
+      isOffer = true;
     }
     if (!req) throw new Error("الطلب غير موجود");
 
@@ -195,24 +178,8 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
     const note = (data.note?? "").trim();
     if (!isAdmin &&!note) throw new Error("الملاحظة إجبارية للموظف عند تغيير الحالة");
 
-    if (isNotification) {
-      if (data.status === "accepted") {
-        const notif = await notificationsRepo.getOfferNotificationById(data.id);
-        if (notif) {
-          const requestId = await requestsRepo.insertRequest({
-            project_id: notif.project_id ?? "",
-            company_name: notif.company_name ?? "",
-            facility_location: notif.facility_location ?? notif.project_name ?? "",
-            email: notif.email ?? "",
-            pdf_url: notif.pdf_key ?? "",
-            submitter_type: notif.submitter_type ?? "offer",
-            project_type: notif.source ?? "platform",
-          });
-          await notificationsRepo.deleteOfferNotification(notif.id);
-        }
-      } else {
-        await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
-      }
+    if (isOffer) {
+      await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
     } else {
       await requestsRepo.updateRequestStatus(data.id, data.status, note? note : undefined);
     }
@@ -446,48 +413,50 @@ export const submitBidRequest = createServerFn({ method: "POST" })
         await consumeVipToken(data.vip_token);
       }
     }
-    if (!isAddProject && data.project_name) {
-      const projByName = await projectsRepo.getByNameExact(data.project_name);
-      if (!projByName) throw new Error("اسم المشروع غير موجود. يرجى اختيار المشروع من القائمة");
-    }
-    if (!isAddProject) {
-      const dup = await notificationsRepo.checkDuplicateOffer({
-        projectName: data.project_name ?? "",
-        companyName: data.company_name,
-        projectId: data.project_id,
-      });
-      if (dup) throw new Error("لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني");
-    }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-    const staff = await listAdminStaffIds();
-    const source = isAddProject ? "add_project" : "platform";
-    const proj = data.project_id ? await projectsRepo.getById(data.project_id).catch(() => null) : null;
-    const projectName = proj?.name ?? data.project_name ?? data.company_name;
-    await notificationsRepo.insertOfferNotificationMany(
-      staff.map((uid) => ({
-        user_id: uid,
-        title: "عرض سعر جديد",
-        body: `${data.company_name} — ${projectName}`,
-        link: "/admin/requests",
-        project_id: data.project_id ?? null,
-        project_name: projectName,
-        company_name: data.company_name,
-        email: data.email,
-        facility_location: data.facility_location || null,
-        pdf_key: path,
-        pdf_filename: data.file_name,
-        amount: "",
-        source,
-        submitter_type: submitterType,
-        offer_status: "new",
-        status: "pending",
-      })),
-    );
+    const adminIds = await listAdminUserIds();
+    if (isAddProject) {
+      await notificationsRepo.insertOfferNotificationMany(
+        adminIds.map((uid) => ({
+          user_id: uid,
+          title: "طلب إضافة مشروع جديد",
+          body: `${data.company_name} — ${data.facility_location}`,
+          link: "/admin/requests",
+          project_name: data.project_name || data.company_name,
+          company_name: data.company_name,
+          email: data.email,
+          facility_location: data.facility_location,
+          pdf_key: path,
+          pdf_filename: data.file_name,
+          source: "add_project",
+          offer_status: "new",
+        })),
+      );
+    } else {
+      const proj = data.project_id ? await projectsRepo.getById(data.project_id) : null;
+      const source = proj?.is_customer_request ? "add_project" : "platform";
+      await notificationsRepo.insertOfferNotificationMany(
+        adminIds.map((uid) => ({
+          user_id: uid,
+          title: "عرض سعر جديد",
+          body: `${data.company_name} — ${proj?.name ?? data.project_name ?? data.company_name}`,
+          link: "/admin/requests",
+          project_id: data.project_id!,
+          project_name: proj?.name ?? data.project_name ?? data.company_name,
+          company_name: data.company_name,
+          email: data.email,
+          pdf_key: path,
+          pdf_filename: data.file_name,
+          source,
+          offer_status: "new",
+        })),
+      );
+    }
     return { ok: true };
   });
 
@@ -504,9 +473,9 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
-    const staff = await listAdminStaffIds();
+    const adminIds = await listAdminUserIds();
     await notificationsRepo.insertOfferNotificationMany(
-      staff.map((uid) => ({
+      adminIds.map((uid) => ({
         user_id: uid,
         title: "طلب إضافة مشروع جديد",
         body: `${data.company_name} — ${data.facility_location}`,
@@ -520,7 +489,6 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
         source: "add_project",
         submitter_type: data.submitter_type,
         offer_status: "new",
-        status: "pending",
       })),
     );
     return { ok: true };
@@ -592,12 +560,12 @@ export const submitProjectWithPaths = createServerFn({ method: "POST" })
 
 export const sendRequestMessage = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ to: z.string().trim().email().max(255), message: z.string().trim().min(1).max(3000) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(255), company: z.string().trim().max(200), message: z.string().trim().min(1).max(3000) }).parse(d))
   .handler(async ({ data }) => {
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY;
     if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
     const safe = data.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
-    const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <noreply@ali-alhaddad.com>", to: [data.to], subject: "رسالة من فريق العمران", html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;line-height:1.9">${safe}</div>` }) });
+    const res = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <noreply@ali-alhaddad.com>", to: [data.email], subject: `رسالة من فريق العمران - ${data.company}`, html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;line-height:1.9">${safe}</div>` }) });
     const bodyText = await res.text();
     if (!res.ok) throw new Error(`فشل الإرسال (${res.status}): ${bodyText.slice(0, 300)}`);
     return { ok: true };
