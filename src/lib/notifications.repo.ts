@@ -306,22 +306,20 @@ export async function countNewOfferNotifications(): Promise<number> {
 }
 
 export async function existsDuplicateOfferNotification(
-  projectName: string,
+  _projectName: string,
   email: string,
   companyName: string,
 ): Promise<boolean> {
   await ensureOfferColumns();
-  const p = (projectName ?? "").trim().toLowerCase();
   const e = (email ?? "").trim().toLowerCase();
   const c = (companyName ?? "").trim().toLowerCase();
   const r = await db.execute(
     `SELECT 1 FROM notifications
      WHERE offer_status IS NOT NULL
-       AND LOWER(TRIM(COALESCE(project_name,''))) = ?
-       AND LOWER(TRIM(COALESCE(email,''))) = ?
-       AND LOWER(TRIM(COALESCE(company_name,''))) = ?
+       AND (LOWER(TRIM(COALESCE(email,''))) = ?
+            OR LOWER(TRIM(COALESCE(company_name,''))) = ?)
      LIMIT 1`,
-    [p, e, c],
+    [e, c],
   );
   return rowsToObjects(r).length > 0;
 }
@@ -386,8 +384,8 @@ export async function existsDuplicateAddProjectNotification(
     `SELECT 1 FROM notifications
      WHERE source = 'add_project'
        AND offer_status IS NOT NULL
-       AND LOWER(TRIM(COALESCE(email,''))) = ?
-       AND LOWER(TRIM(COALESCE(company_name,''))) = ?
+       AND (LOWER(TRIM(COALESCE(email,''))) = ?
+            OR LOWER(TRIM(COALESCE(company_name,''))) = ?)
      LIMIT 1`,
     [e, c],
   );
