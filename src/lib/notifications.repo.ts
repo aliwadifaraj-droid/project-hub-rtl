@@ -318,7 +318,8 @@ export async function existsDuplicateOfferNotification(
     `SELECT 1 FROM notifications
      WHERE offer_status IS NOT NULL
        AND LOWER(TRIM(COALESCE(project_name,''))) = ?
-       AND (LOWER(TRIM(COALESCE(email,''))) = ? OR LOWER(TRIM(COALESCE(company_name,''))) = ?)
+       AND LOWER(TRIM(COALESCE(email,''))) = ?
+       AND LOWER(TRIM(COALESCE(company_name,''))) = ?
      LIMIT 1`,
     [p, e, c],
   );
@@ -385,7 +386,8 @@ export async function existsDuplicateAddProjectNotification(
     `SELECT 1 FROM notifications
      WHERE source = 'add_project'
        AND offer_status IS NOT NULL
-       AND (LOWER(TRIM(COALESCE(email,''))) = ? OR LOWER(TRIM(COALESCE(company_name,''))) = ?)
+       AND LOWER(TRIM(COALESCE(email,''))) = ?
+       AND LOWER(TRIM(COALESCE(company_name,''))) = ?
      LIMIT 1`,
     [e, c],
   );

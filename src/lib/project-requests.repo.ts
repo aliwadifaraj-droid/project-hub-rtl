@@ -91,15 +91,6 @@ export async function listPlatformRequests(): Promise<ProjectRequestRow[]> {
   return rowsToObjects(r).map(decode);
 }
 
-export async function listAddProjectRequests(): Promise<ProjectRequestRow[]> {
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
-  const r = await db.execute(
-    `SELECT ${COLS} FROM project_requests WHERE project_type = 'add_project' ORDER BY created_at DESC`,
-  );
-  return rowsToObjects(r).map(decode);
-}
-
 export async function searchRequestsByCompany(q: string): Promise<ProjectRequestRow[]> {
   await ensureNoteColumn();
   await ensureProjectTypeColumn();
@@ -160,6 +151,23 @@ export async function insertRequest(input: {
     ],
   );
   return id;
+}
+
+export async function existsDuplicateRequestByCompanyOrEmail(
+  email: string,
+  companyName: string,
+): Promise<boolean> {
+  await ensureProjectTypeColumn();
+  const e = (email ?? "").trim().toLowerCase();
+  const c = (companyName ?? "").trim().toLowerCase();
+  const r = await db.execute(
+    `SELECT 1 FROM project_requests
+     WHERE LOWER(TRIM(COALESCE(email,''))) = ?
+        OR LOWER(TRIM(COALESCE(company_name,''))) = ?
+     LIMIT 1`,
+    [e, c],
+  );
+  return rowsToObjects(r).length > 0;
 }
 
 export async function updateRequestStatus(id: string, status: string, note?: string | null): Promise<void> {
