@@ -159,7 +159,7 @@ export const getAddProjectRequests = createServerFn({ method: "GET" })
 export const updateRequestStatus = createServerFn({ method: "POST" })
  .middleware([requireAuth])
  .inputValidator((d: { id: string; status: string; note?: string }) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
+    z.object({ id: z.string().uuid(), status: z.enum(["pending", "new", "reviewing", "accepted", "rejected"]), note: z.string().trim().max(2000).optional() }).parse(d))
  .handler(async ({ data, context }) => {
     const isAdmin = context.roles.includes("admin");
 
