@@ -12,7 +12,11 @@ import * as projectsRepo from "./projects.repo";
 import { detectCity } from "./vip-notify.server";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
-export const OFFER_EXCLUSIVE_MESSAGE = "هذا المشروع في فترة الحصرية";
+export function exclusiveMessage(city: string | null): string {
+  return city
+    ? `هذا المشروع حصري لمشتركي ${city}`
+    : "هذا المشروع حصري لمشتركي VIP";
+}
 export const OFFER_PROJECT_NOT_FOUND_MESSAGE = "المشروع غير موجود";
 
 const submitSchema = z.object({
@@ -86,7 +90,8 @@ export const submitOffer = createServerFn({ method: "POST" })
         }
       }
       if (!hasVipAccess) {
-        return { ok: false as const, message: OFFER_EXCLUSIVE_MESSAGE };
+        const city = detectCity(project.location ?? "");
+        return { ok: false as const, message: exclusiveMessage(city) };
       }
     }
 
