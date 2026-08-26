@@ -5,6 +5,7 @@ export type ProjectRequestRow = {
   id: string;
   project_id: string | null;
   company_name: string | null;
+  project_name: string | null;
   facility_location: string | null;
   email: string | null;
   pdf_url: string | null;
@@ -20,6 +21,7 @@ function decode(r: any): ProjectRequestRow {
     id: String(r.id),
     project_id: r.project_id ?? null,
     company_name: r.company_name ?? null,
+    project_name: r.project_name ?? null,
     facility_location: r.facility_location ?? null,
     email: r.email ?? null,
     pdf_url: r.pdf_url ?? null,
@@ -30,7 +32,7 @@ function decode(r: any): ProjectRequestRow {
     created_at: String(r.created_at ?? ""),
   };
 }
-const COLS = "id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,project_type,note,created_at";
+const COLS = "id,project_id,company_name,project_name,facility_location,email,pdf_url,status,submitter_type,project_type,note,created_at";
 
 let _noteColReady: Promise<void> | null = null;
 export function ensureNoteColumn(): Promise<void> {
@@ -130,21 +132,23 @@ export async function getRequestByPdfPath(path: string): Promise<ProjectRequestR
 export async function insertRequest(input: {
   project_id: string;
   company_name: string;
+  project_name: string;
   facility_location: string;
   email: string;
   pdf_url: string;
   submitter_type: string;
   project_type?: string;
 }): Promise<string> {
+  await ensureProjectNameColumn();
   await ensureNoteColumn();
   await ensureProjectTypeColumn();
   await ensureUpdatedAtColumn();
   const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO project_requests (id,project_id,company_name,facility_location,email,pdf_url,status,submitter_type,project_type,created_at,updated_at)
-     VALUES (?,?,?,?,?,?, 'new', ?, ?, ?, ?)`,
+    `INSERT INTO project_requests (id,project_id,company_name,project_name,facility_location,email,pdf_url,status,submitter_type,project_type,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?, 'new', ?, ?, ?, ?)`,
     [
-      id, input.project_id, input.company_name, input.facility_location,
+      id, input.project_id, input.company_name, input.project_name, input.facility_location,
       input.email, input.pdf_url, input.submitter_type,
       input.project_type ?? 'platform',
       new Date().toISOString(), new Date().toISOString(),
@@ -207,4 +211,12 @@ export async function updateRequestStatus(id: string, status: string, note?: str
     new Date().toISOString(),
     id,
   ]);
+}
+
+let _projectNameColReady: Promise<void> | null = null;
+export function ensureProjectNameColumn(): Promise<void> {
+  if (!_projectNameColReady) {
+    _projectNameColReady = db.execute(`ALTER TABLE project_requests ADD COLUMN project_name TEXT`).then(() => undefined).catch(() => undefined);
+  }
+  return _projectNameColReady;
 }
