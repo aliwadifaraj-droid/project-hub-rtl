@@ -228,7 +228,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
         const label = statusLabels[data.status]?? data.status;
         const color = statusColors[data.status]?? "#111";
         const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb"><div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb"><h2 style="margin:0 0 12px">تحديث حالة طلبك</h2><p>مرحباً،</p><p>نودّ إعلامك بأن حالة طلبك المتعلق بمشروع <strong>"${projectName}"</strong> قد تم تحديثها إلى:</p><p style="font-size:18px;font-weight:bold;color:${color};padding:12px;background:#f3f4f6;border-radius:6px;text-align:center">${label}</p><p>شكراً لاستخدامك <strong>منصة العمران</strong>.</p></div></div>`;
-        const emailSubject = "تحديث حالة طلبك في منصة العمران" + (projectName ? " - " + projectName : "");
+        const emailSubject = `تحديث حالة طلبك في منصة العمران - ${projectName}`;
         try { await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <send@ali-alhaddad.com>", to: [req.email], subject: emailSubject, html }) }); } catch (e) { console.error("Resend send exception", e); }
       }
     }
