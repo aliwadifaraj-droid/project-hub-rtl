@@ -23,7 +23,7 @@ const submitSchema = z.object({
   visitorToken: z.string().uuid().optional().nullable(),
 });
 
-export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
+export const OFFER_DUPLICATE_MESSAGE = "هذا المشروع سبق وتم تقديم عرض سعر له من قبلكم";
 
 async function listAdminUserIds(): Promise<string[]> {
   const { db, rowsToObjects } = await import("./db");
