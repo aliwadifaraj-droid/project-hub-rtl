@@ -2,9 +2,8 @@
  * Resolve stored file references to browser-usable URLs.
  *
  * New uploads are R2 object keys. Older rows may still contain legacy
- * `/storage/v1/object/public/...` paths or full public-storage URLs. Those
- * paths must not be returned directly on Vercel, because they resolve as app
- * routes and show the 404 page instead of an image.
+ * `/storage/v1/object/public/...` paths, full public-storage URLs,
+ * `turso/`-prefixed keys, or bare asset names.
  */
 const LEGACY_PUBLIC_MARKERS = [
   "/storage/v1/object/public/project-images/",
@@ -38,11 +37,17 @@ function storageKeyCandidates(raw: string): { direct?: string; keys: string[] } 
   const legacyKey = stripLegacyPublicPrefix(value);
   if (legacyKey) return { keys: unique([legacyKey]) };
 
-  if (value.startsWith("/")) return { direct: value, keys: [] };
-  if (!value.includes("/")) return { direct: value, keys: [] };
+  // Strip leading slashes and turso/ bucket prefix
+  let cleaned = value.replace(/^\/+/, "").replace(/^turso\//, "");
 
-  const withoutOldBucket = value.replace(/^(project-images|projects|files)\//, "");
-  return { keys: unique([value, withoutOldBucket]) };
+  // Strip old bucket prefixes
+  const withoutOldBucket = cleaned.replace(/^(project-images|projects|files)\//, "");
+
+  // Bare filename (no /) — likely a bundled asset key, let client-side resolveImage handle it
+  if (!cleaned.includes("/")) return { direct: cleaned, keys: [] };
+
+  // Has a path separator — treat as R2 key (try both with and without bucket prefix)
+  return { keys: unique([cleaned, withoutOldBucket]) };
 }
 
 export async function resolveStoredFileUrl(raw: string | null | undefined, expiresIn = 60 * 60): Promise<string> {
