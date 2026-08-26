@@ -9,6 +9,7 @@ import * as projectsRepo from "./projects.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
+import { detectCity } from "./vip-notify.server";
 
 export const OFFER_SUCCESS_MESSAGE = "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅";
 
@@ -22,7 +23,7 @@ const submitSchema = z.object({
   visitorToken: z.string().uuid().optional().nullable(),
 });
 
-export const OFFER_DUPLICATE_MESSAGE = "لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني";
+export const OFFER_DUPLICATE_MESSAGE = "هذا المشروع سبق وتم تقديم عرض سعر له من قبلكم";
 
 async function listAdminUserIds(): Promise<string[]> {
   const { db, rowsToObjects } = await import("./db");
@@ -39,8 +40,11 @@ export const submitOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "المشروع غير موجود" };
     }
 
-    if (project.is_exclusive === true) {
-      return { ok: false as const, message: "المشاريع الحصرية للتقديم عبر الرابط الخاص بمشتركي VIP فقط" };
+    const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
+    if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
+      const city = detectCity(project.location ?? "");
+      const cityLabel = city ? ` في ${city}` : "";
+      return { ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` };
     }
 
     const dup = await notificationsRepo.checkDuplicateOffer({
@@ -56,6 +60,46 @@ export const submitOffer = createServerFn({ method: "POST" })
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
+
+    const { db } = await import("./db");
+    const projectName = data.projectName;
+    const email = data.email;
+    const companyName = data.companyName;
+
+    // --- التشييك على notifications (عروض قيد الانتظار) ---
+    const checkEmailNotif = await db.execute(
+      `SELECT id FROM notifications WHERE email = $1 AND project_name = $2 AND status = 'pending'`,
+      [email, projectName],
+    );
+    if (checkEmailNotif.rows.length > 0) {
+      return { ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" };
+    }
+
+    const checkNameNotif = await db.execute(
+      `SELECT id FROM notifications WHERE company_name = $1 AND project_name = $2 AND status = 'pending'`,
+      [companyName, projectName],
+    );
+    if (checkNameNotif.rows.length > 0) {
+      return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
+    }
+
+    // --- التشييك على project_requests (عروض مقبولة) ---
+    const checkEmailReq = await db.execute(
+      `SELECT id FROM project_requests WHERE email = $1 AND facility_location = $2`,
+      [email, projectName],
+    );
+    if (checkEmailReq.rows.length > 0) {
+      return { ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" };
+    }
+
+    const checkNameReq = await db.execute(
+      `SELECT id FROM project_requests WHERE company_name = $1 AND facility_location = $2`,
+      [companyName, projectName],
+    );
+    if (checkNameReq.rows.length > 0) {
+      return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
+    }
+
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${data.companyName} — ${data.projectName} — ${data.amount}`;
@@ -65,6 +109,7 @@ export const submitOffer = createServerFn({ method: "POST" })
         title,
         body,
         link: "/admin/offers",
+        project_id: project.id,
         project_name: data.projectName,
         company_name: data.companyName,
         email: data.email,
@@ -203,12 +248,9 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
       const offer = await notificationsRepo.getOfferNotificationById(data.id);
       if (!offer) return { ok: false as const, message: "العرض غير موجود" };
       const requests = await import("./project-requests.repo");
-      const project = offer.project_id ? await projectsRepo.getById(offer.project_id).catch(() => null) : null;
-      const project_name = project?.name ?? offer.project_name ?? "";
       const requestId = await requests.insertRequest({
         project_id: offer.project_id ?? null,
         company_name: offer.company_name ?? "",
-        project_name,
         facility_location: offer.facility_location ?? offer.project_name ?? "",
         email: offer.email ?? "",
         pdf_url: offer.pdf_key ?? "",
