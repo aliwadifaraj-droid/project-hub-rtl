@@ -200,9 +200,12 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       if (data.status === "accepted") {
         const notif = await notificationsRepo.getOfferNotificationById(data.id);
         if (notif) {
+          const project = notif.project_id ? await projectsRepo.getById(notif.project_id).catch(() => null) : null;
+          const project_name = project?.name ?? notif.project_name ?? "";
           const requestId = await requestsRepo.insertRequest({
             project_id: notif.project_id ?? "",
             company_name: notif.company_name ?? "",
+            project_name,
             facility_location: notif.facility_location ?? notif.project_name ?? "",
             email: notif.email ?? "",
             pdf_url: notif.pdf_key ?? "",
