@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, X, Send, Headphones, PowerOff, FileUp, CheckCircle2 } from "lucide-react";
+import { MessageCircle, X, Send, Headphones, PowerOff, FileUp, CheckCircle2, Loader2 } from "lucide-react";
 import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
   visitorSendMessage, visitorEndSession,
@@ -22,6 +22,78 @@ const VIP_PLANS = [
   { value: "200-60", label: "200 ريال — 60 يوم" },
   { value: "300-90", label: "300 ريال — 90 يوم" },
 ] as const;
+
+const VALID_PLAN_AMOUNTS = [100, 200, 300];
+
+function normalizeArabicDigits(text: string): string {
+  return text.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
+function extractAmountFromOcr(text: string): string {
+  const normalized = normalizeArabicDigits(text);
+  const patterns = [
+    /(?:المبلغ|amount|التحويل|transfer|قيمة|value|مبلغ)\s*[:：]?\s*(\d+(?:[.,]\d{1,2})?)/i,
+    /(\d+(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
+    /(\d{3,})\s*(?:ريال|sar|ر\.س|sr)/i,
+  /\b(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
+  /\b(\d{2,3}(?:[.,]\d{1,2})?)\b/,
+  ];
+  for (const p of patterns) {
+    const m = normalized.match(p);
+    if (m && m[1]) {
+      const num = Number(m[1].replace(/[,]/g, ""));
+      if (VALID_PLAN_AMOUNTS.includes(num)) return String(num);
+    }
+  }
+  for (const p of patterns) {
+    const m = normalized.match(p);
+    if (m && m[1]) {
+      const num = Number(m[1].replace(/[,]/g, ""));
+      if (Number.isFinite(num) && num > 0) return String(num);
+    }
+  }
+  return "";
+}
+
+function extractDateFromOcr(text: string): string {
+  const normalized = normalizeArabicDigits(text);
+  const isoMatch = normalized.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+  }
+  const dmyMatch = normalized.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
+  }
+  const dateKeywords = /(?:التاريخ|date|تاريخ|التحويل|transfer)\s*[:：]?\s*(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/i;
+  const kwMatch = normalized.match(dateKeywords);
+  if (kwMatch && kwMatch[1]) {
+    const parts = kwMatch[1].split(/[-\/]/);
+    if (parts.length === 3) {
+      let [y, m, d] = parts[2].length === 4 ? [parts[2], parts[1], parts[0]] : [parts[2].length === 2 ? `20${parts[2]}` : parts[2], parts[1], parts[0]];
+      if (parts[2].length === 4) { y = parts[2]; m = parts[1]; d = parts[0]; }
+      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+  }
+  return "";
+}
+
+function isWithinLast7Days(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const now = Date.now();
+  const diff = now - d.getTime();
+  return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
+}
+
+async function runOcrOnImage(file: File): Promise<string> {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("ara+eng");
+  const { data: { text } } = await worker.recognize(file);
+  await worker.terminate();
+  return text;
+}
 
 
 function generateUuid(): string {
@@ -71,6 +143,11 @@ export function SupportChatWidget() {
   const [vipFile, setVipFile] = useState<File | null>(null);
   const [vipBusy, setVipBusy] = useState(false);
   const [vipError, setVipError] = useState<string | null>(null);
+
+  // VIP OCR state
+  const [vipOcrAmount, setVipOcrAmount] = useState("");
+  const [vipOcrDate, setVipOcrDate] = useState("");
+  const [vipOcrBusy, setVipOcrBusy] = useState(false);
 
   const listQa = useServerFn(listBotQuestions);
   const startFn = useServerFn(startVisitorChat);
@@ -211,7 +288,40 @@ export function SupportChatWidget() {
     setVipError(null);
     setVipFile(null);
     setVipForm({ name: "", email: "", city: "", plan: "" });
+    setVipOcrAmount("");
+    setVipOcrDate("");
   }, [vipTriggerId, vipMsgId]);
+
+  async function handleVipFileChange(file: File | null) {
+    setVipFile(file);
+    setVipOcrAmount("");
+    setVipOcrDate("");
+    setVipError(null);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    setVipOcrBusy(true);
+    try {
+      const text = await runOcrOnImage(file);
+      const amount = extractAmountFromOcr(text);
+      const date = extractDateFromOcr(text);
+      setVipOcrAmount(amount);
+      setVipOcrDate(date);
+    } catch (e) {
+      console.error("OCR failed", e);
+    } finally {
+      setVipOcrBusy(false);
+    }
+  }
+
+  function validateVipReceipt(): boolean {
+    const amount = Number(vipOcrAmount);
+    const planAmount = Number(vipForm.plan.split("-")[0]);
+    if (!vipOcrAmount || !vipOcrDate) return false;
+    if (!VALID_PLAN_AMOUNTS.includes(amount)) return false;
+    if (Number.isFinite(planAmount) && amount !== planAmount) return false;
+    if (!isWithinLast7Days(vipOcrDate)) return false;
+    return true;
+  }
 
   async function handleVipSubmit() {
     if (vipBusy) return;
@@ -222,6 +332,10 @@ export function SupportChatWidget() {
     }
     if (!vipFile) {
       setVipError("يرجى رفع صورة الإيصال.");
+      return;
+    }
+    if (!validateVipReceipt()) {
+      setVipError("الإيصال غير صالح. تأكد من المبلغ وتاريخ الدفع");
       return;
     }
     setVipBusy(true);
@@ -545,20 +659,42 @@ export function SupportChatWidget() {
                   ))}
                 </select>
                 <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-secondary/40 px-3 py-2 text-[11px] font-medium hover:bg-secondary">
-                  <FileUp className="h-3.5 w-3.5" />
+                  {vipOcrBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
                   {vipFile ? vipFile.name : "رفع صورة الإيصال"}
                   <input
                     type="file"
                     accept="image/*,application/pdf"
                     className="hidden"
-                    onChange={(e) => setVipFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => handleVipFileChange(e.target.files?.[0] ?? null)}
                   />
                 </label>
+                {vipOcrBusy && (
+                  <div className="text-[11px] text-muted-foreground text-center">جارٍ قراءة الإيصال…</div>
+                )}
+                {!vipOcrBusy && vipFile && (
+                  <>
+                    <div className="text-[10px] font-semibold text-muted-foreground">بيانات مستخرجة من الإيصال (قابلة للتعديل):</div>
+                    <input
+                      value={vipOcrAmount}
+                      onChange={(e) => setVipOcrAmount(e.target.value)}
+                      placeholder="المبلغ المدفوع"
+                      type="number"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <input
+                      value={vipOcrDate}
+                      onChange={(e) => setVipOcrDate(e.target.value)}
+                      placeholder="تاريخ الدفع (YYYY-MM-DD)"
+                      type="date"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </>
+                )}
                 {vipError && <div className="text-[11px] text-destructive">{vipError}</div>}
                 <div className="flex gap-2">
                   <button
                     onClick={handleVipSubmit}
-                    disabled={vipBusy}
+                    disabled={vipBusy || vipOcrBusy}
                     className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
                     {vipBusy ? "جارٍ الإرسال…" : "إرسال الطلب"}
