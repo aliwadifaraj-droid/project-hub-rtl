@@ -1,4 +1,3 @@
-successfully downloaded text file (SHA: 22c6ab077b7dc450fb6db049cf793a8ec94936fe)
 // Price-offer server functions (submitted by visitors from the support bot).
 // Offers are saved into the `notifications` table (as offer-notifications) and
 // moved to `project_requests` when an admin accepts them.
