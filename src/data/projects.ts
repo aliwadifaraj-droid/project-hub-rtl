@@ -34,10 +34,15 @@ export function buildR2Url(coverImage: string | null): string | null {
   if (legacyMatch) key = legacyMatch[1];
   // Strip leading slashes and turso/ prefix.
   key = key.replace(/^\/+/, "").replace(/^turso\//, "");
+  // Strip old bucket prefixes.
+  key = key.replace(/^(project-images|projects|files)\//, "");
   // Must contain a path separator to be a valid R2 key.
   if (!key.includes("/")) return null;
 
-  const bucket = import.meta.env.VITE_R2_BUCKET_NAME || "turso";
+  const publicBase = (import.meta.env.VITE_R2_PUBLIC_URL || "").replace(/\/+$/, "");
   const encoded = key.split("/").map(encodeURIComponent).join("/");
+  if (publicBase) return `${publicBase}/${encoded}`;
+
+  const bucket = import.meta.env.VITE_R2_BUCKET_NAME || "turso";
   return `https://${bucket}.r2.dev/${encoded}`;
 }
