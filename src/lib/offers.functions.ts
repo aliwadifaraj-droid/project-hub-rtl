@@ -62,22 +62,22 @@ export const submitOffer = createServerFn({ method: "POST" })
     }
 
     const { db } = await import("./db");
-    const projectId = project.id;
+    const projectName = data.projectName;
     const email = data.email;
     const companyName = data.companyName;
 
     // --- التشييك على notifications (عروض قيد الانتظار) ---
     const checkEmailNotif = await db.execute(
-      `SELECT id FROM notifications WHERE email = $1 AND project_id = $2 AND status = 'pending'`,
-      [email, projectId],
+      `SELECT id FROM notifications WHERE email = $1 AND project_name = $2 AND status = 'pending'`,
+      [email, projectName],
     );
     if (checkEmailNotif.rows.length > 0) {
       return { ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
     const checkNameNotif = await db.execute(
-      `SELECT id FROM notifications WHERE company_name = $1 AND project_id = $2 AND status = 'pending'`,
-      [companyName, projectId],
+      `SELECT id FROM notifications WHERE company_name = $1 AND project_name = $2 AND status = 'pending'`,
+      [companyName, projectName],
     );
     if (checkNameNotif.rows.length > 0) {
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
@@ -85,16 +85,16 @@ export const submitOffer = createServerFn({ method: "POST" })
 
     // --- التشييك على project_requests (عروض مقبولة) ---
     const checkEmailReq = await db.execute(
-      `SELECT id FROM project_requests WHERE email = $1 AND project_id = $2`,
-      [email, projectId],
+      `SELECT id FROM project_requests WHERE email = $1 AND facility_location = $2`,
+      [email, projectName],
     );
     if (checkEmailReq.rows.length > 0) {
       return { ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
     const checkNameReq = await db.execute(
-      `SELECT id FROM project_requests WHERE company_name = $1 AND project_id = $2`,
-      [companyName, projectId],
+      `SELECT id FROM project_requests WHERE company_name = $1 AND facility_location = $2`,
+      [companyName, projectName],
     );
     if (checkNameReq.rows.length > 0) {
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
@@ -109,6 +109,7 @@ export const submitOffer = createServerFn({ method: "POST" })
         title,
         body,
         link: "/admin/offers",
+        project_id: project.id,
         project_name: data.projectName,
         company_name: data.companyName,
         email: data.email,
