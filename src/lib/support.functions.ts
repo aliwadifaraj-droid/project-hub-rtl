@@ -224,6 +224,8 @@ async function answerRequestStatus(query: string): Promise<string | null> {
 /* ---------- نية تقديم عرض سعر ---------- */
 
 export const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
+export const OFFER_WARN_DELIVERED_MARKER = "__OFFER_WARN_DELIVERED__";
+export const OFFER_WARN_CANCELLED_MARKER = "__OFFER_WARN_CANCELLED__";
 
 const OFFER_KEYWORDS = [
   "كيف اقدم عرض سعر", "كيف أقدم عرض سعر", "عرض سعر", "تقديم عرض", "اقدم عرض", "أقدم عرض",
@@ -530,6 +532,16 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           const hrs = Math.floor(remainingMs / 3_600_000);
           const mins = Math.floor((remainingMs % 3_600_000) / 60_000);
           await supportRepo.addSupportMessage(chat.id, "bot", `هذا المشروع في فترة حصرية. المتبقي: ${hrs} ساعة و ${mins} دقيقة`);
+          await invalidateChat(data.visitorToken);
+          return { ok: true };
+        }
+        const proj = allRows[pIdx];
+        if (proj.status === "delivered" || proj.status === "cancelled") {
+          const warnText = proj.status === "delivered"
+            ? "⚠️ تنبيه: هذا المشروع تم تسليمه. هل تريد المتابعة؟"
+            : "⚠️ تنبيه: هذا المشروع ملغي. هل تريد المتابعة؟";
+          const warnMarker = proj.status === "delivered" ? OFFER_WARN_DELIVERED_MARKER : OFFER_WARN_CANCELLED_MARKER;
+          await supportRepo.addSupportMessage(chat.id, "bot", `${warnText}\n${warnMarker}\n${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
           await invalidateChat(data.visitorToken);
           return { ok: true };
         }

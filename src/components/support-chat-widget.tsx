@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, X, Send, Headphones, PowerOff, FileUp, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Headphones, PowerOff, FileUp, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
   visitorSendMessage, visitorEndSession,
@@ -16,6 +16,8 @@ const TOKEN_KEY = "support_visitor_token_v1";
 const IDLE_MS = 5 * 60 * 1000;
 const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
 const VIP_FLOW_MARKER = "__VIP_FLOW__";
+const OFFER_WARN_DELIVERED_MARKER = "__OFFER_WARN_DELIVERED__";
+const OFFER_WARN_CANCELLED_MARKER = "__OFFER_WARN_CANCELLED__";
 
 const VIP_PLANS = [
   { value: "100-30", label: "100 ريال — 30 يوم" },
@@ -131,7 +133,8 @@ export function SupportChatWidget() {
 
   // Offer (price quote) wizard state
   const [offerMsgId, setOfferMsgId] = useState<string | null>(null);
-  const [offerStep, setOfferStep] = useState<"terms" | "form" | "done" | null>(null);
+  const [offerStep, setOfferStep] = useState<"warning" | "terms" | "form" | "done" | null>(null);
+  const [offerWarnType, setOfferWarnType] = useState<"delivered" | "cancelled" | null>(null);
   const [offerForm, setOfferForm] = useState({ projectName: "", companyName: "", email: "", amount: "" });
   const [offerFile, setOfferFile] = useState<File | null>(null);
   const [offerBusy, setOfferBusy] = useState(false);
@@ -272,11 +275,21 @@ export function SupportChatWidget() {
     if (!offerTriggerId) return;
     if (offerMsgId === offerTriggerId) return;
     setOfferMsgId(offerTriggerId);
-    setOfferStep("terms");
     setOfferError(null);
     setOfferFile(null);
     setOfferForm({ projectName: "", companyName: "", email: "", amount: "" });
-  }, [offerTriggerId, offerMsgId]);
+    const triggerMsg = messages.find((m) => m.id === offerTriggerId);
+    if (triggerMsg?.body.includes(OFFER_WARN_DELIVERED_MARKER)) {
+      setOfferWarnType("delivered");
+      setOfferStep("warning");
+    } else if (triggerMsg?.body.includes(OFFER_WARN_CANCELLED_MARKER)) {
+      setOfferWarnType("cancelled");
+      setOfferStep("warning");
+    } else {
+      setOfferWarnType(null);
+      setOfferStep("terms");
+    }
+  }, [offerTriggerId, offerMsgId, messages]);
 
   const vipTriggerId = useMemo(() => {
     const m = [...messages].reverse().find((x) => x.sender === "bot" && x.body.includes(VIP_FLOW_MARKER));
@@ -548,11 +561,36 @@ export function SupportChatWidget() {
                     {m.sender === "admin" && (
                       <div className="mb-0.5 text-[10px] font-semibold opacity-80">موظف الدعم</div>
                     )}
-                    <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body.replace(OFFER_FLOW_MARKER, "").replace(VIP_FLOW_MARKER, "").trim() }} />
+                    <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body.replace(OFFER_FLOW_MARKER, "").replace(VIP_FLOW_MARKER, "").replace(OFFER_WARN_DELIVERED_MARKER, "").replace(OFFER_WARN_CANCELLED_MARKER, "").trim() }} />
                   </div>
                 </div>
               );
             })}
+
+            {offerStep === "warning" && (
+              <div className="space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+                <div className="flex items-center gap-1.5 text-[12px] font-bold text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  {offerWarnType === "delivered"
+                    ? "⚠️ تنبيه: هذا المشروع تم تسليمه. هل تريد المتابعة؟"
+                    : "⚠️ تنبيه: هذا المشروع ملغي. هل تريد المتابعة؟"}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setOfferStep("terms")}
+                    className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+                  >
+                    متابعة
+                  </button>
+                  <button
+                    onClick={() => { setOfferStep(null); setOfferWarnType(null); setOfferError(null); }}
+                    className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
 
             {offerStep === "terms" && (
               <div className="rounded-xl border border-border bg-background p-3">
@@ -603,7 +641,7 @@ export function SupportChatWidget() {
                     {offerBusy ? "جارٍ الإرسال…" : "إرسال العرض"}
                   </button>
                   <button
-                    onClick={() => { setOfferStep(null); setOfferError(null); }}
+                    onClick={() => { setOfferStep(null); setOfferWarnType(null); setOfferError(null); }}
                     className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
                   >
                     إلغاء
