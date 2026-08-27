@@ -53,6 +53,7 @@ function ensureColumns(): Promise<void> {
     db.execute(`ALTER TABLE vip_subscribers ADD COLUMN ocr_date TEXT`).catch(() => undefined),
     db.execute(`ALTER TABLE vip_subscribers ADD COLUMN ocr_time TEXT`).catch(() => undefined),
     db.execute(`UPDATE vip_subscribers SET status = 'expired' WHERE status = 'rejected' AND expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')`).catch(() => undefined),
+    db.execute(`CREATE TABLE IF NOT EXISTS project_exclusive (id TEXT PRIMARY KEY, project_id TEXT NOT NULL UNIQUE, vip_start_at TEXT NOT NULL, vip_end_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`).catch(() => undefined),
   ]).then(() => undefined);
   return _colsReady;
 }
@@ -70,7 +71,15 @@ export async function listVipSubscribers(): Promise<VipSubscriberRow[]> {
 export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { project_name: string | null })[]> {
   await ensureColumns();
   const r = await db.execute(
-    `SELECT v.*, p.name AS project_name
+    `SELECT v.*,
+       COALESCE(p.name,
+         (SELECT p2.name FROM projects p2
+          INNER JOIN project_exclusive pe ON pe.project_id = p2.id
+          WHERE pe.vip_end_at > datetime('now')
+            AND v.city IS NOT NULL AND TRIM(v.city) <> ''
+            AND p2.location LIKE '%' || v.city || '%'
+          LIMIT 1)
+       ) AS project_name
      FROM vip_subscribers v
      LEFT JOIN projects p ON p.id = v.project_id
      ORDER BY v.created_at DESC`,
@@ -260,7 +269,12 @@ export async function updateVipReceipt(id: string, receiptPath: string): Promise
 
 export async function updateVipStatus(id: string, status: "active" | "rejected"): Promise<VipSubscriberRow | null> {
   await ensureCityColumn();
-  await db.execute(`UPDATE vip_subscribers SET status = ? WHERE id = ?`, [status, id]);
+  if (status === "active") {
+    const expiresAt = new Date(Date.now() + 30 * 24 * 3600_000).toISOString();
+    await db.execute(`UPDATE vip_subscribers SET status = ?, expires_at = ? WHERE id = ?`, [status, expiresAt, id]);
+  } else {
+    await db.execute(`UPDATE vip_subscribers SET status = ?, expires_at = NULL WHERE id = ?`, [status, id]);
+  }
   const r = await db.execute(`SELECT * FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
   const row = rowsToObjects(r)[0];
   return row ? decode(row) : null;
