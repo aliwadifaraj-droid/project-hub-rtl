@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, X, Send, Headphones, PowerOff, FileUp, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
+import { MessageCircle, X, Send, Headphones, PowerOff, FileUp, CheckCircle2 } from "lucide-react";
 import {
   listBotQuestions, startVisitorChat, visitorGetMessages,
   visitorSendMessage, visitorEndSession,
@@ -16,87 +16,12 @@ const TOKEN_KEY = "support_visitor_token_v1";
 const IDLE_MS = 5 * 60 * 1000;
 const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
 const VIP_FLOW_MARKER = "__VIP_FLOW__";
-const OFFER_WARN_DELIVERED_MARKER = "__OFFER_WARN_DELIVERED__";
-const OFFER_WARN_CANCELLED_MARKER = "__OFFER_WARN_CANCELLED__";
 
 const VIP_PLANS = [
   { value: "100-30", label: "100 ريال — 30 يوم" },
   { value: "200-60", label: "200 ريال — 60 يوم" },
   { value: "300-90", label: "300 ريال — 90 يوم" },
 ] as const;
-
-const VALID_PLAN_AMOUNTS = [100, 200, 300];
-const VIP_IBAN = "SA35 1000 0065 5000 4711 0807";
-
-function normalizeArabicDigits(text: string): string {
-  return text.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
-}
-
-function extractAmountFromOcr(text: string): string {
-  const normalized = normalizeArabicDigits(text);
-  const patterns = [
-    /(?:المبلغ|amount|التحويل|transfer|قيمة|value|مبلغ)\s*[:：]?\s*(\d+(?:[.,]\d{1,2})?)/i,
-    /(\d+(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
-    /(\d{3,})\s*(?:ريال|sar|ر\.س|sr)/i,
-  /\b(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
-  /\b(\d{2,3}(?:[.,]\d{1,2})?)\b/,
-  ];
-  for (const p of patterns) {
-    const m = normalized.match(p);
-    if (m && m[1]) {
-      const num = Number(m[1].replace(/[,]/g, ""));
-      if (VALID_PLAN_AMOUNTS.includes(num)) return String(num);
-    }
-  }
-  for (const p of patterns) {
-    const m = normalized.match(p);
-    if (m && m[1]) {
-      const num = Number(m[1].replace(/[,]/g, ""));
-      if (Number.isFinite(num) && num > 0) return String(num);
-    }
-  }
-  return "";
-}
-
-function extractDateFromOcr(text: string): string {
-  const normalized = normalizeArabicDigits(text);
-  const isoMatch = normalized.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
-  if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
-  }
-  const dmyMatch = normalized.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-  if (dmyMatch) {
-    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
-  }
-  const dateKeywords = /(?:التاريخ|date|تاريخ|التحويل|transfer)\s*[:：]?\s*(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/i;
-  const kwMatch = normalized.match(dateKeywords);
-  if (kwMatch && kwMatch[1]) {
-    const parts = kwMatch[1].split(/[-\/]/);
-    if (parts.length === 3) {
-      let [y, m, d] = parts[2].length === 4 ? [parts[2], parts[1], parts[0]] : [parts[2].length === 2 ? `20${parts[2]}` : parts[2], parts[1], parts[0]];
-      if (parts[2].length === 4) { y = parts[2]; m = parts[1]; d = parts[0]; }
-      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    }
-  }
-  return "";
-}
-
-function isWithinLast7Days(dateStr: string): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return false;
-  const now = Date.now();
-  const diff = now - d.getTime();
-  return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
-}
-
-async function runOcrOnImage(file: File): Promise<string> {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("ara+eng");
-  const { data: { text } } = await worker.recognize(file);
-  await worker.terminate();
-  return text;
-}
 
 
 function generateUuid(): string {
@@ -133,12 +58,12 @@ export function SupportChatWidget() {
 
   // Offer (price quote) wizard state
   const [offerMsgId, setOfferMsgId] = useState<string | null>(null);
-  const [offerStep, setOfferStep] = useState<"warning" | "terms" | "form" | "done" | null>(null);
-  const [offerWarnType, setOfferWarnType] = useState<"delivered" | "cancelled" | null>(null);
+  const [offerStep, setOfferStep] = useState<"terms" | "form" | "warning" | "done" | null>(null);
   const [offerForm, setOfferForm] = useState({ projectName: "", companyName: "", email: "", amount: "" });
   const [offerFile, setOfferFile] = useState<File | null>(null);
   const [offerBusy, setOfferBusy] = useState(false);
   const [offerError, setOfferError] = useState<string | null>(null);
+  const [offerWarning, setOfferWarning] = useState<"delivered" | "cancelled" | null>(null);
 
   // VIP subscription wizard state
   const [vipMsgId, setVipMsgId] = useState<string | null>(null);
@@ -147,13 +72,6 @@ export function SupportChatWidget() {
   const [vipFile, setVipFile] = useState<File | null>(null);
   const [vipBusy, setVipBusy] = useState(false);
   const [vipError, setVipError] = useState<string | null>(null);
-
-  // VIP OCR state
-  const [vipOcrAmount, setVipOcrAmount] = useState("");
-  const [vipOcrDate, setVipOcrDate] = useState("");
-  const [vipOcrBusy, setVipOcrBusy] = useState(false);
-  const [vipOcrText, setVipOcrText] = useState("");
-  const [vipOcrFailed, setVipOcrFailed] = useState(false);
 
   const listQa = useServerFn(listBotQuestions);
   const startFn = useServerFn(startVisitorChat);
@@ -275,21 +193,11 @@ export function SupportChatWidget() {
     if (!offerTriggerId) return;
     if (offerMsgId === offerTriggerId) return;
     setOfferMsgId(offerTriggerId);
+    setOfferStep("terms");
     setOfferError(null);
     setOfferFile(null);
     setOfferForm({ projectName: "", companyName: "", email: "", amount: "" });
-    const triggerMsg = messages.find((m) => m.id === offerTriggerId);
-    if (triggerMsg?.body.includes(OFFER_WARN_DELIVERED_MARKER)) {
-      setOfferWarnType("delivered");
-      setOfferStep("warning");
-    } else if (triggerMsg?.body.includes(OFFER_WARN_CANCELLED_MARKER)) {
-      setOfferWarnType("cancelled");
-      setOfferStep("warning");
-    } else {
-      setOfferWarnType(null);
-      setOfferStep("terms");
-    }
-  }, [offerTriggerId, offerMsgId, messages]);
+  }, [offerTriggerId, offerMsgId]);
 
   const vipTriggerId = useMemo(() => {
     const m = [...messages].reverse().find((x) => x.sender === "bot" && x.body.includes(VIP_FLOW_MARKER));
@@ -304,52 +212,7 @@ export function SupportChatWidget() {
     setVipError(null);
     setVipFile(null);
     setVipForm({ name: "", email: "", city: "", plan: "" });
-    setVipOcrAmount("");
-    setVipOcrDate("");
-    setVipOcrText("");
-    setVipOcrFailed(false);
   }, [vipTriggerId, vipMsgId]);
-
-  async function handleVipFileChange(file: File | null) {
-    setVipFile(file);
-    setVipOcrAmount("");
-    setVipOcrDate("");
-    setVipOcrText("");
-    setVipOcrFailed(false);
-    setVipError(null);
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return;
-    setVipOcrBusy(true);
-    try {
-      const text = await runOcrOnImage(file);
-      const amount = extractAmountFromOcr(text);
-      const date = extractDateFromOcr(text);
-      setVipOcrText(text.trim());
-      setVipOcrAmount(amount);
-      setVipOcrDate(date);
-      if (!amount || !date) {
-        setVipOcrFailed(true);
-      }
-    } catch (e) {
-      console.error("OCR failed", e);
-      setVipOcrFailed(true);
-    } finally {
-      setVipOcrBusy(false);
-    }
-  }
-
-  function validateVipReceipt(): boolean {
-    if (vipOcrFailed) return false;
-    const amount = Number(vipOcrAmount);
-    const planAmount = Number(vipForm.plan.split("-")[0]);
-    if (!vipOcrAmount || !vipOcrDate) return false;
-    if (!VALID_PLAN_AMOUNTS.includes(amount)) return false;
-    if (Number.isFinite(planAmount) && amount !== planAmount) return false;
-    if (!isWithinLast7Days(vipOcrDate)) return false;
-    return true;
-  }
-
-  const vipReceiptValid = validateVipReceipt();
 
   async function handleVipSubmit() {
     if (vipBusy) return;
@@ -360,10 +223,6 @@ export function SupportChatWidget() {
     }
     if (!vipFile) {
       setVipError("يرجى رفع صورة الإيصال.");
-      return;
-    }
-    if (!validateVipReceipt()) {
-      setVipError("الإيصال غير صالح. تأكد من المبلغ وتاريخ الدفع");
       return;
     }
     setVipBusy(true);
@@ -431,9 +290,16 @@ export function SupportChatWidget() {
           pdfFilename: offerFile.name,
           visitorToken: token || null,
           vipToken: vipToken || null,
+          force: offerWarning !== null,
         },
       });
       if (!result?.ok) {
+        if (result?.warning === "delivered" || result?.warning === "cancelled") {
+          setOfferWarning(result.warning);
+          setOfferStep("warning");
+          setOfferError(null);
+          return;
+        }
         setOfferError(result?.message ?? "المشروع غير موجود");
         return;
       }
@@ -561,36 +427,11 @@ export function SupportChatWidget() {
                     {m.sender === "admin" && (
                       <div className="mb-0.5 text-[10px] font-semibold opacity-80">موظف الدعم</div>
                     )}
-                    <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body.replace(OFFER_FLOW_MARKER, "").replace(VIP_FLOW_MARKER, "").replace(OFFER_WARN_DELIVERED_MARKER, "").replace(OFFER_WARN_CANCELLED_MARKER, "").trim() }} />
+                    <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: m.body.replace(OFFER_FLOW_MARKER, "").replace(VIP_FLOW_MARKER, "").trim() }} />
                   </div>
                 </div>
               );
             })}
-
-            {offerStep === "warning" && (
-              <div className="space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
-                <div className="flex items-center gap-1.5 text-[12px] font-bold text-destructive">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  {offerWarnType === "delivered"
-                    ? "⚠️ تنبيه: هذا المشروع تم تسليمه. هل تريد المتابعة؟"
-                    : "⚠️ تنبيه: هذا المشروع ملغي. هل تريد المتابعة؟"}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setOfferStep("terms")}
-                    className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
-                  >
-                    متابعة
-                  </button>
-                  <button
-                    onClick={() => { setOfferStep(null); setOfferWarnType(null); setOfferError(null); }}
-                    className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </div>
-            )}
 
             {offerStep === "terms" && (
               <div className="rounded-xl border border-border bg-background p-3">
@@ -641,7 +482,32 @@ export function SupportChatWidget() {
                     {offerBusy ? "جارٍ الإرسال…" : "إرسال العرض"}
                   </button>
                   <button
-                    onClick={() => { setOfferStep(null); setOfferWarnType(null); setOfferError(null); }}
+                    onClick={() => { setOfferStep(null); setOfferError(null); }}
+                    className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {offerStep === "warning" && (
+              <div className="space-y-2 rounded-xl border border-border bg-background p-3">
+                <div className="text-[11px] font-semibold text-muted-foreground">
+                  {offerWarning === "delivered"
+                    ? "⚠️ عذراً، هذا المشروع تم تسليمه. هل ترغب بالمتابعة؟"
+                    : "❌ عذراً، هذا المشروع ملغي. هل ترغب بالمتابعة؟"}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleOfferSubmit}
+                    disabled={offerBusy}
+                    className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {offerBusy ? "جارٍ الإرسال…" : "متابعة"}
+                  </button>
+                  <button
+                    onClick={() => { setOfferStep(null); setOfferError(null); setOfferWarning(null); }}
                     className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
                   >
                     إلغاء
@@ -712,145 +578,24 @@ export function SupportChatWidget() {
                   ))}
                 </select>
                 <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-secondary/40 px-3 py-2 text-[11px] font-medium hover:bg-secondary">
-                  {vipOcrBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
+                  <FileUp className="h-3.5 w-3.5" />
                   {vipFile ? vipFile.name : "رفع صورة الإيصال"}
                   <input
                     type="file"
                     accept="image/*,application/pdf"
                     className="hidden"
-                    onChange={(e) => handleVipFileChange(e.target.files?.[0] ?? null)}
+                    onChange={(e) => setVipFile(e.target.files?.[0] ?? null)}
                   />
                 </label>
-                {vipOcrBusy && (
-                  <div className="text-[11px] text-muted-foreground text-center">جارٍ قراءة الإيصال…</div>
-                )}
-                {!vipOcrBusy && vipFile && (() => {
-                  const amountNum = Number(vipOcrAmount);
-                  const planAmount = Number(vipForm.plan.split("-")[0]);
-                  const amountValid = VALID_PLAN_AMOUNTS.includes(amountNum) && (!Number.isFinite(planAmount) || amountNum === planAmount);
-                  const dateValid = isWithinLast7Days(vipOcrDate);
-                  const hasData = !vipOcrFailed && (!!vipOcrAmount || !!vipOcrDate);
-
-                  if (!hasData) {
-                    return (
-                      <>
-                        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-center">
-                          <div className="text-[11px] font-semibold text-destructive">لم يتم العثور على بيانات</div>
-                        </div>
-                        <div className="text-[11px] text-destructive">
-                          لم نتمكن من قراءة الإيصال. تأكد ان الصورة واضحة وفيها المبلغ والتاريخ
-                        </div>
-                        <button
-                          onClick={() => {
-                            setVipFile(null);
-                            setVipOcrAmount("");
-                            setVipOcrDate("");
-                            setVipOcrText("");
-                            setVipOcrFailed(false);
-                            setVipError(null);
-                          }}
-                          className="w-full rounded-md border border-border px-3 py-1.5 text-[11px] hover:bg-secondary"
-                        >
-                          إعادة رفع الإيصال
-                        </button>
-                      </>
-                    );
-                  }
-
-                  if (!vipReceiptValid) {
-                    const reasons: string[] = [];
-                    if (!VALID_PLAN_AMOUNTS.includes(amountNum)) {
-                      reasons.push("المبلغ المستخرج غير صالح");
-                    } else if (Number.isFinite(planAmount) && amountNum !== planAmount) {
-                      reasons.push(`المبلغ المستخرج (${amountNum}) لا يطابق قيمة الباقة (${planAmount})`);
-                    }
-                    if (!dateValid) {
-                      reasons.push("تاريخ الإيصال ليس ضمن آخر 7 أيام");
-                    }
-                    return (
-                      <>
-                        <div className="rounded-md border border-border bg-secondary/30 p-2.5 space-y-1.5">
-                          <div className="text-[10px] font-semibold text-muted-foreground">ملخص البيانات:</div>
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-muted-foreground">حساب البنك (IBAN)</span>
-                            <span className="text-muted-foreground font-medium">{VIP_IBAN}</span>
-                          </div>
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-muted-foreground">المبلغ</span>
-                            <span className={`font-semibold ${amountValid ? "text-green-600" : "text-destructive"}`}>
-                              {vipOcrAmount ? `${vipOcrAmount} ريال` : "غير موجود"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-muted-foreground">التاريخ</span>
-                            <span className={`font-semibold ${dateValid ? "text-green-600" : "text-destructive"}`}>
-                              {vipOcrDate || "غير موجود"}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="space-y-0.5">
-                          {reasons.map((r, i) => (
-                            <div key={i} className="flex items-center gap-1 text-[11px] text-destructive">
-                              <XCircle className="h-3 w-3 shrink-0" />
-                              {r}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="text-[11px] font-semibold text-destructive">
-                          الإيصال غير صالح. تأكد من المبلغ وتاريخ الدفع
-                        </div>
-                        <button
-                          onClick={() => {
-                            setVipFile(null);
-                            setVipOcrAmount("");
-                            setVipOcrDate("");
-                            setVipOcrText("");
-                            setVipOcrFailed(false);
-                            setVipError(null);
-                          }}
-                          className="w-full rounded-md border border-border px-3 py-1.5 text-[11px] hover:bg-secondary"
-                        >
-                          إعادة رفع الإيصال
-                        </button>
-                      </>
-                    );
-                  }
-
-                  return (
-                    <>
-                      <div className="rounded-md border border-green-500/30 bg-green-500/5 p-2.5 space-y-1.5">
-                        <div className="text-[10px] font-semibold text-green-600">ملخص البيانات:</div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground">حساب البنك (IBAN)</span>
-                          <span className="text-green-600 font-medium">{VIP_IBAN}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground">المبلغ</span>
-                          <span className="text-green-600 font-semibold">{vipOcrAmount} ريال</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground">التاريخ</span>
-                          <span className="text-green-600 font-semibold">{vipOcrDate}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-green-600">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        الإيصال صالح ومطابق للباقة المختارة
-                      </div>
-                    </>
-                  );
-                })()}
                 {vipError && <div className="text-[11px] text-destructive">{vipError}</div>}
                 <div className="flex gap-2">
-                  {vipReceiptValid && (
-                    <button
-                      onClick={handleVipSubmit}
-                      disabled={vipBusy}
-                      className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {vipBusy ? "جارٍ الإرسال…" : "إرسال الطلب"}
-                    </button>
-                  )}
+                  <button
+                    onClick={handleVipSubmit}
+                    disabled={vipBusy}
+                    className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {vipBusy ? "جارٍ الإرسال…" : "إرسال الطلب"}
+                  </button>
                   <button
                     onClick={() => { setVipStep(null); setVipError(null); }}
                     className="rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary"
