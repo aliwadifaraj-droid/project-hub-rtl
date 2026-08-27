@@ -90,9 +90,19 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
   }));
 }
 
+function planToDays(plan: string | null): number {
+  const p = (plan ?? "").trim();
+  if (p.includes("3") || p.includes("ثلاث") || p.includes("ثلاثة")) return 90;
+  if (p.includes("شهرين") || p.includes("2") || p.includes("اثنين") || p.includes("اثنتين")) return 60;
+  return 30;
+}
+
 export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
   await ensureColumns();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 3600_000).toISOString();
+  const existing = await db.execute(`SELECT plan FROM vip_subscribers WHERE project_id = ? ORDER BY created_at DESC LIMIT 1`, [projectId]);
+  const existingRow = rowsToObjects<{ plan: string | null }>(existing)[0];
+  const days = planToDays(existingRow?.plan ?? null);
+  const expiresAt = new Date(Date.now() + days * 24 * 3600_000).toISOString();
   await db.execute(
     `UPDATE vip_subscribers SET status = 'approved', expires_at = ? WHERE project_id = ?`,
     [expiresAt, projectId],
@@ -270,7 +280,10 @@ export async function updateVipReceipt(id: string, receiptPath: string): Promise
 export async function updateVipStatus(id: string, status: "active" | "rejected"): Promise<VipSubscriberRow | null> {
   await ensureCityColumn();
   if (status === "active") {
-    const expiresAt = new Date(Date.now() + 30 * 24 * 3600_000).toISOString();
+    const existing = await db.execute(`SELECT plan FROM vip_subscribers WHERE id = ? LIMIT 1`, [id]);
+    const existingRow = rowsToObjects<{ plan: string | null }>(existing)[0];
+    const days = planToDays(existingRow?.plan ?? null);
+    const expiresAt = new Date(Date.now() + days * 24 * 3600_000).toISOString();
     await db.execute(`UPDATE vip_subscribers SET status = ?, expires_at = ? WHERE id = ?`, [status, expiresAt, id]);
   } else {
     await db.execute(`UPDATE vip_subscribers SET status = ?, expires_at = NULL WHERE id = ?`, [status, id]);
