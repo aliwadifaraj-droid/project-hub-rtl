@@ -148,6 +148,8 @@ export function SupportChatWidget() {
   const [vipOcrAmount, setVipOcrAmount] = useState("");
   const [vipOcrDate, setVipOcrDate] = useState("");
   const [vipOcrBusy, setVipOcrBusy] = useState(false);
+  const [vipOcrText, setVipOcrText] = useState("");
+  const [vipOcrFailed, setVipOcrFailed] = useState(false);
 
   const listQa = useServerFn(listBotQuestions);
   const startFn = useServerFn(startVisitorChat);
@@ -290,12 +292,16 @@ export function SupportChatWidget() {
     setVipForm({ name: "", email: "", city: "", plan: "" });
     setVipOcrAmount("");
     setVipOcrDate("");
+    setVipOcrText("");
+    setVipOcrFailed(false);
   }, [vipTriggerId, vipMsgId]);
 
   async function handleVipFileChange(file: File | null) {
     setVipFile(file);
     setVipOcrAmount("");
     setVipOcrDate("");
+    setVipOcrText("");
+    setVipOcrFailed(false);
     setVipError(null);
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
@@ -304,16 +310,22 @@ export function SupportChatWidget() {
       const text = await runOcrOnImage(file);
       const amount = extractAmountFromOcr(text);
       const date = extractDateFromOcr(text);
+      setVipOcrText(text.trim());
       setVipOcrAmount(amount);
       setVipOcrDate(date);
+      if (!amount || !date) {
+        setVipOcrFailed(true);
+      }
     } catch (e) {
       console.error("OCR failed", e);
+      setVipOcrFailed(true);
     } finally {
       setVipOcrBusy(false);
     }
   }
 
   function validateVipReceipt(): boolean {
+    if (vipOcrFailed) return false;
     const amount = Number(vipOcrAmount);
     const planAmount = Number(vipForm.plan.split("-")[0]);
     if (!vipOcrAmount || !vipOcrDate) return false;
@@ -322,6 +334,8 @@ export function SupportChatWidget() {
     if (!isWithinLast7Days(vipOcrDate)) return false;
     return true;
   }
+
+  const vipReceiptValid = validateVipReceipt();
 
   async function handleVipSubmit() {
     if (vipBusy) return;
@@ -673,28 +687,63 @@ export function SupportChatWidget() {
                 )}
                 {!vipOcrBusy && vipFile && (
                   <>
-                    <div className="text-[10px] font-semibold text-muted-foreground">بيانات مستخرجة من الإيصال (قابلة للتعديل):</div>
+                    <div className="text-[10px] font-semibold text-muted-foreground">بيانات مستخرجة من الإيصال:</div>
                     <input
                       value={vipOcrAmount}
-                      onChange={(e) => setVipOcrAmount(e.target.value)}
                       placeholder="المبلغ المدفوع"
                       type="number"
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                      readOnly
+                      disabled
+                      className="w-full cursor-not-allowed rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground"
                     />
                     <input
                       value={vipOcrDate}
-                      onChange={(e) => setVipOcrDate(e.target.value)}
                       placeholder="تاريخ الدفع (YYYY-MM-DD)"
                       type="date"
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                      readOnly
+                      disabled
+                      className="w-full cursor-not-allowed rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground"
                     />
+                    {vipOcrFailed && (
+                      <div className="text-[11px] text-destructive">
+                        لم نتمكن من قراءة الإيصال. تأكد ان الصورة واضحة وفيها المبلغ والتاريخ
+                      </div>
+                    )}
+                    {!vipOcrFailed && !vipReceiptValid && vipOcrAmount && vipOcrDate && (
+                      <div className="text-[11px] text-destructive">
+                        الإيصال غير صالح. تأكد من المبلغ وتاريخ الدفع
+                      </div>
+                    )}
+                    {vipOcrText && (
+                      <div className="mt-1">
+                        <div className="text-[10px] font-semibold text-muted-foreground">النص المستخرج:</div>
+                        <div className="max-h-24 overflow-y-auto rounded-md bg-secondary/40 p-2 text-[10px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                          {vipOcrText}
+                        </div>
+                      </div>
+                    )}
+                    {!vipReceiptValid && vipFile && !vipOcrBusy && (
+                      <button
+                        onClick={() => {
+                          setVipFile(null);
+                          setVipOcrAmount("");
+                          setVipOcrDate("");
+                          setVipOcrText("");
+                          setVipOcrFailed(false);
+                          setVipError(null);
+                        }}
+                        className="w-full rounded-md border border-border px-3 py-1.5 text-[11px] hover:bg-secondary"
+                      >
+                        إعادة رفع الإيصال
+                      </button>
+                    )}
                   </>
                 )}
                 {vipError && <div className="text-[11px] text-destructive">{vipError}</div>}
                 <div className="flex gap-2">
                   <button
                     onClick={handleVipSubmit}
-                    disabled={vipBusy || vipOcrBusy}
+                    disabled={vipBusy || vipOcrBusy || !vipReceiptValid}
                     className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
                     {vipBusy ? "جارٍ الإرسال…" : "إرسال الطلب"}
