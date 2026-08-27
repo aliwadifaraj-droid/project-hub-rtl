@@ -200,12 +200,9 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
       if (data.status === "accepted") {
         const notif = await notificationsRepo.getOfferNotificationById(data.id);
         if (notif) {
-          const project = notif.project_id ? await projectsRepo.getById(notif.project_id).catch(() => null) : null;
-          const project_name = project?.name ?? notif.project_name ?? "";
           const requestId = await requestsRepo.insertRequest({
             project_id: notif.project_id ?? "",
             company_name: notif.company_name ?? "",
-            project_name,
             facility_location: notif.facility_location ?? notif.project_name ?? "",
             email: notif.email ?? "",
             pdf_url: notif.pdf_key ?? "",
@@ -751,6 +748,7 @@ export const toggleExclusivityOff = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: { projectId: string }) => z.object({ projectId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
+    await projectsRepo.clearProjectExclusive(data.projectId);
     await projectsRepo.updateProject(data.projectId, { is_exclusive: false, exclusive_until: null });
     await invalidateProjectsAll();
     return { ok: true as const };

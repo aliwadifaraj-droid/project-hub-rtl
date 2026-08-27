@@ -258,6 +258,11 @@ export async function getProjectExclusive(projectId: string): Promise<{
   return row ? { vip_start_at: String(row.vip_start_at), vip_end_at: String(row.vip_end_at) } : null;
 }
 
+export async function clearProjectExclusive(projectId: string): Promise<void> {
+  await ensureExclusiveTable();
+  await db.execute(`DELETE FROM project_exclusive WHERE project_id = ?`, [projectId]);
+}
+
 export async function clearExpiredExclusivity(): Promise<number> {
   await ensureOffersEnabledColumn();
   const r = await db.execute(
