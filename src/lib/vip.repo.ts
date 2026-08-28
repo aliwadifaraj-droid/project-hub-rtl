@@ -92,17 +92,19 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
 
 function planToDays(plan: string | null): number {
   if (!plan) return 30;
+  plan = plan.trim();
 
-  // الحالة 1: 100-30 او 100-90
+  // 1. الحالة الجديدة: 100-30, 100-60, 100-90
   const parts = plan.split('-');
   const days = Number(parts[1]);
-  if (!isNaN(days)) return days;
+  if (!isNaN(days) && days > 0) return days;
 
-  // الحالة 2: 3 شهور او شهرين القديم
-  if (plan.includes('90') || plan.includes('3')) return 90;
-  if (plan.includes('60') || plan.includes('2')) return 60;
+  // 2. الحالة القديمة بالكلمات بالضبط
+  if (plan === '3 شهور' || plan === 'ثلاث شهور') return 90;
+  if (plan === 'شهرين') return 60;
+  if (plan === 'شهر' || plan === '1 شهر') return 30;
 
-  return 30;
+  return 30; // افتراضي
 }
 
 export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
