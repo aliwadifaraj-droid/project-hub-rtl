@@ -255,6 +255,7 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
       const requestId = await requests.insertRequest({
         project_id: offer.project_id ?? null,
         company_name: offer.company_name ?? "",
+        project_name: offer.project_name ?? offer.facility_location ?? "",
         facility_location: offer.facility_location ?? offer.project_name ?? "",
         email: offer.email ?? "",
         pdf_url: offer.pdf_key ?? "",
