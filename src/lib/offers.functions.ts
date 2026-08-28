@@ -41,7 +41,7 @@ export const submitOffer = createServerFn({ method: "POST" })
     }
 
     if (project.status === 'delivered') {
-      return { canProceed: true as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه. هل تريد المتابعة وتقديم عرض؟" };
+      return { ok: false as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
     }
 
     const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
