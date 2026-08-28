@@ -40,6 +40,10 @@ export const submitOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "المشروع غير موجود" };
     }
 
+    if (project.status === 'delivered') {
+      return { canProceed: true as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه. هل تريد المتابعة وتقديم عرض؟" };
+    }
+
     const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
     if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
       const city = detectCity(project.location ?? "");
