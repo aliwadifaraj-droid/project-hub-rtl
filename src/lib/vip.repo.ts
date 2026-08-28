@@ -91,10 +91,7 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
 }
 
 function planToDays(plan: string | null): number {
-  const p = (plan ?? "").trim();
-  if (p.includes("3") || p.includes("ثلاث") || p.includes("ثلاثة")) return 90;
-  if (p.includes("شهرين") || p.includes("2") || p.includes("اثنين") || p.includes("اثنتين")) return 60;
-  return 30;
+  return Number(plan?.split('-')[1]) || 30;
 }
 
 export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
