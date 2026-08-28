@@ -91,7 +91,18 @@ export async function listVipWithProjectNames(): Promise<(VipSubscriberRow & { p
 }
 
 function planToDays(plan: string | null): number {
-  return Number(plan?.split('-')[1]) || 30;
+  if (!plan) return 30;
+
+  // الحالة 1: 100-30 او 100-90
+  const parts = plan.split('-');
+  const days = Number(parts[1]);
+  if (!isNaN(days)) return days;
+
+  // الحالة 2: 3 شهور او شهرين القديم
+  if (plan.includes('90') || plan.includes('3')) return 90;
+  if (plan.includes('60') || plan.includes('2')) return 60;
+
+  return 30;
 }
 
 export async function approveByProject(projectId: string): Promise<VipSubscriberRow | null> {
