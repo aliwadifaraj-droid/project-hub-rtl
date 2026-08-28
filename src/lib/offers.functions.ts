@@ -40,6 +40,10 @@ export const submitOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "المشروع غير موجود" };
     }
 
+    if (project.status === 'cancelled') {
+      return { ok: false as const, message: "⚠️ تنبيه: تم إلغاء هذا المشروع ولا يمكنك التقديم عليه" };
+    }
+
     if (project.status === 'delivered') {
       return { ok: false as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
     }
