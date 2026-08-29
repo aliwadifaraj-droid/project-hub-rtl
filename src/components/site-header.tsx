@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Building2, ClipboardList, Megaphone, Bell, MessagesSquare } from "lucide-react";
+import { Building2, ClipboardList, Megaphone, Bell, MessagesSquare, Briefcase } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -190,6 +190,12 @@ export function SiteHeader() {
             </div>
           )}
 
+          <Link
+            to="/client-portal"
+            className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
+          >
+            <Briefcase className="h-4 w-4" /> بوابة العملاء
+          </Link>
           <Link
             to="/contact"
             className="rounded-md bg-foreground px-3 sm:px-4 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"

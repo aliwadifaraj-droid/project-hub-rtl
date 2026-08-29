@@ -13,6 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ClientLoginRouteImport } from './routes/client-login'
+import { Route as ClientLogoutRouteImport } from './routes/client-logout'
+import { Route as ClientPortalRouteImport } from './routes/client-portal'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
@@ -52,6 +55,7 @@ import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
 import { Route as ApiAdminR2RouteImport } from './routes/api/admin/r2'
+import { Route as ApiCronCheckSubscriptionsRouteImport } from './routes/api/cron/check-subscriptions'
 import { Route as ApiCronVipExpiryRouteImport } from './routes/api/cron/vip-expiry'
 import { Route as ApiPublicUploadRouteImport } from './routes/api/public/upload'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -76,6 +80,21 @@ const AdsRoute = AdsRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientLoginRoute = ClientLoginRouteImport.update({
+  id: '/client-login',
+  path: '/client-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientLogoutRoute = ClientLogoutRouteImport.update({
+  id: '/client-logout',
+  path: '/client-logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientPortalRoute = ClientPortalRouteImport.update({
+  id: '/client-portal',
+  path: '/client-portal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -287,6 +306,12 @@ const ApiAdminR2Route = ApiAdminR2RouteImport.update({
   path: '/api/admin/r2',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronCheckSubscriptionsRoute =
+  ApiCronCheckSubscriptionsRouteImport.update({
+    id: '/api/cron/check-subscriptions',
+    path: '/api/cron/check-subscriptions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCronVipExpiryRoute = ApiCronVipExpiryRouteImport.update({
   id: '/api/cron/vip-expiry',
   path: '/api/cron/vip-expiry',
@@ -325,6 +350,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
+  '/client-login': typeof ClientLoginRoute
+  '/client-logout': typeof ClientLogoutRoute
+  '/client-portal': typeof ClientPortalRoute
   '/contact': typeof ContactRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
@@ -363,6 +391,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
+  '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -375,6 +404,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
+  '/client-login': typeof ClientLoginRoute
+  '/client-logout': typeof ClientLogoutRoute
+  '/client-portal': typeof ClientPortalRoute
   '/contact': typeof ContactRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
@@ -411,6 +443,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
+  '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -425,6 +458,9 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/ads': typeof AdsRouteWithChildren
   '/auth': typeof AuthRoute
+  '/client-login': typeof ClientLoginRoute
+  '/client-logout': typeof ClientLogoutRoute
+  '/client-portal': typeof ClientPortalRoute
   '/contact': typeof ContactRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
@@ -463,6 +499,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
+  '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -477,6 +514,9 @@ export interface FileRouteTypes {
     | '/'
     | '/ads'
     | '/auth'
+    | '/client-login'
+    | '/client-logout'
+    | '/client-portal'
     | '/contact'
     | '/forgot-password'
     | '/maintenance'
@@ -515,6 +555,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vip'
     | '/api/admin/r2'
+    | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
     | '/api/public/upload'
     | '/lovable/email/suppression'
@@ -527,6 +568,9 @@ export interface FileRouteTypes {
     | '/'
     | '/ads'
     | '/auth'
+    | '/client-login'
+    | '/client-logout'
+    | '/client-portal'
     | '/contact'
     | '/forgot-password'
     | '/maintenance'
@@ -563,6 +607,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vip'
     | '/api/admin/r2'
+    | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
     | '/api/public/upload'
     | '/lovable/email/suppression'
@@ -576,6 +621,9 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/ads'
     | '/auth'
+    | '/client-login'
+    | '/client-logout'
+    | '/client-portal'
     | '/contact'
     | '/forgot-password'
     | '/maintenance'
@@ -614,6 +662,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
     | '/api/admin/r2'
+    | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
     | '/api/public/upload'
     | '/lovable/email/suppression'
@@ -628,6 +677,9 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AdsRoute: typeof AdsRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ClientLoginRoute: typeof ClientLoginRoute
+  ClientLogoutRoute: typeof ClientLogoutRoute
+  ClientPortalRoute: typeof ClientPortalRoute
   ContactRoute: typeof ContactRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   MaintenanceRoute: typeof MaintenanceRoute
@@ -641,6 +693,7 @@ export interface RootRouteChildren {
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
   ApiAdminR2Route: typeof ApiAdminR2Route
+  ApiCronCheckSubscriptionsRoute: typeof ApiCronCheckSubscriptionsRoute
   ApiCronVipExpiryRoute: typeof ApiCronVipExpiryRoute
   ApiPublicUploadRoute: typeof ApiPublicUploadRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -677,6 +730,27 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client-login': {
+      id: '/client-login'
+      path: '/client-login'
+      fullPath: '/client-login'
+      preLoaderRoute: typeof ClientLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client-logout': {
+      id: '/client-logout'
+      path: '/client-logout'
+      fullPath: '/client-logout'
+      preLoaderRoute: typeof ClientLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client-portal': {
+      id: '/client-portal'
+      path: '/client-portal'
+      fullPath: '/client-portal'
+      preLoaderRoute: typeof ClientPortalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -952,6 +1026,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminR2RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/check-subscriptions': {
+      id: '/api/cron/check-subscriptions'
+      path: '/api/cron/check-subscriptions'
+      fullPath: '/api/cron/check-subscriptions'
+      preLoaderRoute: typeof ApiCronCheckSubscriptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/vip-expiry': {
       id: '/api/cron/vip-expiry'
       path: '/api/cron/vip-expiry'
@@ -1089,6 +1170,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AdsRoute: AdsRouteWithChildren,
   AuthRoute: AuthRoute,
+  ClientLoginRoute: ClientLoginRoute,
+  ClientLogoutRoute: ClientLogoutRoute,
+  ClientPortalRoute: ClientPortalRoute,
   ContactRoute: ContactRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   MaintenanceRoute: MaintenanceRoute,
@@ -1102,6 +1186,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ProjectIdRoute: ProjectIdRoute,
   ApiAdminR2Route: ApiAdminR2Route,
+  ApiCronCheckSubscriptionsRoute: ApiCronCheckSubscriptionsRoute,
   ApiCronVipExpiryRoute: ApiCronVipExpiryRoute,
   ApiPublicUploadRoute: ApiPublicUploadRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
