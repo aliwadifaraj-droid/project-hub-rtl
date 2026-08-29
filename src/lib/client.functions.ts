@@ -339,7 +339,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
         amount: data.amount,
         pdf_key: data.pdfKey,
         pdf_filename: data.pdfFilename,
-        source: "client_portal",
+        source: "platform",
         submitter_type: "user",
         offer_status: "new",
         status: "pending",
