@@ -77,6 +77,11 @@ export async function getClientProfileByEmail(email: string): Promise<ClientProf
   return rows[0] ? decode(rows[0]) : null;
 }
 
+export async function isClientBlockedByEmail(email: string): Promise<boolean> {
+  const profile = await getClientProfileByEmail(email);
+  return profile?.status === "blocked";
+}
+
 export async function listAllClientProfiles(): Promise<ClientProfile[]> {
   await ensureTable();
   const r = await db.execute(
@@ -134,7 +139,7 @@ export async function updateClientProfile(
 
 export async function updateClientStatusByEmail(
   email: string,
-  status: string,
+  status: "active" | "blocked",
 ): Promise<void> {
   await ensureTable();
   await db.execute(

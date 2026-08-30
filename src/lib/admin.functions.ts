@@ -462,6 +462,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       if (dup) throw new Error("لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني");
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    if (await clientRepo.isClientBlockedByEmail(data.email)) throw new Error("حسابك موقوف. لا يمكنك تقديم طلبات حالياً");
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
@@ -503,6 +504,7 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    if (await clientRepo.isClientBlockedByEmail(data.email)) throw new Error("حسابك موقوف. لا يمكنك تقديم طلبات حالياً");
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");

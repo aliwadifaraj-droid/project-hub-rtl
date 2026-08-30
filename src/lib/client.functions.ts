@@ -68,6 +68,9 @@ export const signInClient = createServerFn({ method: "POST" })
     if (!user) throw new Error("بيانات الدخول غير صحيحة");
     const ok = await verifyPassword(data.password, user.password_hash);
     if (!ok) throw new Error("بيانات الدخول غير صحيحة");
+    const profile = await clientRepo.getClientProfileByEmail(user.email);
+    if (profile?.status === "blocked") throw new Error("حسابك موقوف. لا يمكنك تسجيل الدخول حالياً");
+
     const roles = await getRolesForUser(user.id);
     const token = await signSessionToken({ sub: user.id, email: user.email, roles });
     setSessionCookie(token);
@@ -231,6 +234,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
 
     const profile = await clientRepo.getClientProfile(claims.sub);
     if (!profile) throw new Error("الملف غير موجود، يرجى إكمال بياناتك أولاً");
+    if (profile.status === "blocked") throw new Error("حسابك موقوف. لا يمكنك تقديم طلبات حالياً");
 
     // Company name and email are forced from the registration data
     const companyName = profile.company_name;
