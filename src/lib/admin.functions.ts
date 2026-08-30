@@ -753,3 +753,140 @@ export const toggleExclusivityOff = createServerFn({ method: "POST" })
     await invalidateProjectsAll();
     return { ok: true as const };
   });
+
+export const adminListClients = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { db, rowsToObjects } = await import("./db");
+    const r = await db.execute(
+      `SELECT DISTINCT
+         COALESCE(NULLIF(TRIM(o.email), ''), NULLIF(TRIM(r.email), ''), NULLIF(TRIM(v.email), '')) AS email,
+         COALESCE(NULLIF(TRIM(o.company_name), ''), NULLIF(TRIM(r.company_name), ''), NULLIF(TRIM(v.name), '')) AS display_name,
+         MAX(o.created_at) AS last_offer_at,
+         COUNT(DISTINCT o.id) AS offers_count
+       FROM offers o
+       LEFT JOIN project_requests r ON LOWER(TRIM(r.email)) = LOWER(TRIM(o.email))
+       LEFT JOIN vip_subscribers v ON LOWER(TRIM(v.email)) = LOWER(TRIM(o.email))
+       WHERE o.email IS NOT NULL AND TRIM(o.email) <> ''
+       GROUP BY email, display_name
+       ORDER BY last_offer_at DESC`,
+    );
+    const offerRows = rowsToObjects<any>(r);
+
+    const vipR = await db.execute(
+      `SELECT email, MAX(created_at) AS vip_created_at, MAX(expires_at) AS vip_expires_at, MAX(status) AS vip_status, MAX(city) AS vip_city, MAX(plan) AS vip_plan
+       FROM vip_subscribers
+       WHERE email IS NOT NULL AND TRIM(email) <> ''
+       GROUP BY LOWER(TRIM(email))`,
+    );
+    const vipMap = new Map<string, any>();
+    for (const row of rowsToObjects<any>(vipR)) {
+      if (row.email) vipMap.set(String(row.email).trim().toLowerCase(), row);
+    }
+
+    const reqR = await db.execute(
+      `SELECT email, COUNT(*) AS requests_count, MAX(created_at) AS last_request_at
+       FROM project_requests
+       WHERE email IS NOT NULL AND TRIM(email) <> ''
+       GROUP BY LOWER(TRIM(email))`,
+    );
+    const reqMap = new Map<string, any>();
+    for (const row of rowsToObjects<any>(reqR)) {
+      if (row.email) reqMap.set(String(row.email).trim().toLowerCase(), row);
+    }
+
+    return offerRows.map((row: any) => {
+      const email = String(row.email ?? "").trim();
+      const key = email.toLowerCase();
+      const vip = vipMap.get(key);
+      const req = reqMap.get(key);
+      return {
+        email,
+        display_name: row.display_name || email,
+        offers_count: Number(row.offers_count ?? 0),
+        last_offer_at: row.last_offer_at ?? null,
+        requests_count: Number(req?.requests_count ?? 0),
+        last_request_at: req?.last_request_at ?? null,
+        vip_status: vip?.vip_status ?? null,
+        vip_city: vip?.vip_city ?? null,
+        vip_plan: vip?.vip_plan ?? null,
+        vip_expires_at: vip?.vip_expires_at ?? null,
+        vip_created_at: vip?.vip_created_at ?? null,
+      };
+    });
+  });
+
+export const adminGetClientDetail = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { email: string }) => z.object({ email: z.string().trim().email() }).parse(d))
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    const { db, rowsToObjects } = await import("./db");
+
+    const offersR = await db.execute(
+      `SELECT o.id, o.project_id, o.project_name, o.company_name, o.amount, o.duration,
+              o.facility_location, o.pdf_key, o.pdf_filename, o.status, o.source,
+              o.submitter_type, o.created_at,
+              p.name AS project_name_resolved
+       FROM offers o
+       LEFT JOIN projects p ON p.id = o.project_id
+       WHERE LOWER(TRIM(o.email)) = ?
+       ORDER BY o.created_at DESC`,
+      [email],
+    );
+    const offers = rowsToObjects<any>(offersR).map((row: any) => ({
+      id: String(row.id),
+      project_id: row.project_id ?? null,
+      project_name: row.project_name_resolved ?? row.project_name ?? null,
+      company_name: row.company_name ?? "",
+      amount: row.amount ?? "",
+      duration: row.duration ?? null,
+      facility_location: row.facility_location ?? null,
+      pdf_key: row.pdf_key ?? null,
+      pdf_filename: row.pdf_filename ?? null,
+      status: String(row.status ?? "new"),
+      source: String(row.source ?? "platform"),
+      submitter_type: row.submitter_type ?? null,
+      created_at: String(row.created_at ?? ""),
+    }));
+
+    const requestsR = await db.execute(
+      `SELECT id, project_id, company_name, facility_location, email, pdf_url, status, submitter_type, project_type, note, created_at
+       FROM project_requests
+       WHERE LOWER(TRIM(email)) = ?
+       ORDER BY created_at DESC`,
+      [email],
+    );
+    const requests = rowsToObjects<any>(requestsR).map((row: any) => ({
+      id: String(row.id),
+      project_id: row.project_id ?? null,
+      company_name: row.company_name ?? "",
+      facility_location: row.facility_location ?? "",
+      pdf_url: row.pdf_url ?? "",
+      status: String(row.status ?? "new"),
+      submitter_type: row.submitter_type ?? null,
+      project_type: row.project_type ?? "platform",
+      note: row.note ?? null,
+      created_at: String(row.created_at ?? ""),
+    }));
+
+    const vipR = await db.execute(
+      `SELECT id, name, email, plan, city, status, project_id, expires_at, created_at
+       FROM vip_subscribers
+       WHERE LOWER(TRIM(email)) = ?
+       ORDER BY created_at DESC`,
+      [email],
+    );
+    const vipSubs = rowsToObjects<any>(vipR).map((row: any) => ({
+      id: String(row.id),
+      name: row.name ?? null,
+      plan: row.plan ?? null,
+      city: row.city ?? null,
+      status: String(row.status ?? "pending"),
+      project_id: row.project_id ?? null,
+      expires_at: row.expires_at ?? null,
+      created_at: String(row.created_at ?? ""),
+    }));
+
+    return { email: data.email.trim(), offers, requests, vipSubs };
+  });
