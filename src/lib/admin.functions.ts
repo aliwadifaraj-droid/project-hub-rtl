@@ -821,6 +821,15 @@ export const adminListClients = createServerFn({ method: "GET" })
     });
   });
 
+export const adminToggleClientStatus = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { email: string; status: string }) =>
+    z.object({ email: z.string().trim().email(), status: z.enum(["active", "blocked"]) }).parse(d))
+  .handler(async ({ data }) => {
+    await clientRepo.updateClientStatusByEmail(data.email, data.status);
+    return { ok: true as const, status: data.status };
+  });
+
 export const adminGetClientDetail = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .inputValidator((d: { email: string }) => z.object({ email: z.string().trim().email() }).parse(d))
@@ -899,6 +908,7 @@ export const adminGetClientDetail = createServerFn({ method: "GET" })
         city: profile.city,
         cr_number: profile.cr_number,
         bio: profile.bio,
+        status: profile.status,
         created_at: profile.created_at,
       } : null,
       offers,
