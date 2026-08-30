@@ -166,7 +166,6 @@ export const searchProjectsForClient = createServerFn({ method: "GET" })
         name: p.name,
         location: p.location,
         status: p.status,
-        offers_enabled: p.offers_enabled,
         is_exclusive: activeExclusive,
         vip_end_at: activeExclusive ? exclusive!.vip_end_at : null,
       };
@@ -220,10 +219,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` };
     }
 
-    if (!project.offers_enabled) {
-      return { ok: false as const, message: "تقديم عروض الأسعار متوقف حالياً لهذا المشروع" };
-    }
-
+    // Client portal is independent of offers_enabled/bot_offers_enabled toggles
     const dup = await notificationsRepo.checkDuplicateOffer({
       projectName: data.projectName,
       companyName,

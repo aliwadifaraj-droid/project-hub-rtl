@@ -466,11 +466,6 @@ function SubmitOfferTab() {
                           تم التسليم
                         </span>
                       )}
-                      {!p.offers_enabled && (
-                        <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                          العروض متوقفة
-                        </span>
-                      )}
                     </div>
                   </div>
                 </button>
@@ -510,11 +505,6 @@ function SubmitOfferTab() {
             {selectedProject.status === "delivered" && (
               <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 border border-blue-200">
                 <AlertCircle className="h-3.5 w-3.5" /> تم تسليم هذا المشروع — لا يمكن التقديم عليه
-              </div>
-            )}
-            {!selectedProject.offers_enabled && (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-secondary px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-                <AlertCircle className="h-3.5 w-3.5" /> تقديم العروض متوقف لهذا المشروع
               </div>
             )}
           </div>
@@ -578,7 +568,7 @@ function SubmitOfferTab() {
             )}
 
             <button
-              type="submit" disabled={submitting || uploading || !amount.trim() || !pdfKey || !!selectedProject.is_exclusive || selectedProject.status === "cancelled" || selectedProject.status === "delivered" || !selectedProject.offers_enabled}
+              type="submit" disabled={submitting || uploading || !amount.trim() || !pdfKey || !!selectedProject.is_exclusive || selectedProject.status === "cancelled" || selectedProject.status === "delivered"}
               className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
