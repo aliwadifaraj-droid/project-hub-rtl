@@ -176,7 +176,6 @@ export const getAllProjectsForClient = createServerFn({ method: "GET" }).handler
         description: p.description,
         location: p.location,
         duration: p.duration,
-        status: p.status,
         cover_url,
         pdf_url,
         is_exclusive: activeExclusive,
@@ -202,7 +201,6 @@ export const searchProjectsForClient = createServerFn({ method: "GET" })
         id: p.id,
         name: p.name,
         location: p.location,
-        status: p.status,
         is_exclusive: activeExclusive,
         vip_end_at: activeExclusive ? exclusive!.vip_end_at : null,
       };
@@ -246,12 +244,12 @@ export const submitClientOffer = createServerFn({ method: "POST" })
 
     // Check project status — cancelled
     if (project.status === "cancelled") {
-      return { ok: false as const, message: "تنبيه: تم إلغاء هذا المشروع ولا يمكنك التقديم عليه" };
+      return { ok: false as const, message: "لا يمكن التقديم على هذا المشروع حالاً" };
     }
 
     // Check project status — delivered
     if (project.status === "delivered") {
-      return { ok: false as const, message: "تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
+      return { ok: false as const, message: "لا يمكن التقديم على هذا المشروع حالاً" };
     }
 
     // Check exclusive window

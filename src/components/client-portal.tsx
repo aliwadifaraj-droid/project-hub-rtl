@@ -114,7 +114,6 @@ type ClientProject = {
   description: string | null;
   location: string | null;
   duration: string | null;
-  status: string;
   cover_url: string;
   pdf_url: string;
   is_exclusive: boolean;
@@ -150,13 +149,6 @@ function ProjectsTab() {
     );
   }
 
-  const statusBadge: Record<string, { label: string; cls: string }> = {
-    active: { label: "مفتوح", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    pending: { label: "قيد الانتظار", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-    cancelled: { label: "ملغي", cls: "bg-red-50 text-red-700 border-red-200" },
-    delivered: { label: "تم التسليم", cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  };
-
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
@@ -169,7 +161,6 @@ function ProjectsTab() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((p: ClientProject) => {
-          const badge = statusBadge[p.status] ?? statusBadge.active;
           return (
             <article
               key={p.id}
@@ -189,10 +180,6 @@ function ProjectsTab() {
                     <Images className="h-10 w-10" />
                   </div>
                 )}
-                {/* Status badge */}
-                <span className={`absolute top-3 start-3 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold backdrop-blur-sm ${badge.cls}`}>
-                  {badge.label}
-                </span>
                 {/* Exclusive badge */}
                 {p.is_exclusive && (
                   <span className="absolute top-3 end-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100/90 px-2.5 py-1 text-[11px] font-bold text-amber-700 backdrop-blur-sm">
@@ -592,16 +579,6 @@ function SubmitOfferTab() {
                           حصري VIP
                         </span>
                       )}
-                      {p.status === "cancelled" && (
-                        <span className="rounded-full bg-destructive/5 px-2 py-0.5 text-[11px] font-semibold text-destructive border border-destructive/20">
-                          ملغي
-                        </span>
-                      )}
-                      {p.status === "delivered" && (
-                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600 border border-blue-200">
-                          تم التسليم
-                        </span>
-                      )}
                     </div>
                   </div>
                 </button>
@@ -633,16 +610,6 @@ function SubmitOfferTab() {
             {selectedProject.is_exclusive && (
               <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-600 border border-amber-200">
                 <AlertCircle className="h-3.5 w-3.5" /> هذا المشروع حصري لعملاء VIP — لا يمكن التقديم عليه حالياً
-              </div>
-            )}
-            {selectedProject.status === "cancelled" && (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-destructive/5 px-3 py-1.5 text-xs font-semibold text-destructive border border-destructive/20">
-                <AlertCircle className="h-3.5 w-3.5" /> تم إلغاء هذا المشروع — لا يمكن التقديم عليه
-              </div>
-            )}
-            {selectedProject.status === "delivered" && (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 border border-blue-200">
-                <AlertCircle className="h-3.5 w-3.5" /> تم تسليم هذا المشروع — لا يمكن التقديم عليه
               </div>
             )}
           </div>
@@ -707,7 +674,7 @@ function SubmitOfferTab() {
             )}
 
             <button
-              type="submit" disabled={submitting || uploading || !amount.trim() || !pdfKey || !!selectedProject.is_exclusive || selectedProject.status === "cancelled" || selectedProject.status === "delivered"}
+              type="submit" disabled={submitting || uploading || !amount.trim() || !pdfKey || !!selectedProject.is_exclusive}
               className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
