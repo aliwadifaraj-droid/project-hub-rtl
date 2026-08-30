@@ -61,6 +61,16 @@ export async function getClientProfile(userId: string): Promise<ClientProfile | 
   return rows[0] ? decode(rows[0]) : null;
 }
 
+export async function getClientProfileByEmail(email: string): Promise<ClientProfile | null> {
+  await ensureTable();
+  const r = await db.execute(
+    `SELECT * FROM client_profiles WHERE lower(email) = lower(?) LIMIT 1`,
+    [email.trim()],
+  );
+  const rows = rowsToObjects(r);
+  return rows[0] ? decode(rows[0]) : null;
+}
+
 export async function listAllClientProfiles(): Promise<ClientProfile[]> {
   await ensureTable();
   const r = await db.execute(
