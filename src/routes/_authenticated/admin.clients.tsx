@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { adminListClients, adminGetClientDetail } from "@/lib/admin.functions";
-import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar } from "lucide-react";
+import { adminListClients, adminGetClientDetail, adminToggleClientStatus } from "@/lib/admin.functions";
+import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/clients")({
   component: ClientsPage,
@@ -142,10 +142,29 @@ function ClientsPage() {
 
 function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) {
   const getDetail = useServerFn(adminGetClientDetail);
+  const toggleStatus = useServerFn(adminToggleClientStatus);
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-client-detail", email],
     queryFn: () => getDetail({ data: { email } }),
   });
+
+  const [toggling, setToggling] = useState(false);
+
+  const handleToggle = async () => {
+    if (!data?.profile) return;
+    const newStatus = data.profile.status === "active" ? "blocked" : "active";
+    setToggling(true);
+    try {
+      await toggleStatus({ data: { email, status: newStatus } });
+      await queryClient.invalidateQueries({ queryKey: ["admin-client-detail", email] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-clients"] });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setToggling(false);
+    }
+  };
 
   if (isLoading)
     return (
@@ -166,12 +185,90 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
       </button>
 
       <div className="rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-lg">
-        <h1 className="text-xl font-bold text-slate-100">{data.email}</h1>
-        <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-300">
-          <span className="inline-flex items-center gap-1.5">
-            <Mail className="h-4 w-4 text-slate-400" /> {data.email}
-          </span>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold text-slate-100">
+              {data.profile?.company_name || data.email}
+            </h1>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="h-4 w-4 text-slate-400" /> {data.email}
+              </span>
+              {data.profile?.status && (
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  data.profile.status === "active" ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
+                }`}>
+                  {data.profile.status === "active" ? "نشط" : "موقوف"}
+                </span>
+              )}
+            </div>
+          </div>
+          {data.profile && (
+            <button
+              onClick={handleToggle}
+              disabled={toggling}
+              className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
+                data.profile.status === "active"
+                  ? "bg-red-600 text-white hover:bg-red-700"
+                  : "bg-green-600 text-white hover:bg-green-700"
+              }`}
+            >
+              {toggling ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : data.profile.status === "active" ? (
+                <Ban className="h-4 w-4" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              {data.profile.status === "active" ? "إيقاف الحساب" : "تنشيط الحساب"}
+            </button>
+          )}
         </div>
+
+        {data.profile && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+                <Building2 className="h-4 w-4 text-blue-400" /> بيانات التسجيل
+              </div>
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex items-start gap-2">
+                  <dt className="flex shrink-0 items-center gap-1.5 text-slate-400"><Building2 className="h-3.5 w-3.5" /> الشركة:</dt>
+                  <dd className="text-slate-200">{data.profile.company_name || "—"}</dd>
+                </div>
+                <div className="flex items-start gap-2">
+                  <dt className="flex shrink-0 items-center gap-1.5 text-slate-400"><Mail className="h-3.5 w-3.5" /> البريد:</dt>
+                  <dd className="text-slate-200">{data.email}</dd>
+                </div>
+                <div className="flex items-start gap-2">
+                  <dt className="flex shrink-0 items-center gap-1.5 text-slate-400"><Phone className="h-3.5 w-3.5" /> الجوال:</dt>
+                  <dd className="text-slate-200">{data.profile.phone || "—"}</dd>
+                </div>
+                <div className="flex items-start gap-2">
+                  <dt className="flex shrink-0 items-center gap-1.5 text-slate-400"><MapPin className="h-3.5 w-3.5" /> المدينة:</dt>
+                  <dd className="text-slate-200">{data.profile.city || "—"}</dd>
+                </div>
+                <div className="flex items-start gap-2">
+                  <dt className="flex shrink-0 items-center gap-1.5 text-slate-400"><FileBadge className="h-3.5 w-3.5" /> السجل التجاري:</dt>
+                  <dd className="text-slate-200">{data.profile.cr_number || "—"}</dd>
+                </div>
+                <div className="flex items-start gap-2">
+                  <dt className="flex shrink-0 items-center gap-1.5 text-slate-400"><Calendar className="h-3.5 w-3.5" /> تاريخ التسجيل:</dt>
+                  <dd className="text-slate-200">{data.profile.created_at ? new Date(data.profile.created_at).toLocaleDateString("ar") : "—"}</dd>
+                </div>
+              </dl>
+            </div>
+
+            {data.profile.bio && (
+              <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+                  <FileText className="h-4 w-4 text-blue-400" /> النبذة التعريفية
+                </div>
+                <p className="text-sm leading-relaxed text-slate-300">{data.profile.bio}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

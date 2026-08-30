@@ -11,6 +11,7 @@ export type ClientProfile = {
   city: string;
   cr_number: string;
   bio: string;
+  status: string;
   created_at: string;
   updated_at: string;
 };
@@ -29,10 +30,14 @@ function ensureTable(): Promise<void> {
        city        TEXT NOT NULL DEFAULT '',
        cr_number   TEXT NOT NULL DEFAULT '',
        bio         TEXT NOT NULL DEFAULT '',
+       status      TEXT NOT NULL DEFAULT 'active',
        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
        updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
      )`,
-  ).then(() => undefined).catch(() => undefined);
+  )
+    .then(() => db.execute(`ALTER TABLE client_profiles ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`).catch(() => undefined))
+    .then(() => undefined)
+    .catch(() => undefined);
   return _tableReady;
 }
 
@@ -46,6 +51,7 @@ function decode(r: any): ClientProfile {
     city: String(r.city ?? ""),
     cr_number: String(r.cr_number ?? ""),
     bio: String(r.bio ?? ""),
+    status: String(r.status ?? "active"),
     created_at: String(r.created_at ?? ""),
     updated_at: String(r.updated_at ?? ""),
   };
@@ -124,4 +130,15 @@ export async function updateClientProfile(
   args.push(new Date().toISOString());
   args.push(userId);
   await db.execute(`UPDATE client_profiles SET ${sets.join(", ")} WHERE user_id = ?`, args);
+}
+
+export async function updateClientStatusByEmail(
+  email: string,
+  status: string,
+): Promise<void> {
+  await ensureTable();
+  await db.execute(
+    `UPDATE client_profiles SET status = ?, updated_at = ? WHERE lower(email) = lower(?)`,
+    [status, new Date().toISOString(), email.trim()],
+  );
 }
