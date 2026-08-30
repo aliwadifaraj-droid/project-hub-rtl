@@ -159,6 +159,32 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
   return [...pending, ...accepted];
 });
 
+// ---------- List all projects for client portal ----------
+export const getAllProjectsForClient = createServerFn({ method: "GET" }).handler(async () => {
+  const { resolveStoredFileUrl } = await import("./files.functions");
+  const rows = await projectsRepo.listAllProjects();
+
+  return Promise.all(rows.map(async (p) => {
+    const exclusive = await projectsRepo.getProjectExclusive(p.id).catch(() => null);
+    const activeExclusive = !!exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime();
+    const cover_url = await resolveStoredFileUrl(p.cover_image, 60 * 60 * 24 * 7).catch(() => "");
+    const pdf_url = p.pdf_file ? await resolveStoredFileUrl(p.pdf_file, 60 * 60 * 24 * 7).catch(() => "") : "";
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      location: p.location,
+      duration: p.duration,
+      status: p.status,
+      cover_url,
+      pdf_url,
+      is_exclusive: activeExclusive,
+      vip_end_at: activeExclusive ? exclusive!.vip_end_at : null,
+      created_at: p.created_at,
+    };
+  }));
+});
+
 // ---------- Search projects for offer form ----------
 export const searchProjectsForClient = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ q: z.string().trim().min(1).max(200) }).parse(d))
