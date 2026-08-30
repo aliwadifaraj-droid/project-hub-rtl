@@ -116,10 +116,26 @@ type ClientProject = {
   duration: string | null;
   cover_url: string;
   pdf_url: string;
+  status: string;
   is_exclusive: boolean;
   vip_end_at: string | null;
   created_at: string;
 };
+
+const projectStatusMap: Record<string, { label: string; color: string }> = {
+  active: { label: "مفتوح للعرض", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  cancelled: { label: "ملغي", color: "text-destructive bg-destructive/5 border-destructive/20" },
+  delivered: { label: "تم التسليم", color: "text-blue-700 bg-blue-50 border-blue-200" },
+};
+
+function ProjectStatusBadge({ status }: { status: string }) {
+  const s = projectStatusMap[status] ?? projectStatusMap.active;
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${s.color}`}>
+      {s.label}
+    </span>
+  );
+}
 
 function ProjectsTab() {
   const fetchProjects = useServerFn(getAllProjectsForClient);
@@ -180,7 +196,10 @@ function ProjectsTab() {
                     <Images className="h-10 w-10" />
                   </div>
                 )}
-                {/* Exclusive badge */}
+                {/* Status + Exclusive badges */}
+                <div className="absolute top-3 start-3">
+                  <ProjectStatusBadge status={p.status} />
+                </div>
                 {p.is_exclusive && (
                   <span className="absolute top-3 end-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100/90 px-2.5 py-1 text-[11px] font-bold text-amber-700 backdrop-blur-sm">
                     <Crown className="h-3 w-3" /> حصري VIP
@@ -574,6 +593,7 @@ function SubmitOfferTab() {
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-1">
+                      <ProjectStatusBadge status={p.status} />
                       {p.is_exclusive && (
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border border-amber-200">
                           حصري VIP
