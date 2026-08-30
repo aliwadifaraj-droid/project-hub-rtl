@@ -1,21 +1,19 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getMyClientProfile,
-  updateMyClientProfile,
   getMyOffers,
   searchProjectsForClient,
   submitClientOffer,
   getClientSession,
 } from "@/lib/client.functions";
-import { SAUDI_CITIES } from "@/lib/saudi-cities";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import {
-  Building2, User, FileText, Search, Upload, LogOut, Save,
+  Building2, User, FileText, Search, Upload, LogOut, Lock,
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
-  TrendingUp, Briefcase, MapPin,
+  TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
 } from "lucide-react";
 
 type Tab = "profile" | "offers" | "submit";
@@ -37,7 +35,6 @@ export function ClientPortal() {
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
       <div className="flex-1 container mx-auto px-4 py-8">
-        {/* Header card */}
         <div className="mb-6 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -60,7 +57,6 @@ export function ClientPortal() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="mb-6 flex flex-wrap gap-2">
           <TabButton active={tab === "profile"} onClick={() => setTab("profile")} icon={<User className="h-4 w-4" />}>
             بياناتي
@@ -73,7 +69,6 @@ export function ClientPortal() {
           </TabButton>
         </div>
 
-        {/* Tab content */}
         {tab === "profile" && <ProfileTab />}
         {tab === "offers" && <OffersTab />}
         {tab === "submit" && <SubmitOfferTab />}
@@ -103,57 +98,14 @@ function TabButton({ active, onClick, icon, children }: {
   );
 }
 
-// ============== PROFILE TAB ==============
+// ============== PROFILE TAB (read-only) ==============
 function ProfileTab() {
   const fetchProfile = useServerFn(getMyClientProfile);
-  const doUpdate = useServerFn(updateMyClientProfile);
-  const qc = useQueryClient();
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["client-profile"],
     queryFn: () => fetchProfile(),
   });
-
-  const [companyName, setCompanyName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [city, setCity] = useState("");
-  const [crNumber, setCrNumber] = useState("");
-  const [bio, setBio] = useState("");
-  const [email, setEmail] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const loaded = useRef(false);
-
-  // Sync profile data to form fields once loaded
-  if (!loaded.current && profile) {
-    loaded.current = true;
-    setCompanyName(profile.company_name);
-    setPhone(profile.phone);
-    setCity(profile.city);
-    setCrNumber(profile.cr_number);
-    setBio(profile.bio);
-    setEmail(profile.email);
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await doUpdate({
-        data: { company_name: companyName, phone, city, cr_number: crNumber, bio },
-      });
-      setSaved(true);
-      qc.invalidateQueries({ queryKey: ["client-profile"] });
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "حدث خطأ");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   if (isLoading) {
     return (
@@ -163,76 +115,61 @@ function ProfileTab() {
     );
   }
 
+  const fields = [
+    { icon: <Building2 className="h-4 w-4 text-muted-foreground" />, label: "اسم الشركة / المنشأة", value: profile?.company_name || "—" },
+    { icon: <FileTextIcon className="h-4 w-4 text-muted-foreground" />, label: "البريد الإلكتروني", value: profile?.email || "—", locked: true },
+    { icon: <Phone className="h-4 w-4 text-muted-foreground" />, label: "رقم الجوال", value: profile?.phone || "—" },
+    { icon: <MapPinIcon className="h-4 w-4 text-muted-foreground" />, label: "المدينة", value: profile?.city || "—" },
+    { icon: <FileText className="h-4 w-4 text-muted-foreground" />, label: "رقم السجل التجاري", value: profile?.cr_number || "غير متوفر" },
+  ];
+
   return (
-    <div className="max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
-      <div className="mb-5 flex items-center gap-2">
-        <User className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-bold">بيانات التسجيل</h2>
+    <div className="max-w-2xl space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+        <div className="mb-5 flex items-center gap-2">
+          <User className="h-5 w-5 text-accent" />
+          <h2 className="text-lg font-bold">بيانات التسجيل</h2>
+          <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            <Lock className="h-3 w-3" /> للعرض فقط
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {fields.map((f, i) => (
+            <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-background px-4 py-3">
+              <span className="mt-0.5 shrink-0">{f.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground">{f.label}</p>
+                <p className="mt-0.5 truncate text-sm font-medium">{f.value}</p>
+              </div>
+              {f.locked && (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-600 border border-amber-200">
+                  <Lock className="h-3 w-3" /> ثابت
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {profile?.bio && (
+          <div className="mt-3 rounded-lg border border-border bg-background px-4 py-3">
+            <p className="text-xs font-semibold text-muted-foreground">نبذة عن الشركة</p>
+            <p className="mt-1 text-sm leading-relaxed text-foreground">{profile.bio}</p>
+          </div>
+        )}
       </div>
 
-      <form onSubmit={handleSave} className="space-y-4">
-        <div className="rounded-lg bg-secondary/50 px-4 py-3">
-          <label className="mb-1 block text-xs font-semibold text-muted-foreground">البريد الإلكتروني (ثابت)</label>
-          <p className="text-sm font-medium">{email || "—"}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">لا يمكن تغيير البريد الإلكتروني بعد التسجيل</p>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-semibold">اسم الشركة / المنشأة *</label>
-          <input
-            type="text" required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
-            className="inp"
-          />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            سيُستخدم هذا الاسم تلقائياً في جميع عروض الأسعار التي تقدمها
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+        <div className="flex items-start gap-2.5">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
           <div>
-            <label className="mb-1.5 block text-sm font-semibold">رقم الجوال *</label>
-            <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} className="inp" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">المدينة *</label>
-            <select required value={city} onChange={(e) => setCity(e.target.value)} className="inp">
-              <option value="">اختر المدينة</option>
-              {SAUDI_CITIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            <p className="text-sm font-bold text-blue-900">لتعديل بياناتك</p>
+            <p className="mt-1 text-sm text-blue-700">
+              لا يمكن تعديل البيانات ذاتياً بعد التسجيل. لطلب أي تعديل يرجى التواصل مع الإدارة عبر صفحة "تواصل بنا".
+            </p>
           </div>
         </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-semibold">رقم السجل التجاري</label>
-          <input type="text" value={crNumber} onChange={(e) => setCrNumber(e.target.value)} className="inp" />
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-semibold">نبذة عن الشركة</label>
-          <textarea value={bio} onChange={(e) => setBio(e.target.value)} className="inp min-h-[80px]" />
-        </div>
-
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-        {saved && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-600">
-            تم حفظ البيانات بنجاح
-          </div>
-        )}
-
-        <button
-          type="submit" disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          حفظ البيانات
-        </button>
-      </form>
+      </div>
     </div>
   );
 }
@@ -453,7 +390,6 @@ function SubmitOfferTab() {
         <h2 className="text-lg font-bold">تقديم عرض سعر</h2>
       </div>
 
-      {/* Company info banner */}
       {session && (
         <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -468,7 +404,6 @@ function SubmitOfferTab() {
         </div>
       )}
 
-      {/* If no project selected, show search */}
       {!selectedProject ? (
         <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <h3 className="mb-4 text-sm font-bold">ابحث عن المشروع</h3>
@@ -544,9 +479,7 @@ function SubmitOfferTab() {
           )}
         </div>
       ) : (
-        /* Project selected — show offer form */
         <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
-          {/* Selected project header */}
           <div className="mb-5 rounded-lg border border-border bg-secondary/40 p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -587,7 +520,6 @@ function SubmitOfferTab() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Locked company name + email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-lg bg-secondary/50 px-4 py-3">
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم الشركة (ثابت)</label>

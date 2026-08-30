@@ -1,6 +1,6 @@
 // Server functions for the client portal:
 // - signUpClient / signInClient (separate from admin auth, stored on Turso)
-// - getMyClientProfile / updateMyClientProfile
+// - getMyClientProfile (read-only — no self-edit)
 // - getMyOffers (track all offers submitted with the client's company name + email)
 // - searchProjectsForOffer (project search for the offer form)
 // - submitClientOffer (submit a price offer with all bot-form validations)
@@ -68,9 +68,6 @@ export const signInClient = createServerFn({ method: "POST" })
     if (!user) throw new Error("بيانات الدخول غير صحيحة");
     const ok = await verifyPassword(data.password, user.password_hash);
     if (!ok) throw new Error("بيانات الدخول غير صحيحة");
-    const profile = await clientRepo.getClientProfileByEmail(user.email);
-    if (profile?.status === "blocked") throw new Error("حسابك موقوف. لا يمكنك تسجيل الدخول حالياً");
-
     const roles = await getRolesForUser(user.id);
     const token = await signSessionToken({ sub: user.id, email: user.email, roles });
     setSessionCookie(token);
@@ -91,61 +88,23 @@ export const getClientSession = createServerFn({ method: "GET" }).handler(async 
   };
 });
 
-// ---------- Get / Update profile ----------
+// ---------- Get profile (read-only) ----------
 export const getMyClientProfile = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     return clientRepo.getClientProfile(context.userId);
   });
 
-export const updateMyClientProfile = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({
-      company_name: z.string().trim().min(2).max(200),
-      phone: z.string().trim().min(4).max(40),
-      city: z.string().trim().min(1).max(100),
-      cr_number: z.string().trim().max(50).optional().default(""),
-      bio: z.string().trim().max(2000).optional().default(""),
-    }).parse(d),
-  )
-  .handler(async ({ data }) => {
-    const claims = await getSessionClaims();
-    if (!claims) throw new Error("Unauthorized");
-    const existing = await clientRepo.getClientProfile(claims.sub);
-    if (!existing) {
-      await clientRepo.createClientProfile(claims.sub, claims.email, {
-        company_name: data.company_name,
-        phone: data.phone,
-        city: data.city,
-        cr_number: data.cr_number,
-        bio: data.bio,
-      });
-    } else {
-      await clientRepo.updateClientProfile(claims.sub, {
-        company_name: data.company_name,
-        phone: data.phone,
-        city: data.city,
-        cr_number: data.cr_number,
-        bio: data.bio,
-      });
-    }
-    return { ok: true };
-  });
-
 // ---------- Track my offers ----------
-// Returns all offers submitted with the client's company_name and email
 export const getMyOffers = createServerFn({ method: "GET" }).handler(async () => {
   const claims = await getSessionClaims();
   if (!claims) throw new Error("Unauthorized");
   const profile = await clientRepo.getClientProfile(claims.sub);
   if (!profile) return [];
 
-  // Search notifications by email (pending offers)
   const pendingByEmail = await notificationsRepo.searchOfferNotificationsByEmail(profile.email, 200);
-  // Also search by company name
   const pendingByCompany = await notificationsRepo.searchOfferNotificationsByCompany(profile.company_name, 200);
 
-  // Merge and deduplicate
   const seen = new Set<string>();
   const merged = [...pendingByEmail, ...pendingByCompany].filter((n) => {
     if (seen.has(n.id)) return false;
@@ -153,7 +112,6 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
     return true;
   });
 
-  // Also fetch accepted offers from project_requests
   const { db, rowsToObjects } = await import("./db");
   const r = await db.execute(
     `SELECT id, project_id, company_name, facility_location, email, pdf_url, status, submitter_type, project_type, note, created_at
@@ -177,7 +135,6 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
     is_accepted: true,
   }));
 
-  // Map pending offers to a common shape
   const pending = merged.map((n) => ({
     id: n.id,
     project_id: n.project_id,
@@ -217,7 +174,6 @@ export const searchProjectsForClient = createServerFn({ method: "GET" })
   });
 
 // ---------- Submit offer from client portal ----------
-// Applies ALL the same validations as the bot form (submitOffer in offers.functions.ts)
 const submitClientOfferSchema = z.object({
   projectId: z.string().uuid(),
   projectName: z.string().trim().min(2).max(200),
@@ -234,9 +190,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
 
     const profile = await clientRepo.getClientProfile(claims.sub);
     if (!profile) throw new Error("الملف غير موجود، يرجى إكمال بياناتك أولاً");
-    if (profile.status === "blocked") throw new Error("حسابك موقوف. لا يمكنك تقديم طلبات حالياً");
 
-    // Company name and email are forced from the registration data
     const companyName = profile.company_name;
     const email = profile.email;
 
@@ -246,23 +200,19 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "المشروع غير موجود" };
     }
 
-    // Check project name matches
     const projByName = await projectsRepo.getByNameExact(data.projectName);
     if (!projByName || projByName.id !== data.projectId) {
       return { ok: false as const, message: "اسم المشروع غير مطابق" };
     }
 
-    // Check project status — cancelled
     if (project.status === "cancelled") {
       return { ok: false as const, message: "تنبيه: تم إلغاء هذا المشروع ولا يمكنك التقديم عليه" };
     }
 
-    // Check project status — delivered
     if (project.status === "delivered") {
       return { ok: false as const, message: "تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
     }
 
-    // Check exclusive window
     const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
     if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
       const city = detectCity(project.location ?? "");
@@ -270,12 +220,10 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` };
     }
 
-    // Check offers enabled
     if (!project.offers_enabled) {
       return { ok: false as const, message: "تقديم عروض الأسعار متوقف حالياً لهذا المشروع" };
     }
 
-    // Check duplicate offer
     const dup = await notificationsRepo.checkDuplicateOffer({
       projectName: data.projectName,
       companyName,
@@ -285,13 +233,11 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "هذا المشروع سبق وتم تقديم عرض سعر له من قبلكم" };
     }
 
-    // Check blocked
     const blocked = await blockedRepo.isBlocked(companyName, email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
-    // Check notifications for same email+project pending
     const { db } = await import("./db");
     const checkEmailNotif = await db.execute(
       `SELECT id FROM notifications WHERE email = ? AND project_name = ? AND status = 'pending'`,
@@ -309,7 +255,6 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
-    // Check project_requests for same email+project
     const checkEmailReq = await db.execute(
       `SELECT id FROM project_requests WHERE email = ? AND facility_location = ?`,
       [email, data.projectName],
@@ -326,7 +271,6 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
-    // Notify all admin/employee staff
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${companyName} — ${data.projectName} — ${data.amount}`;
@@ -343,7 +287,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
         amount: data.amount,
         pdf_key: data.pdfKey,
         pdf_filename: data.pdfFilename,
-        source: "platform",
+        source: "client_portal",
         submitter_type: "user",
         offer_status: "new",
         status: "pending",
