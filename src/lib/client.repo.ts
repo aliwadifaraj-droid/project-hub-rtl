@@ -61,6 +61,14 @@ export async function getClientProfile(userId: string): Promise<ClientProfile | 
   return rows[0] ? decode(rows[0]) : null;
 }
 
+export async function listAllClientProfiles(): Promise<ClientProfile[]> {
+  await ensureTable();
+  const r = await db.execute(
+    `SELECT * FROM client_profiles ORDER BY created_at DESC`,
+  );
+  return rowsToObjects(r).map(decode);
+}
+
 export async function createClientProfile(
   userId: string,
   email: string,
