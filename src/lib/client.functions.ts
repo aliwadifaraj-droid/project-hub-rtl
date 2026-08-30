@@ -96,15 +96,19 @@ export const getMyClientProfile = createServerFn({ method: "GET" })
   });
 
 // ---------- Track my offers ----------
+// Returns all offers submitted with the client's company_name and email
 export const getMyOffers = createServerFn({ method: "GET" }).handler(async () => {
   const claims = await getSessionClaims();
   if (!claims) throw new Error("Unauthorized");
   const profile = await clientRepo.getClientProfile(claims.sub);
   if (!profile) return [];
 
+  // Search notifications by email (pending offers)
   const pendingByEmail = await notificationsRepo.searchOfferNotificationsByEmail(profile.email, 200);
+  // Also search by company name
   const pendingByCompany = await notificationsRepo.searchOfferNotificationsByCompany(profile.company_name, 200);
 
+  // Merge and deduplicate
   const seen = new Set<string>();
   const merged = [...pendingByEmail, ...pendingByCompany].filter((n) => {
     if (seen.has(n.id)) return false;
@@ -112,6 +116,7 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
     return true;
   });
 
+  // Also fetch accepted offers from project_requests
   const { db, rowsToObjects } = await import("./db");
   const r = await db.execute(
     `SELECT id, project_id, company_name, facility_location, email, pdf_url, status, submitter_type, project_type, note, created_at
@@ -135,6 +140,7 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
     is_accepted: true,
   }));
 
+  // Map pending offers to a common shape
   const pending = merged.map((n) => ({
     id: n.id,
     project_id: n.project_id,
@@ -173,6 +179,7 @@ export const searchProjectsForClient = createServerFn({ method: "GET" })
   });
 
 // ---------- Submit offer from client portal ----------
+// Applies ALL the same validations as the bot form (submitOffer in offers.functions.ts)
 const submitClientOfferSchema = z.object({
   projectId: z.string().uuid(),
   projectName: z.string().trim().min(2).max(200),
@@ -190,6 +197,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     const profile = await clientRepo.getClientProfile(claims.sub);
     if (!profile) throw new Error("الملف غير موجود، يرجى إكمال بياناتك أولاً");
 
+    // Company name and email are forced from the registration data
     const companyName = profile.company_name;
     const email = profile.email;
 
@@ -199,19 +207,23 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "المشروع غير موجود" };
     }
 
+    // Check project name matches
     const projByName = await projectsRepo.getByNameExact(data.projectName);
     if (!projByName || projByName.id !== data.projectId) {
       return { ok: false as const, message: "اسم المشروع غير مطابق" };
     }
 
+    // Check project status — cancelled
     if (project.status === "cancelled") {
       return { ok: false as const, message: "تنبيه: تم إلغاء هذا المشروع ولا يمكنك التقديم عليه" };
     }
 
+    // Check project status — delivered
     if (project.status === "delivered") {
       return { ok: false as const, message: "تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
     }
 
+    // Check exclusive window
     const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
     if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
       const city = detectCity(project.location ?? "");
@@ -220,6 +232,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     }
 
     // Client portal is independent of offers_enabled/bot_offers_enabled toggles
+    // Check duplicate offer
     const dup = await notificationsRepo.checkDuplicateOffer({
       projectName: data.projectName,
       companyName,
@@ -229,11 +242,13 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "هذا المشروع سبق وتم تقديم عرض سعر له من قبلكم" };
     }
 
+    // Check blocked
     const blocked = await blockedRepo.isBlocked(companyName, email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
+    // Check notifications for same email+project pending
     const { db } = await import("./db");
     const checkEmailNotif = await db.execute(
       `SELECT id FROM notifications WHERE email = ? AND project_name = ? AND status = 'pending'`,
@@ -251,6 +266,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
+    // Check project_requests for same email+project
     const checkEmailReq = await db.execute(
       `SELECT id FROM project_requests WHERE email = ? AND facility_location = ?`,
       [email, data.projectName],
@@ -267,6 +283,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
+    // Notify all admin/employee staff
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${companyName} — ${data.projectName} — ${data.amount}`;

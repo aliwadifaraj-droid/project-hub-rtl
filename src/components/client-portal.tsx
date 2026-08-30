@@ -35,6 +35,7 @@ export function ClientPortal() {
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
       <div className="flex-1 container mx-auto px-4 py-8">
+        {/* Header card */}
         <div className="mb-6 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -57,6 +58,7 @@ export function ClientPortal() {
           </div>
         </div>
 
+        {/* Tabs */}
         <div className="mb-6 flex flex-wrap gap-2">
           <TabButton active={tab === "profile"} onClick={() => setTab("profile")} icon={<User className="h-4 w-4" />}>
             بياناتي
@@ -69,6 +71,7 @@ export function ClientPortal() {
           </TabButton>
         </div>
 
+        {/* Tab content */}
         {tab === "profile" && <ProfileTab />}
         {tab === "offers" && <OffersTab />}
         {tab === "submit" && <SubmitOfferTab />}
@@ -390,6 +393,7 @@ function SubmitOfferTab() {
         <h2 className="text-lg font-bold">تقديم عرض سعر</h2>
       </div>
 
+      {/* Company info banner */}
       {session && (
         <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -404,6 +408,7 @@ function SubmitOfferTab() {
         </div>
       )}
 
+      {/* If no project selected, show search */}
       {!selectedProject ? (
         <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <h3 className="mb-4 text-sm font-bold">ابحث عن المشروع</h3>
@@ -474,7 +479,9 @@ function SubmitOfferTab() {
           )}
         </div>
       ) : (
+        /* Project selected — show offer form */
         <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+          {/* Selected project header */}
           <div className="mb-5 rounded-lg border border-border bg-secondary/40 p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -510,6 +517,7 @@ function SubmitOfferTab() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Locked company name + email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-lg bg-secondary/50 px-4 py-3">
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم الشركة (ثابت)</label>
