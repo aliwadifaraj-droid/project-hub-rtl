@@ -178,7 +178,6 @@ export const getAllProjectsForClient = createServerFn({ method: "GET" }).handler
         duration: p.duration,
         cover_url,
         pdf_url,
-        status: p.status,
         is_exclusive: activeExclusive,
         vip_end_at: activeExclusive ? exclusive!.vip_end_at : null,
         created_at: p.created_at,
