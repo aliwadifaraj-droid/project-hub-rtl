@@ -202,7 +202,6 @@ export const searchProjectsForClient = createServerFn({ method: "GET" })
         id: p.id,
         name: p.name,
         location: p.location,
-        status: p.status,
         is_exclusive: activeExclusive,
         vip_end_at: activeExclusive ? exclusive!.vip_end_at : null,
       };
