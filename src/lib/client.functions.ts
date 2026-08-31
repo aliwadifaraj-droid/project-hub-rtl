@@ -244,12 +244,12 @@ export const submitClientOffer = createServerFn({ method: "POST" })
 
     // Check project status — cancelled
     if (project.status === "cancelled") {
-      return { ok: false as const, message: "لا يمكن التقديم على هذا المشروع حالاً" };
+      return { ok: false as const, message: "⚠️ تنبيه: تم إلغاء هذا المشروع ولا يمكنك التقديم عليه" };
     }
 
     // Check project status — delivered
     if (project.status === "delivered") {
-      return { ok: false as const, message: "لا يمكن التقديم على هذا المشروع حالاً" };
+      return { ok: false as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
     }
 
     // Check exclusive window
@@ -260,7 +260,6 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` };
     }
 
-    // Client portal is independent of offers_enabled/bot_offers_enabled toggles
     // Check duplicate offer
     const dup = await notificationsRepo.checkDuplicateOffer({
       projectName: data.projectName,
@@ -277,10 +276,16 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
+    // Check client blocked (same as bot form)
+    const clientBlocked = await clientRepo.isClientBlockedByEmail(email);
+    if (clientBlocked) {
+      return { ok: false as const, message: "حسابك موقوف. لا يمكنك تقديم طلبات حالياً" };
+    }
+
     // Check notifications for same email+project pending
     const { db } = await import("./db");
     const checkEmailNotif = await db.execute(
-      `SELECT id FROM notifications WHERE email = ? AND project_name = ? AND status = 'pending'`,
+      `SELECT id FROM notifications WHERE email = $1 AND project_name = $2 AND status = 'pending'`,
       [email, data.projectName],
     );
     if (checkEmailNotif.rows.length > 0) {
@@ -288,7 +293,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     }
 
     const checkNameNotif = await db.execute(
-      `SELECT id FROM notifications WHERE company_name = ? AND project_name = ? AND status = 'pending'`,
+      `SELECT id FROM notifications WHERE company_name = $1 AND project_name = $2 AND status = 'pending'`,
       [companyName, data.projectName],
     );
     if (checkNameNotif.rows.length > 0) {
@@ -297,7 +302,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
 
     // Check project_requests for same email+project
     const checkEmailReq = await db.execute(
-      `SELECT id FROM project_requests WHERE email = ? AND facility_location = ?`,
+      `SELECT id FROM project_requests WHERE email = $1 AND facility_location = $2`,
       [email, data.projectName],
     );
     if (checkEmailReq.rows.length > 0) {
@@ -305,7 +310,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     }
 
     const checkNameReq = await db.execute(
-      `SELECT id FROM project_requests WHERE company_name = ? AND facility_location = ?`,
+      `SELECT id FROM project_requests WHERE company_name = $1 AND facility_location = $2`,
       [companyName, data.projectName],
     );
     if (checkNameReq.rows.length > 0) {
