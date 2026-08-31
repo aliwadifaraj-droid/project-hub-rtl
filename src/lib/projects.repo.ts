@@ -186,7 +186,7 @@ export async function insertProject(input: {
   // --- Send push notification to all subscribed clients ---
   try {
     const vapidEmail = process.env.VAPID_EMAIL ?? "mailto:admin@alamran.sa";
-    const publicKey = process.env.VITE_VAPID_PUBLIC_KEY ?? process.env.VAPID_PUBLIC_KEY;
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
     if (publicKey && privateKey) {
       webpush.setVapidDetails(vapidEmail, publicKey, privateKey);

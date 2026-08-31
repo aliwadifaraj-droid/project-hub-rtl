@@ -36,19 +36,42 @@ export function ClientPortal() {
   });
 
   async function checkNotifPermission() {
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    setNotifEnabled(Notification.permission === "granted");
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setNotifEnabled(false);
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        setNotifEnabled(false);
+        return;
+      }
+      const sub = await reg.pushManager.getSubscription();
+      setNotifEnabled(!!sub);
+    } catch {
+      setNotifEnabled(false);
+    }
+  }
+
+  function urlBase64ToUint8Array(base64String: string): Uint8Array {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
   }
 
   async function handleToggleNotifications() {
-    if (typeof window === "undefined" || !("Notification" in window)) {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       setNotifStatus("error");
       return;
     }
     if (notifEnabled) {
-      // Unsubscribe
       try {
-        const reg = await navigator.serviceWorker?.getRegistration();
+        const reg = await navigator.serviceWorker.getRegistration();
         if (reg) {
           const sub = await reg.pushManager.getSubscription();
           if (sub) {
@@ -63,7 +86,6 @@ export function ClientPortal() {
       return;
     }
 
-    // Request permission and subscribe
     setNotifStatus("subscribing");
     try {
       const permission = await Notification.requestPermission();
@@ -72,20 +94,8 @@ export function ClientPortal() {
         return;
       }
 
-      const reg = await navigator.serviceWorker?.getRegistration();
-      if (!reg) {
-        const swReg = await navigator.serviceWorker?.register("/sw.js");
-        if (!swReg) {
-          setNotifStatus("error");
-          return;
-        }
-      }
-
-      const registration = await navigator.serviceWorker?.ready;
-      if (!registration) {
-        setNotifStatus("error");
-        return;
-      }
+      await navigator.serviceWorker.register("/sw.js");
+      const registration = await navigator.serviceWorker.ready;
 
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
       if (!vapidKey) {
@@ -93,9 +103,12 @@ export function ClientPortal() {
         return;
       }
 
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: vapidKey,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
 
       const json = sub.toJSON();
