@@ -1,5 +1,7 @@
 // Turso repository for `projects`.
 import { db, rowsToObjects } from "./db";
+import webpush from "web-push";
+import { listAllSubscriptions, deleteSubscription } from "./push.repo";
 
 export type ProjectRow = {
   id: string;
@@ -50,6 +52,8 @@ function decode(r: any): ProjectRow {
     created_at: String(r.created_at ?? ""),
   };
 }
+
+let webpush_vapidReady = false;
 
 const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until,is_customer_request";
 
@@ -181,6 +185,47 @@ export async function insertProject(input: {
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, input.name, input.description ?? null, input.location ?? null, input.duration ?? null, input.cover_image ?? null, JSON.stringify(input.images ?? []), input.pdf_file ?? null, input.created_by ?? null, input.status ?? "active", input.admin_approval ?? "approved", input.ad_id ?? null, now, now, input.exclusive_hours ?? 6, (input.is_exclusive ?? false) ? 1 : 0, input.exclusive_until ?? null, (input.is_customer_request ?? false) ? 1 : 0],
   );
+
+  // --- Send push notification to all subscribed clients ---
+  try {
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    const privateKey = process.env.VAPID_PRIVATE_KEY;
+    if (publicKey && privateKey) {
+      if (!webpush_vapidReady) {
+        webpush.setVapidDetails("mailto:admin@alamran.sa", publicKey, privateKey);
+        webpush_vapidReady = true;
+      }
+      const subs = await listAllSubscriptions();
+      if (subs.length > 0) {
+        const payload = JSON.stringify({
+          title: "مشروع جديد",
+          body: `تم اضافة المشروع: ${input.name}`,
+          url: `/project/${id}`,
+        });
+        const results = await Promise.allSettled(
+          subs.map((s) =>
+            webpush.sendNotification(
+              { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+              payload,
+            ),
+          ),
+        );
+        const expired: string[] = [];
+        results.forEach((r, i) => {
+          if (r.status === "rejected") {
+            const statusCode = (r.reason as any)?.statusCode;
+            if (statusCode === 410 || statusCode === 404) {
+              expired.push(subs[i].endpoint);
+            }
+          }
+        });
+        await Promise.all(expired.map((ep) => deleteSubscription(ep)));
+      }
+    }
+  } catch (e) {
+    console.error("[projects.repo] push notification failed", e);
+  }
+
   return id;
 }
 
