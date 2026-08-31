@@ -15,6 +15,7 @@ import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
 import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
 import { listActiveByCity } from "./vip.repo";
+import { sendPushToAllClients } from "./push-send.server";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
@@ -287,6 +288,7 @@ export const upsertProject = createServerFn({ method: "POST" })
       await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
     }
     notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
+    sendPushToAllClients({ title: "مشروع جديد متاح", body: `${data.name}${data.location ? " — " + data.location : ""}`, url: `/project/${id}` }).catch((e) => console.error("[push-send]", e));
     await invalidateProjectsAll();
     await invalidateQuotes(context.userId);
     return { id, admin_approval: "approved" };
@@ -577,6 +579,7 @@ export const approveSubmission = createServerFn({ method: "POST" })
       await projectsRepo.setProjectExclusive(newId, now.toISOString(), vipEndAt.toISOString());
     }
     notifyVipSubscribersOfNewProject({ id: newId, name: sub.name, description: sub.description, location: sub.location }).catch((e) => console.error("[vip-notify]", e));
+    sendPushToAllClients({ title: "مشروع جديد متاح", body: `${sub.name}${sub.location ? " — " + sub.location : ""}`, url: `/project/${newId}` }).catch((e) => console.error("[push-send]", e));
     await submissionsRepo.markSubmissionApproved(data.id, newId);
     return { id: newId };
   });
