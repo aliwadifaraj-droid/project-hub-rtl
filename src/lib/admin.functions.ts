@@ -9,6 +9,7 @@ import * as notificationsRepo from "./notifications.repo";
 import * as submissionsRepo from "./project-submissions.repo";
 import * as contactRepo from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
+import * as clientRepo from "./client.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { resolveStoredFileUrl } from "./storage-url";
 import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuotes } from "./cache";
@@ -207,7 +208,7 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
             email: notif.email ?? "",
             pdf_url: notif.pdf_key ?? "",
             submitter_type: notif.submitter_type ?? "offer",
-            project_type: notif.source ?? "platform",
+            project_type: "platform",
           });
           await notificationsRepo.deleteOfferNotification(notif.id);
         }
@@ -461,6 +462,7 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       if (dup) throw new Error("لم نتمكن من معالجة طلبكم يرجى التواصل مع الدعم الفني");
     }
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    if (await clientRepo.isClientBlockedByEmail(data.email)) throw new Error("حسابك موقوف. لا يمكنك تقديم طلبات حالياً");
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const projectIdForPath = data.project_id ?? "add-project";
     const path = `${projectIdForPath}/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
@@ -502,6 +504,7 @@ export const submitAddProjectBidRequest = createServerFn({ method: "POST" })
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
     if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) throw new Error("الملف ليس PDF صالحاً");
     if (await blockedRepo.isBlocked(data.company_name, data.email)) throw new Error(BLOCKED_MESSAGE);
+    if (await clientRepo.isClientBlockedByEmail(data.email)) throw new Error("حسابك موقوف. لا يمكنك تقديم طلبات حالياً");
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
     const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
@@ -752,4 +755,166 @@ export const toggleExclusivityOff = createServerFn({ method: "POST" })
     await projectsRepo.updateProject(data.projectId, { is_exclusive: false, exclusive_until: null });
     await invalidateProjectsAll();
     return { ok: true as const };
+  });
+
+export const adminListClients = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const profiles = await clientRepo.listAllClientProfiles();
+    const { db, rowsToObjects } = await import("./db");
+
+    const offerR = await db.execute(
+      `SELECT LOWER(TRIM(email)) AS email, COUNT(DISTINCT id) AS offers_count, MAX(created_at) AS last_offer_at
+       FROM notifications
+       WHERE email IS NOT NULL AND TRIM(email) <> '' AND offer_status IS NOT NULL
+       GROUP BY LOWER(TRIM(email))`,
+    );
+    const offerMap = new Map<string, any>();
+    for (const row of rowsToObjects<any>(offerR)) {
+      if (row.email) offerMap.set(String(row.email).trim().toLowerCase(), row);
+    }
+
+    const reqR = await db.execute(
+      `SELECT LOWER(TRIM(email)) AS email, COUNT(*) AS requests_count, MAX(created_at) AS last_request_at
+       FROM project_requests
+       WHERE email IS NOT NULL AND TRIM(email) <> ''
+       GROUP BY LOWER(TRIM(email))`,
+    );
+    const reqMap = new Map<string, any>();
+    for (const row of rowsToObjects<any>(reqR)) {
+      if (row.email) reqMap.set(String(row.email).trim().toLowerCase(), row);
+    }
+
+    const vipR = await db.execute(
+      `SELECT email, MAX(created_at) AS vip_created_at, MAX(expires_at) AS vip_expires_at, MAX(status) AS vip_status, MAX(city) AS vip_city, MAX(plan) AS vip_plan
+       FROM vip_subscribers
+       WHERE email IS NOT NULL AND TRIM(email) <> ''
+       GROUP BY LOWER(TRIM(email))`,
+    );
+    const vipMap = new Map<string, any>();
+    for (const row of rowsToObjects<any>(vipR)) {
+      if (row.email) vipMap.set(String(row.email).trim().toLowerCase(), row);
+    }
+
+    return profiles.map((p) => {
+      const key = p.email.trim().toLowerCase();
+      const offer = offerMap.get(key);
+      const req = reqMap.get(key);
+      const vip = vipMap.get(key);
+      return {
+        email: p.email,
+        display_name: p.company_name || p.email,
+        company_name: p.company_name,
+        phone: p.phone,
+        city: p.city,
+        cr_number: p.cr_number,
+        bio: p.bio,
+        created_at: p.created_at,
+        offers_count: Number(offer?.offers_count ?? 0),
+        last_offer_at: offer?.last_offer_at ?? null,
+        requests_count: Number(req?.requests_count ?? 0),
+        last_request_at: req?.last_request_at ?? null,
+        vip_status: vip?.vip_status ?? null,
+        vip_city: vip?.vip_city ?? null,
+        vip_plan: vip?.vip_plan ?? null,
+        vip_expires_at: vip?.vip_expires_at ?? null,
+        vip_created_at: vip?.vip_created_at ?? null,
+      };
+    });
+  });
+
+export const adminToggleClientStatus = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { email: string; status: string }) =>
+    z.object({ email: z.string().trim().email(), status: z.enum(["active", "blocked"]) }).parse(d))
+  .handler(async ({ data }) => {
+    await clientRepo.updateClientStatusByEmail(data.email, data.status);
+    return { ok: true as const, status: data.status };
+  });
+
+export const adminGetClientDetail = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { email: string }) => z.object({ email: z.string().trim().email() }).parse(d))
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    const { db, rowsToObjects } = await import("./db");
+
+    const profile = await clientRepo.getClientProfileByEmail(email);
+
+    const offersR = await db.execute(
+      `SELECT id, project_id, project_name, company_name, amount, facility_location,
+              pdf_key, pdf_filename, offer_status, source, submitter_type, created_at
+       FROM notifications
+       WHERE LOWER(TRIM(email)) = ? AND offer_status IS NOT NULL
+       ORDER BY created_at DESC`,
+      [email],
+    );
+    const offers = rowsToObjects<any>(offersR).map((row: any) => ({
+      id: String(row.id),
+      project_id: row.project_id ?? null,
+      project_name: row.project_name ?? null,
+      company_name: row.company_name ?? "",
+      amount: row.amount ?? "",
+      facility_location: row.facility_location ?? null,
+      pdf_key: row.pdf_key ?? null,
+      pdf_filename: row.pdf_filename ?? null,
+      status: String(row.offer_status ?? "new"),
+      source: String(row.source ?? "platform"),
+      submitter_type: row.submitter_type ?? null,
+      created_at: String(row.created_at ?? ""),
+    }));
+
+    const requestsR = await db.execute(
+      `SELECT id, project_id, company_name, facility_location, email, pdf_url, status, submitter_type, project_type, note, created_at
+       FROM project_requests
+       WHERE LOWER(TRIM(email)) = ?
+       ORDER BY created_at DESC`,
+      [email],
+    );
+    const requests = rowsToObjects<any>(requestsR).map((row: any) => ({
+      id: String(row.id),
+      project_id: row.project_id ?? null,
+      company_name: row.company_name ?? "",
+      facility_location: row.facility_location ?? "",
+      pdf_url: row.pdf_url ?? "",
+      status: String(row.status ?? "new"),
+      submitter_type: row.submitter_type ?? null,
+      project_type: row.project_type ?? "platform",
+      note: row.note ?? null,
+      created_at: String(row.created_at ?? ""),
+    }));
+
+    const vipR = await db.execute(
+      `SELECT id, name, email, plan, city, status, project_id, expires_at, created_at
+       FROM vip_subscribers
+       WHERE LOWER(TRIM(email)) = ?
+       ORDER BY created_at DESC`,
+      [email],
+    );
+    const vipSubs = rowsToObjects<any>(vipR).map((row: any) => ({
+      id: String(row.id),
+      name: row.name ?? null,
+      plan: row.plan ?? null,
+      city: row.city ?? null,
+      status: String(row.status ?? "pending"),
+      project_id: row.project_id ?? null,
+      expires_at: row.expires_at ?? null,
+      created_at: String(row.created_at ?? ""),
+    }));
+
+    return {
+      email: data.email.trim(),
+      profile: profile ? {
+        company_name: profile.company_name,
+        phone: profile.phone,
+        city: profile.city,
+        cr_number: profile.cr_number,
+        bio: profile.bio,
+        status: profile.status,
+        created_at: profile.created_at,
+      } : null,
+      offers,
+      requests,
+      vipSubs,
+    };
   });

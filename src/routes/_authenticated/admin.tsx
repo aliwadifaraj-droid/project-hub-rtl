@@ -10,7 +10,7 @@ import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, 
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
@@ -134,6 +134,7 @@ function AdminLayout() {
     { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
+    { to: "/admin/clients", label: "متابعة العملاء", icon: Eye, show: isAdmin },
     { to: "/admin/exclusivity", label: "الحصرية", icon: Lock, show: isAdmin },
     { to: "/admin/vip", label: "العملاء المميزون", icon: Star, show: isAdmin },
     { to: "/admin/settings", label: "الإعدادات", icon: Settings2, show: isAdmin },
