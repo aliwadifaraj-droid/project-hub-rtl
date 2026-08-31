@@ -1,7 +1,6 @@
 // Turso repository for `projects`.
 import { db, rowsToObjects } from "./db";
 import webpush from "web-push";
-import { listAllSubscriptions, deleteSubscription } from "./push.repo";
 
 export type ProjectRow = {
   id: string;
@@ -52,8 +51,6 @@ function decode(r: any): ProjectRow {
     created_at: String(r.created_at ?? ""),
   };
 }
-
-let webpush_vapidReady = false;
 
 const COLS = "id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,ad_id,domain,created_at,offers_enabled,bot_offers_enabled,exclusive_hours,is_exclusive,exclusive_until,is_customer_request";
 
@@ -188,38 +185,29 @@ export async function insertProject(input: {
 
   // --- Send push notification to all subscribed clients ---
   try {
-    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    const vapidEmail = process.env.VAPID_EMAIL ?? "mailto:admin@alamran.sa";
+    const publicKey = process.env.VITE_VAPID_PUBLIC_KEY ?? process.env.VAPID_PUBLIC_KEY;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
     if (publicKey && privateKey) {
-      if (!webpush_vapidReady) {
-        webpush.setVapidDetails("mailto:admin@alamran.sa", publicKey, privateKey);
-        webpush_vapidReady = true;
-      }
-      const subs = await listAllSubscriptions();
-      if (subs.length > 0) {
-        const payload = JSON.stringify({
-          title: "مشروع جديد",
-          body: `تم اضافة المشروع: ${input.name}`,
-          url: `/project/${id}`,
-        });
-        const results = await Promise.allSettled(
-          subs.map((s) =>
-            webpush.sendNotification(
-              { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-              payload,
-            ),
-          ),
-        );
-        const expired: string[] = [];
-        results.forEach((r, i) => {
-          if (r.status === "rejected") {
-            const statusCode = (r.reason as any)?.statusCode;
-            if (statusCode === 410 || statusCode === 404) {
-              expired.push(subs[i].endpoint);
-            }
+      webpush.setVapidDetails(vapidEmail, publicKey, privateKey);
+      const result = await db.execute(
+        `SELECT endpoint, p256dh, auth FROM user_push_subscriptions`,
+      );
+      const subs = rowsToObjects<{ endpoint: string; p256dh: string; auth: string }>(result);
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            JSON.stringify({ title: "مشروع جديد", body: `تم اضافة: ${input.name}` }),
+          );
+        } catch (e: any) {
+          if (e?.statusCode === 410) {
+            await db.execute(
+              `DELETE FROM user_push_subscriptions WHERE endpoint = ?`,
+              [sub.endpoint],
+            );
           }
-        });
-        await Promise.all(expired.map((ep) => deleteSubscription(ep)));
+        }
       }
     }
   } catch (e) {
