@@ -6,6 +6,7 @@ import { findUserById } from "./users.repo";
 import { invalidateProjectsAll, invalidateQuotes } from "./cache";
 import { autoActivateByCity, listActiveByCity } from "./vip.repo";
 import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
+import { sendPushToAllClients } from "./push-send.server";
 
 
 export const listPendingProjects = createServerFn({ method: "GET" })
@@ -65,6 +66,13 @@ export const approveProject = createServerFn({ method: "POST" })
       location: row.location,
       duration: row.duration,
     }).catch((e) => console.error("[vip-notify]", e));
+
+    // Send web push notification to all subscribed clients (client portal).
+    sendPushToAllClients({
+      title: "مشروع جديد متاح",
+      body: `${row.name}${row.location ? " — " + row.location : ""}`,
+      url: `/project/${row.id}`,
+    }).catch((e) => console.error("[push-send]", e));
 
     if (row.created_by) {
       const { insertOne } = await import("./notifications.repo");
