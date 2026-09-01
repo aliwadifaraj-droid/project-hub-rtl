@@ -1,20 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAdmin } from "@/lib/auth-middleware.server";
-import { sendPushToAllClients } from "@/lib/push-send.server";
+import { sendPushToAllClients, getVapidConfigStatus } from "@/lib/push-send.server";
 import { listAllSubscriptions } from "@/lib/push.repo";
 
-// Admin-only diagnostic endpoint to test web push delivery.
-// Returns full diagnostic info: subscription count, VAPID key status,
-// and per-delivery sent/failed counts.
 export const testPush = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async () => {
     const subs = await listAllSubscriptions();
     const count = subs.length;
-
-    const publicKey = process.env.VAPID_PUBLIC_KEY;
-    const privateKey = process.env.VAPID_PRIVATE_KEY;
-    const vapidConfigured = !!(publicKey && privateKey);
+    const vapid = getVapidConfigStatus();
+    const vapidConfigured = vapid.publicKeyConfigured && vapid.privateKeyConfigured;
 
     if (count === 0) {
       return {
@@ -22,17 +17,25 @@ export const testPush = createServerFn({ method: "POST" })
         error: "لا يوجد عملاء مشتركون بالإشعارات حالياً. يجب على العميل تفعيل الإشعارات من بوابة العملاء أولاً.",
         count: 0,
         vapidConfigured,
+        publicKeyConfigured: vapid.publicKeyConfigured,
+        privateKeyConfigured: vapid.privateKeyConfigured,
         sent: 0,
         failed: 0,
       };
     }
 
     if (!vapidConfigured) {
+      const missing = [
+        !vapid.publicKeyConfigured ? "VAPID_PUBLIC_KEY أو VITE_VAPID_PUBLIC_KEY" : null,
+        !vapid.privateKeyConfigured ? "VAPID_PRIVATE_KEY" : null,
+      ].filter(Boolean).join(" و ");
       return {
         ok: false,
-        error: "مفاتيح VAPID غير مضبوطة في متغيرات البيئة على الخادم. تأكد من إضافة VAPID_PUBLIC_KEY و VAPID_PRIVATE_KEY في إعدادات Vercel.",
+        error: `الخادم لا يرى المتغير التالي: ${missing}. أعد النشر بعد حفظ المتغيرات في Vercel.`,
         count,
         vapidConfigured: false,
+        publicKeyConfigured: vapid.publicKeyConfigured,
+        privateKeyConfigured: vapid.privateKeyConfigured,
         sent: 0,
         failed: 0,
       };
@@ -48,6 +51,8 @@ export const testPush = createServerFn({ method: "POST" })
       ok: result.sent > 0,
       count,
       vapidConfigured: true,
+      publicKeyConfigured: true,
+      privateKeyConfigured: true,
       sent: result.sent,
       failed: result.failed,
       configError: result.configError,
