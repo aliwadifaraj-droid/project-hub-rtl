@@ -10,7 +10,8 @@ import {
   markAllNotificationsRead,
 } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
-import { getMe } from "@/lib/auth.functions";
+import { getMe, getMyRoles } from "@/lib/auth.functions";
+import { hasAdminRole } from "@/lib/role-label";
 
 const CHAT_SEEN_KEY = "team_chat_last_seen";
 
@@ -25,6 +26,7 @@ export function SiteHeader() {
   const markAllRead = useServerFn(markAllNotificationsRead);
   const fetchMe = useServerFn(getMe);
   const countChatFn = useServerFn(countUnreadTeamMessages);
+  const fetchRoles = useServerFn(getMyRoles);
 
   useEffect(() => {
     let mounted = true;
@@ -39,6 +41,14 @@ export function SiteHeader() {
       mounted = false;
     };
   }, [fetchMe, path]);
+
+  const { data: roles } = useQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => fetchRoles(),
+    enabled: signedIn,
+    retry: false,
+  });
+  const isAdmin = hasAdminRole(roles);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
@@ -59,7 +69,7 @@ export function SiteHeader() {
       const res = await countChatFn({ data: { since } });
       return res.count;
     },
-    enabled: signedIn,
+    enabled: signedIn && isAdmin,
   });
 
   void refetchChat;
@@ -108,7 +118,7 @@ export function SiteHeader() {
             <ClipboardList className="h-4 w-4" /> طلباتي
           </Link>
 
-          {signedIn && (
+          {signedIn && isAdmin && (
             <Link
               to="/admin/chat"
               onClick={handleChatClick}
