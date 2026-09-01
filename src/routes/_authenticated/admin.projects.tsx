@@ -95,11 +95,13 @@ function ProjectsAdminPage() {
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-bold">{p.name}</h3>
-                <ProjectStatusBadge status={p.status} />
+                {isAdmin ? <ProjectStatusBadge status={p.status} /> : null}
               </div>
-              <div className="mt-1">
-                <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
-              </div>
+              {isAdmin ? (
+                <div className="mt-1">
+                  <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
+                </div>
+              ) : null}
               <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link
