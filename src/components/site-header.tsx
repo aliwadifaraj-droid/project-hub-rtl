@@ -10,7 +10,8 @@ import {
   markAllNotificationsRead,
 } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
-import { getMe, getMyRoles } from "@/lib/auth.functions";
+import { getMe } from "@/lib/auth.functions";
+import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 
 const CHAT_SEEN_KEY = "team_chat_last_seen";
