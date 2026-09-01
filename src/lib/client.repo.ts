@@ -147,3 +147,14 @@ export async function updateClientStatusByEmail(
     [status, new Date().toISOString(), email.trim()],
   );
 }
+
+export async function deleteClientProfileByEmail(email: string): Promise<string | null> {
+  await ensureTable();
+  const profile = await getClientProfileByEmail(email);
+  if (!profile) return null;
+  await db.execute(
+    `DELETE FROM client_profiles WHERE user_id = ?`,
+    [profile.user_id],
+  );
+  return profile.user_id;
+}

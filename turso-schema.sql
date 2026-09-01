@@ -278,5 +278,17 @@ CREATE TABLE IF NOT EXISTS project_exclusive (
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_project ON project_exclusive(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_exclusive_created ON project_exclusive(created_at DESC);
 
+-- ============ user_push_subscriptions (Web Push) ============
+CREATE TABLE IF NOT EXISTS user_push_subscriptions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT,
+  endpoint    TEXT NOT NULL,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_push_sub_user ON user_push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_sub_endpoint ON user_push_subscriptions(endpoint);
+
 -- Drop the incorrect table if it was created by a previous bug.
 DROP TABLE IF EXISTS project_vip_windows;

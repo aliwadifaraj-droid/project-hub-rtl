@@ -26,6 +26,7 @@ import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { detectCity } from "./vip-notify.server";
 import { requireAuth } from "./auth-middleware.server";
 import { resolveStoredFileUrl } from "./storage-url";
+import { insertSubscription, deleteSubscription } from "./push.repo";
 
 const clientCredsSchema = z.object({
   email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
@@ -344,6 +345,40 @@ export const submitClientOffer = createServerFn({ method: "POST" })
 
     return { ok: true as const, id, message: "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅" };
   });
+
+// ---------- Save push subscription ----------
+export const saveClientPushSubscription = createServerFn({ method: "POST" })
+  .inputValidator(
+    (d: unknown) =>
+      z.object({
+        endpoint: z.string().url().max(2000),
+        p256dh: z.string().min(1).max(500),
+        auth: z.string().min(1).max(500),
+      }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const claims = await getSessionClaims();
+    if (!claims) throw new Error("يجب تسجيل الدخول");
+    await insertSubscription({
+      userId: claims.sub,
+      endpoint: data.endpoint,
+      p256dh: data.p256dh,
+      auth: data.auth,
+    });
+    return { ok: true };
+  });
+
+// ---------- Remove push subscription ----------
+export const removeClientPushSubscription = createServerFn({ method: "POST" })
+  .inputValidator(
+    (d: unknown) =>
+      z.object({ endpoint: z.string().url().max(2000) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await deleteSubscription(data.endpoint);
+    return { ok: true };
+  });
+
 
 async function listAdminUserIds(): Promise<string[]> {
   const { db, rowsToObjects } = await import("./db");

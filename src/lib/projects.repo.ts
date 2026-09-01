@@ -1,5 +1,6 @@
 // Turso repository for `projects`.
 import { db, rowsToObjects } from "./db";
+import webpush from "web-push";
 
 export type ProjectRow = {
   id: string;
@@ -181,6 +182,38 @@ export async function insertProject(input: {
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, input.name, input.description ?? null, input.location ?? null, input.duration ?? null, input.cover_image ?? null, JSON.stringify(input.images ?? []), input.pdf_file ?? null, input.created_by ?? null, input.status ?? "active", input.admin_approval ?? "approved", input.ad_id ?? null, now, now, input.exclusive_hours ?? 6, (input.is_exclusive ?? false) ? 1 : 0, input.exclusive_until ?? null, (input.is_customer_request ?? false) ? 1 : 0],
   );
+
+  // --- Send push notification to all subscribed clients ---
+  try {
+    const vapidEmail = process.env.VAPID_EMAIL ?? "mailto:admin@alamran.sa";
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    const privateKey = process.env.VAPID_PRIVATE_KEY;
+    if (publicKey && privateKey) {
+      webpush.setVapidDetails(vapidEmail, publicKey, privateKey);
+      const result = await db.execute(
+        `SELECT endpoint, p256dh, auth FROM user_push_subscriptions`,
+      );
+      const subs = rowsToObjects<{ endpoint: string; p256dh: string; auth: string }>(result);
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            JSON.stringify({ title: "مشروع جديد", body: `تم اضافة: ${input.name}` }),
+          );
+        } catch (e: any) {
+          if (e?.statusCode === 410) {
+            await db.execute(
+              `DELETE FROM user_push_subscriptions WHERE endpoint = ?`,
+              [sub.endpoint],
+            );
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[projects.repo] push notification failed", e);
+  }
+
   return id;
 }
 

@@ -3,7 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListClients, adminGetClientDetail, adminToggleClientStatus } from "@/lib/admin.functions";
-import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2 } from "lucide-react";
+import { adminDeleteClient } from "@/lib/client-admin.functions";
+import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/clients")({
   component: ClientsPage,
@@ -143,6 +144,7 @@ function ClientsPage() {
 function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) {
   const getDetail = useServerFn(adminGetClientDetail);
   const toggleStatus = useServerFn(adminToggleClientStatus);
+  const deleteClient = useServerFn(adminDeleteClient);
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-client-detail", email],
@@ -150,6 +152,7 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
   });
 
   const [toggling, setToggling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleToggle = async () => {
     if (!data?.profile) return;
@@ -174,6 +177,20 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
     );
 
   if (!data) return <div className="text-center text-slate-400 py-10">لا توجد بيانات</div>;
+
+  const handleDelete = async () => {
+    if (!window.confirm("سيتم حذف حساب العميل نهائياً ولا يمكن التراجع عن هذا الإجراء. هل تريد المتابعة؟")) return;
+    setDeleting(true);
+    try {
+      await deleteClient({ data: { email } });
+      await queryClient.invalidateQueries({ queryKey: ["admin-clients"] });
+      onBack();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div dir="rtl" className="space-y-6">
@@ -223,6 +240,14 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
               {data.profile.status === "active" ? "إيقاف الحساب" : "تنشيط الحساب"}
             </button>
           )}
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 disabled:opacity-50"
+          >
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            حذف الحساب نهائياً
+          </button>
         </div>
 
         {data.profile && (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,6 +8,8 @@ import {
   submitClientOffer,
   getClientSession,
   getAllProjectsForClient,
+  saveClientPushSubscription,
+  removeClientPushSubscription,
 } from "@/lib/client.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -15,23 +17,128 @@ import {
   Building2, User, FileText, Search, Upload, LogOut, Lock,
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
   TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
-  FolderKanban, Calendar, Crown, Images,
+  FolderKanban, Calendar, Crown, Images, Bell,
 } from "lucide-react";
 
 type Tab = "projects" | "profile" | "offers" | "submit";
 
 export function ClientPortal() {
   const [tab, setTab] = useState<Tab>("projects");
+  const [notifStatus, setNotifStatus] = useState<"idle" | "subscribing" | "error">("idle");
+  const [notifEnabled, setNotifEnabled] = useState(false);
   const fetchSession = useServerFn(getClientSession);
+  const doSaveSub = useServerFn(saveClientPushSubscription);
+  const doRemoveSub = useServerFn(removeClientPushSubscription);
 
   const { data: session } = useQuery({
     queryKey: ["client-session"],
     queryFn: () => fetchSession(),
   });
 
+  async function checkNotifPermission() {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setNotifEnabled(false);
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        setNotifEnabled(false);
+        return;
+      }
+      const sub = await reg.pushManager.getSubscription();
+      setNotifEnabled(!!sub);
+    } catch {
+      setNotifEnabled(false);
+    }
+  }
+
+  function urlBase64ToUint8Array(base64String: string): Uint8Array {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  async function handleToggleNotifications() {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setNotifStatus("error");
+      return;
+    }
+    if (notifEnabled) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            await sub.unsubscribe();
+            await doRemoveSub({ data: { endpoint: sub.endpoint } });
+          }
+        }
+        setNotifEnabled(false);
+      } catch {
+        setNotifStatus("error");
+      }
+      return;
+    }
+
+    setNotifStatus("subscribing");
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setNotifStatus("error");
+        return;
+      }
+
+      await navigator.serviceWorker.register("/sw.js");
+      const registration = await navigator.serviceWorker.ready;
+
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        setNotifStatus("error");
+        return;
+      }
+
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+
+      const sub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+
+      const json = sub.toJSON();
+      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+        setNotifStatus("error");
+        return;
+      }
+
+      await doSaveSub({
+        data: {
+          endpoint: json.endpoint,
+          p256dh: json.keys.p256dh,
+          auth: json.keys.auth,
+        },
+      });
+
+      setNotifEnabled(true);
+      setNotifStatus("idle");
+    } catch {
+      setNotifStatus("error");
+    }
+  }
+
   function handleLogout() {
     window.location.href = "/client-logout";
   }
+
+  useEffect(() => {
+    checkNotifPermission();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -51,12 +158,30 @@ export function ClientPortal() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold transition hover:bg-secondary"
-            >
-              <LogOut className="h-4 w-4" /> تسجيل الخروج
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                onClick={handleToggleNotifications}
+                disabled={notifStatus === "subscribing"}
+                className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
+                  notifEnabled
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                {notifStatus === "subscribing" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Bell className="h-4 w-4" />
+                )}
+                {notifEnabled ? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
+              </button>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold transition hover:bg-secondary"
+              >
+                <LogOut className="h-4 w-4" /> تسجيل الخروج
+              </button>
+            </div>
           </div>
         </div>
 

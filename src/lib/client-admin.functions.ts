@@ -1,0 +1,15 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireAdmin } from "./auth-middleware.server";
+import { deleteUser as deleteUserRow } from "./users.repo";
+import * as clientRepo from "./client.repo";
+
+export const adminDeleteClient = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { email: string }) =>
+    z.object({ email: z.string().trim().email() }).parse(d))
+  .handler(async ({ data }) => {
+    const userId = await clientRepo.deleteClientProfileByEmail(data.email);
+    if (userId) await deleteUserRow(userId);
+    return { ok: true as const };
+  });
