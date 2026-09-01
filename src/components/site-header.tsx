@@ -20,6 +20,7 @@ export function SiteHeader() {
   const [signedIn, setSignedIn] = useState(false);
   const [open, setOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const isClientPortal = path === "/client-portal";
   const qc = useQueryClient();
   const countUnread = useServerFn(countMyUnreadNotifications);
   const listNotifs = useServerFn(listMyNotifications);
@@ -100,24 +101,28 @@ export function SiteHeader() {
           <span>العمران</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
-          <Link
-            to="/projects"
-            className="rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
-          >
-            المشاريع
-          </Link>
-          <Link
-            to="/ads"
-            className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
-          >
-            <Megaphone className="h-4 w-4" /> الإعلانات
-          </Link>
-          <Link
-            to="/my-requests"
-            className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
-          >
-            <ClipboardList className="h-4 w-4" /> طلباتي
-          </Link>
+          {!isClientPortal && (
+            <>
+              <Link
+                to="/projects"
+                className="rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
+              >
+                المشاريع
+              </Link>
+              <Link
+                to="/ads"
+                className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
+              >
+                <Megaphone className="h-4 w-4" /> الإعلانات
+              </Link>
+              <Link
+                to="/my-requests"
+                className="inline-flex items-center gap-1 rounded-md px-2 sm:px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground data-[status=active]:text-foreground"
+              >
+                <ClipboardList className="h-4 w-4" /> طلباتي
+              </Link>
+            </>
+          )}
 
           {signedIn && isAdmin && (
             <Link
