@@ -42,3 +42,23 @@ export const setHideSupportChat = createServerFn({ method: "POST" })
     );
     return { ok: true, enabled: data.enabled };
   });
+
+export const getNotificationsEnabled = createServerFn({ method: "GET" }).handler(async () => {
+  const result = await db.execute("SELECT value FROM site_settings WHERE key = ? LIMIT 1", ["notifications_enabled"]);
+  const row = rowsToObjects<{ value: string | null }>(result)[0];
+  const v = row?.value ? (JSON.parse(row.value) as { enabled?: boolean }) : {};
+  return { enabled: v.enabled !== false };
+});
+
+export const setNotificationsEnabled = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ enabled: z.boolean() }).parse(d))
+  .handler(async ({ data }) => {
+    await db.execute(
+      `INSERT INTO site_settings (key, value, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      ["notifications_enabled", JSON.stringify({ enabled: data.enabled }), new Date().toISOString()],
+    );
+    return { ok: true, enabled: data.enabled };
+  });
