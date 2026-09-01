@@ -6,13 +6,15 @@ import webpush from "web-push";
 import { listAllSubscriptions } from "./push.repo";
 
 let _configured = false;
+let _configError: string | null = null;
 
 function configureVapid(): void {
   if (_configured) return;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   if (!publicKey || !privateKey) {
-    console.error("[push-send] VAPID keys not configured in env");
+    _configError = "VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY not set in server env";
+    console.error("[push-send] " + _configError);
     return;
   }
   webpush.setVapidDetails("mailto:noreply@ali-alhaddad.com", publicKey, privateKey);
@@ -26,18 +28,32 @@ export interface PushPayload {
   icon?: string;
 }
 
+export interface PushResult {
+  sent: number;
+  failed: number;
+  total: number;
+  configError: string | null;
+}
+
 /**
  * Sends a web push notification to every client that has an active
  * push subscription. Failures for individual endpoints are logged but
  * do not stop delivery to other subscribers.
  */
-export async function sendPushToAllClients(payload: PushPayload): Promise<void> {
+export async function sendPushToAllClients(payload: PushPayload): Promise<PushResult> {
   try {
     configureVapid();
-    if (!_configured) return;
+    if (!_configured) {
+      return { sent: 0, failed: 0, total: 0, configError: _configError };
+    }
 
     const subs = await listAllSubscriptions();
-    if (subs.length === 0) return;
+    if (subs.length === 0) {
+      console.log("[push-send] no subscriptions found — skipping push");
+      return { sent: 0, failed: 0, total: 0, configError: null };
+    }
+
+    console.log(`[push-send] sending to ${subs.length} subscriber(s): "${payload.title}"`);
 
     const message = JSON.stringify({
       title: payload.title,
@@ -58,21 +74,24 @@ export async function sendPushToAllClients(payload: PushPayload): Promise<void> 
       ),
     );
 
+    let sent = 0;
     let failed = 0;
     for (const r of results) {
-      if (r.status === "rejected") {
+      if (r.status === "fulfilled") {
+        sent++;
+      } else {
         failed++;
-        const err = r.reason as { statusCode?: number; message?: string };
-        // 404/410 = subscription no longer valid; log but don't crash
-        if (err?.statusCode === 404 || err?.statusCode === 410) continue;
-        console.error("[push-send] delivery failed:", err?.message ?? err);
+        const err = r.reason as { statusCode?: number; message?: string; endpoint?: string };
+        const statusCode = err?.statusCode ?? "unknown";
+        const msg = err?.message ?? String(err);
+        console.error(`[push-send] delivery failed (status ${statusCode}): ${msg}`);
       }
     }
 
-    if (failed > 0) {
-      console.error(`[push-send] ${failed}/${subs.length} deliveries failed`);
-    }
+    console.log(`[push-send] done: ${sent} sent, ${failed} failed out of ${subs.length}`);
+    return { sent, failed, total: subs.length, configError: null };
   } catch (e) {
     console.error("[push-send] unexpected error:", e);
+    return { sent: 0, failed: 0, total: 0, configError: String(e) };
   }
 }
