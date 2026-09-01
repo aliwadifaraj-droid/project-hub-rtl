@@ -9,8 +9,9 @@ import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
+import { testPush } from "@/lib/push-test.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
@@ -34,6 +35,7 @@ function AdminLayout() {
   const markRead = useServerFn(markNotificationRead);
   const markAllRead = useServerFn(markAllNotificationsRead);
   const countContactsFn = useServerFn(countContactMessages);
+  const doTestPush = useServerFn(testPush);
   const qc = useQueryClient();
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
@@ -310,6 +312,33 @@ function AdminLayout() {
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
               >
                 <Mail className="h-4 w-4" />
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  const tId = toast.loading("جارٍ إرسال إشعار تجريبي...");
+                  try {
+                    const r = await doTestPush();
+                    if (r.ok) {
+                      toast.success(r.message ?? `تم الإرسال إلى ${r.count} مشترك`, { id: tId, duration: 6000 });
+                    } else {
+                      const parts = [r.error ?? "فشل الإرسال"];
+                      if (typeof r.count === "number") parts.push(`المشتركون: ${r.count}`);
+                      if (typeof r.sent === "number") parts.push(`نجح: ${r.sent}`);
+                      if (typeof r.failed === "number") parts.push(`فشل: ${r.failed}`);
+                      if (r.configError) parts.push(`خطأ: ${r.configError}`);
+                      toast.error(parts.join(" | "), { id: tId, duration: 10000 });
+                    }
+                  } catch (e: any) {
+                    toast.error(`فشل: ${e?.message ?? "خطأ غير معروف"}`, { id: tId, duration: 8000 });
+                  }
+                }}
+                aria-label="تجربة الإشعارات"
+                title="تجربة الإشعارات"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
+              >
+                <Send className="h-4 w-4" />
               </button>
             )}
             <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
