@@ -3,14 +3,6 @@ import * as vipRepo from "./vip.repo";
 import { SAUDI_CITIES } from "./saudi-cities";
 import { sendResendEmail } from "./resend-send.server";
 import { createVipToken } from "./vip-tokens.repo";
-import { db, rowsToObjects } from "./db";
-
-async function notificationsEnabled(): Promise<boolean> {
-  const result = await db.execute("SELECT value FROM site_settings WHERE key = ? LIMIT 1", ["notifications_enabled"]);
-  const row = rowsToObjects<{ value: string | null }>(result)[0];
-  const v = row?.value ? (JSON.parse(row.value) as { enabled?: boolean }) : {};
-  return v.enabled !== false;
-}
 
 function siteUrl(): string {
   return "https://ali-alhaddad.com".replace(/\/$/, "");
@@ -38,7 +30,6 @@ export async function notifyVipSubscribersOfNewProject(project: {
   duration?: string | null;
 }): Promise<void> {
   try {
-    if (!(await notificationsEnabled())) return;
     const city = detectCity(project.location);
     if (!city) return;
     const subs = await vipRepo.listActiveByCity(city);
