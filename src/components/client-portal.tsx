@@ -17,7 +17,7 @@ import {
   Building2, User, FileText, Search, Upload, LogOut, Lock,
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
   TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
-  FolderKanban, Calendar, Crown, Images, Bell,
+  FolderKanban, Calendar, Crown, Images, Bell, X, ExternalLink,
 } from "lucide-react";
 
 type Tab = "projects" | "profile" | "offers" | "submit";
@@ -247,23 +247,9 @@ type ClientProject = {
   created_at: string;
 };
 
-const projectStatusMap: Record<string, { label: string; color: string }> = {
-  active: { label: "مفتوح للعرض", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-  cancelled: { label: "ملغي", color: "text-destructive bg-destructive/5 border-destructive/20" },
-  delivered: { label: "تم التسليم", color: "text-blue-700 bg-blue-50 border-blue-200" },
-};
-
-function ProjectStatusBadge({ status }: { status: string }) {
-  const s = projectStatusMap[status] ?? projectStatusMap.active;
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${s.color}`}>
-      {s.label}
-    </span>
-  );
-}
-
 function ProjectsTab() {
   const fetchProjects = useServerFn(getAllProjectsForClient);
+  const [selected, setSelected] = useState<ClientProject | null>(null);
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["client-all-projects"],
@@ -305,7 +291,8 @@ function ProjectsTab() {
           return (
             <article
               key={p.id}
-              className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
+              onClick={() => setSelected(p)}
+              className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
             >
               {/* Cover image */}
               <div className="relative aspect-[16/10] overflow-hidden bg-secondary">
@@ -321,10 +308,6 @@ function ProjectsTab() {
                     <Images className="h-10 w-10" />
                   </div>
                 )}
-                {/* Status + Exclusive badges */}
-                <div className="absolute top-3 start-3">
-                  <ProjectStatusBadge status={p.status} />
-                </div>
                 {p.is_exclusive && (
                   <span className="absolute top-3 end-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100/90 px-2.5 py-1 text-[11px] font-bold text-amber-700 backdrop-blur-sm">
                     <Crown className="h-3 w-3" /> حصري VIP
@@ -358,6 +341,132 @@ function ProjectsTab() {
             </article>
           );
         })}
+      </div>
+
+      {selected && (
+        <ProjectDetailModal project={selected} onClose={() => setSelected(null)} />
+      )}
+    </div>
+  );
+}
+
+function ProjectDetailModal({ project, onClose }: { project: ClientProject; onClose: () => void }) {
+  useEffect(() => {
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleEsc);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleEsc);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+          <div className="flex-1">
+            <h2 className="text-lg font-bold">{project.name}</h2>
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {project.location && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" /> {project.location}
+                </span>
+              )}
+              {project.duration && (
+                <span className="inline-flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5" /> {project.duration}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" /> {new Date(project.created_at).toLocaleDateString("ar")}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="إغلاق"
+            className="shrink-0 rounded-lg border border-border bg-background p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {/* Cover image */}
+          {project.cover_url && (
+            <div className="mb-5 overflow-hidden rounded-xl border border-border">
+              <img src={project.cover_url} alt={project.name} className="h-64 w-full object-cover" />
+            </div>
+          )}
+
+          {/* Description */}
+          {project.description && (
+            <div className="mb-5">
+              <h3 className="mb-2 text-sm font-bold">تفاصيل المشروع</h3>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                {project.description}
+              </p>
+            </div>
+          )}
+
+          {/* Info grid */}
+          <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {project.location && (
+              <div className="rounded-lg border border-border bg-background px-4 py-3">
+                <p className="text-xs font-semibold text-muted-foreground">الموقع</p>
+                <p className="mt-0.5 text-sm font-medium">{project.location}</p>
+              </div>
+            )}
+            {project.duration && (
+              <div className="rounded-lg border border-border bg-background px-4 py-3">
+                <p className="text-xs font-semibold text-muted-foreground">المدة</p>
+                <p className="mt-0.5 text-sm font-medium">{project.duration}</p>
+              </div>
+            )}
+          </div>
+
+          {/* PDF viewer */}
+          {project.pdf_url ? (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-bold">ملف المشروع (PDF)</h3>
+                <a
+                  href={project.pdf_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> فتح في نافذة جديدة
+                </a>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-border">
+                <iframe
+                  src={project.pdf_url}
+                  title={project.name}
+                  className="h-[60vh] w-full"
+                  style={{ border: "none" }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-secondary/40 px-4 py-6 text-center">
+              <FileText className="mx-auto h-8 w-8 text-muted-foreground/50" />
+              <p className="mt-2 text-sm text-muted-foreground">لا يوجد ملف PDF لهذا المشروع</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -718,7 +827,6 @@ function SubmitOfferTab() {
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <ProjectStatusBadge status={p.status} />
                       {p.is_exclusive && (
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border border-amber-200">
                           حصري VIP
