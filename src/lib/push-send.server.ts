@@ -8,16 +8,44 @@ import { listAllSubscriptions } from "./push.repo";
 let _configured = false;
 let _configError: string | null = null;
 
+export interface VapidConfigStatus {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+  publicKeyConfigured: boolean;
+  privateKeyConfigured: boolean;
+}
+
+function readVapidConfig(): VapidConfigStatus {
+  const publicKey = (process.env.VAPID_PUBLIC_KEY ?? process.env.VITE_VAPID_PUBLIC_KEY ?? "").trim();
+  const privateKey = (process.env.VAPID_PRIVATE_KEY ?? "").trim();
+  const subject = (process.env.VAPID_SUBJECT ?? "mailto:noreply@ali-alhaddad.com").trim();
+
+  return {
+    publicKey,
+    privateKey,
+    subject,
+    publicKeyConfigured: publicKey.length > 0,
+    privateKeyConfigured: privateKey.length > 0,
+  };
+}
+
+export function getVapidConfigStatus(): Omit<VapidConfigStatus, "publicKey" | "privateKey"> {
+  const { publicKey, privateKey, subject, publicKeyConfigured, privateKeyConfigured } = readVapidConfig();
+  return { subject, publicKeyConfigured, privateKeyConfigured };
+}
+
 function configureVapid(): void {
   if (_configured) return;
-  const publicKey = process.env.VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) {
-    _configError = "VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY not set in server env";
+
+  const { publicKey, privateKey, subject, publicKeyConfigured, privateKeyConfigured } = readVapidConfig();
+  if (!publicKeyConfigured || !privateKeyConfigured) {
+    _configError = `VAPID settings missing: public=${publicKeyConfigured}, private=${privateKeyConfigured}`;
     console.error("[push-send] " + _configError);
     return;
   }
-  webpush.setVapidDetails("mailto:noreply@ali-alhaddad.com", publicKey, privateKey);
+
+  webpush.setVapidDetails(subject, publicKey, privateKey);
   _configured = true;
 }
 
@@ -35,11 +63,6 @@ export interface PushResult {
   configError: string | null;
 }
 
-/**
- * Sends a web push notification to every client that has an active
- * push subscription. Failures for individual endpoints are logged but
- * do not stop delivery to other subscribers.
- */
 export async function sendPushToAllClients(payload: PushPayload): Promise<PushResult> {
   try {
     configureVapid();
@@ -81,10 +104,8 @@ export async function sendPushToAllClients(payload: PushPayload): Promise<PushRe
         sent++;
       } else {
         failed++;
-        const err = r.reason as { statusCode?: number; message?: string; endpoint?: string };
-        const statusCode = err?.statusCode ?? "unknown";
-        const msg = err?.message ?? String(err);
-        console.error(`[push-send] delivery failed (status ${statusCode}): ${msg}`);
+        const err = r.reason as { statusCode?: number; message?: string };
+        console.error(`[push-send] delivery failed (status ${err?.statusCode ?? "unknown"}): ${err?.message ?? String(err)}`);
       }
     }
 
