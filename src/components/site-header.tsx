@@ -20,7 +20,6 @@ export function SiteHeader() {
   const [signedIn, setSignedIn] = useState(false);
   const [open, setOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const isClientPortal = path === "/client-portal";
   const qc = useQueryClient();
   const countUnread = useServerFn(countMyUnreadNotifications);
   const listNotifs = useServerFn(listMyNotifications);
@@ -51,6 +50,7 @@ export function SiteHeader() {
     retry: false,
   });
   const isAdmin = hasAdminRole(roles);
+  const hideClientLinks = signedIn && !isAdmin;
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
@@ -101,7 +101,7 @@ export function SiteHeader() {
           <span>العمران</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
-          {!isClientPortal && (
+          {!hideClientLinks && (
             <>
               <Link
                 to="/projects"
