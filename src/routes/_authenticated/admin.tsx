@@ -74,7 +74,7 @@ function AdminLayout() {
       const res = await countTeamUnread({ data: { since } });
       return res.count;
     },
-    enabled: !!roles && roles.length > 0,
+    enabled: isAdmin,
     refetchInterval: 30000,
   });
   const { data: supportEscalatedCount = 0, refetch: refetchSupportEscalated } = useQuery({
@@ -127,7 +127,7 @@ function AdminLayout() {
     { to: "/admin/projects", label: "كل المشاريع", icon: FolderKanban, show: true },
     { to: "/admin/requests", label: "الطلبات", icon: ClipboardList, show: true },
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: isAdmin },
-    { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: true },
+    { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: isAdmin },
     { to: "/admin/support", label: "دعم العملاء", icon: Headphones, show: true },
     { to: "/admin/bot-training", label: "تدريب البوت", icon: Bot, show: isAdmin },
     { to: "/admin/bot-settings", label: "إعدادات البوت", icon: Settings2, show: isAdmin },
@@ -239,24 +239,26 @@ function AdminLayout() {
                 </span>
               )}
             </Link>
-            <Link
-              to="/admin/chat"
-              onClick={handleTeamChatBellClick}
-              aria-label="رسائل شات الفريق"
-              title="رسائل شات الفريق"
-              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
-                teamChatUnread > 0
-                  ? "border-primary bg-primary text-primary-foreground animate-pulse hover:bg-primary/90"
-                  : "border-border bg-background hover:bg-secondary"
-              }`}
-            >
-              <MessagesSquare className="h-4 w-4" />
-              {teamChatUnread > 0 && (
-                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                  {teamChatUnread > 99 ? "99+" : teamChatUnread}
-                </span>
-              )}
-            </Link>
+            {isAdmin && (
+              <Link
+                to="/admin/chat"
+                onClick={handleTeamChatBellClick}
+                aria-label="رسائل شات الفريق"
+                title="رسائل شات الفريق"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  teamChatUnread > 0
+                    ? "border-primary bg-primary text-primary-foreground animate-pulse hover:bg-primary/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`}
+              >
+                <MessagesSquare className="h-4 w-4" />
+                {teamChatUnread > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {teamChatUnread > 99 ? "99+" : teamChatUnread}
+                  </span>
+                )}
+              </Link>
+            )}
             <Link
               to="/admin/support"
               aria-label="دعم العملاء - محادثات محوَّلة"
