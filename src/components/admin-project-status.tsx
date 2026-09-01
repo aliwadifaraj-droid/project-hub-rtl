@@ -1,6 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getMyRoles, getNotificationsEnabled, setNotificationsEnabled } from "@/lib/admin.functions";
+import { getMyRoles } from "@/lib/admin.functions";
+import { getNotificationsEnabled, setNotificationsEnabled } from "@/lib/site-settings.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { Loader2, Bell, BellOff } from "lucide-react";
 import { toast } from "sonner";
