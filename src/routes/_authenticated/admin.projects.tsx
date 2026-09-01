@@ -1,1 +1,345 @@
-PLACEHOLDER
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { upsertProject, deleteProject, listProjects, getMyRoles, getMyUserId } from "@/lib/admin.functions";
+import { listAllProjectVipStatus } from "@/lib/vip.functions";
+import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
+import { hasAdminRole } from "@/lib/role-label";
+import { buildR2Url } from "@/data/projects";
+import { ProjectStatusBadge } from "@/components/project-status-badge";
+import { Loader2, Pencil, Trash2, Plus, Upload, X, Copy, Check, Share2, Eye, Crown } from "lucide-react";
+import { toast } from "sonner";
+import { AdminProjectStatus } from "@/components/admin-project-status";
+import { SAUDI_CITIES } from "@/lib/saudi-cities";
+
+export const Route = createFileRoute("/_authenticated/admin/projects")({
+  component: ProjectsAdminPage,
+});
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  location: string | null;
+  duration: string | null;
+  cover_image: string | null;
+  cover_url: string;
+  images: string[];
+  pdf_file?: string | null;
+  created_by?: string | null;
+  status?: string | null;
+  admin_approval?: string | null;
+};
+
+function ProjectsAdminPage() {
+  const list = useServerFn(listProjects);
+  const upsert = useServerFn(upsertProject);
+  const del = useServerFn(deleteProject);
+  const getRoles = useServerFn(getMyRoles);
+  const whoami = useServerFn(getMyUserId);
+  const fetchVipStatus = useServerFn(listAllProjectVipStatus);
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["admin-projects"], queryFn: () => list() });
+  const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const { data: me } = useQuery({ queryKey: ["my-user-id"], queryFn: () => whoami() });
+  const { data: vipStatuses } = useQuery({ queryKey: ["admin-project-vip"], queryFn: () => fetchVipStatus() });
+  const isAdmin = hasAdminRole(roles);
+  const myId = me?.userId ?? null;
+  const vipByProject = new Map((vipStatuses ?? []).map((v) => [v.project_id, v]));
+
+  const [editing, setEditing] = useState<Partial<ProjectRow> | null>(null);
+  const [sharedId, setSharedId] = useState<string | null>(null);
+
+  const saveMut = useMutation({
+    mutationFn: (v: Partial<ProjectRow>) => upsert({ data: v as never }),
+    onSuccess: (res: any, vars) => {
+      toast.success("تم الحفظ");
+      qc.invalidateQueries({ queryKey: ["admin-projects"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      setEditing(null);
+      if (!vars.id && res?.id) setSharedId(res.id);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => del({ data: { id } }),
+    onSuccess: () => {
+      toast.success("تم الحذف");
+      qc.invalidateQueries({ queryKey: ["admin-projects"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isLoading) return <div className="grid place-items-center py-20"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">إدارة المشاريع ({data?.length ?? 0})</h1>
+        <button
+          onClick={() => setEditing({ name: "", description: "", location: "", duration: "", cover_image: "", images: [] })}
+          className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90"
+        >
+          <Plus className="h-4 w-4" /> مشروع جديد
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {(data ?? []).map((p) => {
+          return (
+          <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
+            {(() => {
+              const fallback = buildR2Url(p.cover_image);
+              const src = p.cover_url || fallback || "";
+              return src ? (
+                <img src={src} alt={p.name} loading="lazy" className="aspect-video w-full object-cover" />
+              ) : <div className="aspect-video w-full bg-secondary" />;
+            })()}
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-bold">{p.name}</h3>
+                {isAdmin ? <ProjectStatusBadge status={p.status} /> : null}
+              </div>
+              {isAdmin ? (
+                <div className="mt-1">
+                  <VipBadge expires_at={vipByProject.get(p.id)?.expires_at ?? null} projectId={p.id} />
+                </div>
+              ) : null}
+              <p className="mt-1 text-xs text-muted-foreground">{p.location} • {p.duration}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  to="/project/$id"
+                  params={{ id: p.id }}
+                  className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary"
+                >
+                  <Eye className="h-3.5 w-3.5" /> تفاصيل
+                </Link>
+                <ShareLinkButton id={p.id} />
+                {(isAdmin || (myId && p.created_by === myId)) && (
+                  <>
+                    <button onClick={() => setEditing(p)} className="inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
+                      <Pencil className="h-3.5 w-3.5" /> تعديل
+                    </button>
+                    <button
+                      onClick={() => { if (confirm("تأكيد الحذف؟")) delMut.mutate(p.id); }}
+                      className="inline-flex items-center justify-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> حذف
+                    </button>
+                  </>
+                )}
+              </div>
+              {isAdmin ? (
+                <AdminProjectStatus
+                  projectId={p.id}
+                  currentStatus={(p as { status?: string }).status}
+                  queryKey={["admin-projects"]}
+                />
+              ) : null}
+            </div>
+          </div>
+          );
+        })}
+      </div>
+
+      {editing ? <ProjectModal value={editing} onClose={() => setEditing(null)} onSave={(v) => saveMut.mutate(v)} saving={saveMut.isPending} /> : null}
+      {sharedId ? <SharedLinkModal id={sharedId} onClose={() => setSharedId(null)} /> : null}
+    </div>
+  );
+}
+
+function VipBadge({ expires_at, projectId }: { expires_at: string | null; projectId: string }) {
+  if (!expires_at) {
+    return (
+      <Link
+        to="/admin/vip"
+        className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-400"
+      >
+        <Crown className="h-3 w-3" /> تفعيل الحصرية
+      </Link>
+    );
+  }
+  const days = Math.ceil((new Date(expires_at).getTime() - Date.now()) / 86400000);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+      <Crown className="h-3 w-3" /> مميز - متبقي {days} يوم
+    </span>
+  );
+}
+
+function ProjectModal({
+  value, onClose, onSave, saving,
+}: { value: Partial<ProjectRow>; onClose: () => void; onSave: (v: Partial<ProjectRow>) => void; saving: boolean }) {
+  const [form, setForm] = useState<Partial<ProjectRow>>(value);
+  const [uploading, setUploading] = useState(false);
+  const upload = useServerFn(uploadStoredFile);
+
+  async function uploadFile(file: File): Promise<string> {
+    const data = await fileToBase64(file);
+    const purpose = file.type === "application/pdf" ? "bid-pdf" : "project-image";
+    const res = await upload({ data: { filename: file.name, mime: file.type, purpose, data } });
+    return res.key;
+  }
+
+  async function onCover(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return;
+    setUploading(true);
+    try {
+      const path = await uploadFile(f);
+      setForm((s) => ({ ...s, cover_image: path }));
+      toast.success("تم رفع صورة الغلاف");
+    } catch (err) { toast.error("فشل الرفع"); console.error(err); }
+    finally { setUploading(false); }
+  }
+  async function onGallery(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []); if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const paths = await Promise.all(files.map(uploadFile));
+      setForm((s) => ({ ...s, images: [...(s.images ?? []), ...paths] }));
+    } catch { toast.error("فشل رفع الصور"); }
+    finally { setUploading(false); }
+  }
+  async function onPdf(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; if (!f) return;
+    if (f.type !== "application/pdf") { toast.error("الملف يجب أن يكون PDF"); return; }
+    setUploading(true);
+    try {
+      const path = await uploadFile(f);
+      setForm((s) => ({ ...s, pdf_file: path }));
+      toast.success("تم رفع ملف PDF");
+    } catch (err) { toast.error("فشل رفع PDF"); console.error(err); }
+    finally { setUploading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl bg-card p-6 shadow-xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold">{form.id ? "تعديل مشروع" : "مشروع جديد"}</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-secondary"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="space-y-4">
+          <Field label="اسم المشروع">
+            <input className="inp" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="الوصف">
+            <textarea rows={4} className="inp" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="الموقع">
+              <select className="inp" required value={form.location ?? ""} onChange={(e) => setForm({ ...form, location: e.target.value })}>
+                <option value="" disabled>اختر المدينة</option>
+                {SAUDI_CITIES.map((city) => (<option key={city} value={city}>{city}</option>))}
+              </select>
+            </Field>
+            <Field label="المدة المتوقعة">
+              <input className="inp" value={form.duration ?? ""} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
+            </Field>
+          </div>
+          <Field label="صورة الغلاف">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
+              <Upload className="h-4 w-4" />
+              <span className="flex-1 text-muted-foreground truncate">{form.cover_image || "اختر صورة"}</span>
+              <input type="file" accept="image/*" className="hidden" onChange={onCover} />
+            </label>
+          </Field>
+          <Field label={`معرض الصور (${form.images?.length ?? 0})`}>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
+              <Upload className="h-4 w-4" />
+              <span className="text-muted-foreground">إضافة صور</span>
+              <input type="file" accept="image/*" multiple className="hidden" onChange={onGallery} />
+            </label>
+          </Field>
+          <Field label="ملف PDF (اختياري)">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/40 px-3 py-3 text-sm hover:bg-secondary">
+              <Upload className="h-4 w-4" />
+              <span className="text-muted-foreground truncate">{form.pdf_file || "اختر ملف PDF"}</span>
+              <input type="file" accept="application/pdf" className="hidden" onChange={onPdf} />
+            </label>
+            {form.pdf_file ? (<button type="button" onClick={() => setForm((s) => ({ ...s, pdf_file: null }))} className="mt-1 text-xs text-destructive hover:underline">إزالة الملف</button>) : null}
+          </Field>
+        </div>
+        <div className="mt-6 flex gap-2">
+          <button disabled={saving || uploading || !form.name || !form.cover_image} onClick={() => onSave(form)} className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2.5 text-sm font-semibold text-background hover:bg-foreground/90 disabled:opacity-60">
+            {(saving || uploading) ? <Loader2 className="h-4 w-4 animate-spin" /> : null} حفظ
+          </button>
+          <button onClick={onClose} className="rounded-md border border-border px-4 py-2.5 text-sm hover:bg-secondary">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div><label className="mb-1.5 block text-sm font-semibold">{label}</label>{children}</div>;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function buildProjectUrl(id: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/project/${id}`;
+}
+
+async function copyText(text: string) {
+  try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; } } catch {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); document.body.removeChild(ta);
+    return true;
+  } catch { return false; }
+}
+
+function ShareLinkButton({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button onClick={async () => {
+      const ok = await copyText(buildProjectUrl(id));
+      if (ok) { setCopied(true); toast.success("تم نسخ الرابط"); setTimeout(() => setCopied(false), 2000); }
+      else toast.error("تعذر النسخ");
+    }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary">
+      {copied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Share2 className="h-3.5 w-3.5" />}
+      {copied ? "تم النسخ" : "نسخ الرابط"}
+    </button>
+  );
+}
+
+function SharedLinkModal({ id, onClose }: { id: string; onClose: () => void }) {
+  const url = buildProjectUrl(id);
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold">تم نشر المشروع 🎉</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-secondary"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">شارك هذا الرابط مع عملائك:</p>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 p-2">
+          <input readOnly value={url} className="flex-1 bg-transparent px-2 py-1 text-sm outline-none" dir="ltr" />
+          <button onClick={async () => {
+            const ok = await copyText(url);
+            if (ok) { setCopied(true); toast.success("تم نسخ الرابط"); setTimeout(() => setCopied(false), 2000); }
+            else toast.error("تعذر النسخ");
+          }} className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90">
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "تم" : "نسخ"}
+          </button>
+        </div>
+        <button onClick={onClose} className="mt-5 w-full rounded-md border border-border px-4 py-2 text-sm hover:bg-secondary">إغلاق</button>
+      </div>
+    </div>
+  );
+}
