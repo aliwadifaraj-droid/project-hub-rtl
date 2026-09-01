@@ -16,6 +16,7 @@ import { cached, cacheKeys, TTL_PROJECTS, invalidateProjectsAll, invalidateQuote
 import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
 import { listActiveByCity } from "./vip.repo";
 import { sendPushToAllClients } from "./push-send.server";
+import { validateVipToken, consumeVipToken } from "./vip-tokens.repo";
 
 async function resolveStoragePath(path: string | null): Promise<string> {
   return resolveStoredFileUrl(path, 60 * 60 * 24 * 7).catch(() => "");
@@ -398,7 +399,6 @@ export const submitBidRequest = createServerFn({ method: "POST" })
       const exclusive = await projectsRepo.getProjectExclusive(data.project_id);
       if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
         if (!data.vip_token) throw new Error("المشروع في فترة حصرية");
-        const { validateVipToken, consumeVipToken } = await import("./vip-tokens.repo");
         const tokenResult = await validateVipToken(data.vip_token, data.project_id);
         if (!tokenResult.valid) throw new Error("رمز الحصرية غير صالح أو منتهي");
         await consumeVipToken(data.vip_token);
@@ -586,7 +586,6 @@ export const getExclusiveStatus = createServerFn({ method: "GET" })
     const showForm = now >= endTime;
     if (showForm) return { showForm, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at };
     if (data.vip_token) {
-      const { validateVipToken } = await import("./vip-tokens.repo");
       const result = await validateVipToken(data.vip_token, data.projectId);
       if (result.valid) return { showForm: true as const, vipEndAt: row.vip_end_at, vipStartAt: row.vip_start_at, vipBypass: true as const };
     }
