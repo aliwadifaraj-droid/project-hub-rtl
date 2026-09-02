@@ -147,7 +147,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       }
     }
 
-    return { ok: true as const, success: true, id, message: OFFER_SUCCESS_MESSAGE };
+    return { ok: true as const, message: OFFER_SUCCESS_MESSAGE };
   });
 
 // ---------- Add-project form: save to notifications table only ----------
