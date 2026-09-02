@@ -33,27 +33,27 @@ async function listAdminUserIds(): Promise<string[]> {
 }
 
 export const submitOffer = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => submitSchema.parse(d))
-  .handler(async ({ data }) => {
+ .inputValidator((d: unknown) => submitSchema.parse(d))
+ .handler(async ({ data }) => {
     await projectsRepo.ensureOffersEnabledColumn();
     const project = await projectsRepo.getByNameExact(data.projectName);
     if (!project) {
-      return { ok: false as const, message: "المشروع غير موجود" };
+      return [{ ok: false as const, message: "المشروع غير موجود" }]; // <-- مصفوفة
     }
 
     if (project.status === 'cancelled') {
-      return { ok: false as const, message: "⚠️ تنبيه: تم إلغاء هذا المشروع ولا يمكنك التقديم عليه" };
+      return [{ ok: false as const, message: "⚠️ تنبيه: تم إلغاء هذا المشروع ولا يمكنك التقديم عليه" }]; // <-- مصفوفة
     }
 
     if (project.status === 'delivered') {
-      return { ok: false as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
+      return [{ ok: false as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" }]; // <-- مصفوفة
     }
 
     const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
     if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-      const city = detectCity(project.location ?? "");
-      const cityLabel = city ? ` في ${city}` : "";
-      return { ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` };
+      const city = detectCity(project.location?? "");
+      const cityLabel = city? ` في ${city}` : "";
+      return [{ ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` }]; // <-- مصفوفة
     }
 
     const dup = await notificationsRepo.checkDuplicateOffer({
@@ -62,17 +62,17 @@ export const submitOffer = createServerFn({ method: "POST" })
       projectId: project.id,
     });
     if (dup) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+      return [{ ok: false as const, message: OFFER_DUPLICATE_MESSAGE }]; // <-- مصفوفة
     }
 
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
-      return { ok: false as const, message: BLOCKED_MESSAGE };
+      return [{ ok: false as const, message: BLOCKED_MESSAGE }]; // <-- مصفوفة
     }
 
     const clientBlocked = await clientRepo.isClientBlockedByEmail(data.email);
     if (clientBlocked) {
-      return { ok: false as const, message: "حسابك موقوف. لا يمكنك تقديم طلبات حالياً" };
+      return [{ ok: false as const, message: "حسابك موقوف. لا يمكنك تقديم طلبات حالياً" }]; // <-- مصفوفة
     }
 
     const { db } = await import("./db");
@@ -86,7 +86,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       [email, projectName],
     );
     if (checkEmailNotif.rows.length > 0) {
-      return { ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" };
+      return [{ ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" }]; // <-- مصفوفة
     }
 
     const checkNameNotif = await db.execute(
@@ -94,7 +94,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       [companyName, projectName],
     );
     if (checkNameNotif.rows.length > 0) {
-      return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
+      return [{ ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" }]; // <-- مصفوفة
     }
 
     // --- التشييك على project_requests (عروض مقبولة) ---
@@ -103,7 +103,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       [email, projectName],
     );
     if (checkEmailReq.rows.length > 0) {
-      return { ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" };
+      return [{ ok: false as const, message: "هذا الايميل مستخدم في عرض سعر سابق لنفس المشروع" }]; // <-- مصفوفة
     }
 
     const checkNameReq = await db.execute(
@@ -111,7 +111,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       [companyName, projectName],
     );
     if (checkNameReq.rows.length > 0) {
-      return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
+      return [{ ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" }]; // <-- مصفوفة
     }
 
     const staff = await listAdminUserIds();
@@ -135,7 +135,7 @@ export const submitOffer = createServerFn({ method: "POST" })
         status: "pending",
       })),
     );
-    const id = ids[0] ?? "";
+    const id = ids[0]?? "";
 
     if (data.visitorToken) {
       try {
@@ -147,7 +147,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       }
     }
 
-    return { ok: true as const, success: true, id, message: OFFER_SUCCESS_MESSAGE };
+    return [{ ok: true as const, success: true, id, message: OFFER_SUCCESS_MESSAGE }]; // <-- مصفوفة
   });
 
 // ---------- Add-project form: save to notifications table only ----------
@@ -162,27 +162,27 @@ const addProjectSchema = z.object({
 export const ADD_PROJECT_SUCCESS_MESSAGE = "تم استلام طلبكم بنجاح. سيتم التواصل معكم لاحقاً ✅";
 
 export const submitAddProjectOffer = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => addProjectSchema.parse(d))
-  .handler(async ({ data }) => {
+ .inputValidator((d: unknown) => addProjectSchema.parse(d))
+ .handler(async ({ data }) => {
     const blocked = await blockedRepo.isBlocked(data.company_name, data.email);
     if (blocked) {
-      return { ok: false as const, message: BLOCKED_MESSAGE };
+      return [{ ok: false as const, message: BLOCKED_MESSAGE }]; // <-- مصفوفة
     }
 
     const clientBlocked = await clientRepo.isClientBlockedByEmail(data.email);
     if (clientBlocked) {
-      return { ok: false as const, message: "حسابك موقوف. لا يمكنك تقديم طلبات حالياً" };
+      return [{ ok: false as const, message: "حسابك موقوف. لا يمكنك تقديم طلبات حالياً" }]; // <-- مصفوفة
     }
 
     const duplicate = await notificationsRepo.existsDuplicateAddProjectNotification(data.email, data.company_name);
     if (duplicate) {
-      return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
+      return [{ ok: false as const, message: OFFER_DUPLICATE_MESSAGE }]; // <-- مصفوفة
     }
 
     const bytes = Buffer.from(data.file_base64, "base64");
     if (bytes.length === 0) throw new Error("الملف فارغ");
     if (bytes.length > 10 * 1024 * 1024) throw new Error("حجم الملف يجب أن يكون أقل من 10 ميغابايت");
-    if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46 || bytes[4] !== 0x2d) {
+    if (bytes[0]!== 0x25 || bytes[1]!== 0x50 || bytes[2]!== 0x44 || bytes[3]!== 0x46 || bytes[4]!== 0x2d) {
       throw new Error("الملف ليس PDF صالحاً");
     }
 
@@ -194,7 +194,7 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
     } catch { /* ignore */ }
 
     const safeName = data.file_name.replace(/[^\w.\-]/g, "_").slice(-100);
-    const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf") ? "" : ".pdf"}`;
+    const path = `add-project/${Date.now()}-${safeName}${safeName.toLowerCase().endsWith(".pdf")? "" : ".pdf"}`;
     const { uploadToR2 } = await import("./r2");
     await uploadToR2({ key: path, body: bytes, contentType: "application/pdf" });
 
@@ -219,85 +219,85 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
       })),
     );
 
-    return { ok: true as const, id: ids[0] ?? "", message: ADD_PROJECT_SUCCESS_MESSAGE };
+    return [{ ok: true as const, id: ids[0]?? "", message: ADD_PROJECT_SUCCESS_MESSAGE }]; // <-- مصفوفة
   });
 
 function assertStaff(roles: string[]) {
-  if (!roles.includes("admin") && !roles.includes("employee")) throw new Error("Forbidden");
+  if (!roles.includes("admin") &&!roles.includes("employee")) throw new Error("Forbidden");
 }
 
 export const adminListOffers = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
+ .middleware([requireAuth])
+ .handler(async ({ context }) => {
     assertStaff(context.roles);
     const rows = await notificationsRepo.listAllOfferNotifications();
     return rows.map((r) => ({
       id: r.id,
       project_id: r.project_id,
       project_name: r.project_name,
-      company_name: r.company_name ?? "",
-      email: r.email ?? "",
-      amount: r.amount ?? "",
+      company_name: r.company_name?? "",
+      email: r.email?? "",
+      amount: r.amount?? "",
       duration: null,
       facility_location: r.facility_location,
       pdf_key: r.pdf_key,
       pdf_filename: r.pdf_filename,
-      status: r.offer_status ?? "new",
+      status: r.offer_status?? "new",
       visitor_token: null,
-      source: r.source ?? "platform",
+      source: r.source?? "platform",
       submitter_type: r.submitter_type,
       created_at: r.created_at,
     }));
   });
 
 export const adminCountNewOffers = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
+ .middleware([requireAuth])
+ .handler(async ({ context }) => {
     assertStaff(context.roles);
     return { count: await notificationsRepo.countNewOfferNotifications() };
   });
 
 export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) =>
+ .middleware([requireAuth])
+ .inputValidator((d: unknown) =>
     z.object({ id: z.string().uuid(), status: z.enum(["new", "reviewing", "accepted", "rejected"]) }).parse(d))
-  .handler(async ({ data, context }) => {
+ .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     if (data.status === "accepted") {
       const offer = await notificationsRepo.getOfferNotificationById(data.id);
-      if (!offer) return { ok: false as const, message: "العرض غير موجود" };
+      if (!offer) return [{ ok: false as const, message: "العرض غير موجود" }]; // <-- مصفوفة
       const requests = await import("./project-requests.repo");
       const requestId = await requests.insertRequest({
-        project_id: offer.project_id ?? null,
-        company_name: offer.company_name ?? "",
-        project_name: offer.project_name ?? offer.facility_location ?? "",
-        facility_location: offer.facility_location ?? offer.project_name ?? "",
-        email: offer.email ?? "",
-        pdf_url: offer.pdf_key ?? "",
-        submitter_type: offer.submitter_type ?? "offer",
+        project_id: offer.project_id?? null,
+        company_name: offer.company_name?? "",
+        project_name: offer.project_name?? offer.facility_location?? "",
+        facility_location: offer.facility_location?? offer.project_name?? "",
+        email: offer.email?? "",
+        pdf_url: offer.pdf_key?? "",
+        submitter_type: offer.submitter_type?? "offer",
         project_type: "platform",
       });
       await requests.updateRequestStatus(requestId, "new");
       await notificationsRepo.deleteOfferNotification(offer.id);
-      return { ok: true as const, moved: true, requestId };
+      return [{ ok: true as const, moved: true, requestId }]; // <-- مصفوفة
     }
     await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
-    return { ok: true as const };
+    return [{ ok: true as const }]; // <-- مصفوفة
   });
 
 export const adminDeleteOffer = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
+ .middleware([requireAuth])
+ .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+ .handler(async ({ data, context }) => {
     if (!context.roles.includes("admin")) throw new Error("Forbidden");
     await notificationsRepo.deleteOfferNotification(data.id);
-    return { ok: true };
+    return [{ ok: true }]; // <-- مصفوفة
   });
 
 export const adminGetOfferPdfUrl = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ key: z.string().min(1).max(500) }).parse(d))
-  .handler(async ({ data, context }) => {
+ .middleware([requireAuth])
+ .inputValidator((d: unknown) => z.object({ key: z.string().min(1).max(500) }).parse(d))
+ .handler(async ({ data, context }) => {
     assertStaff(context.roles);
-    return { url: await signGetUrl(data.key, 60 * 60) };
+    return [{ url: await signGetUrl(data.key, 60 * 60) }]; // <-- مصفوفة
   });
