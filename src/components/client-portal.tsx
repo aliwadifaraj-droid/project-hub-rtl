@@ -831,4 +831,66 @@ function SubmitOfferTab() {
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold">{selectedProject.name}</h3>
-                {selectedProject.location &&
+                {selectedProject.location && (
+                  <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1">
+                    <MapPin className="h-3 w-3" /> {selectedProject.location}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                تغيير
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1">السعر المقدم</label>
+              <input
+                type="text"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="مثال: 50000"
+                className="inp"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">ملف العرض PDF</label>
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={(e) => e.target.files?.[0] && handlePdfUpload(e.target.files[0])}
+                className="inp"
+                required
+              />
+              {uploading && <p className="text-xs mt-1">جاري الرفع...</p>}
+              {pdfFilename && <p className="text-xs mt-1 text-emerald-600">✓ {pdfFilename}</p>}
+            </div>
+
+            {result && (
+              <div className={`rounded-lg px-4 py-3 text-sm ${result.ok? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-destructive/5 text-destructive border-destructive/20'}`}>
+                {result.message}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting || uploading ||!pdfKey}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
+            >
+              {submitting? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              ارسال العرض
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+}
