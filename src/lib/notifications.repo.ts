@@ -245,3 +245,20 @@ export async function updateOfferNotificationStatus(id: string, status: string):
     [status, status, id],
   );
 }
+export async function listAllOfferNotifications(): Promise<OfferNotificationRow[]> {
+  const r = await db.execute(
+    `SELECT id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, created_at
+     FROM notifications
+     WHERE offer_status IS NOT NULL
+     ORDER BY created_at DESC`
+  );
+  return rowsToObjects(r).map(decodeOffer);
+}
+
+export async function countNewOfferNotifications(): Promise<number> {
+  const r = await db.execute(
+    `SELECT COUNT(*) AS c FROM notifications WHERE offer_status = 'new'`
+  );
+  const rows = rowsToObjects<{ c: number }>(r);
+  return Number(rows[0]?.c?? 0);
+}
