@@ -693,7 +693,7 @@ function SubmitOfferTab() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("purpose", "bid-pdf");
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/public/upload", { method: "POST", body: formData });
       const json = await res.json();
       if (!res.ok ||!json?.key) {
         throw new Error(json?.error || "فشل رفع الملف");
