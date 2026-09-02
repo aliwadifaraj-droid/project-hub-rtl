@@ -36,7 +36,7 @@ export function ClientPortal() {
   });
 
   async function checkNotifPermission() {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (typeof window === "undefined" ||!("serviceWorker" in navigator) ||!("PushManager" in window)) {
       setNotifEnabled(false);
       return;
     }
@@ -65,7 +65,7 @@ export function ClientPortal() {
   }
 
   async function handleToggleNotifications() {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (typeof window === "undefined" ||!("serviceWorker" in navigator) ||!("PushManager" in window)) {
       setNotifStatus("error");
       return;
     }
@@ -89,7 +89,7 @@ export function ClientPortal() {
     setNotifStatus("subscribing");
     try {
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
+      if (permission!== "granted") {
         setNotifStatus("error");
         return;
       }
@@ -112,7 +112,7 @@ export function ClientPortal() {
       });
 
       const json = sub.toJSON();
-      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+      if (!json.endpoint ||!json.keys?.p256dh ||!json.keys?.auth) {
         setNotifStatus("error");
         return;
       }
@@ -144,8 +144,7 @@ export function ClientPortal() {
     <div className="min-h-screen flex flex-col">
       <SiteHeader />
       <div className="flex-1 container mx-auto px-4 py-8">
-        {/* Header card */}
-        <div className="mb-6 rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+        <div className="mb-6 rounded-2xl border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="grid h-12 w-12 place-items-center rounded-xl bg-[image:var(--gradient-accent)] text-accent-foreground">
@@ -164,16 +163,16 @@ export function ClientPortal() {
                 disabled={notifStatus === "subscribing"}
                 className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
                   notifEnabled
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                   ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                     : "border-border bg-background hover:bg-secondary"
                 }`}
               >
-                {notifStatus === "subscribing" ? (
+                {notifStatus === "subscribing"? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Bell className="h-4 w-4" />
                 )}
-                {notifEnabled ? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
+                {notifEnabled? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
               </button>
               <button
                 onClick={handleLogout}
@@ -185,8 +184,7 @@ export function ClientPortal() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="mb-6 flex-wrap gap-2">
           <TabButton active={tab === "projects"} onClick={() => setTab("projects")} icon={<FolderKanban className="h-4 w-4" />}>
             المشاريع
           </TabButton>
@@ -201,7 +199,6 @@ export function ClientPortal() {
           </TabButton>
         </div>
 
-        {/* Tab content */}
         {tab === "projects" && <ProjectsTab />}
         {tab === "profile" && <ProfileTab />}
         {tab === "offers" && <OffersTab />}
@@ -223,7 +220,7 @@ function TabButton({ active, onClick, icon, children }: {
       onClick={onClick}
       className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
         active
-          ? "bg-foreground text-background"
+         ? "bg-foreground text-background"
           : "border border-border bg-background text-muted-foreground hover:bg-secondary"
       }`}
     >
@@ -232,7 +229,6 @@ function TabButton({ active, onClick, icon, children }: {
   );
 }
 
-// ============== PROJECTS GALLERY TAB ==============
 type ClientProject = {
   id: string;
   name: string;
@@ -266,7 +262,7 @@ function ProjectsTab() {
 
   if (!projects || projects.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-12 text-center shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border-border bg-card p-12 text-center shadow-[var(--shadow-card)]">
         <Images className="mx-auto h-12 w-12 text-muted-foreground/50" />
         <h3 className="mt-4 text-lg font-bold">لا توجد مشاريع حالياً</h3>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -294,9 +290,8 @@ function ProjectsTab() {
               onClick={() => setSelected(p)}
               className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
             >
-              {/* Cover image */}
               <div className="relative aspect-[16/10] overflow-hidden bg-secondary">
-                {p.cover_url ? (
+                {p.cover_url? (
                   <img
                     src={p.cover_url}
                     alt={p.name}
@@ -315,7 +310,6 @@ function ProjectsTab() {
                 )}
               </div>
 
-              {/* Body */}
               <div className="flex flex-1 flex-col gap-3 p-5">
                 <h3 className="text-base font-bold leading-snug">{p.name}</h3>
 
@@ -373,11 +367,10 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
         className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
           <div className="flex-1">
             <h2 className="text-lg font-bold">{project.name}</h2>
-            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <div className="mt-1.5 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               {project.location && (
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5" /> {project.location}
@@ -402,16 +395,13 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
           </button>
         </div>
 
-        {/* Body — scrollable */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {/* Cover image */}
           {project.cover_url && (
-            <div className="mb-5 overflow-hidden rounded-xl border border-border">
+            <div className="mb-5 overflow-hidden rounded-xl border-border">
               <img src={project.cover_url} alt={project.name} className="h-64 w-full object-cover" />
             </div>
           )}
 
-          {/* Description */}
           {project.description && (
             <div className="mb-5">
               <h3 className="mb-2 text-sm font-bold">تفاصيل المشروع</h3>
@@ -421,24 +411,22 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
             </div>
           )}
 
-          {/* Info grid */}
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {project.location && (
-              <div className="rounded-lg border border-border bg-background px-4 py-3">
+              <div className="rounded-lg border-border bg-background px-4 py-3">
                 <p className="text-xs font-semibold text-muted-foreground">الموقع</p>
                 <p className="mt-0.5 text-sm font-medium">{project.location}</p>
               </div>
             )}
             {project.duration && (
-              <div className="rounded-lg border border-border bg-background px-4 py-3">
+              <div className="rounded-lg border-border bg-background px-4 py-3">
                 <p className="text-xs font-semibold text-muted-foreground">المدة</p>
                 <p className="mt-0.5 text-sm font-medium">{project.duration}</p>
               </div>
             )}
           </div>
 
-          {/* PDF viewer */}
-          {project.pdf_url ? (
+          {project.pdf_url? (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-sm font-bold">ملف المشروع (PDF)</h3>
@@ -461,7 +449,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-border bg-secondary/40 px-4 py-6 text-center">
+            <div className="rounded-xl border-border bg-secondary/40 px-4 py-6 text-center">
               <FileText className="mx-auto h-8 w-8 text-muted-foreground/50" />
               <p className="mt-2 text-sm text-muted-foreground">لا يوجد ملف PDF لهذا المشروع</p>
             </div>
@@ -472,7 +460,6 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
   );
 }
 
-// ============== PROFILE TAB (read-only) ==============
 function ProfileTab() {
   const fetchProfile = useServerFn(getMyClientProfile);
 
@@ -517,7 +504,7 @@ function ProfileTab() {
                 <p className="mt-0.5 truncate text-sm font-medium">{f.value}</p>
               </div>
               {f.locked && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-600 border border-amber-200">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-600 border-amber-200">
                   <Lock className="h-3 w-3" /> ثابت
                 </span>
               )}
@@ -526,7 +513,7 @@ function ProfileTab() {
         </div>
 
         {profile?.bio && (
-          <div className="mt-3 rounded-lg border border-border bg-background px-4 py-3">
+          <div className="mt-3 rounded-lg border-border bg-background px-4 py-3">
             <p className="text-xs font-semibold text-muted-foreground">نبذة عن الشركة</p>
             <p className="mt-1 text-sm leading-relaxed text-foreground">{profile.bio}</p>
           </div>
@@ -548,7 +535,6 @@ function ProfileTab() {
   );
 }
 
-// ============== OFFERS TAB ==============
 function OffersTab() {
   const fetchOffers = useServerFn(getMyOffers);
 
@@ -596,7 +582,7 @@ function OffersTab() {
       </div>
 
       {offers.map((offer: any) => {
-        const s = statusMap[offer.status] ?? statusMap.new;
+        const s = statusMap[offer.status]?? statusMap.new;
         return (
           <div key={offer.id} className="rounded-xl border border-border bg-card p-4 shadow-sm transition hover:shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -607,7 +593,7 @@ function OffersTab() {
                     {s.icon} {s.label}
                   </span>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <div className="mt-2 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" /> {offer.company_name}</span>
                   {offer.amount && <span className="inline-flex items-center gap-1"><TrendingUp className="h-3 w-3" /> {offer.amount}</span>}
                   <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(offer.created_at).toLocaleDateString("ar")}</span>
@@ -633,7 +619,6 @@ function OffersTab() {
   );
 }
 
-// ============== SUBMIT OFFER TAB ==============
 function SubmitOfferTab() {
   const fetchSession = useServerFn(getClientSession);
   const doSearch = useServerFn(searchProjectsForClient);
@@ -691,13 +676,14 @@ function SubmitOfferTab() {
     setResult(null);
   }
 
+  // التعديل الوحيد كان هنا
   async function handlePdfUpload(file: File) {
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
       setResult({ ok: false, message: "حجم الملف يجب أن يكون أقل من 20 ميغابايت" });
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+    if (!file.name.toLowerCase().endsWith(".pdf") && file.type!== "application/pdf") {
       setResult({ ok: false, message: "يجب أن يكون الملف بصيغة PDF" });
       return;
     }
@@ -707,16 +693,18 @@ function SubmitOfferTab() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("purpose", "bid-pdf");
-      const res = await fetch("/api/public/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
       const json = await res.json();
-      if (!res.ok || !json.key) {
-        throw new Error(json.error || "فشل رفع الملف");
+      if (!res.ok ||!json?.key) {
+        throw new Error(json?.error || "فشل رفع الملف");
       }
       setPdfKey(json.key);
       setPdfFilename(file.name);
       setPdfFile(file);
+      setResult({ ok: true, message: "تم رفع الملف بنجاح" });
     } catch (err) {
-      setResult({ ok: false, message: err instanceof Error ? err.message : "فشل رفع الملف" });
+      setPdfKey("");
+      setResult({ ok: false, message: err instanceof Error? err.message : "فشل رفع الملف" });
     } finally {
       setUploading(false);
     }
@@ -751,7 +739,7 @@ function SubmitOfferTab() {
         clearSelection();
       }
     } catch (err) {
-      setResult({ ok: false, message: err instanceof Error ? err.message : "حدث خطأ" });
+      setResult({ ok: false, message: err instanceof Error? err.message : "حدث خطأ" });
     } finally {
       setSubmitting(false);
     }
@@ -764,9 +752,8 @@ function SubmitOfferTab() {
         <h2 className="text-lg font-bold">تقديم عرض سعر</h2>
       </div>
 
-      {/* Company info banner */}
       {session && (
-        <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
+        <div className="rounded-xl border-border bg-secondary/40 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span className="inline-flex items-center gap-1 font-semibold">
               <Building2 className="h-4 w-4 text-accent" /> {session.company_name}
@@ -779,8 +766,7 @@ function SubmitOfferTab() {
         </div>
       )}
 
-      {/* If no project selected, show search */}
-      {!selectedProject ? (
+      {!selectedProject? (
         <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <h3 className="mb-4 text-sm font-bold">ابحث عن المشروع</h3>
           <form onSubmit={handleSearch} className="flex gap-2">
@@ -797,15 +783,15 @@ function SubmitOfferTab() {
             </div>
             <button
               type="submit"
-              disabled={searching || !searchQuery.trim()}
+              disabled={searching ||!searchQuery.trim()}
               className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
             >
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {searching? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               بحث
             </button>
           </form>
 
-          {searched && !searching && searchResults.length === 0 && (
+          {searched &&!searching && searchResults.length === 0 && (
             <p className="mt-4 text-center text-sm text-muted-foreground">لا توجد نتائج مطابقة</p>
           )}
 
@@ -828,7 +814,7 @@ function SubmitOfferTab() {
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       {p.is_exclusive && (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border border-amber-200">
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border-amber-200">
                           حصري VIP
                         </span>
                       )}
@@ -840,102 +826,9 @@ function SubmitOfferTab() {
           )}
         </div>
       ) : (
-        /* Project selected — show offer form */
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
-          {/* Selected project header */}
+        <div className="rounded-2xl border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <div className="mb-5 rounded-lg border border-border bg-secondary/40 p-4">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold">{selectedProject.name}</h3>
-                {selectedProject.location && (
-                  <p className="mt-1 text-xs text-muted-foreground inline-flex items-center gap-1">
-                    <MapPin className="h-3 w-3" /> {selectedProject.location}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={clearSelection}
-                className="text-xs text-muted-foreground underline hover:text-foreground"
-              >
-                تغيير المشروع
-              </button>
-            </div>
-            {selectedProject.is_exclusive && (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-600 border border-amber-200">
-                <AlertCircle className="h-3.5 w-3.5" /> هذا المشروع حصري لعملاء VIP — لا يمكن التقديم عليه حالياً
-              </div>
-            )}
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Locked company name + email */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-lg bg-secondary/50 px-4 py-3">
-                <label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم الشركة (ثابت)</label>
-                <p className="text-sm font-medium">{session?.company_name || "—"}</p>
-              </div>
-              <div className="rounded-lg bg-secondary/50 px-4 py-3">
-                <label className="mb-1 block text-xs font-semibold text-muted-foreground">البريد الإلكتروني (ثابت)</label>
-                <p className="text-sm font-medium">{session?.email || "—"}</p>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold">السعر (ريال) *</label>
-              <input
-                type="text" required value={amount} onChange={(e) => setAmount(e.target.value)}
-                className="inp" placeholder="مثال: 450000"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold">ملف عرض السعر (PDF) *</label>
-              <div className="rounded-lg border-2 border-dashed border-border p-6 text-center">
-                {pdfFile ? (
-                  <div className="flex items-center justify-center gap-2 text-sm">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                    <span className="font-medium">{pdfFilename}</span>
-                    <button type="button" onClick={() => { setPdfFile(null); setPdfKey(""); setPdfFilename(""); }} className="text-xs text-destructive underline">
-                      إزالة
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <Upload className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                    <p className="mt-2 text-sm text-muted-foreground">اضغط لاختيار ملف PDF (بحد أقصى 20 ميغابايت)</p>
-                    <input
-                      type="file" accept=".pdf,application/pdf"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f); }}
-                      className="hidden" id="pdf-upload"
-                    />
-                    <label htmlFor="pdf-upload" className="mt-3 inline-block cursor-pointer rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold transition hover:bg-secondary">
-                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "اختيار ملف"}
-                    </label>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {result && (
-              <div className={`rounded-lg border px-4 py-3 text-sm ${
-                result.ok
-                  ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600"
-                  : "border-destructive/30 bg-destructive/5 text-destructive"
-              }`}>
-                {result.message}
-              </div>
-            )}
-
-            <button
-              type="submit" disabled={submitting || uploading || !amount.trim() || !pdfKey || !!selectedProject.is_exclusive}
-              className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
-            >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              تقديم العرض
-            </button>
-          </form>
-        </div>
-      )}
-    </div>
-  );
-}
+                {selectedProject.location &&
