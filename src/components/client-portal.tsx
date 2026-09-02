@@ -893,4 +893,3 @@ function SubmitOfferTab() {
     </div>
   );
 }
-}
