@@ -322,7 +322,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${companyName} — ${data.projectName} — ${data.amount}`;
-    const ids = await notificationsRepo.insertOfferNotificationMany(
+    await notificationsRepo.insertOfferNotificationMany(
       staff.map((uid) => ({
         user_id: uid,
         title,
@@ -341,7 +341,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
         status: "pending",
       })),
     );
-    const id = ids[0] ?? "";
+    const id = "";
 
     return { ok: true as const, id, message: "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅" };
   });
