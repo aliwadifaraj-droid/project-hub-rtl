@@ -713,7 +713,7 @@ function SubmitOfferTab() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedProject) return;
-    if (!amount.trim()) {
+    if (!(amount?.trim() || "")) {
       setResult({ ok: false, message: "السعر مطلوب" });
       return;
     }
@@ -726,11 +726,11 @@ function SubmitOfferTab() {
     try {
       const res = await doSubmit({
         data: {
-          projectId: selectedProject.id,
-          projectName: selectedProject.name,
-          amount,
+          projectId: selectedProject?.id || "",
+          projectName: selectedProject?.name?.trim() || "",
+          amount: amount?.trim() || "",
           pdfKey,
-          pdfFilename: pdfFilename || "offer.pdf",
+          pdfFilename: pdfFilename?.trim() || "offer.pdf",
         },
       });
       setResult({ ok: res.ok, message: res.message });
