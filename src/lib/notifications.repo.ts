@@ -279,3 +279,68 @@ export async function existsDuplicateAddProjectNotification(email: string, compa
   );
   return rowsToObjects(r).length > 0;
 }
+
+// ---------- Offer tracking for client portal ("my offers") ----------
+// These are called by getMyOffers in client.functions.ts. They must always
+// return an array (never null) so the client offers tab renders cleanly.
+
+const OFFER_COLS =
+  "project_id,project_name,company_name,email,facility_location,pdf_key,pdf_filename,amount,source,submitter_type,offer_status";
+
+let _offerColsReady: Promise<void> | null = null;
+async function ensureOfferColumns(): Promise<void> {
+  if (!_offerColsReady) {
+    _offerColsReady = (async () => {
+      const cols = [
+        "project_id TEXT",
+        "project_name TEXT",
+        "company_name TEXT",
+        "email TEXT",
+        "facility_location TEXT",
+        "pdf_key TEXT",
+        "pdf_filename TEXT",
+        "amount TEXT",
+        "source TEXT",
+        "submitter_type TEXT",
+        "offer_status TEXT",
+      ];
+      for (const c of cols) {
+        try {
+          await db.execute(`ALTER TABLE notifications ADD COLUMN ${c}`);
+        } catch {
+          // column already exists
+        }
+      }
+    })().catch((e) => {
+      _offerColsReady = null;
+      throw e;
+    });
+  }
+  return _offerColsReady;
+}
+
+export async function searchOfferNotificationsByEmail(email: string, limit = 50): Promise<OfferNotificationRow[]> {
+  await ensureOfferColumns();
+  const e = (email ?? "").trim().toLowerCase();
+  if (!e) return [];
+  const r = await db.execute(
+    `SELECT id,user_id,title,body,link,read,created_at,${OFFER_COLS} FROM notifications
+     WHERE offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(email,''))) = ?
+     ORDER BY created_at DESC LIMIT ?`,
+    [e, limit],
+  );
+  return rowsToObjects(r).map(decodeOffer);
+}
+
+export async function searchOfferNotificationsByCompany(name: string, limit = 50): Promise<OfferNotificationRow[]> {
+  await ensureOfferColumns();
+  const n = (name ?? "").trim().toLowerCase();
+  if (!n) return [];
+  const r = await db.execute(
+    `SELECT id,user_id,title,body,link,read,created_at,${OFFER_COLS} FROM notifications
+     WHERE offer_status IS NOT NULL AND LOWER(TRIM(COALESCE(company_name,''))) LIKE ?
+     ORDER BY created_at DESC LIMIT ?`,
+    [`%${n}%`, limit],
+  );
+  return rowsToObjects(r).map(decodeOffer);
+}
