@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListClients, adminGetClientDetail, adminToggleClientStatus } from "@/lib/admin.functions";
 import { adminDeleteClient } from "@/lib/client-admin.functions";
-import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2 } from "lucide-react";
+import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2, Send, Users, User } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/clients")({
   component: ClientsPage,
@@ -137,6 +137,148 @@ function ClientsPage() {
           </div>
         </div>
       )}
+
+      <PushNotificationsSection />
+    </div>
+  );
+}
+
+function PushNotificationsSection() {
+  const [title, setTitle] = useState("إشعار من الإدارة");
+  const [body, setBody] = useState("");
+  const [userId, setUserId] = useState("");
+  const [sending, setSending] = useState<"idle" | "broadcast" | "single">("idle");
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function sendBroadcast() {
+    if (!body.trim()) {
+      setResult({ ok: false, message: "الرجاء كتابة نص الإشعار" });
+      return;
+    }
+    setSending("broadcast");
+    setResult(null);
+    try {
+      const res = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title.trim(), body: body.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResult({ ok: true, message: `تم الإرسال بنجاح: ${data.sent} وصل، ${data.failed} فشل${data.cleaned ? `، ${data.cleaned} اشتراك منتهي تم حذفه` : ""}` });
+      } else {
+        setResult({ ok: false, message: data.error ?? "فشل الإرسال" });
+      }
+    } catch (e) {
+      setResult({ ok: false, message: e instanceof Error ? e.message : "حدث خطأ" });
+    } finally {
+      setSending("idle");
+    }
+  }
+
+  async function sendSingle() {
+    if (!body.trim()) {
+      setResult({ ok: false, message: "الرجاء كتابة نص الإشعار" });
+      return;
+    }
+    if (!userId.trim()) {
+      setResult({ ok: false, message: "الرجاء إدخال رقم ID العميل" });
+      return;
+    }
+    setSending("single");
+    setResult(null);
+    try {
+      const res = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title.trim(), body: body.trim(), userId: userId.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResult({ ok: true, message: data.sent > 0 ? `تم الإرسال للعميل: ${data.sent} وصل` : "لا توجد اشتراكات لهذا العميل" });
+      } else {
+        setResult({ ok: false, message: data.error ?? "فشل الإرسال" });
+      }
+    } catch (e) {
+      setResult({ ok: false, message: e instanceof Error ? e.message : "حدث خطأ" });
+    } finally {
+      setSending("idle");
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+      <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-100">
+        <Send className="h-5 w-5 text-blue-400" /> إرسال إشعارات Push
+      </h2>
+
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-200">عنوان الإشعار</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="عنوان الإشعار..."
+            className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-200">نص الإشعار</label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="اكتب نص الإشعار هنا..."
+            rows={4}
+            className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <Users className="h-4 w-4 text-blue-400" /> إرسال جماعي
+            </div>
+            <p className="mb-3 text-xs text-slate-400">يرسل لكل المشتركين في الإشعارات</p>
+            <button
+              onClick={sendBroadcast}
+              disabled={sending !== "idle"}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              {sending === "broadcast" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              إرسال جماعي
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <User className="h-4 w-4 text-emerald-400" /> إرسال فردي
+            </div>
+            <input
+              type="text"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="رقم ID العميل..."
+              className="mb-3 w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+            />
+            <button
+              onClick={sendSingle}
+              disabled={sending !== "idle"}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {sending === "single" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              إرسال فردي
+            </button>
+          </div>
+        </div>
+
+        {result && (
+          <div className={`rounded-lg px-4 py-3 text-sm ${result.ok ? "bg-green-500/10 text-green-300 border border-green-500/20" : "bg-red-500/10 text-red-300 border border-red-500/20"}`}>
+            {result.message}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -320,7 +462,7 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
                     {o.company_name && <span>{o.company_name}</span>}
                     {o.amount && <span>المبلغ: {o.amount}</span>}
                     {o.facility_location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{o.facility_location}</span>}
-                    {o.duration && <span>المدة: {o.duration}</span>}
+                    {o.duration && <span>المدة: {o.duration}</span>
                     <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(o.created_at).toLocaleDateString("ar")}</span>
                   </div>
                   {o.pdf_key && (
