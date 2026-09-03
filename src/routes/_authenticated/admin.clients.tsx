@@ -462,7 +462,7 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
                     {o.company_name && <span>{o.company_name}</span>}
                     {o.amount && <span>المبلغ: {o.amount}</span>}
                     {o.facility_location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{o.facility_location}</span>}
-                    {o.duration && <span>المدة: {o.duration}</span>
+                    {o.duration && <span>المدة: {o.duration}</span>}
                     <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(o.created_at).toLocaleDateString("ar")}</span>
                   </div>
                   {o.pdf_key && (
