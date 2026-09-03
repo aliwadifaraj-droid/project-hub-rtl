@@ -295,47 +295,54 @@ function PushNotificationsSection() {
         </h2>
 
         <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-200">ID العميل</label>
-            <input
-              type="text"
-              value={singleUserId}
-              onChange={(e) => setSingleUserId(e.target.value)}
-              placeholder="ألصق ID العميل هنا..."
-              className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <User className="h-4 w-4 text-emerald-400" /> الإرسال الفردي
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">ID العميل</label>
+                <input
+                  type="text"
+                  value={singleUserId}
+                  onChange={(e) => setSingleUserId(e.target.value)}
+                  placeholder="ألصق ID العميل هنا..."
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-200">عنوان الإشعار</label>
-            <input
-              type="text"
-              value={singleTitle}
-              onChange={(e) => setSingleTitle(e.target.value)}
-              placeholder="عنوان الإشعار..."
-              className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">عنوان الإشعار</label>
+                <input
+                  type="text"
+                  value={singleTitle}
+                  onChange={(e) => setSingleTitle(e.target.value)}
+                  placeholder="عنوان الإشعار..."
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-200">نص الإشعار</label>
-            <textarea
-              value={singleBody}
-              onChange={(e) => setSingleBody(e.target.value)}
-              placeholder="اكتب نص الإشعار هنا..."
-              rows={4}
-              className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">نص الإشعار</label>
+                <textarea
+                  value={singleBody}
+                  onChange={(e) => setSingleBody(e.target.value)}
+                  placeholder="اكتب نص الإشعار هنا..."
+                  rows={4}
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
 
-          <button
-            onClick={sendSingle}
-            disabled={sending !== "idle"}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {sending === "single" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            إرسال فردي
-          </button>
+              <button
+                onClick={sendSingle}
+                disabled={sending !== "idle"}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {sending === "single" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                إرسال فردي
+              </button>
+            </div>
+          </div>
 
           {singleResult && (
             <div className={`rounded-lg px-4 py-3 text-sm ${singleResult.ok ? "bg-green-500/10 text-green-300 border border-green-500/20" : "bg-red-500/10 text-red-300 border border-red-500/20"}`}>
