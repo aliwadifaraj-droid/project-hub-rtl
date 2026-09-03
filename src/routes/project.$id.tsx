@@ -1,7 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getProject, submitBidRequest, getMyRoles, getExclusiveStatus } from "@/lib/admin.functions";
 import { getMyVipStatus } from "@/lib/vip.functions";
 import { hasAdminRole } from "@/lib/role-label";
@@ -103,9 +103,11 @@ function ProjectDetail() {
   const [email, setEmail] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!companyName.trim() || !facilityLocation.trim() || !email.trim() || !pdfFile) {
       toast.error("جميع الحقول إجبارية");
@@ -120,6 +122,7 @@ function ProjectDetail() {
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const buf = await pdfFile.arrayBuffer();
@@ -148,6 +151,7 @@ function ProjectDetail() {
       const msg = err instanceof Error ? err.message : "حدث خطأ أثناء إرسال الطلب";
       toast.error(msg);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
