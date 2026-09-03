@@ -367,6 +367,7 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
 
   const [toggling, setToggling] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
 
   const handleToggle = async () => {
     if (!data?.profile) return;
@@ -406,6 +407,14 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
     }
   };
 
+  const copyId = () => {
+    if (!data?.user_id) return;
+    navigator.clipboard?.writeText(data.user_id).then(() => {
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 1500);
+    });
+  };
+
   return (
     <div dir="rtl" className="space-y-6">
       <button
@@ -425,6 +434,18 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
               <span className="inline-flex items-center gap-1.5">
                 <Mail className="h-4 w-4 text-slate-400" /> {data.email}
               </span>
+              {data.user_id && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                  🆔 <span className="font-mono">{data.user_id}</span>
+                  <button
+                    onClick={copyId}
+                    className="inline-flex items-center gap-0.5 rounded border border-slate-600 bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 transition hover:bg-slate-700 hover:text-slate-200"
+                  >
+                    {idCopied ? <Check className="h-2.5 w-2.5 text-green-400" /> : <Copy className="h-2.5 w-2.5" />}
+                    {idCopied ? "تم النسخ" : "نسخ"}
+                  </button>
+                </span>
+              )}
               {data.profile?.status && (
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   data.profile.status === "active" ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
@@ -442,7 +463,7 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
                 data.profile.status === "active"
                   ? "bg-red-600 text-white hover:bg-red-700"
                   : "bg-green-600 text-white hover:bg-green-700"
-              }`}
+              }`
             >
               {toggling ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
