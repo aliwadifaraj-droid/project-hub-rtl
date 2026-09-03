@@ -322,7 +322,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${companyName} — ${data.projectName} — ${data.amount}`;
-    const ids = await notificationsRepo.insertOfferNotificationMany(
+    await notificationsRepo.insertOfferNotificationMany(
       staff.map((uid) => ({
         user_id: uid,
         title,
@@ -341,7 +341,35 @@ export const submitClientOffer = createServerFn({ method: "POST" })
         status: "pending",
       })),
     );
-    const id = ids[0] ?? "";
+
+    // Save a copy for the client themselves so they can track it in "my offers"
+    await db.execute(
+      `INSERT INTO notifications
+        (id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, read, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      [
+        crypto.randomUUID(),
+        claims.sub,
+        title,
+        body,
+        "/client/offers",
+        project.id,
+        data.projectName,
+        companyName,
+        email,
+        null,
+        data.pdfKey,
+        data.pdfFilename,
+        data.amount,
+        "client_portal",
+        "user",
+        "new",
+        "pending",
+        new Date().toISOString(),
+      ],
+    );
+
+    const id = "";
 
     return { ok: true as const, id, message: "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅" };
   });
