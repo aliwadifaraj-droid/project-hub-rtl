@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListClients, adminGetClientDetail, adminToggleClientStatus } from "@/lib/admin.functions";
 import { adminDeleteClient } from "@/lib/client-admin.functions";
-import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2 } from "lucide-react";
+import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2, Send, Users, User, Copy, Check } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/clients")({
   component: ClientsPage,
@@ -68,7 +68,12 @@ function ClientsPage() {
               <tbody>
                 {rows.map((c) => (
                   <tr key={c.email} className="border-t border-slate-800 hover:bg-slate-800/50">
-                    <td className="p-3 font-medium">{c.email}</td>
+                    <td className="p-3 font-medium">
+                      <div className="flex flex-col gap-1">
+                        <CopyableId id={c.user_id} />
+                        <span>{c.email}</span>
+                      </div>
+                    </td>
                     <td className="p-3 text-slate-300">{c.display_name || "—"}</td>
                     <td className="p-3">
                       <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-xs text-blue-300">{c.offers_count}</span>
@@ -112,6 +117,7 @@ function ClientsPage() {
           <div className="md:hidden divide-y divide-slate-800">
             {rows.map((c) => (
               <div key={c.email} className="p-4 space-y-2">
+                <CopyableId id={c.user_id} />
                 <div className="font-bold">{c.email}</div>
                 <div className="text-sm text-slate-300">{c.display_name || "—"}</div>
                 <div className="flex flex-wrap gap-2 text-xs">
@@ -137,6 +143,214 @@ function ClientsPage() {
           </div>
         </div>
       )}
+
+      <PushNotificationsSection />
+    </div>
+  );
+}
+
+function CopyableId({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      className="inline-flex items-center gap-1.5 rounded-md border border-slate-600 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-700"
+    >
+      <Hash className="h-3 w-3 text-slate-400" />
+      <span className="font-mono text-[11px]">{id.slice(0, 8)}…{id.slice(-4)}</span>
+      {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3 text-slate-400" />}
+    </button>
+  );
+}
+
+function PushNotificationsSection() {
+  const [broadcastTitle, setBroadcastTitle] = useState("إشعار من الإدارة");
+  const [broadcastBody, setBroadcastBody] = useState("");
+  const [singleUserId, setSingleUserId] = useState("");
+  const [singleTitle, setSingleTitle] = useState("");
+  const [singleBody, setSingleBody] = useState("");
+  const [sending, setSending] = useState<"idle" | "broadcast" | "single">("idle");
+  const [broadcastResult, setBroadcastResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [singleResult, setSingleResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function sendBroadcast() {
+    if (!broadcastBody.trim()) {
+      setBroadcastResult({ ok: false, message: "الرجاء كتابة نص الإشعار" });
+      return;
+    }
+    setSending("broadcast");
+    setBroadcastResult(null);
+    try {
+      const res = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: broadcastTitle.trim(), body: broadcastBody.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setBroadcastResult({ ok: true, message: `تم الإرسال بنجاح: ${data.sent} وصل، ${data.failed} فشل${data.cleaned ? `، ${data.cleaned} اشتراك منتهي تم حذفه` : ""}` });
+      } else {
+        setBroadcastResult({ ok: false, message: data.error ?? "فشل الإرسال" });
+      }
+    } catch (e) {
+      setBroadcastResult({ ok: false, message: e instanceof Error ? e.message : "حدث خطأ" });
+    } finally {
+      setSending("idle");
+    }
+  }
+
+  async function sendSingle() {
+    if (!singleUserId.trim()) {
+      setSingleResult({ ok: false, message: "الرجاء إدخال ID العميل" });
+      return;
+    }
+    if (!singleBody.trim()) {
+      setSingleResult({ ok: false, message: "الرجاء كتابة نص الإشعار" });
+      return;
+    }
+    setSending("single");
+    setSingleResult(null);
+    try {
+      const res = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: singleTitle.trim(), body: singleBody.trim(), userId: singleUserId.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSingleResult({ ok: true, message: data.sent > 0 ? `تم الإرسال للعميل: ${data.sent} وصل` : "لا توجد اشتراكات لهذا العميل" });
+      } else {
+        setSingleResult({ ok: false, message: data.error ?? "فشل الإرسال" });
+      }
+    } catch (e) {
+      setSingleResult({ ok: false, message: e instanceof Error ? e.message : "حدث خطأ" });
+    } finally {
+      setSending("idle");
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-6">
+      {/* الإرسال الجماعي */}
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-100">
+          <Send className="h-5 w-5 text-blue-400" /> إرسال إشعارات Push
+        </h2>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <Users className="h-4 w-4 text-blue-400" /> الإرسال الجماعي
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">عنوان الإشعار</label>
+                <input
+                  type="text"
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  placeholder="عنوان الإشعار..."
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">نص الإشعار</label>
+                <textarea
+                  value={broadcastBody}
+                  onChange={(e) => setBroadcastBody(e.target.value)}
+                  placeholder="اكتب نص الإشعار هنا..."
+                  rows={4}
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+              <button
+                onClick={sendBroadcast}
+                disabled={sending !== "idle"}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+              >
+                {sending === "broadcast" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                إرسال جماعي
+              </button>
+            </div>
+          </div>
+
+          {broadcastResult && (
+            <div className={`rounded-lg px-4 py-3 text-sm ${broadcastResult.ok ? "bg-green-500/10 text-green-300 border border-green-500/20" : "bg-red-500/10 text-red-300 border border-red-500/20"}`}>
+              {broadcastResult.message}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* إرسال إشعار فردي */}
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-100">
+          <User className="h-5 w-5 text-emerald-400" /> إرسال إشعار فردي
+        </h2>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+              <User className="h-4 w-4 text-emerald-400" /> الإرسال الفردي
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">ID العميل</label>
+                <input
+                  type="text"
+                  value={singleUserId}
+                  onChange={(e) => setSingleUserId(e.target.value)}
+                  placeholder="ألصق ID العميل هنا..."
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">عنوان الإشعار</label>
+                <input
+                  type="text"
+                  value={singleTitle}
+                  onChange={(e) => setSingleTitle(e.target.value)}
+                  placeholder="عنوان الإشعار..."
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-200">نص الإشعار</label>
+                <textarea
+                  value={singleBody}
+                  onChange={(e) => setSingleBody(e.target.value)}
+                  placeholder="اكتب نص الإشعار هنا..."
+                  rows={4}
+                  className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+
+              <button
+                onClick={sendSingle}
+                disabled={sending !== "idle"}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {sending === "single" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                إرسال فردي
+              </button>
+            </div>
+          </div>
+
+          {singleResult && (
+            <div className={`rounded-lg px-4 py-3 text-sm ${singleResult.ok ? "bg-green-500/10 text-green-300 border border-green-500/20" : "bg-red-500/10 text-red-300 border border-red-500/20"}`}>
+              {singleResult.message}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -153,6 +367,7 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
 
   const [toggling, setToggling] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
 
   const handleToggle = async () => {
     if (!data?.profile) return;
@@ -192,6 +407,14 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
     }
   };
 
+  const copyId = () => {
+    if (!data?.user_id) return;
+    navigator.clipboard?.writeText(data.user_id).then(() => {
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 1500);
+    });
+  };
+
   return (
     <div dir="rtl" className="space-y-6">
       <button
@@ -211,6 +434,18 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
               <span className="inline-flex items-center gap-1.5">
                 <Mail className="h-4 w-4 text-slate-400" /> {data.email}
               </span>
+              {data.user_id && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                  🆔 <span className="font-mono">{data.user_id}</span>
+                  <button
+                    onClick={copyId}
+                    className="inline-flex items-center gap-0.5 rounded border border-slate-600 bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 transition hover:bg-slate-700 hover:text-slate-200"
+                  >
+                    {idCopied ? <Check className="h-2.5 w-2.5 text-green-400" /> : <Copy className="h-2.5 w-2.5" />}
+                    {idCopied ? "تم النسخ" : "نسخ"}
+                  </button>
+                </span>
+              )}
               {data.profile?.status && (
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   data.profile.status === "active" ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"

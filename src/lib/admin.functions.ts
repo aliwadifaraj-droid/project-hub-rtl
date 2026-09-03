@@ -676,7 +676,7 @@ export const adminListClients = createServerFn({ method: "GET" })
     return profiles.map((p) => {
       const key = p.email.trim().toLowerCase();
       const offer = offerMap.get(key); const req = reqMap.get(key); const vip = vipMap.get(key);
-      return { email: p.email, display_name: p.company_name || p.email, company_name: p.company_name, phone: p.phone, city: p.city, cr_number: p.cr_number, bio: p.bio, created_at: p.created_at, offers_count: Number(offer?.offers_count ?? 0), last_offer_at: offer?.last_offer_at ?? null, requests_count: Number(req?.requests_count ?? 0), last_request_at: req?.last_request_at ?? null, vip_status: vip?.vip_status ?? null, vip_city: vip?.vip_city ?? null, vip_plan: vip?.vip_plan ?? null, vip_expires_at: vip?.vip_expires_at ?? null, vip_created_at: vip?.vip_created_at ?? null };
+      return { user_id: p.user_id, email: p.email, display_name: p.company_name || p.email, company_name: p.company_name, phone: p.phone, city: p.city, cr_number: p.cr_number, bio: p.bio, created_at: p.created_at, offers_count: Number(offer?.offers_count ?? 0), last_offer_at: offer?.last_offer_at ?? null, requests_count: Number(req?.requests_count ?? 0), last_request_at: req?.last_request_at ?? null, vip_status: vip?.vip_status ?? null, vip_city: vip?.vip_city ?? null, vip_plan: vip?.vip_plan ?? null, vip_expires_at: vip?.vip_expires_at ?? null, vip_created_at: vip?.vip_created_at ?? null };
     });
   });
 
@@ -702,5 +702,5 @@ export const adminGetClientDetail = createServerFn({ method: "GET" })
     const requests = rowsToObjects<any>(requestsR).map((row: any) => ({ id: String(row.id), project_id: row.project_id ?? null, company_name: row.company_name ?? "", facility_location: row.facility_location ?? "", pdf_url: row.pdf_url ?? "", status: String(row.status ?? "new"), submitter_type: row.submitter_type ?? null, project_type: row.project_type ?? "platform", note: row.note ?? null, created_at: String(row.created_at ?? "") }));
     const vipR = await db.execute(`SELECT id, name, email, plan, city, status, project_id, expires_at, created_at FROM vip_subscribers WHERE LOWER(TRIM(email)) = ? ORDER BY created_at DESC`, [email]);
     const vipSubs = rowsToObjects<any>(vipR).map((row: any) => ({ id: String(row.id), name: row.name ?? null, plan: row.plan ?? null, city: row.city ?? null, status: String(row.status ?? "pending"), project_id: row.project_id ?? null, expires_at: row.expires_at ?? null, created_at: String(row.created_at ?? "") }));
-    return { email: data.email.trim(), profile: profile ? { company_name: profile.company_name, phone: profile.phone, city: profile.city, cr_number: profile.cr_number, bio: profile.bio, status: profile.status, created_at: profile.created_at } : null, offers, requests, vipSubs };
+    return { user_id: profile?.user_id ?? null, email: data.email.trim(), profile: profile ? { company_name: profile.company_name, phone: profile.phone, city: profile.city, cr_number: profile.cr_number, bio: profile.bio, status: profile.status, created_at: profile.created_at } : null, offers, requests, vipSubs };
   });

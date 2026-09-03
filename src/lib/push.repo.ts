@@ -49,3 +49,12 @@ export async function listAllSubscriptions(): Promise<PushSubscriptionRow[]> {
   const r = await db.execute(`SELECT id, user_id, endpoint, p256dh, auth, created_at FROM user_push_subscriptions`);
   return rowsToObjects<PushSubscriptionRow>(r);
 }
+
+export async function listSubscriptionsByUserId(userId: string): Promise<PushSubscriptionRow[]> {
+  await ensurePushSubscriptionsTable();
+  const r = await db.execute({
+    sql: `SELECT id, user_id, endpoint, p256dh, auth, created_at FROM user_push_subscriptions WHERE user_id = ?`,
+    args: [userId],
+  });
+  return rowsToObjects<PushSubscriptionRow>(r);
+}
