@@ -463,7 +463,7 @@ function ClientDetail({ email, onBack }: { email: string; onBack: () => void }) 
                 data.profile.status === "active"
                   ? "bg-red-600 text-white hover:bg-red-700"
                   : "bg-green-600 text-white hover:bg-green-700"
-              }`
+              }`}
             >
               {toggling ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
