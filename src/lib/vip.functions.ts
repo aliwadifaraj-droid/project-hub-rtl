@@ -210,6 +210,44 @@ export const createTrialVipSubscription = createServerFn({ method: "POST" })
     return { id: row.id, email: row.email ?? data.email };
   });
 
+export const createPackageTrialSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((data: { email: string; receiptFile: string; packageAmount: number; durationMinutes: number }) => {
+    if (!data?.email?.trim()) throw new Error("البريد الإلكتروني مطلوب");
+    if (!data?.receiptFile?.trim()) throw new Error("رفع الإيصال البنكي إلزامي");
+    if (!Number.isFinite(data.packageAmount) || data.packageAmount <= 0)
+      throw new Error("قيمة الباقة يجب أن تكون رقماً موجباً");
+    if (!Number.isFinite(data.durationMinutes) || data.durationMinutes <= 0)
+      throw new Error("مدة الاشتراك يجب أن تكون رقماً موجباً");
+    return {
+      email: data.email.trim(),
+      receiptFile: data.receiptFile.trim(),
+      packageAmount: data.packageAmount,
+      durationMinutes: data.durationMinutes,
+    };
+  })
+  .handler(async ({ data }) => {
+    const { scanReceiptDataUrl, validateOcrResult } = await import("./receipt-ocr");
+
+    let imageDataUrl = data.receiptFile;
+    if (!imageDataUrl.startsWith("data:")) {
+      const resp = await fetch(imageDataUrl);
+      if (!resp.ok) throw new Error(`تعذر تحميل صورة الإيصال (${resp.status})`);
+      const buf = await resp.arrayBuffer();
+      const mime = resp.headers.get("content-type") ?? "image/jpeg";
+      imageDataUrl = `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
+    }
+
+    const ocrResult = await scanReceiptDataUrl(imageDataUrl);
+    const validation = validateOcrResult(ocrResult, data.packageAmount);
+    if (!validation.ok) {
+      return { ok: false as const, reason: validation.message };
+    }
+
+    const row = await vipRepo.createTrialVip(data.email, data.durationMinutes);
+    return { ok: true as const, id: row.id, email: row.email ?? data.email };
+  });
+
 export async function runVipExpiryCheckRaw(): Promise<{
   processed: number;
   expired: number;
