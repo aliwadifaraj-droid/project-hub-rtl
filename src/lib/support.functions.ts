@@ -777,7 +777,7 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
     return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
   }
   if (Math.abs(amount - packageAmount) > 0.01) {
-    return {\n      approved: false,
+    return {      approved: false,
       reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
     };
   }
