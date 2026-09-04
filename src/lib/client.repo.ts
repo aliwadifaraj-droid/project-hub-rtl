@@ -165,6 +165,14 @@ export async function updateClientPushByEmail(
   );
 }
 
+export async function updateAllClientsPush(push_enabled: boolean): Promise<void> {
+  await ensureTable();
+  await db.execute(
+    `UPDATE client_profiles SET push_enabled = ?, updated_at = ?`,
+    [push_enabled ? 1 : 0, new Date().toISOString()],
+  );
+}
+
 export async function deleteClientProfileByEmail(email: string): Promise<string | null> {
   await ensureTable();
   const profile = await getClientProfileByEmail(email);

@@ -22,3 +22,12 @@ export const adminToggleClientPush = createServerFn({ method: "POST" })
     await clientRepo.updateClientPushByEmail(data.email, data.push_enabled);
     return { ok: true as const, push_enabled: data.push_enabled };
   });
+
+export const adminToggleAllClientsPush = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: { push_enabled: boolean }) =>
+    z.object({ push_enabled: z.boolean() }).parse(d))
+  .handler(async ({ data }) => {
+    await clientRepo.updateAllClientsPush(data.push_enabled);
+    return { ok: true as const, push_enabled: data.push_enabled };
+  });

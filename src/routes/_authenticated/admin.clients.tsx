@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListClients, adminGetClientDetail, adminToggleClientStatus } from "@/lib/admin.functions";
-import { adminDeleteClient, adminToggleClientPush } from "@/lib/client-admin.functions";
+import { adminDeleteClient, adminToggleClientPush, adminToggleAllClientsPush } from "@/lib/client-admin.functions";
 import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2, Send, Users, User, Copy, Check, Bell, BellOff } from "lucide-react";
 
 
@@ -35,6 +35,49 @@ function ClientPushToggle({ email, pushEnabled }: { email: string; pushEnabled: 
       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : pushEnabled ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
       {pushEnabled ? "مفعّل" : "معطّل"}
     </button>
+  );
+}
+
+function BulkPushControl() {
+  const toggleAll = useServerFn(adminToggleAllClientsPush);
+  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState<"enable" | "disable" | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleToggleAll = async (enabled: boolean) => {
+    if (!window.confirm(enabled ? "سيتم تشغيل إشعارات Web Push لجميع العملاء. هل تريد المتابعة؟" : "سيتم إيقاف إشعارات Web Push لجميع العملاء. هل تريد المتابعة؟")) return;
+    setLoading(enabled ? "enable" : "disable");
+    setResult(null);
+    try {
+      await toggleAll({ data: { push_enabled: enabled } });
+      await queryClient.invalidateQueries({ queryKey: ["admin-clients"] });
+      setResult(enabled ? "تم تشغيل الإشعارات لجميع العملاء" : "تم إيقاف الإشعارات لجميع العملاء");
+    } catch (e) {
+      console.error(e);
+      setResult("تعذر تحديث حالة الإشعارات");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <div className="mb-6 rounded-xl border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-lg">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-bold"><Bell className="h-5 w-5 text-blue-400" /> تحكم إشعارات Web Push</h2>
+          <p className="mt-1 text-xs text-slate-400">تشغيل أو إيقاف الإشعارات لجميع العملاء دفعة واحدة</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => handleToggleAll(true)} disabled={loading !== null} className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50">
+            {loading === "enable" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />} تشغيل للجميع
+          </button>
+          <button onClick={() => handleToggleAll(false)} disabled={loading !== null} className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-600 disabled:opacity-50">
+            {loading === "disable" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellOff className="h-4 w-4" />} إيقاف للجميع
+          </button>
+        </div>
+      </div>
+      {result && <p className="mt-3 text-sm text-emerald-300">{result}</p>}
+    </div>
   );
 }
 
@@ -77,6 +120,8 @@ function ClientsPage() {
           />
         </div>
       </div>
+
+      <BulkPushControl />
 
       {isLoading ? (
         <div className="grid place-items-center py-20">
@@ -165,6 +210,7 @@ function ClientsPage() {
                     </span>
                   )}
                 </div>
+                <ClientPushToggle email={c.email} pushEnabled={!!c.push_enabled} />
                 <button
                   onClick={() => setSelectedEmail(c.email)}
                   className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition hover:bg-foreground/90"
