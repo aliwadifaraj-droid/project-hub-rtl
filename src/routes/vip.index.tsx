@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } from "lucide-react";
-import { uploadPublicFile } from "@/lib/files.function";
+import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
