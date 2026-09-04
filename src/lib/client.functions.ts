@@ -105,18 +105,29 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
   const profile = await clientRepo.getClientProfile(claims.sub);
   if (!profile) return [];
 
-  // Search notifications by email (pending offers)
+  // Search notifications by email and company name — same approach as the
+  // bot. A single offer creates one row per admin/employee, all sharing the
+  // same email/company_name. Deduplicate by (project_id, pdf_key) only,
+  // ignoring created_at (rows are inserted in a batch with slightly
+  // different timestamps).
   const pendingByEmail = await notificationsRepo.searchOfferNotificationsByEmail(profile.email, 200);
-  // Also search by company name
   const pendingByCompany = await notificationsRepo.searchOfferNotificationsByCompany(profile.company_name, 200);
 
-  // Merge and deduplicate
-  const seen = new Set<string>();
-  const merged = [...pendingByEmail, ...pendingByCompany].filter((n) => {
-    if (seen.has(n.id)) return false;
-    seen.add(n.id);
+  const seenIds = new Set<string>();
+  const mergedRaw = [...pendingByEmail, ...pendingByCompany].filter((n) => {
+    if (seenIds.has(n.id)) return false;
+    seenIds.add(n.id);
     return true;
   });
+
+  const byOfferKey = new Map<string, typeof mergedRaw[number]>();
+  for (const n of mergedRaw) {
+    const key = `${n.project_id ?? ""}|${n.pdf_key ?? ""}`;
+    if (!byOfferKey.has(key)) {
+      byOfferKey.set(key, n);
+    }
+  }
+  const merged = Array.from(byOfferKey.values());
 
   // Also fetch accepted offers from project_requests
   const { db, rowsToObjects } = await import("./db");
@@ -277,6 +288,22 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
+    // Race guard: if this user already submitted an offer for this exact
+    // project + pdf_key in the last 30 seconds, reject the duplicate. This
+    // catches double-click submissions that pass the checks above before the
+    // first insert completes.
+    const { db } = await import("./db");
+    const recentDup = await db.execute(
+      `SELECT id FROM notifications
+        WHERE user_id = ? AND project_id = ? AND pdf_key = ?
+          AND created_at > datetime('now', '-30 seconds')
+        LIMIT 1`,
+      [claims.sub, project.id, data.pdfKey],
+    );
+    if (recentDup.rows.length > 0) {
+      return { ok: false as const, message: "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅" };
+    }
+
     // Check client blocked (same as bot form)
     const clientBlocked = await clientRepo.isClientBlockedByEmail(email);
     if (clientBlocked) {
@@ -284,7 +311,6 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     }
 
     // Check notifications for same email+project pending
-    const { db } = await import("./db");
     const checkEmailNotif = await db.execute(
       `SELECT id FROM notifications WHERE email = $1 AND project_name = $2 AND status = 'pending'`,
       [email, data.projectName],
@@ -318,11 +344,13 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
-    // Notify all admin/employee staff
+    // Notify all admin/employee staff — same logic as the bot's submitOffer.
+    // We do NOT create a separate copy for the client; getMyOffers finds
+    // their offers by matching email/company_name against the admin copies.
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${companyName} — ${data.projectName} — ${data.amount}`;
-    await notificationsRepo.insertOfferNotificationMany(
+    const ids = await notificationsRepo.insertOfferNotificationMany(
       staff.map((uid) => ({
         user_id: uid,
         title,
@@ -341,35 +369,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
         status: "pending",
       })),
     );
-
-    // Save a copy for the client themselves so they can track it in "my offers"
-    await db.execute(
-      `INSERT INTO notifications
-        (id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, read, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-      [
-        crypto.randomUUID(),
-        claims.sub,
-        title,
-        body,
-        "/client/offers",
-        project.id,
-        data.projectName,
-        companyName,
-        email,
-        null,
-        data.pdfKey,
-        data.pdfFilename,
-        data.amount,
-        "client_portal",
-        "user",
-        "new",
-        "pending",
-        new Date().toISOString(),
-      ],
-    );
-
-    const id = "";
+    const id = ids[0] ?? "";
 
     return { ok: true as const, id, message: "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅" };
   });

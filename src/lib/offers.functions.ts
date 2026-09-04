@@ -231,7 +231,14 @@ export const adminListOffers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     assertStaff(context.roles);
     const rows = await notificationsRepo.listAllOfferNotifications();
-    return rows.map((r) => ({
+    const seen = new Set<string>();
+    const deduped = rows.filter((r) => {
+      const key = r.pdf_key ?? r.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return deduped.map((r) => ({
       id: r.id,
       project_id: r.project_id,
       project_name: r.project_name,
@@ -278,7 +285,7 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
         project_type: "platform",
       });
       await requests.updateRequestStatus(requestId, "new");
-      await notificationsRepo.deleteOfferNotification(offer.id);
+      await notificationsRepo.deleteOfferNotificationsByPdfKey(offer.pdf_key ?? offer.id);
       return { ok: true as const, moved: true, requestId };
     }
     await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);

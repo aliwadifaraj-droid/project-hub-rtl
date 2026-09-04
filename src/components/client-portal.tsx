@@ -712,6 +712,7 @@ function SubmitOfferTab() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     if (!selectedProject) return;
     if (!(amount?.trim() || "")) {
       setResult({ ok: false, message: "السعر مطلوب" });
