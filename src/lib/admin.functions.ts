@@ -107,7 +107,7 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
-    const requests = await requestsRepo.listPlatformRequests();
+    const requests = await requestsRepo.listAllRequests();
     const offerNotifs = await notificationsRepo.listOfferNotificationsBySource("platform");
     const fromRequests = await Promise.all(requests.map(async (r) => {
       const proj = r.project_id ? await projectsRepo.getById(r.project_id).catch(() => null) : null;

@@ -216,65 +216,18 @@ export async function checkDuplicateOffer(input: {
       WHERE offer_status IS NOT NULL
         AND LOWER(TRIM(COALESCE(project_name, ''))) = ?
         AND LOWER(TRIM(COALESCE(company_name, ''))) = ?
-        ${input.projectId ? "AND project_id = ?" : ""}
       LIMIT 1`,
-    input.projectId
-      ? [projectName, companyName, input.projectId]
-      : [projectName, companyName],
+    [projectName, companyName],
   );
   return rowsToObjects(r).length > 0;
 }
 
-export async function getOfferNotificationById(id: string): Promise<OfferNotificationRow | null> {
-  const r = await db.execute(
-    `SELECT id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, created_at
-       FROM notifications
-       WHERE id = ? AND offer_status IS NOT NULL LIMIT 1`,
-    [id],
-  );
-  const rows = rowsToObjects(r);
-  return rows[0] ? decodeOffer(rows[0]) : null;
-}
-
-export async function deleteOfferNotification(id: string): Promise<void> {
-  await db.execute(`DELETE FROM notifications WHERE id = ?`, [id]);
-}
-
-export async function updateOfferNotificationStatus(id: string, status: string): Promise<void> {
-  await db.execute(
-    `UPDATE notifications SET offer_status = ? WHERE pdf_key = (SELECT pdf_key FROM notifications WHERE id = ?)`,
-    [status, id],
-  );
-}
-
-export async function deleteOfferNotificationsByPdfKey(pdfKey: string): Promise<void> {
-  await db.execute(
-    `DELETE FROM notifications WHERE pdf_key = ? AND offer_status IS NOT NULL`,
-    [pdfKey],
-  );
-}
-
-export async function listAllOfferNotifications(): Promise<OfferNotificationRow[]> {
-  const r = await db.execute(
-    `SELECT id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, created_at
-       FROM notifications
-       WHERE offer_status IS NOT NULL
-       ORDER BY created_at DESC`,
-  );
-  return rowsToObjects(r).map(decodeOffer);
-}
-
-export async function countNewOfferNotifications(): Promise<number> {
-  const r = await db.execute(
-    `SELECT COUNT(*) AS c FROM notifications WHERE offer_status = 'new'`,
-  );
-  const rows = rowsToObjects<{ c: number }>(r);
-  return Number(rows[0]?.c ?? 0);
-}
-
-export async function existsDuplicateAddProjectNotification(email: string, companyName: string): Promise<boolean> {
-  const e = (email ?? "").trim().toLowerCase();
-  const c = (companyName ?? "").trim().toLowerCase();
+export async function checkDuplicateAddProject(input: {
+  email: string;
+  companyName: string;
+}): Promise<boolean> {
+  const e = (input.email ?? "").trim().toLowerCase();
+  const c = (input.companyName ?? "").trim().toLowerCase();
   if (!e || !c) return false;
   const r = await db.execute(
     `SELECT 1 FROM notifications
@@ -350,4 +303,65 @@ export async function searchOfferNotificationsByCompany(name: string, limit = 50
     [`%${n}%`, limit],
   );
   return rowsToObjects(r).map(decodeOffer);
+}
+
+export async function getOfferNotificationById(id: string): Promise<OfferNotificationRow | null> {
+  await ensureOfferColumns();
+  const r = await db.execute(
+    `SELECT id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, created_at
+       FROM notifications
+       WHERE id = ? AND offer_status IS NOT NULL LIMIT 1`,
+    [id],
+  );
+  const rows = rowsToObjects(r);
+  return rows[0] ? decodeOffer(rows[0]) : null;
+}
+
+export async function deleteOfferNotification(id: string): Promise<void> {
+  await db.execute(`DELETE FROM notifications WHERE id = ?`, [id]);
+}
+
+export async function updateOfferNotificationStatus(id: string, status: string): Promise<void> {
+  await db.execute(
+    `UPDATE notifications SET offer_status = ? WHERE pdf_key = (SELECT pdf_key FROM notifications WHERE id = ?)`,
+    [status, id],
+  );
+}
+
+export async function deleteOfferNotificationsByPdfKey(pdfKey: string): Promise<void> {
+  await db.execute(
+    `DELETE FROM notifications WHERE pdf_key = ? AND offer_status IS NOT NULL`,
+    [pdfKey],
+  );
+}
+
+export async function listAllOfferNotifications(): Promise<OfferNotificationRow[]> {
+  await ensureOfferColumns();
+  const r = await db.execute(
+    `SELECT id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, created_at
+       FROM notifications
+       WHERE offer_status IS NOT NULL
+       ORDER BY created_at DESC`,
+  );
+  return rowsToObjects(r).map(decodeOffer);
+}
+
+export async function listOfferNotificationsBySource(source: string): Promise<OfferNotificationRow[]> {
+  await ensureOfferColumns();
+  const r = await db.execute(
+    `SELECT id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, created_at
+       FROM notifications
+       WHERE offer_status IS NOT NULL AND source = ?
+       ORDER BY created_at DESC`,
+    [source],
+  );
+  return rowsToObjects(r).map(decodeOffer);
+}
+
+export async function countNewOfferNotifications(): Promise<number> {
+  const r = await db.execute(
+    `SELECT COUNT(*) AS c FROM notifications WHERE offer_status = 'new'`,
+  );
+  const rows = rowsToObjects<{ c: number }>(r);
+  return Number(rows[0]?.c ?? 0);
 }
