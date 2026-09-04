@@ -7,6 +7,7 @@ const VISION_MODELS = [
 
 export interface OcrResult {
   bank: string | null;
+  iban: string | null;
   amount: number | null;
   date: string | null;
   time: string | null;
@@ -14,21 +15,22 @@ export interface OcrResult {
 
 const EMPTY_RESULT: OcrResult = {
   bank: null,
+  iban: null,
   amount: null,
   date: null,
   time: null,
 };
 
 const SYSTEM_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
-Read only the transfer amount and transaction date needed to validate this receipt. Search the entire image carefully, including small text and the receipt header/footer.
+Read the bank account identifier (IBAN), transfer amount, and transaction date from this receipt. Search the entire image carefully, including small text and the receipt header/footer.
 Respond with a JSON object only — no markdown, no explanation, no code fences:
-{"bank":null,"amount":100,"date":"YYYY-MM-DD","time":null}
+{"bank":null,"iban":null,"amount":100,"date":"YYYY-MM-DD","time":null}
 Amount must be numeric only with no currency symbol or commas. The date may appear as DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or a Hijri date. Convert a Hijri date to Gregorian YYYY-MM-DD. If a date is visible, never return null; return the date you can read. Only return null when the field is genuinely not visible. Do not include thinking or reasoning text outside the JSON.`;
 
-const FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find ONLY the transfer amount and transaction date. Ignore the bank name and time. Search all small text carefully. Return JSON only: {"amount":100,"date":"the date exactly as visible"}. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri. Do not return a null date if any date is visible.`;
+const FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find the IBAN, transfer amount, and transaction date. Search all small text carefully. Return JSON only: {"iban":"SA...","amount":100,"date":"the date exactly as visible"}. Return null only when a field is genuinely not visible. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri.`;
 
 function extractJson(text: string): Record<string, unknown> | null {
-  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, "").trim();
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
@@ -46,9 +48,9 @@ function normalizeReceiptDate(value: string | null): string | null {
   if (!value?.trim()) return null;
   const raw = normalizeDigits(value.trim()).replace(/[.]/g, "/");
   if (["null", "n/a", "unknown", "غير واضح"].includes(raw.toLowerCase())) return null;
-  const iso = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  const dmy = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  const dmy = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
   if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
   return raw;
 }
@@ -100,8 +102,11 @@ async function callModel(model: string, dataUrl: string, apiKey: string, focused
       : null;
   const dateText = firstString(parsed, ["date", "transaction_date", "transfer_date", "transactionDate", "transferDate", "date_time", "dateTime"]);
 
+  const ibanText = firstString(parsed, ["iban", "IBAN", "account_number", "accountNumber", "bank_account", "bankAccount"]);
+
   return {
     bank: typeof parsed.bank === "string" && parsed.bank.trim() ? parsed.bank.trim() : null,
+    iban: ibanText ? normalizeDigits(ibanText).replace(/\s+/g, " ").trim() : null,
     amount: amountNum != null && Number.isFinite(amountNum) ? amountNum : null,
     date: normalizeReceiptDate(dateText),
     time: typeof parsed.time === "string" && parsed.time.trim() ? parsed.time.trim() : null,
@@ -123,6 +128,7 @@ export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
         const focusedResult = await callModel(model, dataUrl, apiKey, true);
         result = {
           bank: result.bank ?? focusedResult.bank,
+          iban: result.iban ?? focusedResult.iban,
           amount: result.amount ?? focusedResult.amount,
           date: result.date ?? focusedResult.date,
           time: result.time ?? focusedResult.time,
@@ -145,9 +151,17 @@ export async function scanReceipt(file: File): Promise<OcrResult> {
   return scanReceiptDataUrl(await fileToBase64(file));
 }
 
-// TEMP: Bypass receipt date validation — amount check retained — urgent fix 18-08-2026
 export function validateOcrResult(result: OcrResult, expectedAmount: number): { ok: boolean; message: string } {
-  // المبلغ: لازم يطابق قيمة الباقة بالضبط
+  // 1) التاريخ: لازم يكون خلال آخر 7 أيام
+  if (!result.date) return { ok: false, message: "لم يتم العثور على تاريخ في الإيصال" };
+  const receiptDate = new Date(result.date);
+  if (isNaN(receiptDate.getTime())) return { ok: false, message: "تاريخ الإيصال غير صالح" };
+  const now = new Date();
+  const diffHours = (now.getTime() - receiptDate.getTime()) / 3_600_000;
+  if (diffHours > 168) return { ok: false, message: "الإيصال قديم — يجب أن يكون خلال آخر 7 أيام" };
+  if (diffHours < -24) return { ok: false, message: "تاريخ الإيصال في المستقبل" };
+
+  // 2) المبلغ: لازم يطابق قيمة الباقة بالضبط
   if (result.amount === null) return { ok: false, message: "لم يتم قراءة مبلغ التحويل من الإيصال" };
   if (Math.abs(result.amount - expectedAmount) > 0.01) {
     return { ok: false, message: `المبلغ في الإيصال (${result.amount} ر.س) لا يطابق قيمة الباقة (${expectedAmount} ر.س)` };

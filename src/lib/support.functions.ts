@@ -56,7 +56,7 @@ const STOP_WORDS = new Set([
 function normalizeAr(s: string): string {
   return (s ?? "")
     .toLowerCase()
-    .replace(/[؟.!،,:;()"'`]/g, " ")
+    .replace(/[?؟.!،,:;()"'`]/g, " ")
     .replace(/[أإآ]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
@@ -182,7 +182,6 @@ async function answerRequestStatus(query: string): Promise<string | null> {
   const raw = (query ?? "").trim();
   if (!raw) return null;
   const repo = await import("./project-requests.repo");
-  const notificationsRepo = await import("./notifications.repo");
   const emailMatch = raw.match(EMAIL_RE);
   const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
 
@@ -204,7 +203,7 @@ async function answerRequestStatus(query: string): Promise<string | null> {
     return rowsToShow
       .map((r) => {
         const label = r.status==='new' ? `<span style="background:#17a2b8;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">📥 جديد</span>` : r.status==='reviewing' ? `<span style="background:#fd7e14;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">⏳ قيد المراجعة</span>` : r.status==='accepted' ? `<span style="background:#28a745;color:white;font-weight:bold;padding:8px 16px;border-radius:50px;display:inline-block;font-size:14px">● ✅ مقبول</span>` : r.status==='rejected' ? `<span style="background:#dc3545;color:white;font-weight:bold;padding:12px 24px;border-radius:8px;display:inline-block;font-size:16px">❌ مرفوض</span>` : r.status;
-        const projName = r.project_id ? projectNames.get(r.project_id) ?? r.facility_location ?? "—" : r.facility_location ?? "—";
+        const projName = r.project_id ? projectNames.get(r.project_id) ?? "—" : "—";
         const lines = [`📄 ${r.company_name ?? "طلب"}`, `المشروع: ${projName}`, `حالة الطلب: ${label}`];
         if (r.note && r.note.trim()) lines.push(`الملاحظة: ${r.note.trim()}`);
         else lines.push(REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new);
@@ -212,10 +211,6 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       })
       .join("\n\n");
   }
-
-  let offers = emailMatch ? await notificationsRepo.searchOfferNotificationsByEmail(emailMatch[0]) : [];
-  if (!offers.length && !emailMatch) offers = await notificationsRepo.searchOfferNotificationsByCompany(name);
-  if (offers.length) return OFFER_PENDING_REPLY;
 
   return REQUEST_NOT_FOUND;
 }
@@ -282,7 +277,7 @@ function asksAboutVip(text: string): boolean {
 
 
 
-/** Ask Groq (llama-3.3-70b-versatile) as a last-resort fallback. Returns null on any failure. */
+/** Ask Groq (qwen/qwen3.6-27b) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
   systemInstruction?: string | null;
   dialect?: string | null;
@@ -292,27 +287,12 @@ async function askGroq(userText: string, opts: {
 }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-
-  const ENFORCE_AR = [
-    "### تعليمات حديدية لا يجوز مخالفتها أبداً ###",
-    "1. ردك يجب أن يكون باللغة العربية ONLY. ممنوع تماماً استخدام أي كلمة إنجليزية ما لم يكن مصطلحاً تقنياً لا يترجم.",
-    "2. اللهجة: سعودية ودودة 100%. ممنوع الفصحى المعقدة وممنوع الإنجليزية نهائياً.",
-    "3. اختصار: ردك 3 أسطر بالكثير. لا تبدأ بـ \"كمساعد ذكي\" ولا تعتذر.",
-    "4. لا تكتب think ولا --- ولا تشرح لنفسك. رد النتيجة فقط.",
-    "5. إذا كان السؤال خارج نطاق المنصة قل: \"انا مساعد العمران بس 😊 اقدر اخدمك في شي يخص المنصة؟\"",
-    "6. الدفع والعقود والحسابات: ردك ثابت: \"لمساعدتك بشكل دقيق يرجى التواصل مع الدعم الفني\".",
-    "7. لا تأليف أبداً. إذا ما تدري قول: \"للتفاصيل الدقيقة راجع قسم المشاريع او كلم الدعم الفني\".",
-    "8. نحن منصة إلكترونية 100%. كل الخدمات أونلاين. ما عندنا مقر.",
-  ].join("\n");
-
+  const model = process.env.GROQ_MODEL || "qwen/qwen3.6-27b";
   const sysParts = [
-    ENFORCE_AR,
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
-    opts.dialect ? `اللهجة المطلوبة: ${opts.dialect}.` : null,
+    opts.dialect ? `اللهجة: ${opts.dialect}.` : null,
     opts.scope ? `نطاق عملك: ${opts.scope}` : null,
-    "### تذكير أخير: رد بالعربية السعودية فقط. أي رد بغير العربية مرفوض. ###",
   ].filter(Boolean);
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -323,8 +303,8 @@ async function askGroq(userText: string, opts: {
       },
       body: JSON.stringify({
         model,
-        temperature: 0.2,
-        max_tokens: 400,
+        temperature: 0.4,
+        max_completion_tokens: 512,
         messages: [
           ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
           { role: "user", content: userText },
@@ -338,8 +318,6 @@ async function askGroq(userText: string, opts: {
     for (const bad of opts.blockedReplies ?? []) {
       if (bad && text.toLowerCase().includes(bad.toLowerCase())) return null;
     }
-    const englishRatio = (text.match(/[a-zA-Z]{2,}/g) ?? []).length / Math.max(text.split(/\s+/).length, 1);
-    if (englishRatio > 0.4) return null;
     return text;
   } catch {
     return null;
@@ -376,19 +354,22 @@ const ALERT_MARKER = "__ALERT_SENT__";
 const BUSY_REPLY = "الموظفين مشغولين حالياً. كيف أقدر أساعدك؟";
 
 async function sendWaitingAlert(chatId: string, visitorName: string | null) {
-  const { sendResendEmail } = await import("./resend-send.server");
   const to = process.env.VITE_ALERT_EMAIL || process.env.ALERT_EMAIL;
-  if (!to) { console.error("alert email missing — set ALERT_EMAIL"); return; }
-  await sendResendEmail({
-    to,
-    subject: "🚨 عميل ينتظر",
-    html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px;max-width:600px;margin:0 auto">
-      <h2 style="color:#dc2626">🚨 عميل ينتظر</h2>
-      <p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p>
-      <p><strong>customer_id:</strong> ${chatId}</p>
-      <p>الرجاء الدخول للوحة الإدارة والرد على المحادثة.</p>
-    </div>`,
-  });
+  const key = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
+  if (!to || !key) { console.error("alert email/key missing"); return; }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        from: "Alamran <send@ali-alhaddad.com>",
+        to: [to],
+        subject: "🚨 عميل ينتظر",
+        html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>`,
+      }),
+    });
+    if (!res.ok) console.error("waiting alert failed", res.status, await res.text());
+  } catch (e) { console.error("waiting alert exception", e); }
 }
 
 async function agentRepliedSince(chatId: string, sinceIso: string): Promise<boolean> {
@@ -406,16 +387,10 @@ async function recentAlertExists(chatId: string): Promise<boolean> {
   return rowsToObjects(r).length > 0;
 }
 
-async function chatStatusIs(chatId: string, status: string): Promise<boolean> {
-  const chat = await supportRepo.getChatById(chatId);
-  return chat?.status === status;
-}
-
 function scheduleEscalationWatchers(chatId: string, visitorName: string | null, startIso: string) {
   setTimeout(async () => {
     try {
       if (await agentRepliedSince(chatId, startIso)) return;
-      if (!(await chatStatusIs(chatId, "waiting_for_agent"))) return;
       if (await recentAlertExists(chatId)) return;
       await sendWaitingAlert(chatId, visitorName);
       await supportRepo.addSupportMessage(chatId, "system", ALERT_MARKER);
@@ -425,9 +400,7 @@ function scheduleEscalationWatchers(chatId: string, visitorName: string | null, 
   setTimeout(async () => {
     try {
       if (await agentRepliedSince(chatId, startIso)) return;
-      if (!(await chatStatusIs(chatId, "waiting_for_agent"))) return;
       await supportRepo.addSupportMessage(chatId, "bot", BUSY_REPLY);
-      await supportRepo.updateChatStatus(chatId, "bot_mode");
     } catch (e) { console.error("watcher-60s", e); }
   }, 60_000);
 }
@@ -439,31 +412,11 @@ async function escalateOrOffHours(chatId: string) {
     await supportRepo.addSupportMessage(chatId, "bot", settings?.off_hours_message?.trim() || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
     return { escalated: false };
   }
-  await supportRepo.updateChatStatus(chatId, "waiting_for_agent");
+  await supportRepo.updateChatStatus(chatId, "escalated");
   await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
   const chat = await supportRepo.getChatById(chatId);
   scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
-
-  try {
-    const { listUsersWithRoles } = await import("./users.repo");
-    const { insertMany } = await import("./notifications.repo");
-    const staff = (await listUsersWithRoles(500)).filter((u) => u.roles.includes("admin") || u.roles.includes("employee"));
-    if (staff.length > 0) {
-      const visitorLabel = chat?.visitor_name?.trim() || `زائر ${chatId.slice(0, 6)}`;
-      await insertMany(
-        staff.map((s) => ({
-          user_id: s.id,
-          title: "عميل يطلب موظف دعم",
-          body: `${visitorLabel} — محادثة رقم ${chatId.slice(0, 8)}`,
-          link: "/admin/support",
-        })),
-      );
-    }
-  } catch (e) {
-    console.error("escalation notification failed", e);
-  }
-
-  return { escalated: true, status: "waiting_for_agent" };
+  return { escalated: true };
 }
 
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
@@ -496,7 +449,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     await invalidateChat(data.visitorToken);
     const chat = await getOrCreateVisitorChat(data.visitorToken);
     await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
-    if (chat.status !== "bot" && chat.status !== "bot_mode") {
+    if (chat.status !== "bot") {
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
@@ -614,7 +567,7 @@ export const adminReplyChat = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
     await supportRepo.addSupportMessage(data.chatId, "admin", data.body);
-    await supportRepo.updateChatStatus(data.chatId, "bot");
+    await supportRepo.updateChatStatus(data.chatId, "escalated");
     const chat = await supportRepo.getChatById(data.chatId);
     if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
     return { ok: true };
@@ -700,15 +653,15 @@ function normalizeReceiptDate(value: string | null): string | null {
   if (!value?.trim()) return null;
   const raw = normalizeDigits(value.trim()).replace(/[.]/g, "/");
   if (["null", "n/a", "unknown", "غير واضح"].includes(raw.toLowerCase())) return null;
-  const iso = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  const dmy = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  const dmy = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
   if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
   return raw;
 }
 
 function parseReceiptJson(content: string): { amount: number | null; date: string | null } {
-  const cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const cleaned = content.replace(/<think[\s\S]*?<\/think>/gi, "").trim();
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return { amount: null, date: null };
   try {
@@ -816,15 +769,15 @@ async function checkReceipt(receiptFile: string, packageAmount: number): Promise
     return { approved: false, reason: "تاريخ الإيصال غير صالح." };
   }
   const hoursDiff = (Date.now() - receiptDate.getTime()) / 3_600_000;
-  if (hoursDiff < 0 || hoursDiff > 72) {
-    return { approved: false, reason: "تاريخ الإيصال خارج نطاق 72 ساعة المسموح." };
+  if (hoursDiff < 0 || hoursDiff > 168) {
+    return { approved: false, reason: "تاريخ الإيصال خارج نطاق 7 أيام المسموح." };
   }
 
   if (amount == null) {
     return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
   }
   if (Math.abs(amount - packageAmount) > 0.01) {
-    return {approved: false,
+    return {\n      approved: false,
       reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
     };
   }
