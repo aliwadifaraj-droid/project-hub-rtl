@@ -12,6 +12,8 @@ export type ClientProfile = {
   cr_number: string;
   bio: string;
   status: string;
+  push_enabled: boolean;
+  push_token: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -36,6 +38,8 @@ function ensureTable(): Promise<void> {
      )`,
   )
     .then(() => db.execute(`ALTER TABLE client_profiles ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`).catch(() => undefined))
+    .then(() => db.execute(`ALTER TABLE client_profiles ADD COLUMN push_enabled INTEGER NOT NULL DEFAULT 0`).catch(() => undefined))
+    .then(() => db.execute(`ALTER TABLE client_profiles ADD COLUMN push_token TEXT`).catch(() => undefined))
     .then(() => undefined)
     .catch(() => undefined);
   return _tableReady;
@@ -52,6 +56,8 @@ function decode(r: any): ClientProfile {
     cr_number: String(r.cr_number ?? ""),
     bio: String(r.bio ?? ""),
     status: String(r.status ?? "active"),
+    push_enabled: Number(r.push_enabled ?? 0) === 1,
+    push_token: r.push_token ?? null,
     created_at: String(r.created_at ?? ""),
     updated_at: String(r.updated_at ?? ""),
   };
@@ -145,6 +151,17 @@ export async function updateClientStatusByEmail(
   await db.execute(
     `UPDATE client_profiles SET status = ?, updated_at = ? WHERE lower(email) = lower(?)`,
     [status, new Date().toISOString(), email.trim()],
+  );
+}
+
+export async function updateClientPushByEmail(
+  email: string,
+  push_enabled: boolean,
+): Promise<void> {
+  await ensureTable();
+  await db.execute(
+    `UPDATE client_profiles SET push_enabled = ?, updated_at = ? WHERE lower(email) = lower(?)`,
+    [push_enabled ? 1 : 0, new Date().toISOString(), email.trim()],
   );
 }
 

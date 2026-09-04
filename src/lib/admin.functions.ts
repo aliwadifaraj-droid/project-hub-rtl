@@ -807,6 +807,8 @@ export const adminListClients = createServerFn({ method: "GET" })
         requests_count: reqs.length,
         vip_status: vipStatus,
         last_offer_at: lastOfferAt,
+        push_enabled: p.push_enabled,
+        push_token: p.push_token ?? null,
       };
     });
   });

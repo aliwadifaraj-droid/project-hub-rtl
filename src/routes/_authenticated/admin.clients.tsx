@@ -3,8 +3,40 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListClients, adminGetClientDetail, adminToggleClientStatus } from "@/lib/admin.functions";
-import { adminDeleteClient } from "@/lib/client-admin.functions";
-import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2, Send, Users, User, Copy, Check } from "lucide-react";
+import { adminDeleteClient, adminToggleClientPush } from "@/lib/client-admin.functions";
+import { Loader2, Search, ArrowRight, FileText, ClipboardList, Star, Mail, MapPin, Calendar, Phone, Building2, FileBadge, Hash, Ban, CheckCircle2, Trash2, Send, Users, User, Copy, Check, Bell, BellOff } from "lucide-react";
+
+
+function ClientPushToggle({ email, pushEnabled }: { email: string; pushEnabled: boolean }) {
+  const toggleFn = useServerFn(adminToggleClientPush);
+  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState(false);
+
+  const handleToggle = async () => {
+    setLoading(true);
+    try {
+      await toggleFn({ data: { email, push_enabled: !pushEnabled } });
+      await queryClient.invalidateQueries({ queryKey: ["admin-clients"] });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleToggle}
+      disabled={loading}
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition disabled:opacity-50 ${
+        pushEnabled ? "bg-green-500/20 text-green-300 hover:bg-green-500/30" : "bg-slate-700 text-slate-400 hover:bg-slate-600"
+      }`}
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : pushEnabled ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
+      {pushEnabled ? "مفعّل" : "معطّل"}
+    </button>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/admin/clients")({
   component: ClientsPage,
@@ -62,6 +94,7 @@ function ClientsPage() {
                   <th className="p-3 font-semibold">الطلبات</th>
                   <th className="p-3 font-semibold">حالة VIP</th>
                   <th className="p-3 font-semibold">آخر عرض</th>
+                  <th className="p-3 font-semibold">الإشعارات</th>
                   <th className="p-3 font-semibold"></th>
                 </tr>
               </thead>
@@ -94,6 +127,9 @@ function ClientsPage() {
                       {c.last_offer_at ? new Date(c.last_offer_at).toLocaleDateString("ar") : "—"}
                     </td>
                     <td className="p-3">
+                      <ClientPushToggle email={c.email} pushEnabled={!!c.push_enabled} />
+                    </td>
+                    <td className="p-3">
                       <button
                         onClick={() => setSelectedEmail(c.email)}
                         className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition hover:bg-foreground/90"
@@ -105,7 +141,7 @@ function ClientsPage() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-400">
+                    <td colSpan={8} className="p-8 text-center text-slate-400">
                       لا يوجد عملاء
                     </td>
                   </tr>
