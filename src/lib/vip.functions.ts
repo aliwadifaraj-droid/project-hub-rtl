@@ -210,6 +210,53 @@ export const createTrialVipSubscription = createServerFn({ method: "POST" })
     return { id: row.id, email: row.email ?? data.email };
   });
 
+async function checkReceipt(receiptFile: string, packageAmount: number): Promise<{ approved: boolean; reason: string }> {
+  const { scanReceiptDataUrl } = await import("./receipt-ocr");
+
+  let imageDataUrl = receiptFile;
+  if (!imageDataUrl.startsWith("data:")) {
+    const resp = await fetch(imageDataUrl);
+    if (!resp.ok) throw new Error(`تعذر تحميل صورة الإيصال (${resp.status})`);
+    const buf = await resp.arrayBuffer();
+    const mime = resp.headers.get("content-type") ?? "image/jpeg";
+    imageDataUrl = `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
+  }
+
+  let parsed: { amount: number | null; date: string | null };
+  try {
+    parsed = await scanReceiptDataUrl(imageDataUrl);
+  } catch (e) {
+    console.error("verifyReceipt: فشل قراءة الإيصال", e);
+    return { approved: false, reason: "تعذر قراءة الإيصال. حاول برفع صورة أوضح." };
+  }
+
+  const { amount, date } = parsed;
+
+  if (!date) {
+    return { approved: false, reason: "لم يتم العثور على تاريخ في الإيصال." };
+  }
+  const receiptDate = new Date(date);
+  if (isNaN(receiptDate.getTime())) {
+    return { approved: false, reason: "تاريخ الإيصال غير صالح." };
+  }
+  const hoursDiff = (Date.now() - receiptDate.getTime()) / 3_600_000;
+  if (hoursDiff < 0 || hoursDiff > 168) {
+    return { approved: false, reason: "تاريخ الإيصال خارج نطاق 7 أيام المسموح." };
+  }
+
+  if (amount == null) {
+    return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
+  }
+  if (Math.abs(amount - packageAmount) > 0.01) {
+    return {
+      approved: false,
+      reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
+    };
+  }
+
+  return { approved: true, reason: "تمت الموافقة على الإيصال." };
+}
+
 export const createPackageTrialSubscription = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((data: { email: string; receiptFile: string; packageAmount: number; durationMinutes: number }) => {
@@ -227,21 +274,10 @@ export const createPackageTrialSubscription = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }) => {
-    const { scanReceiptDataUrl, validateOcrResult } = await import("./receipt-ocr");
+    const check = await checkReceipt(data.receiptFile, data.packageAmount);
 
-    let imageDataUrl = data.receiptFile;
-    if (!imageDataUrl.startsWith("data:")) {
-      const resp = await fetch(imageDataUrl);
-      if (!resp.ok) throw new Error(`تعذر تحميل صورة الإيصال (${resp.status})`);
-      const buf = await resp.arrayBuffer();
-      const mime = resp.headers.get("content-type") ?? "image/jpeg";
-      imageDataUrl = `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
-    }
-
-    const ocrResult = await scanReceiptDataUrl(imageDataUrl);
-    const validation = validateOcrResult(ocrResult, data.packageAmount);
-    if (!validation.ok) {
-      return { ok: false as const, reason: validation.message };
+    if (!check.approved) {
+      return { ok: false as const, reason: check.reason };
     }
 
     const row = await vipRepo.createTrialVip(data.email, data.durationMinutes);
