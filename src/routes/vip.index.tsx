@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
-import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy } from "lucide-react";
+import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } from "lucide-react";
 import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
@@ -25,6 +25,78 @@ const PLANS = [
   { id: "شهرين", label: "اشتراك شهرين", price: 200, duration: "60 يوم" },
   { id: "3 شهور", label: "اشتراك 3 شهور", price: 300, duration: "90 يوم" },
 ];
+
+const VALID_PLAN_AMOUNTS = [100, 200, 300];
+
+function normalizeArabicDigits(text: string): string {
+  return text.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
+function extractAmountFromOcr(text: string): string {
+  const normalized = normalizeArabicDigits(text);
+  const patterns = [
+    /(?:المبلغ|amount|التحويل|transfer|قيمة|value|مبلغ)\s*[:：]?\s*(\d+(?:[.,]\d{1,2})?)/i,
+    /(\d+(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
+    /(\d{3,})\s*(?:ريال|sar|ر\.س|sr)/i,
+    /\b(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
+    /\b(\d{2,3}(?:[.,]\d{1,2})?)\b/,
+  ];
+  for (const p of patterns) {
+    const m = normalized.match(p);
+    if (m && m[1]) {
+      const num = Number(m[1].replace(/[,]/g, ""));
+      if (VALID_PLAN_AMOUNTS.includes(num)) return String(num);
+    }
+  }
+  for (const p of patterns) {
+    const m = normalized.match(p);
+    if (m && m[1]) {
+      const num = Number(m[1].replace(/[,]/g, ""));
+      if (num > 0) return String(num);
+    }
+  }
+  return "";
+}
+
+function extractDateFromOcr(text: string): string {
+  const normalized = normalizeArabicDigits(text);
+  const isoMatch = normalized.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+  }
+  const dmyMatch = normalized.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
+  }
+  const dateKeywords = /(?:التاريخ|date|تاريخ|التحويل|transfer)\s*[:：]?\s*(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/i;
+  const kwMatch = normalized.match(dateKeywords);
+  if (kwMatch && kwMatch[1]) {
+    const parts = kwMatch[1].split(/[-\/]/);
+    if (parts.length === 3) {
+      let [y, m, d] = parts[2].length === 4 ? [parts[2], parts[1], parts[0]] : [parts[2].length === 2 ? `20${parts[2]}` : parts[2], parts[1], parts[0]];
+      if (parts[2].length === 4) { y = parts[2]; m = parts[1]; d = parts[0]; }
+      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+  }
+  return "";
+}
+
+function isWithinLast7Days(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const now = Date.now();
+  const diff = now - d.getTime();
+  return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
+}
+
+async function runOcrOnImage(file: File): Promise<string> {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("ara+eng");
+  const { data: { text } } = await worker.recognize(file);
+  await worker.terminate();
+  return text;
+}
 
 export const Route = createFileRoute("/vip/")({
   head: () => ({
@@ -49,7 +121,12 @@ function VipPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showOtherPlans, setShowOtherPlans] = useState(false);
-
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [receiptError, setReceiptError] = useState("");
+  const [ocrApproved, setOcrApproved] = useState(false);
+  const [ocrAmount, setOcrAmount] = useState("");
+  const [ocrDate, setOcrDate] = useState("");
+  const [ocrFailed, setOcrFailed] = useState(false);
 
   const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
@@ -72,8 +149,62 @@ function VipPage() {
     setStep(3);
   }
 
+  function validateReceipt(): boolean {
+    if (ocrFailed) return false;
+    const amount = Number(ocrAmount);
+    if (!ocrAmount || !ocrDate) return false;
+    if (!VALID_PLAN_AMOUNTS.includes(amount)) return false;
+    if (amount !== selectedPlanObj.price) return false;
+    if (!isWithinLast7Days(ocrDate)) return false;
+    return true;
+  }
+
   async function handleFileChange(file: File | null) {
     setFile(file);
+    setOcrAmount("");
+    setOcrDate("");
+    setOcrFailed(false);
+    setReceiptError("");
+    setOcrApproved(false);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setReceiptError("يجب رفع صورة الإيصال (PNG أو JPG) — ملفات PDF غير مقبولة");
+      return;
+    }
+    setOcrScanning(true);
+    try {
+      const text = await runOcrOnImage(file);
+      const amount = extractAmountFromOcr(text);
+      const date = extractDateFromOcr(text);
+      setOcrAmount(amount);
+      setOcrDate(date);
+      if (!amount || !date) {
+        setOcrFailed(true);
+        setOcrApproved(false);
+        setReceiptError("تعذر قراءة المبلغ أو التاريخ من الإيصال — حاول برفع صورة أوضح");
+      } else if (!VALID_PLAN_AMOUNTS.includes(Number(amount))) {
+        setOcrFailed(true);
+        setOcrApproved(false);
+        setReceiptError(`المبلغ المقروء (${amount}) لا يطابق أي باقة متاحة (100، 200، 300 ر.س)`);
+      } else if (Number(amount) !== selectedPlanObj.price) {
+        setOcrFailed(true);
+        setOcrApproved(false);
+        setReceiptError(`المبلغ المقروء (${amount} ر.س) لا يطابق قيمة الباقة (${selectedPlanObj.price} ر.س)`);
+      } else if (!isWithinLast7Days(date)) {
+        setOcrFailed(true);
+        setOcrApproved(false);
+        setReceiptError("تاريخ الإيصال خارج نطاق 7 أيام المسموح");
+      } else {
+        setOcrApproved(true);
+        setReceiptError("");
+      }
+    } catch (err) {
+      setOcrFailed(true);
+      setOcrApproved(false);
+      setReceiptError("تعذر قراءة الإيصال: " + (err as Error).message);
+    } finally {
+      setOcrScanning(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -83,6 +214,11 @@ function VipPage() {
     if (!email.trim()) return toast.error("أدخل البريد الإلكتروني");
     if (!city) return toast.error("اختر المدينة");
     if (!selectedPlan) return toast.error("اختر الباقة");
+    if (ocrScanning) return toast.error("جارٍ فحص الإيصال — انتظر اكتمال الفحص");
+    if (!validateReceipt()) {
+      setReceiptError("الإيصال غير صالح. تأكد من المبلغ وتاريخ الدفع");
+      return;
+    }
     setLoading(true);
     try {
       const data = await fileToBase64(file);
@@ -248,38 +384,38 @@ function VipPage() {
 
                 {/* Step 2: User data (name, email, city) — no receipt */}
                 {step === 2 && (
-                  <div className="mx-auto mt-8 max-w-xl rounded-xl border border-border bg-card p-6">
-                    <h2 className="text-lg font-bold text-center">بيانات المشترك</h2>
-                    <p className="mt-1 text-center text-xs text-muted-foreground">
-                      الباقة المختارة: <span className="font-bold text-foreground">{selectedPlanObj.label} — {selectedPlanObj.price} ر.س</span>
-                    </p>
-                    <div className="mt-6 space-y-4">
-                      <div>
+                  <div className="mx-auto mt-8 max-w-md">
+                    <form
+                      onSubmit={(e) => { e.preventDefault(); goToStep3(); }}
+                      className="rounded-xl border border-border bg-card p-6 space-y-4"
+                    >
+                      <h2 className="text-lg font-bold">بياناتك</h2>
+                      <div className="space-y-1.5">
                         <label className="text-sm font-medium">الاسم</label>
                         <input
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
                           placeholder="الاسم الكامل"
-                          className="mt-1 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                         />
                       </div>
-                      <div>
+                      <div className="space-y-1.5">
                         <label className="text-sm font-medium">البريد الإلكتروني</label>
                         <input
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          placeholder="example@email.com"
-                          className="mt-1 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
+                          placeholder="you@example.com"
                         />
                       </div>
-                      <div>
+                      <div className="space-y-1.5">
                         <label className="text-sm font-medium">المدينة</label>
                         <select
                           value={city}
                           onChange={(e) => setCity(e.target.value)}
-                          className="mt-1 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
                         >
                           <option value="">اختر المدينة</option>
                           {SAUDI_CITIES.map((c) => (
@@ -287,36 +423,30 @@ function VipPage() {
                           ))}
                         </select>
                       </div>
-                    </div>
-                    <div className="mt-6 flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setStep(1)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary"
-                      >
-                        <ChevronLeft className="h-4 w-4" /> السابق
-                      </button>
-                      <button
-                        type="button"
-                        onClick={goToStep3}
-                        className="flex-1 rounded-lg bg-foreground px-6 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90"
-                      >
-                        التالي للدفع
-                      </button>
-                    </div>
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary"
+                        >
+                          <ChevronLeft className="h-4 w-4" /> السابق
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 rounded-lg bg-primary px-6 py-3 text-base font-bold text-primary-foreground transition hover:bg-primary/90"
+                        >
+                          متابعة للدفع
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 )}
 
-                {/* Step 3: Payment — bank details + receipt upload */}
+                {/* Step 3: Bank info + receipt upload with OCR validation */}
                 {step === 3 && (
-                  <form onSubmit={handleSubmit} className="mx-auto mt-8 max-w-xl rounded-xl border border-border bg-card p-6">
-                    <h2 className="text-lg font-bold text-center">الدفع ورفع الإيصال</h2>
-                    <p className="mt-1 text-center text-xs text-muted-foreground">
-                      الباقة: <span className="font-bold text-foreground">{selectedPlanObj.label} — {selectedPlanObj.price} ر.س</span>
-                    </p>
-
-                    <div className="mt-5 rounded-lg border border-border bg-secondary/30 p-4">
-                      <h3 className="text-sm font-bold text-center mb-3">تفاصيل التحويل البنكي</h3>
+                  <form onSubmit={handleSubmit} className="mx-auto mt-8 max-w-md">
+                    <div className="rounded-xl border border-border bg-card p-6">
+                      <h2 className="text-lg font-bold mb-4">بيانات التحويل البنكي</h2>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between border-b border-border/60 py-2">
                           <span className="text-muted-foreground">اسم البنك</span>
@@ -346,14 +476,14 @@ function VipPage() {
                     </div>
 
                     <div className="mt-5">
-                      <label className="text-sm font-medium">رفع صورة الإيصال (صورة أو PDF)</label>
+                      <label className="text-sm font-medium">رفع صورة الإيصال (PNG أو JPG)</label>
                       <div className="mt-1 flex items-center gap-3">
                         <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium transition hover:bg-secondary">
                           <Upload className="h-4 w-4" />
                           {file ? file.name : "اختر ملف"}
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept="image/*"
                             onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
                             className="hidden"
                           />
@@ -363,7 +493,22 @@ function VipPage() {
                             <Check className="h-3.5 w-3.5" /> تم اختيار الملف
                           </span>
                         )}
+                        {ocrScanning && (
+                          <span className="text-xs text-primary inline-flex items-center gap-1">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> جارٍ فحص الإيصال...
+                          </span>
+                        )}
                       </div>
+                      {receiptError && (
+                        <p className="text-red-600 text-sm mt-2">⚠️ {receiptError}</p>
+                      )}
+                      {ocrApproved && ocrAmount && ocrDate && (
+                        <div className="mt-3 rounded-lg border border-border bg-secondary/20 p-3 text-xs space-y-1">
+                          <p className="font-bold text-sm mb-1">بيانات الإيصال المستخرجة:</p>
+                          <p><span className="text-muted-foreground">المبلغ:</span> {ocrAmount} ر.س</p>
+                          <p><span className="text-muted-foreground">التاريخ:</span> {ocrDate}</p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-6 flex gap-3">
@@ -376,10 +521,10 @@ function VipPage() {
                       </button>
                       <button
                         type="submit"
-                        disabled={loading}
-                        className="flex-1 rounded-lg bg-primary px-6 py-3 text-base font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+                        disabled={loading || ocrScanning || !ocrApproved}
+                        className="flex-1 rounded-lg bg-primary px-6 py-3 text-base font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {loading ? "جارٍ الإرسال..." : "إرسال للمراجعة"}
+                        {loading ? "جارٍ الإرسال..." : ocrScanning ? "جارٍ الفحص..." : "إرسال للمراجعة"}
                       </button>
                     </div>
                   </form>
