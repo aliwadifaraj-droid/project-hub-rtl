@@ -2,6 +2,7 @@
 // Body: { title: string, body: string, url?: string, userId?: string }
 // If userId is provided, sends to that single user's subscriptions only.
 // Otherwise sends to ALL subscriptions (broadcast).
+// Only sends to clients whose push_enabled flag is ON in client_profiles.
 import { createFileRoute } from "@tanstack/react-router";
 import webpush from "web-push";
 import * as pushRepo from "@/lib/push.repo";
@@ -54,12 +55,13 @@ export const Route = createFileRoute("/api/push/send")({
             return json({ error: "body is required" }, 400);
           }
 
+          // Only send to clients whose push_enabled flag is ON
           const subs = userId
-            ? await pushRepo.listSubscriptionsByUserId(userId)
-            : await pushRepo.listAllSubscriptions();
+            ? await pushRepo.listEnabledSubscriptionsByUserId(userId)
+            : await pushRepo.listAllEnabledSubscriptions();
 
           if (subs.length === 0) {
-            return json({ ok: true, sent: 0, failed: 0, message: userId ? "no subscriptions for this user" : "no subscriptions" });
+            return json({ ok: true, sent: 0, failed: 0, message: userId ? "no enabled subscriptions for this user" : "no enabled subscriptions (all clients have push disabled)" });
           }
 
           const payload = JSON.stringify({ title, body: notifBody, url });

@@ -58,3 +58,29 @@ export async function listSubscriptionsByUserId(userId: string): Promise<PushSub
   });
   return rowsToObjects<PushSubscriptionRow>(r);
 }
+
+// Only return subscriptions for clients whose push_enabled flag is ON.
+// Joins user_push_subscriptions with client_profiles so the admin toggle
+// is respected at send time.
+export async function listAllEnabledSubscriptions(): Promise<PushSubscriptionRow[]> {
+  await ensurePushSubscriptionsTable();
+  const r = await db.execute(
+    `SELECT s.id, s.user_id, s.endpoint, s.p256dh, s.auth, s.created_at
+     FROM user_push_subscriptions s
+     INNER JOIN client_profiles c ON s.user_id = c.user_id
+     WHERE c.push_enabled = 1`,
+  );
+  return rowsToObjects<PushSubscriptionRow>(r);
+}
+
+export async function listEnabledSubscriptionsByUserId(userId: string): Promise<PushSubscriptionRow[]> {
+  await ensurePushSubscriptionsTable();
+  const r = await db.execute({
+    sql: `SELECT s.id, s.user_id, s.endpoint, s.p256dh, s.auth, s.created_at
+          FROM user_push_subscriptions s
+          INNER JOIN client_profiles c ON s.user_id = c.user_id
+          WHERE s.user_id = ? AND c.push_enabled = 1`,
+    args: [userId],
+  });
+  return rowsToObjects<PushSubscriptionRow>(r);
+}
