@@ -105,29 +105,25 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
   const profile = await clientRepo.getClientProfile(claims.sub);
   if (!profile) return [];
 
-  // Search notifications by email (pending offers)
+  // Search notifications by email and company name — same approach as the
+  // bot. A single offer creates one row per admin/employee, all sharing the
+  // same email/company_name. Deduplicate by (project_id, pdf_key) only,
+  // ignoring created_at (rows are inserted in a batch with slightly
+  // different timestamps).
   const pendingByEmail = await notificationsRepo.searchOfferNotificationsByEmail(profile.email, 200);
-  // Also search by company name
   const pendingByCompany = await notificationsRepo.searchOfferNotificationsByCompany(profile.company_name, 200);
 
-  // Merge and deduplicate by notification id
-  const seen = new Set<string>();
+  const seenIds = new Set<string>();
   const mergedRaw = [...pendingByEmail, ...pendingByCompany].filter((n) => {
-    if (seen.has(n.id)) return false;
-    seen.add(n.id);
+    if (seenIds.has(n.id)) return false;
+    seenIds.add(n.id);
     return true;
   });
 
-  // A single offer submission creates multiple notification rows (one per
-  // admin/employee + one for the client), all with the same email and
-  // company_name. Deduplicate by (project_id, pdf_key, created_at) so the
-  // client sees only one entry per actual offer. Prefer the client's own
-  // copy (user_id === claims.sub) when available.
   const byOfferKey = new Map<string, typeof mergedRaw[number]>();
   for (const n of mergedRaw) {
-    const key = `${n.project_id ?? ""}|${n.pdf_key ?? ""}|${n.created_at ?? ""}`;
-    const existing = byOfferKey.get(key);
-    if (!existing || (n.user_id === claims.sub && existing.user_id !== claims.sub)) {
+    const key = `${n.project_id ?? ""}|${n.pdf_key ?? ""}`;
+    if (!byOfferKey.has(key)) {
       byOfferKey.set(key, n);
     }
   }
@@ -348,11 +344,13 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "اسم المنشأة مستخدم في عرض سعر سابق لنفس المشروع" };
     }
 
-    // Notify all admin/employee staff
+    // Notify all admin/employee staff — same logic as the bot's submitOffer.
+    // We do NOT create a separate copy for the client; getMyOffers finds
+    // their offers by matching email/company_name against the admin copies.
     const staff = await listAdminUserIds();
     const title = "عرض سعر جديد";
     const body = `${companyName} — ${data.projectName} — ${data.amount}`;
-    await notificationsRepo.insertOfferNotificationMany(
+    const ids = await notificationsRepo.insertOfferNotificationMany(
       staff.map((uid) => ({
         user_id: uid,
         title,
@@ -371,35 +369,7 @@ export const submitClientOffer = createServerFn({ method: "POST" })
         status: "pending",
       })),
     );
-
-    // Save a copy for the client themselves so they can track it in "my offers"
-    await db.execute(
-      `INSERT INTO notifications
-        (id, user_id, title, body, link, project_id, project_name, company_name, email, facility_location, pdf_key, pdf_filename, amount, source, submitter_type, offer_status, status, read, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-      [
-        crypto.randomUUID(),
-        claims.sub,
-        title,
-        body,
-        "/client/offers",
-        project.id,
-        data.projectName,
-        companyName,
-        email,
-        null,
-        data.pdfKey,
-        data.pdfFilename,
-        data.amount,
-        "client_portal",
-        "user",
-        "new",
-        "pending",
-        new Date().toISOString(),
-      ],
-    );
-
-    const id = "";
+    const id = ids[0] ?? "";
 
     return { ok: true as const, id, message: "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅" };
   });
