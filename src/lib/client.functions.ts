@@ -110,13 +110,28 @@ export const getMyOffers = createServerFn({ method: "GET" }).handler(async () =>
   // Also search by company name
   const pendingByCompany = await notificationsRepo.searchOfferNotificationsByCompany(profile.company_name, 200);
 
-  // Merge and deduplicate
+  // Merge and deduplicate by notification id
   const seen = new Set<string>();
-  const merged = [...pendingByEmail, ...pendingByCompany].filter((n) => {
+  const mergedRaw = [...pendingByEmail, ...pendingByCompany].filter((n) => {
     if (seen.has(n.id)) return false;
     seen.add(n.id);
     return true;
   });
+
+  // A single offer submission creates multiple notification rows (one per
+  // admin/employee + one for the client), all with the same email and
+  // company_name. Deduplicate by (project_id, pdf_key, created_at) so the
+  // client sees only one entry per actual offer. Prefer the client's own
+  // copy (user_id === claims.sub) when available.
+  const byOfferKey = new Map<string, typeof mergedRaw[number]>();
+  for (const n of mergedRaw) {
+    const key = `${n.project_id ?? ""}|${n.pdf_key ?? ""}|${n.created_at ?? ""}`;
+    const existing = byOfferKey.get(key);
+    if (!existing || (n.user_id === claims.sub && existing.user_id !== claims.sub)) {
+      byOfferKey.set(key, n);
+    }
+  }
+  const merged = Array.from(byOfferKey.values());
 
   // Also fetch accepted offers from project_requests
   const { db, rowsToObjects } = await import("./db");
@@ -277,6 +292,22 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
+    // Race guard: if this user already submitted an offer for this exact
+    // project + pdf_key in the last 30 seconds, reject the duplicate. This
+    // catches double-click submissions that pass the checks above before the
+    // first insert completes.
+    const { db } = await import("./db");
+    const recentDup = await db.execute(
+      `SELECT id FROM notifications
+        WHERE user_id = ? AND project_id = ? AND pdf_key = ?
+          AND created_at > datetime('now', '-30 seconds')
+        LIMIT 1`,
+      [claims.sub, project.id, data.pdfKey],
+    );
+    if (recentDup.rows.length > 0) {
+      return { ok: false as const, message: "تم استلام عرضك بنجاح. سيتم اشعاركم بأي تحديث ✅" };
+    }
+
     // Check client blocked (same as bot form)
     const clientBlocked = await clientRepo.isClientBlockedByEmail(email);
     if (clientBlocked) {
@@ -284,7 +315,6 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     }
 
     // Check notifications for same email+project pending
-    const { db } = await import("./db");
     const checkEmailNotif = await db.execute(
       `SELECT id FROM notifications WHERE email = $1 AND project_name = $2 AND status = 'pending'`,
       [email, data.projectName],
