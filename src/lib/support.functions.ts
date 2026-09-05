@@ -88,8 +88,10 @@ function findProjectByQuery(rows: Array<{ name: string; location: string | null 
     const nameNorm = normalizeAr(r.name);
     const locNorm = normalizeAr(r.location ?? "");
     let score = 0;
+    // Full-name substring in either direction
     const qJoined = qTokens.join(" ");
     if (nameNorm && (nameNorm === qJoined || nameNorm.includes(qJoined) || qJoined.includes(nameNorm))) score += 10;
+    // Per-token matches
     for (const t of qTokens) {
       if (t.length < 2) continue;
       if (nameNorm.includes(t)) score += 3;
@@ -110,12 +112,14 @@ async function answerProjectQuery(text: string): Promise<string | null> {
   const rows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
   if (!rows.length) return hasProjectWord ? "لا توجد مشاريع متاحة حالياً." : null;
 
+  // 1) Count queries first
   if (hasProjectWord && (tNorm.includes("كم") || tNorm.includes("عدد") || tNorm.includes("count") || tNorm.includes("how many"))) {
     const active = rows.filter((r) => r.status === "active").length;
     const delivered = rows.filter((r) => r.status === "delivered").length;
     return `عدد المشاريع المعتمدة: ${rows.length}\n• مفتوح للعروض: ${active}\n• تم التسليم: ${delivered}`;
   }
 
+  // 2) City query: "مشاريع [المدينة]"
   const cityRe = /^\s*(?:مشاريع|projects)\s+(?:في|by|in)?\s*(.+)$/i;
   const cm = raw.match(cityRe);
   if (cm && cm[1]) {
@@ -129,16 +133,20 @@ async function answerProjectQuery(text: string): Promise<string | null> {
       if (matches.length) {
         return `مشاريع ${cityRaw}:\n\n` + matches.slice(0, 20).map((p) => `• ${p.name} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
       }
+      // fall through: maybe user asked about specific project name, try name match
     }
   }
 
+  // 3) Specific project match by fuzzy tokens
   const idx = findProjectByQuery(rows, raw);
   if (idx >= 0) {
     return projectDetails(rows[idx]);
   }
 
+  // 4) If not clearly a project query, don't answer
   if (!hasProjectWord) return null;
 
+  // 5) Status-filtered listing
   let filtered = rows;
   if (tNorm.includes("مفتوح") || tNorm.includes("متاح")) filtered = rows.filter((p) => p.status === "active");
   else if (tNorm.includes("مسلم") || tNorm.includes("تسليم") || tNorm.includes("منجز")) filtered = rows.filter((p) => p.status === "delivered");
@@ -182,9 +190,11 @@ async function answerRequestStatus(query: string): Promise<string | null> {
   const raw = (query ?? "").trim();
   if (!raw) return null;
   const repo = await import("./project-requests.repo");
+  const offersRepo = await import("./offers.repo");
   const emailMatch = raw.match(EMAIL_RE);
   const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
 
+  // 1) project_requests أولاً
   let rows = emailMatch ? await repo.searchRequestsByEmail(emailMatch[0]) : [];
   if (!rows.length && !emailMatch) rows = await repo.searchRequestsByCompany(name);
   if (rows.length) {
@@ -211,6 +221,11 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       })
       .join("\n\n");
   }
+
+  // 2) offers (لم تُقبل بعد)
+  let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
+  if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
+  if (offers.length) return OFFER_PENDING_REPLY;
 
   return REQUEST_NOT_FOUND;
 }
@@ -277,7 +292,7 @@ function asksAboutVip(text: string): boolean {
 
 
 
-/** Ask Groq (qwen/qwen3.6-27b) as a last-resort fallback. Returns null on any failure. */
+/** Ask Groq (llama-3.1-8b-instant) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
   systemInstruction?: string | null;
   dialect?: string | null;
@@ -287,7 +302,7 @@ async function askGroq(userText: string, opts: {
 }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.GROQ_MODEL || "qwen/qwen3.6-27b";
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
   const sysParts = [
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
@@ -304,7 +319,7 @@ async function askGroq(userText: string, opts: {
       body: JSON.stringify({
         model,
         temperature: 0.4,
-        max_completion_tokens: 512,
+        max_tokens: 512,
         messages: [
           ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
           { role: "user", content: userText },
@@ -327,9 +342,11 @@ async function askGroq(userText: string, opts: {
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
+/** Returns true when current time (Riyadh, UTC+3) is inside configured work hours. */
 function isInWorkHours(settings: { work_days: Record<string, boolean> | null; work_start: string | null; work_end: string | null }): boolean {
   if (!settings.work_days || !settings.work_start || !settings.work_end) return true;
   const now = new Date();
+  // Compute in Asia/Riyadh (UTC+3, no DST).
   const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   const localMinutes = (utcMinutes + 3 * 60) % (24 * 60);
   const dayIdx = (now.getUTCDay() + Math.floor((utcMinutes + 3 * 60) / (24 * 60))) % 7;
@@ -351,9 +368,47 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
 }
 
 const ALERT_MARKER = "__ALERT_SENT__";
-const BUSY_REPLY = "الموظفين مشغولين حالياً. كيف أقدر أساعدك؟";
+const PRIORITY_ALERT_MARKER = "__PRIORITY_ALERT_SENT__";
+const ESCALATION_START_MARKER = "__ESCALATION_START__";
 
-async function sendWaitingAlert(chatId: string, visitorName: string | null) {
+const VIP_LOOP_MESSAGES = [
+  "🔥 باقة VIP - 100 ريال / 30 يوم\nمشاريع خاصة توصلك مباشرة بدون منافسة + دعم فني VIP\nللاشتراك اكتب: اشتراك",
+  "⏳ كل الموظفين مشغولين حالياً، يرجى الانتظار. سيتم الرد عليك قريباً",
+  "💎 باقة VIP - 200 ريال / 60 يوم\nأولوية في الرد + مشاريع حصرية بدون منافس. الأكثر طلباً\nللاشتراك اكتب: اشتراك",
+  "⏳ كل الموظفين مشغولين حالياً، يرجى الانتظار. سيتم الرد عليك قريباً",
+  "👑 باقة VIP - 300 ريال / 90 يوم\nأطول مدة + دعم فني فوري + قيمة أفضل\nللاشتراك اكتب: اشتراك",
+  "⏳ كل الموظفين مشغولين حالياً، يرجى الانتظار. سيتم الرد عليك قريباً",
+];
+
+const APOLOGY_MESSAGES = [
+  "نعتذر عن التأخير 🙏 فريقنا يستقبل أكبر عدد من الطلبات حالياً لضمان جودة الرد. تذكير: عند اشتراكك في VIP توصلك المشاريع مباشرة بدون انتظار",
+  "تبغى نرسل لك نموذج الاشتراك الآن؟ اكتب: اشتراك او اكتب: موظف للحصول على أولوية",
+];
+
+const LOOP_INTERVAL = 20_000; // 20 seconds between messages
+const ALERT_DELAY = 20_000; // 20 seconds
+const APOLOGY_AFTER_LOOPS = 2;
+
+type EscalationState = {
+  chatId: string;
+  startIso: string;
+  timers: ReturnType<typeof setTimeout>[];
+  cancelled: boolean;
+  loopCount: number;
+};
+
+const activeEscalations = new Map<string, EscalationState>();
+
+function cancelEscalation(chatId: string) {
+  const state = activeEscalations.get(chatId);
+  if (!state) return;
+  state.cancelled = true;
+  for (const t of state.timers) clearTimeout(t);
+  state.timers = [];
+  activeEscalations.delete(chatId);
+}
+
+async function sendWaitingAlert(chatId: string, visitorName: string | null, priority: boolean = false) {
   const to = process.env.VITE_ALERT_EMAIL || process.env.ALERT_EMAIL;
   const key = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
   if (!to || !key) { console.error("alert email/key missing"); return; }
@@ -364,8 +419,8 @@ async function sendWaitingAlert(chatId: string, visitorName: string | null) {
       body: JSON.stringify({
         from: "Alamran <send@ali-alhaddad.com>",
         to: [to],
-        subject: "🚨 عميل ينتظر",
-        html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>`,
+        subject: priority ? "🚨🚨 عميل ينتظر - أولوية قصوى" : "🚨 عميل ينتظر",
+        html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>${priority ? "<p><strong>⚠️ العميل كتب موظف مرة أخرى - يرجى الرد بأسرع وقت</strong></p>" : ""}`,
       }),
     });
     if (!res.ok) console.error("waiting alert failed", res.status, await res.text());
@@ -377,32 +432,82 @@ async function agentRepliedSince(chatId: string, sinceIso: string): Promise<bool
   return msgs.some((m) => m.sender === "admin");
 }
 
-async function recentAlertExists(chatId: string): Promise<boolean> {
+async function recentAlertExists(chatId: string, marker: string = ALERT_MARKER): Promise<boolean> {
   const { db, rowsToObjects } = await import("./db");
   const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const r = await db.execute(
     `SELECT id FROM support_messages WHERE chat_id = ? AND sender = 'system' AND body = ? AND created_at > ? LIMIT 1`,
-    [chatId, ALERT_MARKER, cutoff],
+    [chatId, marker, cutoff],
   );
   return rowsToObjects(r).length > 0;
 }
 
 function scheduleEscalationWatchers(chatId: string, visitorName: string | null, startIso: string) {
-  setTimeout(async () => {
+  cancelEscalation(chatId);
+
+  const state: EscalationState = {
+    chatId,
+    startIso,
+    timers: [],
+    cancelled: false,
+    loopCount: 0,
+  };
+  activeEscalations.set(chatId, state);
+
+  // After 20 seconds: if no agent reply, send email alert to admin
+  const alertTimer = setTimeout(async () => {
     try {
-      if (await agentRepliedSince(chatId, startIso)) return;
+      if (state.cancelled) return;
+      if (await agentRepliedSince(chatId, startIso)) { cancelEscalation(chatId); return; }
       if (await recentAlertExists(chatId)) return;
       await sendWaitingAlert(chatId, visitorName);
       await supportRepo.addSupportMessage(chatId, "system", ALERT_MARKER);
-    } catch (e) { console.error("watcher-30s", e); }
-  }, 30_000);
+    } catch (e) { console.error("watcher-alert-20s", e); }
+  }, ALERT_DELAY);
+  state.timers.push(alertTimer);
 
-  setTimeout(async () => {
-    try {
-      if (await agentRepliedSince(chatId, startIso)) return;
-      await supportRepo.addSupportMessage(chatId, "bot", BUSY_REPLY);
-    } catch (e) { console.error("watcher-60s", e); }
-  }, 60_000);
+  // After 40 seconds: start the VIP loop (20s between each message)
+  const loopStartDelay = 40_000;
+  let loopIndex = 0;
+
+  function scheduleNextLoopMessage() {
+    if (state.cancelled) return;
+
+    const msgIndex = loopIndex % VIP_LOOP_MESSAGES.length;
+    const isLoopEnd = msgIndex === VIP_LOOP_MESSAGES.length - 1;
+    const completedLoops = Math.floor(loopIndex / VIP_LOOP_MESSAGES.length) + (isLoopEnd ? 1 : 0);
+
+    const timer = setTimeout(async () => {
+      try {
+        if (state.cancelled) return;
+        if (await agentRepliedSince(chatId, startIso)) { cancelEscalation(chatId); return; }
+
+        // After every APOLOGY_AFTER_LOOPS full loops, insert apology messages
+        if (isLoopEnd && completedLoops > 0 && completedLoops % APOLOGY_AFTER_LOOPS === 0) {
+          for (const apology of APOLOGY_MESSAGES) {
+            if (state.cancelled) return;
+            if (await agentRepliedSince(chatId, startIso)) { cancelEscalation(chatId); return; }
+            await supportRepo.addSupportMessage(chatId, "bot", apology);
+            await new Promise((r) => setTimeout(r, LOOP_INTERVAL));
+          }
+        }
+
+        if (state.cancelled) return;
+        if (await agentRepliedSince(chatId, startIso)) { cancelEscalation(chatId); return; }
+        await supportRepo.addSupportMessage(chatId, "bot", VIP_LOOP_MESSAGES[msgIndex]);
+        state.loopCount = completedLoops;
+        loopIndex++;
+        scheduleNextLoopMessage();
+      } catch (e) { console.error("loop-message", e); }
+    }, LOOP_INTERVAL);
+    state.timers.push(timer);
+  }
+
+  const loopStartTimer = setTimeout(() => {
+    if (state.cancelled) return;
+    scheduleNextLoopMessage();
+  }, loopStartDelay);
+  state.timers.push(loopStartTimer);
 }
 
 async function escalateOrOffHours(chatId: string) {
@@ -413,7 +518,8 @@ async function escalateOrOffHours(chatId: string) {
     return { escalated: false };
   }
   await supportRepo.updateChatStatus(chatId, "escalated");
-  await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
+  await supportRepo.addSupportMessage(chatId, "bot", "تم تحويل محادثتك لموظف الدعم الفني. سيتم الرد عليك في اقرب وقت");
+  await supportRepo.addSupportMessage(chatId, "system", ESCALATION_START_MARKER);
   const chat = await supportRepo.getChatById(chatId);
   scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
   return { escalated: true };
@@ -438,6 +544,7 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
       if (!chat) return { chat: null, messages: [] };
       return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
     };
+    // cached: chat_{customerId}, 10 min (full history reads only)
     if (data.sinceIso) return load();
     return cached(cacheKeys.chat(data.visitorToken), TTL_CHAT, load);
   });
@@ -450,6 +557,67 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     const chat = await getOrCreateVisitorChat(data.visitorToken);
     await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
     if (chat.status !== "bot") {
+      // Chat is escalated - handle special keywords, bot continues for other queries
+      const isStaffRequest = wantsHuman(data.body);
+      const isSubscribe = asksAboutVip(data.body);
+
+      if (isStaffRequest) {
+        // Customer wrote "موظف" again while waiting - send priority alert
+        if (!(await recentAlertExists(chat.id, PRIORITY_ALERT_MARKER))) {
+          await sendWaitingAlert(chat.id, chat.visitor_name, true);
+          await supportRepo.addSupportMessage(chat.id, "system", PRIORITY_ALERT_MARKER);
+        }
+        await supportRepo.addSupportMessage(chat.id, "bot", "تم إرسال تنبيه أولوية للإدارة. سيتم الرد عليك في أقرب وقت 🙏");
+        await invalidateChat(data.visitorToken);
+        return { ok: true };
+      }
+
+      if (isSubscribe) {
+        await supportRepo.addSupportMessage(chat.id, "bot", `${VIP_PLANS_TEXT}\n${VIP_FLOW_MARKER}`);
+        await invalidateChat(data.visitorToken);
+        return { ok: true };
+      }
+
+      // Bot continues answering other questions while escalated
+      const settings = await getBotSettingsRow();
+      const botQa = await import("./bot-qa.repo");
+      let answer: string | null = null;
+      if (settings?.local_enabled !== false) {
+        const m = matchQa(await botQa.listActiveQa(), data.body);
+        answer = m?.answer ?? null;
+      }
+      if (!answer && asksAboutOffer(data.body)) {
+        await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+        await invalidateChat(data.visitorToken);
+        return { ok: true };
+      }
+      if (!answer) {
+        let requestAnswer: string | null = null;
+        const prev = await supportRepo.listMessages(chat.id);
+        const lastBot = [...prev].reverse().find((m) => m.sender === "bot");
+        const awaitingData = lastBot?.body?.trim() === ASK_REQUEST_PROMPT;
+        if (awaitingData) {
+          requestAnswer = await answerRequestStatus(data.body);
+        } else if (asksAboutRequest(data.body)) {
+          requestAnswer = EMAIL_RE.test(data.body) || data.body.trim().split(/\s+/).length > 2
+            ? (await answerRequestStatus(data.body)) ?? ASK_REQUEST_PROMPT
+            : ASK_REQUEST_PROMPT;
+          if (requestAnswer === REQUEST_NOT_FOUND && !EMAIL_RE.test(data.body)) requestAnswer = ASK_REQUEST_PROMPT;
+        }
+        const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
+        let finalAnswer = answer || requestAnswer || projectAnswer;
+        if (!finalAnswer && settings?.groq_enabled !== false) {
+          finalAnswer = await askGroq(data.body, {
+            systemInstruction: settings?.gemini_system_instruction,
+            dialect: settings?.gemini_dialect,
+            botName: settings?.gemini_bot_name,
+            scope: settings?.gemini_scope,
+            blockedReplies: settings?.gemini_blocked_replies,
+          });
+        }
+        answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال حالياً. يمكنك كتابة \"اشتراك\" للاشتراك في VIP أو انتظار الموظف.";
+      }
+      await supportRepo.addSupportMessage(chat.id, "bot", answer);
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
@@ -473,6 +641,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
+    // نية تقديم عرض سعر → عرض الشروط + بدء المعالج في الواجهة
     if (!answer && asksAboutOffer(data.body)) {
       const allRows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
       const pIdx = findProjectByQuery(allRows, data.body);
@@ -497,6 +666,8 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
+
+    // استعلام حالة الطلب من الطلبات الواردة
 
     let requestAnswer: string | null = null;
     if (!answer) {
@@ -542,6 +713,8 @@ export const visitorEscalate = createServerFn({ method: "POST" })
 export const visitorEndSession = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
   .handler(async ({ data }) => {
+    const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
+    if (chat) cancelEscalation(chat.id);
     await supportRepo.deleteVisitorChat(data.visitorToken);
     await invalidateChat(data.visitorToken);
     return { ok: true };
@@ -566,6 +739,7 @@ export const adminReplyChat = createServerFn({ method: "POST" })
   .inputValidator((d: { chatId: string; body: string }) => z.object({ chatId: uuid, body: z.string().trim().min(1).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
+    cancelEscalation(data.chatId);
     await supportRepo.addSupportMessage(data.chatId, "admin", data.body);
     await supportRepo.updateChatStatus(data.chatId, "escalated");
     const chat = await supportRepo.getChatById(data.chatId);
@@ -578,6 +752,7 @@ export const adminCloseChat = createServerFn({ method: "POST" })
   .inputValidator((d: { chatId: string }) => z.object({ chatId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     assertStaff(context.roles);
+    cancelEscalation(data.chatId);
     await supportRepo.updateChatStatus(data.chatId, "closed");
     const chat = await supportRepo.getChatById(data.chatId);
     if (chat?.visitor_token) await invalidateChat(chat.visitor_token);
@@ -587,6 +762,7 @@ export const adminCloseChat = createServerFn({ method: "POST" })
 export const adminDeleteAllSupport = createServerFn({ method: "POST" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertAdmin(context.roles);
   const chats = await supportRepo.listSupportChats();
+  for (const c of chats) cancelEscalation(c.id);
   await supportRepo.deleteAllSupport();
   await invalidate(...chats.map((c) => (c.visitor_token ? cacheKeys.chat(c.visitor_token) : null)));
   return { ok: true };
@@ -624,195 +800,3 @@ export const adminCountOpenSupportChats = createServerFn({ method: "GET" }).midd
   assertStaff(context.roles);
   return { count: await supportRepo.countEscalatedChats() };
 });
-
-/* ---------- فحص الإيصال + اشتراك تجربة الباقة ---------- */
-
-interface ReceiptCheckResult {
-  bankName: string | null;
-  amount: number | null;
-  date: string | null;
-}
-
-const VISION_MODELS = [
-  "qwen/qwen3.6-27b",
-];
-
-const RECEIPT_VISION_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
-Read only the transfer amount and transaction date needed to validate this receipt. Search the entire image carefully, including small text and the receipt header/footer.
-Respond with a JSON object only — no markdown, no explanation, no code fences:
-{"amount":100,"date":"YYYY-MM-DD"}
-Amount must be numeric only with no currency symbol or commas. The date may appear as DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or a Hijri date. Convert a Hijri date to Gregorian YYYY-MM-DD. If a date is visible, never return null; return the date you can read. Only return null when the field is genuinely not visible. Do not include thinking or reasoning text outside the JSON.`;
-
-const RECEIPT_FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find ONLY the transfer amount and transaction date. Search all small text carefully. Return JSON only: {"amount":100,"date":"the date exactly as visible"}. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri. Do not return a null date if any date is visible.`;
-
-function normalizeDigits(value: string): string {
-  return value.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
-}
-
-function normalizeReceiptDate(value: string | null): string | null {
-  if (!value?.trim()) return null;
-  const raw = normalizeDigits(value.trim()).replace(/[.]/g, "/");
-  if (["null", "n/a", "unknown", "غير واضح"].includes(raw.toLowerCase())) return null;
-  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  const dmy = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-  return raw;
-}
-
-function parseReceiptJson(content: string): { amount: number | null; date: string | null } {
-  const cleaned = content.replace(/<think[\s\S]*?<\/think>/gi, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return { amount: null, date: null };
-  try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    const amountRaw = parsed.amount;
-    const amountText = amountRaw == null ? null : normalizeDigits(String(amountRaw));
-    const amountNum = typeof amountRaw === "number"
-      ? amountRaw
-      : amountText != null
-        ? Number(amountText.replace(/[^\d.]/g, ""))
-        : null;
-    const dateText = typeof parsed.date === "string" && parsed.date.trim() ? parsed.date.trim() : null;
-    return {
-      amount: amountNum != null && Number.isFinite(amountNum) ? amountNum : null,
-      date: normalizeReceiptDate(dateText),
-    };
-  } catch {
-    return { amount: null, date: null };
-  }
-}
-
-async function fetchImageAsDataUrl(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`fetch image ${resp.status}`);
-  const buf = await resp.arrayBuffer();
-  const mime = resp.headers.get("content-type") ?? "image/jpeg";
-  return `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
-}
-
-async function callGroqVision(model: string, imageDataUrl: string, apiKey: string, focused = false): Promise<{ amount: number | null; date: string | null }> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      max_completion_tokens: 300,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: RECEIPT_VISION_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: focused ? RECEIPT_FOCUSED_PROMPT : "Read this receipt and extract amount and date as a JSON object." },
-            { type: "image_url", image_url: { url: imageDataUrl } },
-          ],
-        },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Groq Vision ${model} ${res.status}: ${txt.slice(0, 200)}`);
-  }
-  const j: any = await res.json();
-  return parseReceiptJson(j?.choices?.[0]?.message?.content ?? "");
-}
-
-async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptCheckResult> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY غير موضع");
-
-  const imageDataUrl = await fetchImageAsDataUrl(receiptUrl);
-
-  let lastError: Error | null = null;
-  for (const model of VISION_MODELS) {
-    try {
-      let result = await callGroqVision(model, imageDataUrl, apiKey);
-      if (result.amount === null || result.date === null) {
-        const focusedResult = await callGroqVision(model, imageDataUrl, apiKey, true);
-        result = {
-          amount: result.amount ?? focusedResult.amount,
-          date: result.date ?? focusedResult.date,
-        };
-      }
-      if (result.amount !== null || result.date !== null) {
-        return { bankName: null, ...result };
-      }
-    } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-      console.error(`readReceipt: model ${model} failed`, e);
-    }
-  }
-  if (lastError) throw lastError;
-  return { bankName: null, amount: null, date: null };
-}
-
-async function checkReceipt(receiptFile: string, packageAmount: number): Promise<{ approved: boolean; reason: string }> {
-  let parsed: ReceiptCheckResult;
-  try {
-    parsed = await readReceiptWithGroqVision(receiptFile);
-  } catch (e) {
-    console.error("verifyReceipt: فشل قراءة الإيصال", e);
-    return { approved: false, reason: "تعذر قراءة الإيصال. حاول برفع صورة أوضح." };
-  }
-
-  const { amount, date } = parsed;
-
-  if (!date) {
-    return { approved: false, reason: "لم يتم العثور على تاريخ في الإيصال." };
-  }
-  const receiptDate = new Date(date);
-  if (isNaN(receiptDate.getTime())) {
-    return { approved: false, reason: "تاريخ الإيصال غير صالح." };
-  }
-  const hoursDiff = (Date.now() - receiptDate.getTime()) / 3_600_000;
-  if (hoursDiff < 0 || hoursDiff > 168) {
-    return { approved: false, reason: "تاريخ الإيصال خارج نطاق 7 أيام المسموح." };
-  }
-
-  if (amount == null) {
-    return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
-  }
-  if (Math.abs(amount - packageAmount) > 0.01) {
-    return {      approved: false,
-      reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
-    };
-  }
-
-  return { approved: true, reason: "تمت الموافقة على الإيصال." };
-}
-
-export const verifyReceipt = createServerFn({ method: "POST" })
-  .inputValidator((d: { email: string; receiptFile: string; packageAmount: number }) =>
-    z.object({
-      email: z.string().trim().min(1),
-      receiptFile: z.string().trim().min(1),
-      packageAmount: z.number().positive(),
-    }).parse(d))
-  .handler(async ({ data }) => checkReceipt(data.receiptFile, data.packageAmount));
-
-export const createPackageTrialSubscription = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { email: string; receiptFile: string; packageAmount: number; durationMinutes: number }) =>
-    z.object({
-      email: z.string().trim().min(1),
-      receiptFile: z.string().trim().min(1),
-      packageAmount: z.number().positive(),
-      durationMinutes: z.number().int().positive(),
-    }).parse(d))
-  .handler(async ({ data, context }) => {
-    assertAdmin(context.roles);
-
-    const check = await checkReceipt(data.receiptFile, data.packageAmount);
-
-    if (!check.approved) {
-      return { ok: false as const, reason: check.reason };
-    }
-
-    const vipRepo = await import("./vip.repo");
-    const row = await vipRepo.createTrialVip(data.email, data.durationMinutes);
-    return { ok: true as const, id: row.id, email: row.email ?? data.email };
-  });
