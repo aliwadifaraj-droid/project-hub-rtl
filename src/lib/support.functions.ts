@@ -5,6 +5,7 @@ import * as supportRepo from "./support.repo";
 import * as projectsRepo from "./projects.repo";
 import { getBotSettingsRow } from "./bot-settings.repo";
 import { cached, cacheKeys, TTL_CHAT, invalidateChat, invalidate } from "./cache";
+import * as offersRepo from "./offers.repo";
 
 
 const uuid = z.string().uuid();
@@ -190,7 +191,6 @@ async function answerRequestStatus(query: string): Promise<string | null> {
   const raw = (query ?? "").trim();
   if (!raw) return null;
   const repo = await import("./project-requests.repo");
-  const offersRepo = await import("./offers.repo");
   const emailMatch = raw.match(EMAIL_RE);
   const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
 
