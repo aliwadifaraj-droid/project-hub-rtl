@@ -408,15 +408,22 @@ function scheduleEscalationWatchers(chatId: string, visitorName: string | null, 
 async function escalateOrOffHours(chatId: string) {
   const settings = await getBotSettingsRow();
   const offHours = settings ? !isInWorkHours(settings) : false;
+  const chat = await supportRepo.getChatById(chatId);
+
   if (offHours || settings?.allow_escalation === false) {
     await supportRepo.addSupportMessage(chatId, "bot", settings?.off_hours_message?.trim() || "نحن خارج ساعات العمل حالياً. سنرد عليك في أقرب وقت.");
     return { escalated: false };
   }
+
   await supportRepo.updateChatStatus(chatId, "escalated");
+
+  // اشعار الادارة
+  await supportRepo.addSupportMessage(chatId, "system", `🚨 عميل طلب موظف - ${chat?.visitor_name ?? "زائر"}`);
+
   await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
-  const chat = await supportRepo.getChatById(chatId);
   scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
   return { escalated: true };
+}
 }
 
 export const listBotQuestions = createServerFn({ method: "GET" }).handler(async () => {
