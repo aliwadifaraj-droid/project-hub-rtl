@@ -9,9 +9,10 @@ import * as offersRepo from "./offers.repo";
 import {
   ALERT_MARKER,
   PRIORITY_ALERT_MARKER,
+  ESCALATION_START_MARKER,
   recentAlertExists,
-  scheduleEscalationWatchers,
   sendWaitingAlert,
+  checkEscalationTimers,
 } from "./escalation-jobs";
 
 
@@ -355,8 +356,6 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
   return created;
 }
 
-const ESCALATION_START_MARKER = "__ESCALATION_START__";
-
 async function escalateOrOffHours(chatId: string) {
   const settings = await getBotSettingsRow();
   const offHours = settings ? !isInWorkHours(settings) : false;
@@ -367,8 +366,9 @@ async function escalateOrOffHours(chatId: string) {
   await supportRepo.updateChatStatus(chatId, "escalated");
   await supportRepo.addSupportMessage(chatId, "bot", "تم تحويل محادثتك لموظف الدعم الفني. سيتم الرد عليك في اقرب وقت");
   await supportRepo.addSupportMessage(chatId, "system", ESCALATION_START_MARKER);
+
   const chat = await supportRepo.getChatById(chatId);
-  await scheduleEscalationWatchers(chatId, new Date().toISOString());
+  await invalidateChat(chat?.visitor_token ?? "");
   return { escalated: true };
 }
 
@@ -389,10 +389,14 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
     const load = async () => {
       const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
       if (!chat) return { chat: null, messages: [] };
+      if (chat.status === "escalated") {
+        await checkEscalationTimers(chat.id).catch((e) => console.error("[escalation] timer check failed", e));
+        await invalidateChat(data.visitorToken);
+        return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
+      }
       return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
     };
-    if (data.sinceIso) return load();
-    return cached(cacheKeys.chat(data.visitorToken), TTL_CHAT, load);
+    return load();
   });
 
 export const visitorSendMessage = createServerFn({ method: "POST" })
@@ -402,69 +406,6 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     await invalidateChat(data.visitorToken);
     const chat = await getOrCreateVisitorChat(data.visitorToken);
     await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
-    if (chat.status !== "bot") {
-      const isStaffRequest = wantsHuman(data.body);
-      const isSubscribe = asksAboutVip(data.body);
-
-      if (isStaffRequest) {
-        if (!(await recentAlertExists(chat.id, PRIORITY_ALERT_MARKER))) {
-          await sendWaitingAlert(chat.id, chat.visitor_name, true);
-          await supportRepo.addSupportMessage(chat.id, "system", PRIORITY_ALERT_MARKER);
-        }
-        await supportRepo.addSupportMessage(chat.id, "bot", "تم إرسال تنبيه أولوية للإدارة. سيتم الرد عليك في أقرب وقت 🙏");
-        await invalidateChat(data.visitorToken);
-        return { ok: true };
-      }
-
-      if (isSubscribe) {
-        await supportRepo.addSupportMessage(chat.id, "bot", `${VIP_PLANS_TEXT}\n${VIP_FLOW_MARKER}`);
-        await invalidateChat(data.visitorToken);
-        return { ok: true };
-      }
-
-      const settings = await getBotSettingsRow();
-      const botQa = await import("./bot-qa.repo");
-      let answer: string | null = null;
-      if (settings?.local_enabled !== false) {
-        const m = matchQa(await botQa.listActiveQa(), data.body);
-        answer = m?.answer ?? null;
-      }
-      if (!answer && asksAboutOffer(data.body)) {
-        await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
-        await invalidateChat(data.visitorToken);
-        return { ok: true };
-      }
-      if (!answer) {
-        let requestAnswer: string | null = null;
-        const prev = await supportRepo.listMessages(chat.id);
-        const lastBot = [...prev].reverse().find((m) => m.sender === "bot");
-        const awaitingData = lastBot?.body?.trim() === ASK_REQUEST_PROMPT;
-        if (awaitingData) {
-          requestAnswer = await answerRequestStatus(data.body);
-        } else if (asksAboutRequest(data.body)) {
-          requestAnswer = EMAIL_RE.test(data.body) || data.body.trim().split(/\s+/).length > 2
-            ? (await answerRequestStatus(data.body)) ?? ASK_REQUEST_PROMPT
-            : ASK_REQUEST_PROMPT;
-          if (requestAnswer === REQUEST_NOT_FOUND && !EMAIL_RE.test(data.body)) requestAnswer = ASK_REQUEST_PROMPT;
-        }
-        const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
-        let finalAnswer = answer || requestAnswer || projectAnswer;
-        if (!finalAnswer && settings?.groq_enabled !== false) {
-          finalAnswer = await askGroq(data.body, {
-            systemInstruction: settings?.gemini_system_instruction,
-            dialect: settings?.gemini_dialect,
-            botName: settings?.gemini_bot_name,
-            scope: settings?.gemini_scope,
-            blockedReplies: settings?.gemini_blocked_replies,
-          });
-        }
-        answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال حالياً. يمكنك كتابة \"اشتراك\" للاشتراك في VIP أو انتظار الموظف.";
-      }
-      await supportRepo.addSupportMessage(chat.id, "bot", answer);
-      await invalidateChat(data.visitorToken);
-      return { ok: true };
-    }
-
 
     const settings = await getBotSettingsRow();
     const botQa = await import("./bot-qa.repo");
@@ -479,11 +420,21 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
       triggerEscalate = m?.action === "escalate";
       answer = m?.answer ?? null;
     }
+
     if (triggerEscalate) {
-      await escalateOrOffHours(chat.id);
+      if (chat.status === "escalated") {
+        if (!(await recentAlertExists(chat.id, PRIORITY_ALERT_MARKER))) {
+          await sendWaitingAlert(chat.id, chat.visitor_name, true);
+          await supportRepo.addSupportMessage(chat.id, "system", PRIORITY_ALERT_MARKER);
+        }
+        await supportRepo.addSupportMessage(chat.id, "bot", "تم إرسال تنبيه أولوية للإدارة. سيتم الرد عليك في أقرب وقت 🙏");
+      } else {
+        await escalateOrOffHours(chat.id);
+      }
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
+
     if (!answer && asksAboutOffer(data.body)) {
       const allRows = (await projectsRepo.listAllProjects()).filter((p) => p.admin_approval === "approved");
       const pIdx = findProjectByQuery(allRows, data.body);
@@ -534,7 +485,10 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
         blockedReplies: settings?.gemini_blocked_replies,
       });
     }
-    answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
+    const fallback = chat.status === "escalated"
+      ? "عذرًا، لا أملك إجابة على هذا السؤال حالياً. الموظف سيرد عليك قريباً أو يمكنك كتابة \"موظف\" لإرسال تنبيه أولوية."
+      : "عذرًا، لا أملك إجابة على هذا السؤال. يمكنك كتابة \"موظف\" للتحدث مع الدعم.";
+    answer = finalAnswer || settings?.fallback_message?.trim() || fallback;
     await supportRepo.addSupportMessage(chat.id, "bot", answer);
     await invalidateChat(data.visitorToken);
     return { ok: true };

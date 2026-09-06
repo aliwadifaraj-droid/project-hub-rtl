@@ -84,7 +84,7 @@ function AdminLayout() {
       return res.count;
     },
     enabled: !!roles && roles.length > 0,
-    refetchInterval: 15000,
+    refetchInterval: 2000,
   });
   const { data: notifs } = useQuery({
     queryKey: ["my-notifications"],

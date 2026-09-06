@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { startVisitorChat, visitorSendMessage, visitorGetMessages, listBotQuestions } from "@/lib/support.functions";
 import { Bot, Send, RefreshCw, AlertCircle } from "lucide-react";
 
@@ -35,6 +35,7 @@ function BotTestPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<Array<{ ts: string; type: "info" | "error" | "ok"; msg: string }>>([]);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function pushLog(type: "info" | "error" | "ok", msg: string) {
     setLog((l) => [{ ts: new Date().toLocaleTimeString("ar"), type, msg }, ...l].slice(0, 50));
@@ -43,29 +44,43 @@ function BotTestPage() {
   async function refresh(t = token) {
     try {
       const r = await getFn({ data: { visitorToken: t } });
-      setMessages((r.messages ?? []) as Msg[]);
-      pushLog("ok", `تحديث الرسائل (${r.messages?.length ?? 0})`);
+      setMessages((r.messages ?? []));
+      pushLog("ok", `تم جلب ${r.messages?.length ?? 0} رسالة، الحالة: ${r.chat?.status ?? "null"}`);
     } catch (e: any) {
-      pushLog("error", `فشل التحديث: ${e?.message ?? e}`);
+      const m = e?.message ?? String(e);
+      setError(m);
+      pushLog("error", `فشل جلب الرسائل: ${m}`);
     }
   }
 
   async function init() {
     setError(null);
+    pushLog("info", "بدء الجلسة…");
     try {
-      pushLog("info", `بدء جلسة جديدة (${token.slice(0, 8)}…)`);
-      await startFn({ data: { visitorToken: token, visitorName: "أدمن-تجريبي" } });
-      pushLog("ok", "تم إنشاء الجلسة");
-      const qa = await listQaFn();
-      setQas((qa ?? []) as Qa[]);
-      pushLog("ok", `تحميل الأسئلة المُدرَّبة (${qa?.length ?? 0})`);
-      await refresh(token);
+      await startFn({ data: { visitorToken: token } });
+      pushLog("ok", "تم بدء الجلسة");
+      await refresh();
+      try {
+        const q = await listQaFn();
+        setQas(q);
+        pushLog("ok", `تم جلب ${q.length} سؤال جاهز`);
+      } catch {}
     } catch (e: any) {
       const m = e?.message ?? String(e);
       setError(m);
       pushLog("error", `فشل بدء الجلسة: ${m}`);
     }
   }
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(() => refresh(), 3000);
+    }
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, [messages.length > 0]);
 
   async function send(body: string, qaId?: string) {
     if (!body.trim()) return;
@@ -88,6 +103,7 @@ function BotTestPage() {
 
   function newSession() {
     const t = generateUuid();
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setToken(t);
     setMessages([]);
     setError(null);
