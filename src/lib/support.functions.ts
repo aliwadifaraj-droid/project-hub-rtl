@@ -5,6 +5,14 @@ import * as supportRepo from "./support.repo";
 import * as projectsRepo from "./projects.repo";
 import { getBotSettingsRow } from "./bot-settings.repo";
 import { cached, cacheKeys, TTL_CHAT, invalidateChat, invalidate } from "./cache";
+import * as offersRepo from "./offers.repo";
+import {
+  ALERT_MARKER,
+  PRIORITY_ALERT_MARKER,
+  recentAlertExists,
+  scheduleEscalationWatchers,
+  sendWaitingAlert,
+} from "./escalation-jobs";
 
 
 const uuid = z.string().uuid();
@@ -148,8 +156,6 @@ async function answerProjectQuery(text: string): Promise<string | null> {
   return "المشاريع المتاحة:\n\n" + filtered.slice(0, 20).map((p) => `• ${p.name} — ${p.location ?? "-"} — ${STATUS_MAP[p.status] ?? p.status}`).join("\n");
 }
 
-/* ---------- استعلام حالة الطلب من "الطلبات الواردة" ---------- */
-
 const ASK_REQUEST_PROMPT = "للاستعلام عن حالة طلبكم، أرسل البريد الإلكتروني أو اسم الشركة المستخدم في الطلب 🙏";
 const REQUEST_NOT_FOUND = "لم يتم العثور على طلب";
 const OFFER_PENDING_REPLY = "تم ارسال طلبكم وبانتظار موافقة الادارة";
@@ -212,11 +218,13 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       .join("\n\n");
   }
 
+  let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
+  if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
+  if (offers.length) return OFFER_PENDING_REPLY;
+
   return REQUEST_NOT_FOUND;
 }
 
-
-/* ---------- نية تقديم عرض سعر ---------- */
 
 export const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
 
@@ -240,8 +248,6 @@ function asksAboutOffer(text: string): boolean {
   return OFFER_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
 }
 
-
-/* ---------- نية الاشتراك في VIP ---------- */
 
 export const VIP_FLOW_MARKER = "__VIP_FLOW__";
 
@@ -277,7 +283,6 @@ function asksAboutVip(text: string): boolean {
 
 
 
-/** Ask Groq (qwen/qwen3.6-27b) as a last-resort fallback. Returns null on any failure. */
 async function askGroq(userText: string, opts: {
   systemInstruction?: string | null;
   dialect?: string | null;
@@ -287,7 +292,7 @@ async function askGroq(userText: string, opts: {
 }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.GROQ_MODEL || "qwen/qwen3.6-27b";
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
   const sysParts = [
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
@@ -304,7 +309,7 @@ async function askGroq(userText: string, opts: {
       body: JSON.stringify({
         model,
         temperature: 0.4,
-        max_completion_tokens: 512,
+        max_tokens: 512,
         messages: [
           ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
           { role: "user", content: userText },
@@ -350,60 +355,7 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
   return created;
 }
 
-const ALERT_MARKER = "__ALERT_SENT__";
-const BUSY_REPLY = "الموظفين مشغولين حالياً. كيف أقدر أساعدك؟";
-
-async function sendWaitingAlert(chatId: string, visitorName: string | null) {
-  const to = process.env.VITE_ALERT_EMAIL || process.env.ALERT_EMAIL;
-  const key = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
-  if (!to || !key) { console.error("alert email/key missing"); return; }
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        from: "Alamran <send@ali-alhaddad.com>",
-        to: [to],
-        subject: "🚨 عميل ينتظر",
-        html: `<p><strong>الاسم:</strong> ${visitorName ?? "زائر"}</p><p><strong>customer_id:</strong> ${chatId}</p>`,
-      }),
-    });
-    if (!res.ok) console.error("waiting alert failed", res.status, await res.text());
-  } catch (e) { console.error("waiting alert exception", e); }
-}
-
-async function agentRepliedSince(chatId: string, sinceIso: string): Promise<boolean> {
-  const msgs = await supportRepo.listMessages(chatId, sinceIso);
-  return msgs.some((m) => m.sender === "admin");
-}
-
-async function recentAlertExists(chatId: string): Promise<boolean> {
-  const { db, rowsToObjects } = await import("./db");
-  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const r = await db.execute(
-    `SELECT id FROM support_messages WHERE chat_id = ? AND sender = 'system' AND body = ? AND created_at > ? LIMIT 1`,
-    [chatId, ALERT_MARKER, cutoff],
-  );
-  return rowsToObjects(r).length > 0;
-}
-
-function scheduleEscalationWatchers(chatId: string, visitorName: string | null, startIso: string) {
-  setTimeout(async () => {
-    try {
-      if (await agentRepliedSince(chatId, startIso)) return;
-      if (await recentAlertExists(chatId)) return;
-      await sendWaitingAlert(chatId, visitorName);
-      await supportRepo.addSupportMessage(chatId, "system", ALERT_MARKER);
-    } catch (e) { console.error("watcher-30s", e); }
-  }, 30_000);
-
-  setTimeout(async () => {
-    try {
-      if (await agentRepliedSince(chatId, startIso)) return;
-      await supportRepo.addSupportMessage(chatId, "bot", BUSY_REPLY);
-    } catch (e) { console.error("watcher-60s", e); }
-  }, 60_000);
-}
+const ESCALATION_START_MARKER = "__ESCALATION_START__";
 
 async function escalateOrOffHours(chatId: string) {
   const settings = await getBotSettingsRow();
@@ -413,9 +365,10 @@ async function escalateOrOffHours(chatId: string) {
     return { escalated: false };
   }
   await supportRepo.updateChatStatus(chatId, "escalated");
-  await supportRepo.addSupportMessage(chatId, "system", "تم تحويل محادثتك لموظف الدعم. سيتم الرد عليك في أقرب وقت.");
+  await supportRepo.addSupportMessage(chatId, "bot", "تم تحويل محادثتك لموظف الدعم الفني. سيتم الرد عليك في اقرب وقت");
+  await supportRepo.addSupportMessage(chatId, "system", ESCALATION_START_MARKER);
   const chat = await supportRepo.getChatById(chatId);
-  scheduleEscalationWatchers(chatId, chat?.visitor_name ?? null, new Date().toISOString());
+  await scheduleEscalationWatchers(chatId, new Date().toISOString());
   return { escalated: true };
 }
 
@@ -450,6 +403,64 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     const chat = await getOrCreateVisitorChat(data.visitorToken);
     await supportRepo.addSupportMessage(chat.id, "visitor", data.body);
     if (chat.status !== "bot") {
+      const isStaffRequest = wantsHuman(data.body);
+      const isSubscribe = asksAboutVip(data.body);
+
+      if (isStaffRequest) {
+        if (!(await recentAlertExists(chat.id, PRIORITY_ALERT_MARKER))) {
+          await sendWaitingAlert(chat.id, chat.visitor_name, true);
+          await supportRepo.addSupportMessage(chat.id, "system", PRIORITY_ALERT_MARKER);
+        }
+        await supportRepo.addSupportMessage(chat.id, "bot", "تم إرسال تنبيه أولوية للإدارة. سيتم الرد عليك في أقرب وقت 🙏");
+        await invalidateChat(data.visitorToken);
+        return { ok: true };
+      }
+
+      if (isSubscribe) {
+        await supportRepo.addSupportMessage(chat.id, "bot", `${VIP_PLANS_TEXT}\n${VIP_FLOW_MARKER}`);
+        await invalidateChat(data.visitorToken);
+        return { ok: true };
+      }
+
+      const settings = await getBotSettingsRow();
+      const botQa = await import("./bot-qa.repo");
+      let answer: string | null = null;
+      if (settings?.local_enabled !== false) {
+        const m = matchQa(await botQa.listActiveQa(), data.body);
+        answer = m?.answer ?? null;
+      }
+      if (!answer && asksAboutOffer(data.body)) {
+        await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+        await invalidateChat(data.visitorToken);
+        return { ok: true };
+      }
+      if (!answer) {
+        let requestAnswer: string | null = null;
+        const prev = await supportRepo.listMessages(chat.id);
+        const lastBot = [...prev].reverse().find((m) => m.sender === "bot");
+        const awaitingData = lastBot?.body?.trim() === ASK_REQUEST_PROMPT;
+        if (awaitingData) {
+          requestAnswer = await answerRequestStatus(data.body);
+        } else if (asksAboutRequest(data.body)) {
+          requestAnswer = EMAIL_RE.test(data.body) || data.body.trim().split(/\s+/).length > 2
+            ? (await answerRequestStatus(data.body)) ?? ASK_REQUEST_PROMPT
+            : ASK_REQUEST_PROMPT;
+          if (requestAnswer === REQUEST_NOT_FOUND && !EMAIL_RE.test(data.body)) requestAnswer = ASK_REQUEST_PROMPT;
+        }
+        const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
+        let finalAnswer = answer || requestAnswer || projectAnswer;
+        if (!finalAnswer && settings?.groq_enabled !== false) {
+          finalAnswer = await askGroq(data.body, {
+            systemInstruction: settings?.gemini_system_instruction,
+            dialect: settings?.gemini_dialect,
+            botName: settings?.gemini_bot_name,
+            scope: settings?.gemini_scope,
+            blockedReplies: settings?.gemini_blocked_replies,
+          });
+        }
+        answer = finalAnswer || settings?.fallback_message?.trim() || "عذرًا، لا أملك إجابة على هذا السؤال حالياً. يمكنك كتابة \"اشتراك\" للاشتراك في VIP أو انتظار الموظف.";
+      }
+      await supportRepo.addSupportMessage(chat.id, "bot", answer);
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
@@ -542,6 +553,7 @@ export const visitorEscalate = createServerFn({ method: "POST" })
 export const visitorEndSession = createServerFn({ method: "POST" })
   .inputValidator((d: { visitorToken: string }) => z.object({ visitorToken: uuid }).parse(d))
   .handler(async ({ data }) => {
+    const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
     await supportRepo.deleteVisitorChat(data.visitorToken);
     await invalidateChat(data.visitorToken);
     return { ok: true };
@@ -624,195 +636,3 @@ export const adminCountOpenSupportChats = createServerFn({ method: "GET" }).midd
   assertStaff(context.roles);
   return { count: await supportRepo.countEscalatedChats() };
 });
-
-/* ---------- فحص الإيصال + اشتراك تجربة الباقة ---------- */
-
-interface ReceiptCheckResult {
-  bankName: string | null;
-  amount: number | null;
-  date: string | null;
-}
-
-const VISION_MODELS = [
-  "qwen/qwen3.6-27b",
-];
-
-const RECEIPT_VISION_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
-Read only the transfer amount and transaction date needed to validate this receipt. Search the entire image carefully, including small text and the receipt header/footer.
-Respond with a JSON object only — no markdown, no explanation, no code fences:
-{"amount":100,"date":"YYYY-MM-DD"}
-Amount must be numeric only with no currency symbol or commas. The date may appear as DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or a Hijri date. Convert a Hijri date to Gregorian YYYY-MM-DD. If a date is visible, never return null; return the date you can read. Only return null when the field is genuinely not visible. Do not include thinking or reasoning text outside the JSON.`;
-
-const RECEIPT_FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find ONLY the transfer amount and transaction date. Search all small text carefully. Return JSON only: {"amount":100,"date":"the date exactly as visible"}. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri. Do not return a null date if any date is visible.`;
-
-function normalizeDigits(value: string): string {
-  return value.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
-}
-
-function normalizeReceiptDate(value: string | null): string | null {
-  if (!value?.trim()) return null;
-  const raw = normalizeDigits(value.trim()).replace(/[.]/g, "/");
-  if (["null", "n/a", "unknown", "غير واضح"].includes(raw.toLowerCase())) return null;
-  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  const dmy = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-  return raw;
-}
-
-function parseReceiptJson(content: string): { amount: number | null; date: string | null } {
-  const cleaned = content.replace(/<think[\s\S]*?<\/think>/gi, "").trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return { amount: null, date: null };
-  try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    const amountRaw = parsed.amount;
-    const amountText = amountRaw == null ? null : normalizeDigits(String(amountRaw));
-    const amountNum = typeof amountRaw === "number"
-      ? amountRaw
-      : amountText != null
-        ? Number(amountText.replace(/[^\d.]/g, ""))
-        : null;
-    const dateText = typeof parsed.date === "string" && parsed.date.trim() ? parsed.date.trim() : null;
-    return {
-      amount: amountNum != null && Number.isFinite(amountNum) ? amountNum : null,
-      date: normalizeReceiptDate(dateText),
-    };
-  } catch {
-    return { amount: null, date: null };
-  }
-}
-
-async function fetchImageAsDataUrl(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`fetch image ${resp.status}`);
-  const buf = await resp.arrayBuffer();
-  const mime = resp.headers.get("content-type") ?? "image/jpeg";
-  return `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
-}
-
-async function callGroqVision(model: string, imageDataUrl: string, apiKey: string, focused = false): Promise<{ amount: number | null; date: string | null }> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      max_completion_tokens: 300,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: RECEIPT_VISION_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: focused ? RECEIPT_FOCUSED_PROMPT : "Read this receipt and extract amount and date as a JSON object." },
-            { type: "image_url", image_url: { url: imageDataUrl } },
-          ],
-        },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Groq Vision ${model} ${res.status}: ${txt.slice(0, 200)}`);
-  }
-  const j: any = await res.json();
-  return parseReceiptJson(j?.choices?.[0]?.message?.content ?? "");
-}
-
-async function readReceiptWithGroqVision(receiptUrl: string): Promise<ReceiptCheckResult> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY غير موضع");
-
-  const imageDataUrl = await fetchImageAsDataUrl(receiptUrl);
-
-  let lastError: Error | null = null;
-  for (const model of VISION_MODELS) {
-    try {
-      let result = await callGroqVision(model, imageDataUrl, apiKey);
-      if (result.amount === null || result.date === null) {
-        const focusedResult = await callGroqVision(model, imageDataUrl, apiKey, true);
-        result = {
-          amount: result.amount ?? focusedResult.amount,
-          date: result.date ?? focusedResult.date,
-        };
-      }
-      if (result.amount !== null || result.date !== null) {
-        return { bankName: null, ...result };
-      }
-    } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-      console.error(`readReceipt: model ${model} failed`, e);
-    }
-  }
-  if (lastError) throw lastError;
-  return { bankName: null, amount: null, date: null };
-}
-
-async function checkReceipt(receiptFile: string, packageAmount: number): Promise<{ approved: boolean; reason: string }> {
-  let parsed: ReceiptCheckResult;
-  try {
-    parsed = await readReceiptWithGroqVision(receiptFile);
-  } catch (e) {
-    console.error("verifyReceipt: فشل قراءة الإيصال", e);
-    return { approved: false, reason: "تعذر قراءة الإيصال. حاول برفع صورة أوضح." };
-  }
-
-  const { amount, date } = parsed;
-
-  if (!date) {
-    return { approved: false, reason: "لم يتم العثور على تاريخ في الإيصال." };
-  }
-  const receiptDate = new Date(date);
-  if (isNaN(receiptDate.getTime())) {
-    return { approved: false, reason: "تاريخ الإيصال غير صالح." };
-  }
-  const hoursDiff = (Date.now() - receiptDate.getTime()) / 3_600_000;
-  if (hoursDiff < 0 || hoursDiff > 168) {
-    return { approved: false, reason: "تاريخ الإيصال خارج نطاق 7 أيام المسموح." };
-  }
-
-  if (amount == null) {
-    return { approved: false, reason: "لم يتم العثور على المبلغ في الإيصال." };
-  }
-  if (Math.abs(amount - packageAmount) > 0.01) {
-    return {      approved: false,
-      reason: `المبلغ في الإيصال (${amount}) لا يطابق قيمة الباقة (${packageAmount}).`,
-    };
-  }
-
-  return { approved: true, reason: "تمت الموافقة على الإيصال." };
-}
-
-export const verifyReceipt = createServerFn({ method: "POST" })
-  .inputValidator((d: { email: string; receiptFile: string; packageAmount: number }) =>
-    z.object({
-      email: z.string().trim().min(1),
-      receiptFile: z.string().trim().min(1),
-      packageAmount: z.number().positive(),
-    }).parse(d))
-  .handler(async ({ data }) => checkReceipt(data.receiptFile, data.packageAmount));
-
-export const createPackageTrialSubscription = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: { email: string; receiptFile: string; packageAmount: number; durationMinutes: number }) =>
-    z.object({
-      email: z.string().trim().min(1),
-      receiptFile: z.string().trim().min(1),
-      packageAmount: z.number().positive(),
-      durationMinutes: z.number().int().positive(),
-    }).parse(d))
-  .handler(async ({ data, context }) => {
-    assertAdmin(context.roles);
-
-    const check = await checkReceipt(data.receiptFile, data.packageAmount);
-
-    if (!check.approved) {
-      return { ok: false as const, reason: check.reason };
-    }
-
-    const vipRepo = await import("./vip.repo");
-    const row = await vipRepo.createTrialVip(data.email, data.durationMinutes);
-    return { ok: true as const, id: row.id, email: row.email ?? data.email };
-  });
