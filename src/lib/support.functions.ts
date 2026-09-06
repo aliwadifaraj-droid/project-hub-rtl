@@ -14,8 +14,6 @@ import {
   sendWaitingAlert,
   checkEscalationTimers,
 } from "./escalation-jobs";
-import { insertMany as insertNotifications } from "./notifications.repo";
-import { listUsersWithRoles } from "./users.repo";
 
 
 const uuid = z.string().uuid();
@@ -358,27 +356,6 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
   return created;
 }
 
-async function listStaffUserIds(): Promise<string[]> {
-  const users = await listUsersWithRoles(500);
-  return users
-    .filter((u) => u.roles.includes("admin") || u.roles.includes("employee"))
-    .map((u) => u.id);
-}
-
-async function notifyStaffOfEscalation(chatId: string, visitorName: string | null): Promise<void> {
-  const staffIds = await listStaffUserIds();
-  if (staffIds.length === 0) return;
-  const name = visitorName ?? "زائر";
-  await insertNotifications(
-    staffIds.map((uid) => ({
-      user_id: uid,
-      title: "محادثة جديدة تنتظر ردك",
-      body: `${name} يطلب التحدث مع موظف`,
-      link: "/admin/support",
-    })),
-  ).catch((e) => console.error("[escalation] notify staff failed", e));
-}
-
 async function escalateOrOffHours(chatId: string) {
   const settings = await getBotSettingsRow();
   const offHours = settings ? !isInWorkHours(settings) : false;
@@ -391,11 +368,6 @@ async function escalateOrOffHours(chatId: string) {
   await supportRepo.addSupportMessage(chatId, "system", ESCALATION_START_MARKER);
 
   const chat = await supportRepo.getChatById(chatId);
-  const visitorName = chat?.visitor_name ?? null;
-
-  // Send in-app notification to all staff immediately (0 seconds)
-  await notifyStaffOfEscalation(chatId, visitorName);
-
   await invalidateChat(chat?.visitor_token ?? "");
   return { escalated: true };
 }
