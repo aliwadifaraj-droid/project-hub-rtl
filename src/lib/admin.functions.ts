@@ -772,6 +772,7 @@ export const toggleExclusivityOff = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: { projectId: string }) => z.object({ projectId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
+    await projectsRepo.clearProjectExclusive(data.projectId);
     await projectsRepo.updateProject(data.projectId, { is_exclusive: false, exclusive_until: null });
     await invalidateProjectsAll();
     return { ok: true as const };
