@@ -1,4 +1,3 @@
-successfully downloaded text file (SHA: 949226f81af0e95a8ad2de30faa96839461783f4)
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
@@ -394,9 +393,6 @@ async function escalateOrOffHours(chatId: string) {
 
   // Send in-app notification to all staff immediately (0 seconds)
   await notifyStaffOfEscalation(chatId, visitorName);
-
-  // Also send email alert immediately (no 30s delay)
-  await sendWaitingAlert(chatId, visitorName).catch((e) => console.error("[escalation] immediate email alert failed", e));
 
   await invalidateChat(chat?.visitor_token ?? "");
   return { escalated: true };
