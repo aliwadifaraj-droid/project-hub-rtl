@@ -89,7 +89,7 @@ function CerebrasSettingsPage() {
                 <span
                   className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-all ${
                     cerebrasEnabled ? "start-0.5" : "end-0.5"
-                  }`
+                  }`}
                 />
               </button>
             </div>
