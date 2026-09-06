@@ -187,3 +187,4 @@ function CerebrasSettingsPage() {
       )}
     </div>
   );
+}
