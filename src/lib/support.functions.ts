@@ -295,13 +295,17 @@ async function askCerebras(userText: string, opts: {
   blockedReplies?: string[] | null;
 }): Promise<string | null> {
   const apiKey = process.env.CEREBRAS_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.log("[cerebras] CEREBRAS_API_KEY not set — skipping Cerebras call");
+    return null;
+  }
   const sysParts = [
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
     opts.dialect ? `اللهجة: ${opts.dialect}.` : null,
     opts.scope ? `نطاق عملك: ${opts.scope}` : null,
   ].filter(Boolean);
+  console.log("[cerebras] calling Cerebras for:", userText.slice(0, 80));
   try {
     const res = await fetch(CEREBRAS_ENDPOINT, {
       method: "POST",
@@ -319,15 +323,24 @@ async function askCerebras(userText: string, opts: {
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error("[cerebras] API returned non-OK status:", res.status, errBody.slice(0, 200));
+      return null;
+    }
     const j: any = await res.json();
     const text: string | undefined = j?.choices?.[0]?.message?.content?.trim();
+    console.log("[cerebras] response received:", text?.slice(0, 80) ?? "(empty)");
     if (!text) return null;
     for (const bad of opts.blockedReplies ?? []) {
-      if (bad && text.toLowerCase().includes(bad.toLowerCase())) return null;
+      if (bad && text.toLowerCase().includes(bad.toLowerCase())) {
+        console.log("[cerebras] response blocked by blockedReplies filter");
+        return null;
+      }
     }
     return text;
-  } catch {
+  } catch (err) {
+    console.error("[cerebras] call failed:", err);
     return null;
   }
 }
@@ -478,7 +491,8 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
     const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
     let finalAnswer = answer || requestAnswer || projectAnswer;
-    if (!finalAnswer && settings?.cerebras_enabled !== false) {
+    const cerebrasEnabled = settings?.cerebras_enabled == null ? true : settings.cerebras_enabled;
+    if (!finalAnswer && cerebrasEnabled !== false) {
       finalAnswer = await askCerebras(data.body, {
         systemInstruction: settings?.gemini_system_instruction,
         dialect: settings?.gemini_dialect,
