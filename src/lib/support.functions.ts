@@ -366,6 +366,7 @@ async function escalateOrOffHours(chatId: string) {
   await supportRepo.updateChatStatus(chatId, "escalated");
   await supportRepo.addSupportMessage(chatId, "bot", "تم تحويل محادثتك لموظف الدعم الفني. سيتم الرد عليك في اقرب وقت");
   await supportRepo.addSupportMessage(chatId, "system", ESCALATION_START_MARKER);
+  await invalidateChat(await supportRepo.getChatById(chatId).then(c => c?.visitor_token ?? ""));
   return { escalated: true };
 }
 
@@ -387,12 +388,13 @@ export const visitorGetMessages = createServerFn({ method: "POST" })
       const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
       if (!chat) return { chat: null, messages: [] };
       if (chat.status === "escalated") {
-        await checkEscalationTimers(chat.id).catch(() => {});
+        await checkEscalationTimers(chat.id).catch((e) => console.error("[escalation] timer check failed", e));
+        await invalidateChat(data.visitorToken);
+        return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
       }
       return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
     };
-    if (data.sinceIso) return load();
-    return cached(cacheKeys.chat(data.visitorToken), TTL_CHAT, load);
+    return load();
   });
 
 export const visitorSendMessage = createServerFn({ method: "POST" })
