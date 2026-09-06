@@ -1,5 +1,9 @@
 import { db, rowsToObjects } from "./db";
 
+const ensureBotSettingsColumns = db
+  .execute(`ALTER TABLE bot_settings ADD COLUMN cerebras_enabled INTEGER NOT NULL DEFAULT 1`)
+  .catch(() => undefined);
+
 export type BotSettingsRow = {
   id: string;
   work_days: Record<string, boolean> | null;
@@ -51,6 +55,7 @@ function decode(row: any): BotSettingsRow {
 }
 
 export async function getBotSettingsRow(): Promise<BotSettingsRow | null> {
+  await ensureBotSettingsColumns;
   const r = await db.execute(`SELECT * FROM bot_settings ORDER BY created_at ASC LIMIT 1`);
   const row = rowsToObjects(r)[0];
   return row ? decode(row) : null;
