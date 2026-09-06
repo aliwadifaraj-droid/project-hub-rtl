@@ -70,40 +70,44 @@ export const updateBotSettings = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ==== Groq / Gemini persona settings ====
-export type GroqSettings = {
+export const CEREBRAS_MODEL = "qwen-3-32b";
+
+export type CerebrasSettings = {
   systemInstruction: string;
   dialect: string;
   botName: string;
   blockedReplies: string[];
   scope: string;
-  groqEnabled: boolean;
+  cerebrasEnabled: boolean;
 };
 
-export const getGroqSettings = createServerFn({ method: "GET" })
+export const getCerebrasSettings = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async (): Promise<GroqSettings> => {
+  .handler(async (): Promise<CerebrasSettings & { apiKey: boolean; model: string }> => {
     const row = await getBotSettingsRow();
+    const apiKey = !!(process.env.CEREBRAS_API_KEY);
     return {
       systemInstruction: row?.gemini_system_instruction ?? "",
       dialect: row?.gemini_dialect ?? "",
       botName: row?.gemini_bot_name ?? "",
       blockedReplies: row?.gemini_blocked_replies ?? [],
       scope: row?.gemini_scope ?? "",
-      groqEnabled: row?.groq_enabled ?? true,
+      cerebrasEnabled: row?.groq_enabled ?? true,
+      apiKey,
+      model: CEREBRAS_MODEL,
     };
   });
 
-export const updateGroqSettings = createServerFn({ method: "POST" })
+export const updateCerebrasSettings = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: GroqSettings) =>
+  .inputValidator((d: CerebrasSettings) =>
     z.object({
       systemInstruction: z.string().trim().max(4000),
       dialect: z.string().trim().max(100),
       botName: z.string().trim().max(100),
       blockedReplies: z.array(z.string().trim().max(200)).max(50),
       scope: z.string().trim().max(2000),
-      groqEnabled: z.boolean(),
+      cerebrasEnabled: z.boolean(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -113,7 +117,7 @@ export const updateGroqSettings = createServerFn({ method: "POST" })
       gemini_bot_name: data.botName,
       gemini_blocked_replies: data.blockedReplies.filter((s) => s.length > 0),
       gemini_scope: data.scope,
-      groq_enabled: data.groqEnabled,
+      groq_enabled: data.cerebrasEnabled,
     });
     return { ok: true };
   });
