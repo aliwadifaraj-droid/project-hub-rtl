@@ -303,7 +303,7 @@ async function askCerebras(userText: string, opts: {
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
     opts.dialect ? `اللهجة: ${opts.dialect}.` : null,
-    opts.scope ? `نطاق عملك: ${opts.scope}` : null,
+    "ملاحظة مهمة: أجب عن أي سؤال يطرحه المستخدم مباشرة حتى لو لم يكن متعلقاً بمنصة العمران أو مجال المنصة. لا ترفض أي سؤال ولا تقل إنك متخصص في مجال واحد فقط. أجب عن الأسئلة العامة كأنها جزء من مهمتك.",
   ].filter(Boolean);
   console.log("[cerebras] calling Cerebras for:", userText.slice(0, 80));
   try {
@@ -497,7 +497,6 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
         systemInstruction: settings?.gemini_system_instruction,
         dialect: settings?.gemini_dialect,
         botName: settings?.gemini_bot_name,
-        scope: settings?.gemini_scope,
         blockedReplies: settings?.gemini_blocked_replies,
       });
     }
