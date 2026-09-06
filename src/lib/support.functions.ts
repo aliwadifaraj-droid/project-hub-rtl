@@ -284,16 +284,18 @@ function asksAboutVip(text: string): boolean {
 
 
 
-async function askGroq(userText: string, opts: {
+const CEREBRAS_MODEL = "qwen-3-32b";
+const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
+
+async function askCerebras(userText: string, opts: {
   systemInstruction?: string | null;
   dialect?: string | null;
   botName?: string | null;
   scope?: string | null;
   blockedReplies?: string[] | null;
 }): Promise<string | null> {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.CEREBRAS_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
   const sysParts = [
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
@@ -301,14 +303,14 @@ async function askGroq(userText: string, opts: {
     opts.scope ? `نطاق عملك: ${opts.scope}` : null,
   ].filter(Boolean);
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const res = await fetch(CEREBRAS_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model,
+        model: CEREBRAS_MODEL,
         temperature: 0.4,
         max_tokens: 512,
         messages: [
@@ -477,7 +479,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
     let finalAnswer = answer || requestAnswer || projectAnswer;
     if (!finalAnswer && settings?.groq_enabled !== false) {
-      finalAnswer = await askGroq(data.body, {
+      finalAnswer = await askCerebras(data.body, {
         systemInstruction: settings?.gemini_system_instruction,
         dialect: settings?.gemini_dialect,
         botName: settings?.gemini_bot_name,

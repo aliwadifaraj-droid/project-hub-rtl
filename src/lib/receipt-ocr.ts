@@ -1,9 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const VISION_MODELS = [
-  "qwen/qwen3.6-27b",
-];
+const CEREBRAS_MODEL = "qwen-3-32b";
+const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
 
 export interface OcrResult {
   bank: string | null;
@@ -63,15 +62,14 @@ function firstString(record: Record<string, unknown>, keys: string[]): string | 
   return null;
 }
 
-async function callModel(model: string, dataUrl: string, apiKey: string, focused = false): Promise<OcrResult> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+async function callModel(dataUrl: string, apiKey: string, focused = false): Promise<OcrResult> {
+  const res = await fetch(CEREBRAS_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model,
+      model: CEREBRAS_MODEL,
       temperature: 0,
-      max_completion_tokens: 300,
-      response_format: { type: "json_object" },
+      max_tokens: 300,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -86,7 +84,7 @@ async function callModel(model: string, dataUrl: string, apiKey: string, focused
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Groq ${model} ${res.status}: ${txt.slice(0, 200)}`);
+    throw new Error(`Cerebras ${CEREBRAS_MODEL} ${res.status}: ${txt.slice(0, 200)}`);
   }
 
   const response = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
@@ -114,35 +112,33 @@ async function callModel(model: string, dataUrl: string, apiKey: string, focused
 }
 
 export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.CEREBRAS_API_KEY;
   if (!apiKey) {
-    console.error("[receipt-ocr] GROQ_API_KEY missing");
+    console.error("[receipt-ocr] CEREBRAS_API_KEY missing");
     return EMPTY_RESULT;
   }
 
   let bestResult: OcrResult = EMPTY_RESULT;
-  for (const model of VISION_MODELS) {
-    try {
-      let result = await callModel(model, dataUrl, apiKey);
-      if (result.amount === null || result.date === null) {
-        const focusedResult = await callModel(model, dataUrl, apiKey, true);
-        result = {
-          bank: result.bank ?? focusedResult.bank,
-          iban: result.iban ?? focusedResult.iban,
-          amount: result.amount ?? focusedResult.amount,
-          date: result.date ?? focusedResult.date,
-          time: result.time ?? focusedResult.time,
-        };
-      }
-      if (result.amount !== null && result.date !== null) {
-        return result;
-      }
-      if (result.amount !== null || result.date !== null) {
-        bestResult = result;
-      }
-    } catch (error) {
-      console.error(`[receipt-ocr] model ${model} failed`, error);
+  try {
+    let result = await callModel(dataUrl, apiKey);
+    if (result.amount === null || result.date === null) {
+      const focusedResult = await callModel(dataUrl, apiKey, true);
+      result = {
+        bank: result.bank ?? focusedResult.bank,
+        iban: result.iban ?? focusedResult.iban,
+        amount: result.amount ?? focusedResult.amount,
+        date: result.date ?? focusedResult.date,
+        time: result.time ?? focusedResult.time,
+      };
     }
+    if (result.amount !== null && result.date !== null) {
+      return result;
+    }
+    if (result.amount !== null || result.date !== null) {
+      bestResult = result;
+    }
+  } catch (error) {
+    console.error(`[receipt-ocr] model ${CEREBRAS_MODEL} failed`, error);
   }
   return bestResult;
 }
