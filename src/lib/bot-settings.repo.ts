@@ -11,7 +11,7 @@ export type BotSettingsRow = {
   show_suggested_questions: boolean;
   local_enabled: boolean;
   local_system_prompt: string | null;
-  groq_enabled: boolean;
+  cerebras_enabled: boolean;
   gemini_system_instruction: string | null;
   gemini_dialect: string | null;
   gemini_bot_name: string | null;
@@ -39,7 +39,7 @@ function decode(row: any): BotSettingsRow {
     show_suggested_questions: Number(row.show_suggested_questions ?? 1) === 1,
     local_enabled: Number(row.local_enabled ?? 1) === 1,
     local_system_prompt: row.local_system_prompt ?? null,
-    groq_enabled: Number(row.groq_enabled ?? 1) === 1,
+    cerebras_enabled: Number(row.cerebras_enabled ?? 1) === 1,
     gemini_system_instruction: row.gemini_system_instruction ?? null,
     gemini_dialect: row.gemini_dialect ?? null,
     gemini_bot_name: row.gemini_bot_name ?? null,
@@ -66,7 +66,7 @@ export async function upsertBotSettings(patch: Partial<{
   show_suggested_questions: boolean;
   local_enabled: boolean;
   local_system_prompt: string;
-  groq_enabled: boolean;
+  cerebras_enabled: boolean;
   gemini_system_instruction: string;
   gemini_dialect: string;
   gemini_bot_name: string;

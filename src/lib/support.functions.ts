@@ -478,7 +478,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
     }
     const projectAnswer = requestAnswer ? null : await answerProjectQuery(data.body);
     let finalAnswer = answer || requestAnswer || projectAnswer;
-    if (!finalAnswer && settings?.groq_enabled !== false) {
+    if (!finalAnswer && settings?.cerebras_enabled !== false) {
       finalAnswer = await askCerebras(data.body, {
         systemInstruction: settings?.gemini_system_instruction,
         dialect: settings?.gemini_dialect,

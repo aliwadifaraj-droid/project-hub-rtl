@@ -92,7 +92,7 @@ export const getCerebrasSettings = createServerFn({ method: "GET" })
       botName: row?.gemini_bot_name ?? "",
       blockedReplies: row?.gemini_blocked_replies ?? [],
       scope: row?.gemini_scope ?? "",
-      cerebrasEnabled: row?.groq_enabled ?? true,
+      cerebrasEnabled: row?.cerebras_enabled ?? true,
       apiKey,
       model: CEREBRAS_MODEL,
     };
@@ -117,7 +117,7 @@ export const updateCerebrasSettings = createServerFn({ method: "POST" })
       gemini_bot_name: data.botName,
       gemini_blocked_replies: data.blockedReplies.filter((s) => s.length > 0),
       gemini_scope: data.scope,
-      groq_enabled: data.cerebrasEnabled,
+      cerebras_enabled: data.cerebrasEnabled,
     });
     return { ok: true };
   });
