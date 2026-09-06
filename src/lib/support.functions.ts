@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 949226f81af0e95a8ad2de30faa96839461783f4)
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
@@ -14,6 +15,7 @@ import {
   sendWaitingAlert,
   checkEscalationTimers,
 } from "./escalation-jobs";
+import { insertMany as insertNotifications } from "./notifications.repo";
 
 
 const uuid = z.string().uuid();
@@ -356,6 +358,26 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
   return created;
 }
 
+async function listStaffUserIds(): Promise<string[]> {
+  const { db, rowsToObjects } = await import("./db");
+  const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
+  return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
+}
+
+async function notifyStaffOfEscalation(chatId: string, visitorName: string | null): Promise<void> {
+  const staffIds = await listStaffUserIds();
+  if (staffIds.length === 0) return;
+  const name = visitorName ?? "زائر";
+  await insertNotifications(
+    staffIds.map((uid) => ({
+      user_id: uid,
+      title: "محادثة جديدة تنتظر ردك",
+      body: `${name} يطلب التحدث مع موظف`,
+      link: "/admin/support",
+    })),
+  ).catch((e) => console.error("[escalation] notify staff failed", e));
+}
+
 async function escalateOrOffHours(chatId: string) {
   const settings = await getBotSettingsRow();
   const offHours = settings ? !isInWorkHours(settings) : false;
@@ -366,7 +388,17 @@ async function escalateOrOffHours(chatId: string) {
   await supportRepo.updateChatStatus(chatId, "escalated");
   await supportRepo.addSupportMessage(chatId, "bot", "تم تحويل محادثتك لموظف الدعم الفني. سيتم الرد عليك في اقرب وقت");
   await supportRepo.addSupportMessage(chatId, "system", ESCALATION_START_MARKER);
-  await invalidateChat(await supportRepo.getChatById(chatId).then(c => c?.visitor_token ?? ""));
+
+  const chat = await supportRepo.getChatById(chatId);
+  const visitorName = chat?.visitor_name ?? null;
+
+  // Send in-app notification to all staff immediately (0 seconds)
+  await notifyStaffOfEscalation(chatId, visitorName);
+
+  // Also send email alert immediately (no 30s delay)
+  await sendWaitingAlert(chatId, visitorName).catch((e) => console.error("[escalation] immediate email alert failed", e));
+
+  await invalidateChat(chat?.visitor_token ?? "");
   return { escalated: true };
 }
 
