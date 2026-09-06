@@ -15,6 +15,7 @@ import {
   checkEscalationTimers,
 } from "./escalation-jobs";
 import { insertMany as insertNotifications } from "./notifications.repo";
+import { listUsersWithRoles } from "./users.repo";
 
 
 const uuid = z.string().uuid();
@@ -358,9 +359,10 @@ async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string
 }
 
 async function listStaffUserIds(): Promise<string[]> {
-  const { db, rowsToObjects } = await import("./db");
-  const r = await db.execute(`SELECT DISTINCT user_id FROM user_roles WHERE role IN ('admin','employee')`);
-  return rowsToObjects<{ user_id: string }>(r).map((x) => String(x.user_id));
+  const users = await listUsersWithRoles(500);
+  return users
+    .filter((u) => u.roles.includes("admin") || u.roles.includes("employee"))
+    .map((u) => u.id);
 }
 
 async function notifyStaffOfEscalation(chatId: string, visitorName: string | null): Promise<void> {
