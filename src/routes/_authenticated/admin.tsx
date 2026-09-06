@@ -65,7 +65,7 @@ function AdminLayout() {
     queryKey: ["notif-unread-count"],
     queryFn: () => countUnread(),
     enabled: !!roles && roles.length > 0,
-    refetchInterval: 30000,
+    refetchInterval: 2000,
   });
   const { data: teamChatUnread = 0, refetch: refetchTeamChatUnread } = useQuery({
     queryKey: ["chat-unread-count"],
