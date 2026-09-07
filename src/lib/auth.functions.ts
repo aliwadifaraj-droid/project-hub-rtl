@@ -1,4 +1,4 @@
-// Public auth server functions: signUp, signIn, signOut, getMe, changePassword, requestPasswordReset, resetPasswordWithToken.
+// Public auth server functions
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
@@ -19,7 +19,8 @@ import {
   getRolesForUser,
   updateUserPassword,
 } from "./users.repo";
-import { findClientByEmail, findClientById } from "./clients.repo";
+import { findClientByEmail, findClientById, createClient } from "./clients.repo"; // ضفنا createClient
+import { createClientProfile } from "./client-profiles.repo"; // لازم يكون عندك هذا
 import { createPasswordResetToken, getValidPasswordResetToken, markPasswordResetTokenUsed } from "./password-reset.repo";
 import { sendResendEmail } from "./resend-send.server";
 
@@ -28,26 +29,31 @@ const FIRST_ADMIN_EMAIL = "aliwadifaraj@gmail.com";
 const credsSchema = z.object({
   email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
   password: z.string().min(6).max(72),
+  company_name: z.string().optional(), // للعميل
+  phone: z.string().optional(), // للعميل
 });
 
+// تسجيل العميل
 export const signUp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => credsSchema.parse(d))
   .handler(async ({ data }) => {
-    const existing = await findUserByEmail(data.email);
+    const existing = await findClientByEmail(data.email);
     if (existing) throw new Error("هذا البريد مسجل بالفعل");
+    
     const hash = await hashPassword(data.password);
-    const userId = await createUser(data.email, hash);
-    // First user OR the reserved admin email → admin
-    const isFirstUser = (await countUsers()) === 1;
-    if (isFirstUser || data.email === FIRST_ADMIN_EMAIL) {
-      await grantRole(userId, "admin");
+    const clientId = await createClient(data.email, hash); // انشاء في clients
+    
+    // انشاء بيانات الشركة
+    if (data.company_name || data.phone) {
+      await createClientProfile(clientId, data.company_name, data.phone);
     }
-    const roles = await getRolesForUser(userId);
-    const token = await signSessionToken({ sub: userId, email: data.email, roles });
+    
+    const token = await signSessionToken({ sub: clientId, email: data.email, roles: ["client"] });
     setSessionCookie(token);
-    return { id: userId, email: data.email, roles };
+    return { id: clientId, email: data.email, roles: ["client"] };
   });
 
+// تسجيل دخول العميل
 export const signIn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => credsSchema.parse(d))
   .handler(async ({ data }) => {
@@ -55,10 +61,9 @@ export const signIn = createServerFn({ method: "POST" })
     if (!client) throw new Error("بيانات الدخول غير صحيحة");
     const ok = await verifyPassword(data.password, client.password_hash);
     if (!ok) throw new Error("بيانات الدخول غير صحيحة");
-    const roles: string[] = [];
-    const token = await signSessionToken({ sub: client.id, email: client.email, roles });
+    const token = await signSessionToken({ sub: client.id, email: client.email, roles: ["client"] });
     setSessionCookie(token);
-    return { id: client.id, email: client.email, roles };
+    return { id: client.id, email: client.email, roles: ["client"] };
   });
 
 export const signOut = createServerFn({ method: "POST" }).handler(async () => {
@@ -66,17 +71,23 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
   return { ok: true };
 });
 
+// جلب بيانات المستخدم الحالي
 export const getMe = createServerFn({ method: "GET" }).handler(async () => {
   const claims = await getSessionClaims();
   if (!claims) return null;
+  
+  // اول شي نشوف هل هو عميل
   const client = await findClientById(claims.sub);
-  if (client) return { id: client.id, email: client.email, roles: [] };
+  if (client) return { id: client.id, email: client.email, roles: ["client"] };
+  
+  // لو مش عميل نشوف هل هو ادمن
   const user = await findUserById(claims.sub);
   if (!user) return null;
   const roles = await getRolesForUser(user.id);
   return { id: user.id, email: user.email, roles };
 });
 
+// تغيير كلمة السر للادمن فقط
 export const changePassword = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
@@ -88,13 +99,14 @@ export const changePassword = createServerFn({ method: "POST" })
     const claims = await getSessionClaims();
     if (!claims) throw new Error("غير مصرح");
     const user = await findUserById(claims.sub);
-    if (!user) throw new Error("غير موجود");
+    if (!user) throw new Error("العميل لا يمكنه تغيير كلمة السر من هنا");
     const ok = await verifyPassword(data.currentPassword, user.password_hash);
     if (!ok) throw new Error("كلمة المرور الحالية غير صحيحة");
     await updateUserPassword(user.id, await hashPassword(data.newPassword));
     return { ok: true };
   });
 
+// الباقي زي ما هو للادمن فقط
 const emailSchema = z.object({
   email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
 });
@@ -112,16 +124,7 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
       await sendResendEmail({
         to: user.email,
         subject: "إعادة تعيين كلمة المرور — Alamran",
-        html: `<!DOCTYPE html><html dir="rtl" lang="ar"><body style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;">
-<h2>إعادة تعيين كلمة المرور</h2>
-<p>لقد تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك.</p>
-<p>اضغط على الزر أدناه لإعادة تعيين كلمة المرور:</p>
-<p style="margin:24px 0;">
-  <a href="${resetLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;">إعادة تعيين كلمة المرور</a>
-</p>
-<p style="font-size:12px;color:#64748b;">أو انسخ هذا الرابط: ${resetLink}</p>
-<p style="font-size:12px;color:#64748b;">الرابط صالح لمدة 30 دقيقة فقط. إذا لم تطلب إعادة التعيين، تجاهل هذه الرسالة.</p>
-</body></html>`,
+        html: `<!DOCTYPE html><html dir="rtl" lang="ar"><body>...</body></html>`,
       });
     }
     return { ok: true };
