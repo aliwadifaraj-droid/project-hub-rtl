@@ -19,6 +19,7 @@ import {
   getRolesForUser,
   updateUserPassword,
 } from "./users.repo";
+import { findClientByEmail, findClientById } from "./clients.repo";
 import { createPasswordResetToken, getValidPasswordResetToken, markPasswordResetTokenUsed } from "./password-reset.repo";
 import { sendResendEmail } from "./resend-send.server";
 
@@ -50,18 +51,14 @@ export const signUp = createServerFn({ method: "POST" })
 export const signIn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => credsSchema.parse(d))
   .handler(async ({ data }) => {
-    const user = await findUserByEmail(data.email);
-    if (!user) throw new Error("بيانات الدخول غير صحيحة");
-    const ok = await verifyPassword(data.password, user.password_hash);
+    const client = await findClientByEmail(data.email);
+    if (!client) throw new Error("بيانات الدخول غير صحيحة");
+    const ok = await verifyPassword(data.password, client.password_hash);
     if (!ok) throw new Error("بيانات الدخول غير صحيحة");
-    let roles = await getRolesForUser(user.id);
-    if ((data.email === FIRST_ADMIN_EMAIL || (await countUsers()) === 1) && !roles.includes("admin")) {
-      await grantRole(user.id, "admin");
-      roles = await getRolesForUser(user.id);
-    }
-    const token = await signSessionToken({ sub: user.id, email: user.email, roles });
+    const roles: string[] = [];
+    const token = await signSessionToken({ sub: client.id, email: client.email, roles });
     setSessionCookie(token);
-    return { id: user.id, email: user.email, roles };
+    return { id: client.id, email: client.email, roles };
   });
 
 export const signOut = createServerFn({ method: "POST" }).handler(async () => {
@@ -72,7 +69,8 @@ export const signOut = createServerFn({ method: "POST" }).handler(async () => {
 export const getMe = createServerFn({ method: "GET" }).handler(async () => {
   const claims = await getSessionClaims();
   if (!claims) return null;
-  // Re-check user still exists
+  const client = await findClientById(claims.sub);
+  if (client) return { id: client.id, email: client.email, roles: [] };
   const user = await findUserById(claims.sub);
   if (!user) return null;
   const roles = await getRolesForUser(user.id);

@@ -1,6 +1,15 @@
 -- Turso schema. Run once against your Turso database.
 -- Storage/Auth all live in Turso + Cloudflare R2. Supabase is no longer used.
 
+-- ============ clients (customer login) ============
+CREATE TABLE IF NOT EXISTS clients (
+  id            TEXT PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password_hash TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email);
+
 -- ============ users (auth) ============
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
