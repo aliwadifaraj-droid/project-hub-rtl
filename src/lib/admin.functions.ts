@@ -713,7 +713,15 @@ export const updateExclusivity = createServerFn({ method: "POST" })
   .inputValidator((d: { projectId: string; durationHours: number }) =>
     z.object({ projectId: z.string().uuid(), durationHours: z.number().int().min(0).max(720) }).parse(d))
   .handler(async ({ data }) => {
-    await projectsRepo.updateProjectExclusivity(data.projectId, data.durationHours);
+    if (data.durationHours > 0) {
+      const now = new Date();
+      const end = new Date(now.getTime() + data.durationHours * 3600 * 1000);
+      await projectsRepo.setProjectExclusive(data.projectId, now.toISOString(), end.toISOString());
+      await projectsRepo.updateProject(data.projectId, { is_exclusive: true, exclusive_until: end.toISOString(), exclusive_hours: data.durationHours });
+    } else {
+      await projectsRepo.clearProjectExclusive(data.projectId);
+      await projectsRepo.updateProject(data.projectId, { is_exclusive: false, exclusive_until: null });
+    }
     await invalidateProjectsAll();
     return { ok: true as const };
   });

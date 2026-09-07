@@ -7,7 +7,6 @@ import { requireAuth } from "./auth-middleware.server";
 import * as notificationsRepo from "./notifications.repo";
 import * as projectsRepo from "./projects.repo";
 import * as blockedRepo from "./blocked.repo";
-import * as clientRepo from "./client.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { signGetUrl } from "./r2";
 import { detectCity } from "./vip-notify.server";
@@ -68,11 +67,6 @@ export const submitOffer = createServerFn({ method: "POST" })
     const blocked = await blockedRepo.isBlocked(data.companyName, data.email);
     if (blocked) {
       return { ok: false as const, message: BLOCKED_MESSAGE };
-    }
-
-    const clientBlocked = await clientRepo.isClientBlockedByEmail(data.email);
-    if (clientBlocked) {
-      return { ok: false as const, message: "حسابك موقوف. لا يمكنك تقديم طلبات حالياً" };
     }
 
     const { db } = await import("./db");
@@ -147,7 +141,7 @@ export const submitOffer = createServerFn({ method: "POST" })
       }
     }
 
-  return { ok: true as const, success: true, id, message: OFFER_SUCCESS_MESSAGE };  
+    return { ok: true as const, id, message: OFFER_SUCCESS_MESSAGE };
   });
 
 // ---------- Add-project form: save to notifications table only ----------
@@ -169,12 +163,7 @@ export const submitAddProjectOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: BLOCKED_MESSAGE };
     }
 
-    const clientBlocked = await clientRepo.isClientBlockedByEmail(data.email);
-    if (clientBlocked) {
-      return { ok: false as const, message: "حسابك موقوف. لا يمكنك تقديم طلبات حالياً" };
-    }
-
-    const duplicate = await notificationsRepo.existsDuplicateAddProjectNotification(data.email, data.company_name);
+    const duplicate = await notificationsRepo.checkDuplicateAddProject({ email: data.email, companyName: data.company_name });
     if (duplicate) {
       return { ok: false as const, message: OFFER_DUPLICATE_MESSAGE };
     }
@@ -231,14 +220,7 @@ export const adminListOffers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     assertStaff(context.roles);
     const rows = await notificationsRepo.listAllOfferNotifications();
-    const seen = new Set<string>();
-    const deduped = rows.filter((r) => {
-      const key = r.pdf_key ?? r.id;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    return deduped.map((r) => ({
+    return rows.map((r) => ({
       id: r.id,
       project_id: r.project_id,
       project_name: r.project_name,
@@ -282,10 +264,10 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
         email: offer.email ?? "",
         pdf_url: offer.pdf_key ?? "",
         submitter_type: offer.submitter_type ?? "offer",
-        project_type: "platform",
+        project_type: offer.source ?? "platform",
       });
       await requests.updateRequestStatus(requestId, "new");
-      await notificationsRepo.deleteOfferNotificationsByPdfKey(offer.pdf_key ?? offer.id);
+      await notificationsRepo.deleteOfferNotification(offer.id);
       return { ok: true as const, moved: true, requestId };
     }
     await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);

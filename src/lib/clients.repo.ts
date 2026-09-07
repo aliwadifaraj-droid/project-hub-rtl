@@ -34,3 +34,12 @@ export async function findClientById(id: string): Promise<ClientRow | null> {
   const rows = rowsToObjects(r);
   return rows[0] ? decodeClient(rows[0]) : null;
 }
+
+export async function createClient(email: string, password_hash: string): Promise<string> {
+  const id = crypto.randomUUID();
+  await db.execute(
+    "INSERT INTO clients (id, email, password_hash) VALUES (?, ?, ?)",
+    [id, email.toLowerCase(), password_hash],
+  );
+  return id;
+}
