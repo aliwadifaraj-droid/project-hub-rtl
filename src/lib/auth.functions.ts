@@ -20,7 +20,7 @@ import {
   updateUserPassword,
 } from "./users.repo";
 import { findClientByEmail, findClientById, createClient } from "./clients.repo"; // ضف createClient
-import { createClientProfile } from "./client-profiles.repo"; // ضف هذا
+import { createClientProfile } from "./client.repo";
 import { createPasswordResetToken, getValidPasswordResetToken, markPasswordResetTokenUsed } from "./password-reset.repo";
 import { sendResendEmail } from "./resend-send.server";
 
