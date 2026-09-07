@@ -102,10 +102,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f3cf0c36-d7d5-4aee-8c13-493bd552b646/id-preview-02ae6275--14273433-916d-4fa8-a232-1ef6c9dabe2b.lovable.app-1780535238442.png" },
       { rel: "apple-touch-icon", href: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f3cf0c36-d7d5-4aee-8c13-493bd552b646/id-preview-02ae6275--14273433-916d-4fa8-a232-1ef6c9dabe2b.lovable.app-1780535238442.png" },
+      { rel: "manifest", href: "/manifest.json" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "العمران" },
+      { name: "mobile-web-app-capable", content: "yes" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" },
-      { rel: "manifest", href: "/manifest.json" },
     ],
   }),
   beforeLoad: async ({ location }) => {
@@ -115,8 +119,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       throw redirect({ to: "/" });
     }
 
-    // Admin routes bypass the server-side maintenance gate; the client-side
-    // MaintenanceGate component still redirects non-admins after getMe() resolves.
     const ALLOW_PREFIXES = ["/maintenance", "/auth", "/reset-password", "/api/", "/admin"];
     const allowed = ALLOW_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
     if (allowed) return;
@@ -157,7 +159,6 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <MaintenanceGate />
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <PublicSupportWidget />
     </QueryClientProvider>
@@ -167,7 +168,6 @@ function RootComponent() {
 function PublicSupportWidget() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { data: hideChat } = useSuspenseQuery(hideSupportChatQuery);
-  // Hide widget on admin/auth/lovable/email internal routes
   if (
     path.startsWith("/admin") ||
     path.startsWith("/auth") ||
