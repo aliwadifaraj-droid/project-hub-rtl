@@ -99,6 +99,7 @@ function ResetPasswordPage() {
                 حفظ كلمة المرور
               </button>
               <Link to={isTokenMode ? "/auth" : "/admin"} className="block text-center text-xs text-muted-foreground hover:text-foreground">إلغاء</Link>
+            <Link to="/client-login" className="block text-center text-xs text-muted-foreground hover:text-foreground">العودة لدخول العملاء</Link>
             </form>
           )}
         </div>
