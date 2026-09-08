@@ -10,6 +10,24 @@ CREATE TABLE IF NOT EXISTS clients (
 );
 CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email);
 
+-- ============ client_profiles (client registration data) ============
+CREATE TABLE IF NOT EXISTS client_profiles (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL UNIQUE,       -- references clients.id
+  company_name TEXT NOT NULL DEFAULT '',
+  email        TEXT NOT NULL DEFAULT '',
+  phone        TEXT NOT NULL DEFAULT '',
+  city         TEXT NOT NULL DEFAULT '',
+  cr_number    TEXT NOT NULL DEFAULT '',
+  bio          TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'active',
+  push_enabled INTEGER NOT NULL DEFAULT 0,
+  push_token   TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_client_profiles_email ON client_profiles(lower(email));
+
 -- ============ users (auth) ============
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
