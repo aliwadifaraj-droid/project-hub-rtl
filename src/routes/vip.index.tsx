@@ -17,7 +17,7 @@ import { SAUDI_CITIES } from "@/lib/saudi-cities";
 const BANK_INFO = {
   name: "البنك الأهلي",
   holder: "AHMED SALMI",
-  iban: "SA35 1000 0065 5000 4711 0807",
+  iban: "",
 };
 
 const PLANS = [
