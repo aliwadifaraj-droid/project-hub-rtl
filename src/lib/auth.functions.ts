@@ -19,7 +19,7 @@ import {
   getRolesForUser,
   updateUserPassword,
 } from "./users.repo";
-import { findClientByEmail, findClientById, createClient } from "./clients.repo"; // ضف createClient
+import { findClientByEmail, findClientById, createClient, updateClientPassword } from "./clients.repo";
 import { createClientProfile } from "./client.repo";
 import { createPasswordResetToken, getValidPasswordResetToken, markPasswordResetTokenUsed } from "./password-reset.repo";
 import { sendResendEmail } from "./resend-send.server";
@@ -42,7 +42,11 @@ export const signUp = createServerFn({ method: "POST" })
     const hash = await hashPassword(data.password);
     const clientId = await createClient(data.email, hash);
     if (data.company_name || data.phone) {
-      await createClientProfile(clientId, data.company_name, data.phone);
+      await createClientProfile(clientId, data.email, {
+        company_name: data.company_name ?? "",
+        phone: data.phone ?? "",
+        city: "",
+      });
     }
     const token = await signSessionToken({ sub: clientId, email: data.email, roles: ["client"] });
     setSessionCookie(token);
@@ -92,8 +96,15 @@ export const changePassword = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const claims = await getSessionClaims();
     if (!claims) throw new Error("غير مصرح");
+    const client = await findClientById(claims.sub);
+    if (client) {
+      const ok = await verifyPassword(data.currentPassword, client.password_hash);
+      if (!ok) throw new Error("كلمة المرور الحالية غير صحيحة");
+      await updateClientPassword(client.id, await hashPassword(data.newPassword));
+      return { ok: true };
+    }
     const user = await findUserById(claims.sub);
-    if (!user) throw new Error("العميل لا يمكنه تغيير كلمة السر من هنا");
+    if (!user) throw new Error("المستخدم غير موجود");
     const ok = await verifyPassword(data.currentPassword, user.password_hash);
     if (!ok) throw new Error("كلمة المرور الحالية غير صحيحة");
     await updateUserPassword(user.id, await hashPassword(data.newPassword));
@@ -105,6 +116,21 @@ const emailSchema = z.object({ email: z.string().email().max(255).transform((s) 
 export const requestPasswordReset = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => emailSchema.parse(d))
   .handler(async ({ data }) => {
+    // Check clients table first
+    const client = await findClientByEmail(data.email);
+    if (client) {
+      const token = await createPasswordResetToken(client.id);
+      const requestOrigin = new URL(getRequest().url).origin;
+      const configuredUrl = process.env.APP_URL?.trim() || process.env.DEPLOYMENT_URL?.trim();
+      const appUrl = configuredUrl || requestOrigin || "http://localhost:3000";
+      const resetLink = `${appUrl}/reset-password?token=${token}`;
+      await sendResendEmail({
+        to: client.email, subject: "إعادة تعيين كلمة المرور — Alamran",
+        html: `<!DOCTYPE html><html dir="rtl" lang="ar"><body style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:20px"><h2>إعادة تعيين كلمة المرور</h2><p>تم طلب إعادة تعيين كلمة المرور لحسابك في منصة العمران.</p><p>اضغط على الرابط التالي لتعيين كلمة مرور جديدة:</p><p><a href="${resetLink}" style="display:inline-block;padding:12px 24px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none">إعادة تعيين كلمة المرور</a></p><p style="color:#64748b;font-size:12px">إذا لم تطلب هذا التغيير، تجاهل هذه الرسالة. الرابط صالح لمدة 30 دقيقة.</p></body></html>`,
+      });
+      return { ok: true };
+    }
+    // Then check users table (admin/staff)
     const user = await findUserByEmail(data.email);
     if (user) {
       const token = await createPasswordResetToken(user.id);
@@ -114,7 +140,7 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
       const resetLink = `${appUrl}/reset-password?token=${token}`;
       await sendResendEmail({
         to: user.email, subject: "إعادة تعيين كلمة المرور — Alamran",
-        html: `<!DOCTYPE html><html dir="rtl" lang="ar"><body>...</body></html>`,
+        html: `<!DOCTYPE html><html dir="rtl" lang="ar"><body style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:20px"><h2>إعادة تعيين كلمة المرور</h2><p>تم طلب إعادة تعيين كلمة المرور لحسابك في منصة العمران.</p><p>اضغط على الرابط التالي لتعيين كلمة مرور جديدة:</p><p><a href="${resetLink}" style="display:inline-block;padding:12px 24px;background:#0f172a;color:#fff;border-radius:8px;text-decoration:none">إعادة تعيين كلمة المرور</a></p><p style="color:#64748b;font-size:12px">إذا لم تطلب هذا التغيير، تجاهل هذه الرسالة. الرابط صالح لمدة 30 دقيقة.</p></body></html>`,
       });
     }
     return { ok: true };
@@ -127,6 +153,14 @@ export const resetPasswordWithToken = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const tokenRow = await getValidPasswordResetToken(data.token);
     if (!tokenRow) throw new Error("الرابط غير صالح أو منتهي الصلاحية");
+    // Try clients table first
+    const client = await findClientById(tokenRow.user_id);
+    if (client) {
+      await updateClientPassword(client.id, await hashPassword(data.newPassword));
+      await markPasswordResetTokenUsed(data.token);
+      return { ok: true };
+    }
+    // Then users table (admin/staff)
     const user = await findUserById(tokenRow.user_id);
     if (!user) throw new Error("المستخدم غير موجود");
     await updateUserPassword(user.id, await hashPassword(data.newPassword));
