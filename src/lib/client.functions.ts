@@ -1,5 +1,5 @@
 // Server functions for the client portal:
-// - signUpClient / signInClient (separate from admin auth, stored on Turso)
+// - signUpClient / signInClient (use clients table only, NOT users)
 // - getMyClientProfile (read-only — no self-edit)
 // - getMyOffers (track all offers submitted with the client's company_name + email)
 // - searchProjectsForOffer (project search for the offer form)
@@ -14,10 +14,10 @@ import {
   getSessionClaims,
 } from "./auth.server";
 import {
-  findUserByEmail,
-  createUser,
-  getRolesForUser,
-} from "./users.repo";
+  findClientByEmail,
+  findClientById,
+  createClient,
+} from "./clients.repo";
 import * as clientRepo from "./client.repo";
 import * as projectsRepo from "./projects.repo";
 import * as notificationsRepo from "./notifications.repo";
@@ -45,42 +45,45 @@ const signUpClientSchema = clientCredsSchema.extend({
 export const signUpClient = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => signUpClientSchema.parse(d))
   .handler(async ({ data }) => {
-    const existing = await findUserByEmail(data.email);
+    const existing = await findClientByEmail(data.email);
     if (existing) throw new Error("هذا البريد مسجل بالفعل");
     const hash = await hashPassword(data.password);
-    const userId = await createUser(data.email, hash);
-    await clientRepo.createClientProfile(userId, data.email, {
+    const clientId = await createClient(data.email, hash);
+    await clientRepo.createClientProfile(clientId, data.email, {
       company_name: data.company_name,
       phone: data.phone,
       city: data.city,
       cr_number: data.cr_number,
       bio: data.bio,
     });
-    const roles = await getRolesForUser(userId);
-    const token = await signSessionToken({ sub: userId, email: data.email, roles });
+    const token = await signSessionToken({ sub: clientId, email: data.email, roles: ["client"] });
     setSessionCookie(token);
-    return { id: userId, email: data.email, roles };
+    return { id: clientId, email: data.email, roles: ["client"] };
   });
 
 // ---------- Client Sign In ----------
 export const signInClient = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => clientCredsSchema.parse(d))
   .handler(async ({ data }) => {
-    const user = await findUserByEmail(data.email);
-    if (!user) throw new Error("بيانات الدخول غير صحيحة");
-    const ok = await verifyPassword(data.password, user.password_hash);
+    const client = await findClientByEmail(data.email);
+    if (!client) throw new Error("بيانات الدخول غير صحيحة");
+    const ok = await verifyPassword(data.password, client.password_hash);
     if (!ok) throw new Error("بيانات الدخول غير صحيحة");
-    const roles = await getRolesForUser(user.id);
-    const token = await signSessionToken({ sub: user.id, email: user.email, roles });
+    const token = await signSessionToken({ sub: client.id, email: client.email, roles: ["client"] });
     setSessionCookie(token);
-    return { id: user.id, email: user.email, roles };
+    return { id: client.id, email: client.email, roles: ["client"] };
   });
 
 // ---------- Get current client session ----------
 export const getClientSession = createServerFn({ method: "GET" }).handler(async () => {
   const claims = await getSessionClaims();
   if (!claims) return null;
-  const profile = await clientRepo.getClientProfile(claims.sub);
+  // Try by client id first, then fall back to email lookup (for migrated clients
+  // whose client_profiles.user_id still points to old users.id)
+  let profile = await clientRepo.getClientProfile(claims.sub);
+  if (!profile) {
+    profile = await clientRepo.getClientProfileByEmail(claims.email);
+  }
   if (!profile) return null;
   return {
     id: claims.sub,
@@ -94,7 +97,11 @@ export const getClientSession = createServerFn({ method: "GET" }).handler(async 
 export const getMyClientProfile = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
-    return clientRepo.getClientProfile(context.userId);
+    let profile = await clientRepo.getClientProfile(context.userId);
+    if (!profile) {
+      profile = await clientRepo.getClientProfileByEmail(context.email);
+    }
+    return profile;
   });
 
 // ---------- Track my offers ----------
@@ -102,12 +109,12 @@ export const getMyClientProfile = createServerFn({ method: "GET" })
 export const getMyOffers = createServerFn({ method: "GET" }).handler(async () => {
   const claims = await getSessionClaims();
   if (!claims) throw new Error("Unauthorized");
-  const profile = await clientRepo.getClientProfile(claims.sub);
+  let profile = await clientRepo.getClientProfile(claims.sub);
+  if (!profile) {
+    profile = await clientRepo.getClientProfileByEmail(claims.email);
+  }
   if (!profile) return [];
 
-  // Search notifications by email and company name — same approach as the
-  // bot. A single offer creates one row per admin/employee, all sharing the
-  // same email/company_name. Deduplicate by (project_id, pdf_key) only,
   // ignoring created_at (rows are inserted in a batch with slightly
   // different timestamps).
   const pendingByEmail = await notificationsRepo.searchOfferNotificationsByEmail(profile.email, 200);
@@ -235,7 +242,10 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     const claims = await getSessionClaims();
     if (!claims) throw new Error("يجب تسجيل الدخول");
 
-    const profile = await clientRepo.getClientProfile(claims.sub);
+    let profile = await clientRepo.getClientProfile(claims.sub);
+    if (!profile) {
+      profile = await clientRepo.getClientProfileByEmail(claims.email);
+    }
     if (!profile) throw new Error("الملف غير موجود، يرجى إكمال بياناتك أولاً");
 
     // Company name and email are forced from the registration data
