@@ -1,5 +1,6 @@
 // Turso repository for client profiles (work contractors/companies).
 // Server-only. Stores registration data for the client portal.
+// client_id references clients.id (not users.id).
 import { db, rowsToObjects } from "./db";
 
 export type ClientProfile = {
@@ -40,6 +41,7 @@ function ensureTable(): Promise<void> {
     .then(() => db.execute(`ALTER TABLE client_profiles ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`).catch(() => undefined))
     .then(() => db.execute(`ALTER TABLE client_profiles ADD COLUMN push_enabled INTEGER NOT NULL DEFAULT 0`).catch(() => undefined))
     .then(() => db.execute(`ALTER TABLE client_profiles ADD COLUMN push_token TEXT`).catch(() => undefined))
+    .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_client_profiles_email ON client_profiles(lower(email))`).catch(() => undefined))
     .then(() => undefined)
     .catch(() => undefined);
   return _tableReady;
@@ -63,11 +65,11 @@ function decode(r: any): ClientProfile {
   };
 }
 
-export async function getClientProfile(userId: string): Promise<ClientProfile | null> {
+export async function getClientProfile(clientId: string): Promise<ClientProfile | null> {
   await ensureTable();
   const r = await db.execute(
     `SELECT * FROM client_profiles WHERE user_id = ? LIMIT 1`,
-    [userId],
+    [clientId],
   );
   const rows = rowsToObjects(r);
   return rows[0] ? decode(rows[0]) : null;
@@ -97,7 +99,7 @@ export async function listAllClientProfiles(): Promise<ClientProfile[]> {
 }
 
 export async function createClientProfile(
-  userId: string,
+  clientId: string,
   email: string,
   data: {
     company_name: string;
@@ -113,13 +115,13 @@ export async function createClientProfile(
   await db.execute(
     `INSERT INTO client_profiles (id, user_id, company_name, email, phone, city, cr_number, bio, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, userId, data.company_name, email, data.phone, data.city, data.cr_number ?? "", data.bio ?? "", now, now],
+    [id, clientId, data.company_name, email, data.phone, data.city, data.cr_number ?? "", data.bio ?? "", now, now],
   );
-  return (await getClientProfile(userId))!;
+  return (await getClientProfile(clientId))!;
 }
 
 export async function updateClientProfile(
-  userId: string,
+  clientId: string,
   patch: Partial<{
     company_name: string;
     phone: string;
@@ -139,7 +141,7 @@ export async function updateClientProfile(
   if (!sets.length) return;
   sets.push(`updated_at = ?`);
   args.push(new Date().toISOString());
-  args.push(userId);
+  args.push(clientId);
   await db.execute(`UPDATE client_profiles SET ${sets.join(", ")} WHERE user_id = ?`, args);
 }
 
