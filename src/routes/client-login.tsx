@@ -153,6 +153,15 @@ function ClientLoginPage() {
               {isLogin ? "تسجيل الدخول" : "إنشاء الحساب"}
             </button>
 
+            {isLogin && (
+              <Link
+                to="/forgot-password"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-secondary"
+              >
+                نسيت كلمة السر؟
+              </Link>
+            )}
+
             <button
               type="button"
               onClick={() => {
