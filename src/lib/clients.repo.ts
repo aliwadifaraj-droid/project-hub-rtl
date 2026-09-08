@@ -43,3 +43,10 @@ export async function createClient(email: string, password_hash: string): Promis
   );
   return id;
 }
+
+export async function updateClientPassword(id: string, passwordHash: string): Promise<void> {
+  await db.execute(
+    "UPDATE clients SET password_hash = ? WHERE id = ?",
+    [passwordHash, id],
+  );
+}
