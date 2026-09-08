@@ -49,17 +49,24 @@ function ForgotPasswordPage() {
               <Link to="/auth" className="inline-flex w-full items-center justify-center rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background hover:bg-foreground/90">
                 العودة لتسجيل الدخول
               </Link>
+              <Link to="/client-login" className="block text-center text-xs text-muted-foreground hover:text-foreground">
+                العودة لدخول العملاء
+              </Link>
             </div>
           ) : (
             <form onSubmit={onSubmit} className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                أدخل بريدك الإلكتروني وسيتم إرسال رابط إعادة تعيين كلمة المرور.
+              </p>
               <div>
                 <label className="mb-1.5 block text-sm font-semibold">البريد الإلكتروني</label>
                 <input
                   type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="you@example.com"
                 />
               </div>
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              {error && <p className="text-sm text-destructive">{error}</p>}
               <button
                 type="submit" disabled={loading}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background hover:bg-foreground/90 disabled:opacity-60"
@@ -68,6 +75,9 @@ function ForgotPasswordPage() {
                 إرسال رابط إعادة التعيين
               </button>
               <Link to="/auth" className="block text-center text-xs text-muted-foreground hover:text-foreground">العودة لتسجيل الدخول</Link>
+              <Link to="/client-login" className="block text-center text-xs text-muted-foreground hover:text-foreground">
+                العودة لدخول العملاء
+              </Link>
             </form>
           )}
         </div>
