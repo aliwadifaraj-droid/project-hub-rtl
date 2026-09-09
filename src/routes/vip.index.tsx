@@ -15,9 +15,9 @@ import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 const BANK_INFO = {
-  name: "البنك الأهلي",
+  name: "البنك العربي",
   holder: "",
-  iban: "",
+  iban: "SA8530100991109655808477",
 };
 
 const PLANS = [
