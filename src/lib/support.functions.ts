@@ -293,7 +293,7 @@ async function askGroq(userText: string, opts: {
 }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) { console.error("[askGroq] GROQ_API_KEY غير موجودة في متغيرات البيئة"); return null; }
-  const model = process.env.GROQ_MODEL || "qwen-qwq-32b";
+  const model = process.env.GROQ_MODEL || "qwen/qwen3-32b";
   const ENFORCE_AR = [
     "### تعليمات حديدية لا يجوز مخالفتها أبداً ###",
     "1. ردك يجب أن يكون باللغة العربية ONLY. ممنوع تماماً استخدام أي كلمة إنجليزية ما لم يكن مصطلحاً تقنياً لا يترجم.",
