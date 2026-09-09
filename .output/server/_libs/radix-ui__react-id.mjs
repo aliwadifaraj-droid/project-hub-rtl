@@ -1,4 +1,4 @@
-import { r as reactExports, b as React } from "./react.mjs";
+import { r as reactExports, d as React } from "./react.mjs";
 import { u as useLayoutEffect2 } from "./@radix-ui/react-use-layout-effect+[...].mjs";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });

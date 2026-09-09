@@ -1,4 +1,4 @@
-import nodeHTTP from "node:http";
+import http from "node:http";
 import process from "node:process";
 import { Buffer } from "node:buffer";
 import { P as ProviderError, az as CredentialsProviderError, a2 as parseUrl, l as loadConfig } from "../smithy__core.mjs";
@@ -23,7 +23,7 @@ const DEFAULT_MAX_RETRIES = 0;
 const providerConfigFromInit = ({ maxRetries = DEFAULT_MAX_RETRIES, timeout = DEFAULT_TIMEOUT }) => ({ maxRetries, timeout });
 function httpRequest(options) {
   return new Promise((resolve, reject) => {
-    const req = nodeHTTP.request({
+    const req = http.request({
       method: "GET",
       ...options,
       hostname: options.hostname?.replace(/^\[(.+)\]$/, "$1")

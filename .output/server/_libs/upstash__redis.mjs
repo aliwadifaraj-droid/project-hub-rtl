@@ -3,6 +3,9 @@ import { Buffer } from "node:buffer";
 import process from "node:process";
 import { s as subtle } from "./uncrypto.mjs";
 
+import "./react.mjs";
+
+
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name in all)

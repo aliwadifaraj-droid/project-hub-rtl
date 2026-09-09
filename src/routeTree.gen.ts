@@ -41,6 +41,7 @@ import { Route as AuthenticatedAdminBotSettingsRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminBotTestRouteImport } from './routes/_authenticated/admin.bot-test'
 import { Route as AuthenticatedAdminBotTrainingRouteImport } from './routes/_authenticated/admin.bot-training'
 import { Route as AuthenticatedAdminChatRouteImport } from './routes/_authenticated/admin.chat'
+import { Route as AuthenticatedAdminClientsRouteImport } from './routes/_authenticated/admin.clients'
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
 import { Route as AuthenticatedAdminExclusivityRouteImport } from './routes/_authenticated/admin.exclusivity'
 import { Route as AuthenticatedAdminGroqSettingsRouteImport } from './routes/_authenticated/admin.groq-settings'
@@ -57,7 +58,10 @@ import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticat
 import { Route as ApiAdminR2RouteImport } from './routes/api/admin/r2'
 import { Route as ApiCronCheckSubscriptionsRouteImport } from './routes/api/cron/check-subscriptions'
 import { Route as ApiCronVipExpiryRouteImport } from './routes/api/cron/vip-expiry'
+import { Route as ApiNotificationsSendRouteImport } from './routes/api/notifications/send'
+import { Route as ApiNotificationsSubscribeRouteImport } from './routes/api/notifications/subscribe'
 import { Route as ApiPublicUploadRouteImport } from './routes/api/public/upload'
+import { Route as ApiPushSendRouteImport } from './routes/api/push/send'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -225,6 +229,12 @@ const AuthenticatedAdminChatRoute = AuthenticatedAdminChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminClientsRoute =
+  AuthenticatedAdminClientsRouteImport.update({
+    id: '/clients',
+    path: '/clients',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminEmployeesRoute =
   AuthenticatedAdminEmployeesRouteImport.update({
     id: '/employees',
@@ -317,9 +327,25 @@ const ApiCronVipExpiryRoute = ApiCronVipExpiryRouteImport.update({
   path: '/api/cron/vip-expiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiNotificationsSendRoute = ApiNotificationsSendRouteImport.update({
+  id: '/api/notifications/send',
+  path: '/api/notifications/send',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNotificationsSubscribeRoute =
+  ApiNotificationsSubscribeRouteImport.update({
+    id: '/api/notifications/subscribe',
+    path: '/api/notifications/subscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicUploadRoute = ApiPublicUploadRouteImport.update({
   id: '/api/public/upload',
   path: '/api/public/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPushSendRoute = ApiPushSendRouteImport.update({
+  id: '/api/push/send',
+  path: '/api/push/send',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
@@ -377,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
+  '/admin/clients': typeof AuthenticatedAdminClientsRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/exclusivity': typeof AuthenticatedAdminExclusivityRoute
   '/admin/groq-settings': typeof AuthenticatedAdminGroqSettingsRoute
@@ -393,7 +420,10 @@ export interface FileRoutesByFullPath {
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
+  '/api/notifications/send': typeof ApiNotificationsSendRoute
+  '/api/notifications/subscribe': typeof ApiNotificationsSubscribeRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
+  '/api/push/send': typeof ApiPushSendRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -429,6 +459,7 @@ export interface FileRoutesByTo {
   '/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/admin/chat': typeof AuthenticatedAdminChatRoute
+  '/admin/clients': typeof AuthenticatedAdminClientsRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/admin/exclusivity': typeof AuthenticatedAdminExclusivityRoute
   '/admin/groq-settings': typeof AuthenticatedAdminGroqSettingsRoute
@@ -445,7 +476,10 @@ export interface FileRoutesByTo {
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
+  '/api/notifications/send': typeof ApiNotificationsSendRoute
+  '/api/notifications/subscribe': typeof ApiNotificationsSubscribeRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
+  '/api/push/send': typeof ApiPushSendRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -485,6 +519,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/bot-test': typeof AuthenticatedAdminBotTestRoute
   '/_authenticated/admin/bot-training': typeof AuthenticatedAdminBotTrainingRoute
   '/_authenticated/admin/chat': typeof AuthenticatedAdminChatRoute
+  '/_authenticated/admin/clients': typeof AuthenticatedAdminClientsRoute
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRoute
   '/_authenticated/admin/exclusivity': typeof AuthenticatedAdminExclusivityRoute
   '/_authenticated/admin/groq-settings': typeof AuthenticatedAdminGroqSettingsRoute
@@ -501,7 +536,10 @@ export interface FileRoutesById {
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
+  '/api/notifications/send': typeof ApiNotificationsSendRoute
+  '/api/notifications/subscribe': typeof ApiNotificationsSubscribeRoute
   '/api/public/upload': typeof ApiPublicUploadRoute
+  '/api/push/send': typeof ApiPushSendRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -541,6 +579,7 @@ export interface FileRouteTypes {
     | '/admin/bot-test'
     | '/admin/bot-training'
     | '/admin/chat'
+    | '/admin/clients'
     | '/admin/employees'
     | '/admin/exclusivity'
     | '/admin/groq-settings'
@@ -557,7 +596,10 @@ export interface FileRouteTypes {
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
+    | '/api/notifications/send'
+    | '/api/notifications/subscribe'
     | '/api/public/upload'
+    | '/api/push/send'
     | '/lovable/email/suppression'
     | '/admin/'
     | '/lovable/email/queue/process'
@@ -593,6 +635,7 @@ export interface FileRouteTypes {
     | '/admin/bot-test'
     | '/admin/bot-training'
     | '/admin/chat'
+    | '/admin/clients'
     | '/admin/employees'
     | '/admin/exclusivity'
     | '/admin/groq-settings'
@@ -609,7 +652,10 @@ export interface FileRouteTypes {
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
+    | '/api/notifications/send'
+    | '/api/notifications/subscribe'
     | '/api/public/upload'
+    | '/api/push/send'
     | '/lovable/email/suppression'
     | '/admin'
     | '/lovable/email/queue/process'
@@ -648,6 +694,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/bot-test'
     | '/_authenticated/admin/bot-training'
     | '/_authenticated/admin/chat'
+    | '/_authenticated/admin/clients'
     | '/_authenticated/admin/employees'
     | '/_authenticated/admin/exclusivity'
     | '/_authenticated/admin/groq-settings'
@@ -664,7 +711,10 @@ export interface FileRouteTypes {
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
+    | '/api/notifications/send'
+    | '/api/notifications/subscribe'
     | '/api/public/upload'
+    | '/api/push/send'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/lovable/email/queue/process'
@@ -695,7 +745,10 @@ export interface RootRouteChildren {
   ApiAdminR2Route: typeof ApiAdminR2Route
   ApiCronCheckSubscriptionsRoute: typeof ApiCronCheckSubscriptionsRoute
   ApiCronVipExpiryRoute: typeof ApiCronVipExpiryRoute
+  ApiNotificationsSendRoute: typeof ApiNotificationsSendRoute
+  ApiNotificationsSubscribeRoute: typeof ApiNotificationsSubscribeRoute
   ApiPublicUploadRoute: typeof ApiPublicUploadRoute
+  ApiPushSendRoute: typeof ApiPushSendRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -928,6 +981,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminChatRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/clients': {
+      id: '/_authenticated/admin/clients'
+      path: '/clients'
+      fullPath: '/admin/clients'
+      preLoaderRoute: typeof AuthenticatedAdminClientsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/employees': {
       id: '/_authenticated/admin/employees'
       path: '/employees'
@@ -1040,11 +1100,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronVipExpiryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/notifications/send': {
+      id: '/api/notifications/send'
+      path: '/api/notifications/send'
+      fullPath: '/api/notifications/send'
+      preLoaderRoute: typeof ApiNotificationsSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notifications/subscribe': {
+      id: '/api/notifications/subscribe'
+      path: '/api/notifications/subscribe'
+      fullPath: '/api/notifications/subscribe'
+      preLoaderRoute: typeof ApiNotificationsSubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/upload': {
       id: '/api/public/upload'
       path: '/api/public/upload'
       fullPath: '/api/public/upload'
       preLoaderRoute: typeof ApiPublicUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/push/send': {
+      id: '/api/push/send'
+      path: '/api/push/send'
+      fullPath: '/api/push/send'
+      preLoaderRoute: typeof ApiPushSendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/suppression': {
@@ -1084,6 +1165,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBotTestRoute: typeof AuthenticatedAdminBotTestRoute
   AuthenticatedAdminBotTrainingRoute: typeof AuthenticatedAdminBotTrainingRoute
   AuthenticatedAdminChatRoute: typeof AuthenticatedAdminChatRoute
+  AuthenticatedAdminClientsRoute: typeof AuthenticatedAdminClientsRoute
   AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRoute
   AuthenticatedAdminExclusivityRoute: typeof AuthenticatedAdminExclusivityRoute
   AuthenticatedAdminGroqSettingsRoute: typeof AuthenticatedAdminGroqSettingsRoute
@@ -1106,6 +1188,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBotTestRoute: AuthenticatedAdminBotTestRoute,
   AuthenticatedAdminBotTrainingRoute: AuthenticatedAdminBotTrainingRoute,
   AuthenticatedAdminChatRoute: AuthenticatedAdminChatRoute,
+  AuthenticatedAdminClientsRoute: AuthenticatedAdminClientsRoute,
   AuthenticatedAdminEmployeesRoute: AuthenticatedAdminEmployeesRoute,
   AuthenticatedAdminExclusivityRoute: AuthenticatedAdminExclusivityRoute,
   AuthenticatedAdminGroqSettingsRoute: AuthenticatedAdminGroqSettingsRoute,
@@ -1188,7 +1271,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminR2Route: ApiAdminR2Route,
   ApiCronCheckSubscriptionsRoute: ApiCronCheckSubscriptionsRoute,
   ApiCronVipExpiryRoute: ApiCronVipExpiryRoute,
+  ApiNotificationsSendRoute: ApiNotificationsSendRoute,
+  ApiNotificationsSubscribeRoute: ApiNotificationsSubscribeRoute,
   ApiPublicUploadRoute: ApiPublicUploadRoute,
+  ApiPushSendRoute: ApiPushSendRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,

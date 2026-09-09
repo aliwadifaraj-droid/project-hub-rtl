@@ -5,13 +5,15 @@ import { aK as externalDataInterceptor, az as CredentialsProviderError, aG as pa
 
 
 
+import "../react.mjs";
+
+
 import "../aws__lambda-invoke-store.mjs";
 
 
 import "../aws-sdk__xml-builder.mjs";
 import "../smithy__signature-v4.mjs";
 import "../smithy__types.mjs";
-
 
 
 

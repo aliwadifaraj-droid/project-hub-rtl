@@ -1,4 +1,4 @@
-import { a as requireReact, g as getDefaultExportFromCjs } from "./react.mjs";
+import { a as requireReact, b as getDefaultExportFromCjs } from "./react.mjs";
 function _mergeNamespaces(n, m) {
   for (var i = 0; i < m.length; i++) {
     const e = m[i];

@@ -1,5 +1,5 @@
 import { u as useLayoutEffect2 } from "./react-use-layout-effect+[...].mjs";
-import { r as reactExports, b as React } from "../react.mjs";
+import { r as reactExports, d as React } from "../react.mjs";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 var useReactEffectEvent = React[" useEffectEvent ".trim().toString()];

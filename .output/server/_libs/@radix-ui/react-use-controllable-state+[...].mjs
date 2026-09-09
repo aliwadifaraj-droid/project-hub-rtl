@@ -1,4 +1,4 @@
-import { r as reactExports, b as React } from "../react.mjs";
+import { r as reactExports, d as React } from "../react.mjs";
 import { u as useLayoutEffect2 } from "./react-use-layout-effect+[...].mjs";
 import { u as useEffectEvent } from "./react-use-effect-event+[...].mjs";
 var __defProp = Object.defineProperty;

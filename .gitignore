@@ -1,9 +1,8 @@
 node_modules
 dist
+.output
+.wrangler
 .env
 .env.local
 *.log
 .DS_Store
-.vite
-.output
-.wrangler

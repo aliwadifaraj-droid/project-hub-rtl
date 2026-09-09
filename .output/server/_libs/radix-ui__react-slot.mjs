@@ -1,4 +1,4 @@
-import { r as reactExports, b as React } from "./react.mjs";
+import { r as reactExports, d as React } from "./react.mjs";
 import { u as useComposedRefs } from "./radix-ui__react-compose-refs.mjs";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });

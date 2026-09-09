@@ -8,8 +8,9 @@ import "../_libs/seroval.mjs";
 import "../_libs/unenv.mjs";
 
 
-import "../_libs/seroval-plugins.mjs";
 
+
+import "../_libs/seroval-plugins.mjs";
 
 import "../_libs/react-dom.mjs";
 import "../_libs/isbot.mjs";

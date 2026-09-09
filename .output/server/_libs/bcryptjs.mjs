@@ -1,5 +1,5 @@
 import { setImmediate } from "node:timers";
-import nodeCrypto from "node:crypto";
+import require$$0 from "node:crypto";
 var randomFallback = null;
 function randomBytes(len) {
   try {
@@ -7,7 +7,7 @@ function randomBytes(len) {
   } catch {
   }
   try {
-    return nodeCrypto.randomBytes(len);
+    return require$$0.randomBytes(len);
   } catch {
   }
   if (!randomFallback) {

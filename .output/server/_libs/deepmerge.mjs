@@ -1,4 +1,4 @@
-import { g as getDefaultExportFromCjs } from "./react.mjs";
+import { b as getDefaultExportFromCjs } from "./react.mjs";
 var cjs;
 var hasRequiredCjs;
 function requireCjs() {

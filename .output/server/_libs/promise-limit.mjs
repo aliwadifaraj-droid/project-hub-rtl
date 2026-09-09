@@ -1,4 +1,4 @@
-import { g as getDefaultExportFromCjs } from "./react.mjs";
+import { b as getDefaultExportFromCjs } from "./react.mjs";
 var promiseLimit$1;
 var hasRequiredPromiseLimit;
 function requirePromiseLimit() {

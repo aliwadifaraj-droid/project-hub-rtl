@@ -292,13 +292,26 @@ async function askGroq(userText: string, opts: {
   blockedReplies?: string[] | null;
 }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  if (!apiKey) { console.error("[askGroq] GROQ_API_KEY غير موجودة في متغيرات البيئة"); return null; }
+  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const ENFORCE_AR = [
+    "### تعليمات حديدية لا يجوز مخالفتها أبداً ###",
+    "1. ردك يجب أن يكون باللغة العربية ONLY. ممنوع تماماً استخدام أي كلمة إنجليزية ما لم يكن مصطلحاً تقنياً لا يترجم.",
+    "2. اللهجة: سعودية ودودة 100%. ممنوع الفصحى المعقدة وممنوع الإنجليزية نهائياً.",
+    "3. اختصار: ردك 3 أسطر بالكثير. لا تبدأ بـ \"كمساعد ذكي\" ولا تعتذر.",
+    "4. لا تكتب think ولا --- ولا تشرح لنفسك. رد النتيجة فقط.",
+    "5. إذا كان السؤال خارج نطاق المنصة قل: \"انا مساعد العمران بس 😊 اقدر اخدمك في شي يخص المنصة؟\"",
+    "6. الدفع والعقود والحسابات: ردك ثابت: \"لمساعدتك بشكل دقيق يرجى التواصل مع الدعم الفني\".",
+    "7. لا تأليف أبداً. إذا ما تدري قول: \"للتفاصيل الدقيقة راجع قسم المشاريع او كلم الدعم الفني\".",
+    "8. نحن منصة إلكترونية 100%. كل الخدمات أونلاين. ما عندنا مقر.",
+  ].join("\n");
   const sysParts = [
+    ENFORCE_AR,
     opts.systemInstruction?.trim(),
     opts.botName ? `اسمك: ${opts.botName}.` : null,
-    opts.dialect ? `اللهجة: ${opts.dialect}.` : null,
+    opts.dialect ? `اللهجة المطلوبة: ${opts.dialect}.` : null,
     opts.scope ? `نطاق عملك: ${opts.scope}` : null,
+    "### تذكير أخير: رد بالعربية السعودية فقط. أي رد بغير العربية مرفوض. ###",
   ].filter(Boolean);
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -309,23 +322,30 @@ async function askGroq(userText: string, opts: {
       },
       body: JSON.stringify({
         model,
-        temperature: 0.4,
-        max_tokens: 512,
+        temperature: 0.2,
+        max_tokens: 400,
         messages: [
           ...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []),
           { role: "user", content: userText },
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`[askGroq] Groq API خطأ ${res.status}: ${errBody.slice(0, 300)}`);
+      return null;
+    }
     const j: any = await res.json();
     const text: string | undefined = j?.choices?.[0]?.message?.content?.trim();
-    if (!text) return null;
+    if (!text) { console.error("[askGroq] الرد من Groq فارغ"); return null; }
     for (const bad of opts.blockedReplies ?? []) {
-      if (bad && text.toLowerCase().includes(bad.toLowerCase())) return null;
+      if (bad && text.toLowerCase().includes(bad.toLowerCase())) { console.error(`[askGroq] الرد محظور يحتوي: ${bad}`); return null; }
     }
+    const englishRatio = (text.match(/[a-zA-Z]{2,}/g) ?? []).length / Math.max(text.split(/\s+/).length, 1);
+    if (englishRatio > 0.4) { console.error(`[askGroq] الرد مرفوض لنسبة إنجليزي عالية: ${(englishRatio * 100).toFixed(0)}%`); return null; }
     return text;
-  } catch {
+  } catch (e) {
+    console.error("[askGroq] استثناء أثناء استدعاء Groq:", e);
     return null;
   }
 }
