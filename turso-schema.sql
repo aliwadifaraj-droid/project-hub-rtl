@@ -166,6 +166,8 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   name         TEXT,
   email        TEXT,
   message      TEXT NOT NULL,
+  pdf_file_key TEXT,
+  pdf_filename TEXT,
   reply        TEXT,
   replied_at   TEXT,
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))

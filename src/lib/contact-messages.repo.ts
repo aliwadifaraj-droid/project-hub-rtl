@@ -1,10 +1,15 @@
 import { db, rowsToObjects } from "./db";
 
+db.execute(`ALTER TABLE contact_messages ADD COLUMN pdf_file_key TEXT`).catch(() => undefined);
+db.execute(`ALTER TABLE contact_messages ADD COLUMN pdf_filename TEXT`).catch(() => undefined);
+
 export type ContactMessageRow = {
   id: string;
   name: string | null;
   email: string | null;
   message: string;
+  pdf_file_key: string | null;
+  pdf_filename: string | null;
   reply: string | null;
   replied_at: string | null;
   created_at: string;
@@ -16,22 +21,32 @@ function decode(row: any): ContactMessageRow {
     name: row.name ?? null,
     email: row.email ?? null,
     message: String(row.message ?? ""),
+    pdf_file_key: row.pdf_file_key ?? null,
+    pdf_filename: row.pdf_filename ?? null,
     reply: row.reply ?? null,
     replied_at: row.replied_at ?? null,
     created_at: String(row.created_at ?? ""),
   };
 }
 
-export async function insertContactMessage(input: { name: string; email: string; message: string }) {
+export async function insertContactMessage(input: {
+  name: string;
+  email: string;
+  message: string;
+  pdf_file_key?: string | null;
+  pdf_filename?: string | null;
+}): Promise<string> {
+  const id = crypto.randomUUID();
   await db.execute(
-    `INSERT INTO contact_messages (id, name, email, message, created_at) VALUES (?, ?, ?, ?, ?)`,
-    [crypto.randomUUID(), input.name, input.email, input.message, new Date().toISOString()],
+    `INSERT INTO contact_messages (id, name, email, message, pdf_file_key, pdf_filename, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, input.name, input.email, input.message, input.pdf_file_key ?? null, input.pdf_filename ?? null, new Date().toISOString()],
   );
+  return id;
 }
 
 export async function listContactMessages(): Promise<ContactMessageRow[]> {
   const r = await db.execute(
-    `SELECT id,name,email,message,reply,replied_at,created_at FROM contact_messages ORDER BY created_at DESC`,
+    `SELECT id,name,email,message,pdf_file_key,pdf_filename,reply,replied_at,created_at FROM contact_messages ORDER BY created_at DESC`,
   );
   return rowsToObjects(r).map(decode);
 }
@@ -56,7 +71,7 @@ export async function setContactReply(id: string, reply: string): Promise<void> 
 
 export async function getContactMessageById(id: string): Promise<ContactMessageRow | null> {
   const r = await db.execute(
-    `SELECT id,name,email,message,reply,replied_at,created_at FROM contact_messages WHERE id = ? LIMIT 1`,
+    `SELECT id,name,email,message,pdf_file_key,pdf_filename,reply,replied_at,created_at FROM contact_messages WHERE id = ? LIMIT 1`,
     [id],
   );
   const rows = rowsToObjects(r);

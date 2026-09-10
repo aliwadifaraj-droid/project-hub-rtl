@@ -5,7 +5,7 @@ import { z } from "zod";
 import { submitContactMessage } from "@/lib/public.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { CheckCircle2, Loader2, Mail, MessageSquare, User } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, Mail, MessageSquare, User } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -23,6 +23,7 @@ const schema = z.object({
   name: z.string().trim().min(1, "الاسم مطلوب").max(100),
   email: z.string().trim().email("بريد إلكتروني غير صحيح").max(200),
   message: z.string().trim().min(1, "الرسالة مطلوبة").max(2000),
+  wantsPdf: z.enum(["no", "yes"]),
 });
 
 function ContactPage() {
@@ -30,19 +31,39 @@ function ContactPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [wantsPdf, setWantsPdf] = useState<"no" | "yes">("no");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = schema.safeParse({ name, email, message });
+    if (wantsPdf === "yes" && !pdfFile) {
+      toast.error("الرجاء إرفاق ملف PDF");
+      return;
+    }
+    if (
+      pdfFile &&
+      (pdfFile.type !== "application/pdf" || !pdfFile.name.toLowerCase().endsWith(".pdf"))
+    ) {
+      toast.error("يسمح بإرفاق ملفات PDF فقط");
+      return;
+    }
+    if (pdfFile && pdfFile.size > 5 * 1024 * 1024) {
+      toast.error("الحد الأقصى لحجم ملف PDF هو 5 ميغابايت");
+      return;
+    }
+    const parsed = schema.safeParse({ name, email, message, wantsPdf });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "بيانات غير صحيحة");
       return;
     }
     setSubmitting(true);
     try {
-      await submitContact({ data: parsed.data });
+      const pdf = pdfFile
+        ? { filename: pdfFile.name, mime: pdfFile.type, data: await fileToBase64(pdfFile) }
+        : undefined;
+      await submitContact({ data: { ...parsed.data, pdf } });
       setDone(true);
     } catch (err) {
       console.error(err);
@@ -109,6 +130,50 @@ function ContactPage() {
                   className="w-full resize-none rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
               </Field>
+              <Field
+                label="هل تود إرفاق ملف PDF؟"
+                icon={<FileText className="h-4 w-4" />}
+                required={false}
+              >
+                <div className="flex gap-6" role="radiogroup" aria-label="هل تود إرفاق ملف PDF؟">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="wantsPdf"
+                      value="no"
+                      checked={wantsPdf === "no"}
+                      onChange={() => {
+                        setWantsPdf("no");
+                        setPdfFile(null);
+                      }}
+                    />
+                    لا
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="wantsPdf"
+                      value="yes"
+                      checked={wantsPdf === "yes"}
+                      onChange={() => setWantsPdf("yes")}
+                    />
+                    نعم
+                  </label>
+                </div>
+              </Field>
+              {wantsPdf === "yes" && (
+                <Field label="ارفاق الملف" icon={<FileText className="h-4 w-4" />} required={false}>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm"
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    PDF فقط، بحد أقصى 5 ميغابايت{pdfFile ? ` — ${pdfFile.name}` : ""}
+                  </p>
+                </Field>
+              )}
               <button
                 type="submit"
                 disabled={submitting}
@@ -127,14 +192,33 @@ function ContactPage() {
   );
 }
 
-function Field({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Field({
+  label,
+  icon,
+  children,
+  required = true,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  required?: boolean;
+}) {
   return (
     <div>
       <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
         <span className="text-accent">{icon}</span>
-        {label} <span className="text-destructive">*</span>
+        {label} {required && <span className="text-destructive">*</span>}
       </label>
       {children}
     </div>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }

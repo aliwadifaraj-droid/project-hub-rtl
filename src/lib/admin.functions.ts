@@ -382,6 +382,18 @@ export const adminListMessages = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => contactRepo.listContactMessages());
 
+export const adminGetContactPdfUrl = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const msg = await contactRepo.getContactMessageById(data.id);
+    if (!msg) throw new Error("الرسالة غير موجودة");
+    if (!msg.pdf_file_key) throw new Error("لا يوجد ملف PDF لهذه الرسالة");
+    const { signGetUrl } = await import("./r2");
+    const url = await signGetUrl(msg.pdf_file_key, 60 * 10);
+    return { url, filename: msg.pdf_filename ?? "attachment.pdf" };
+  });
+
 export const countContactMessages = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) => z.object({ since: z.string().nullable() }).parse(d))

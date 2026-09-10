@@ -2,6 +2,7 @@ export async function sendResendEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  attachments?: Array<{ filename: string; content: string }>;
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -20,6 +21,7 @@ export async function sendResendEmail(opts: {
         to: [opts.to],
         subject: opts.subject,
         html: opts.html,
+        ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
       }),
     });
     if (!res.ok) {
