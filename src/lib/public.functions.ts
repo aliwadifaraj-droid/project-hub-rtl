@@ -55,11 +55,14 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       if (bytes.length > 5 * 1024 * 1024) throw new Error("الحد الأقصى لحجم ملف PDF هو 5 ميغابايت");
 
       pdfFilename = data.pdf.filename;
-      const key = makeKey("contact-pdfs", data.pdf.filename);
-      await uploadToR2({ key, body: bytes, contentType: "application/pdf" });
-      pdfFileKey = key;
-
       attachment = { filename: data.pdf.filename, content: clean };
+      try {
+        const key = makeKey("contact-pdfs", data.pdf.filename);
+        await uploadToR2({ key, body: bytes, contentType: "application/pdf" });
+        pdfFileKey = key;
+      } catch (e) {
+        console.error("R2 upload for contact PDF failed — email still carries attachment", e);
+      }
     }
 
     await insertContactMessage({

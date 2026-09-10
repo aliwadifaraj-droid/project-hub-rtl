@@ -1,5 +1,8 @@
 import { db, rowsToObjects } from "./db";
 
+db.execute(`ALTER TABLE contact_messages ADD COLUMN pdf_file_key TEXT`).catch(() => undefined);
+db.execute(`ALTER TABLE contact_messages ADD COLUMN pdf_filename TEXT`).catch(() => undefined);
+
 export type ContactMessageRow = {
   id: string;
   name: string | null;
