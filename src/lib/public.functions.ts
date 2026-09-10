@@ -4,6 +4,15 @@ import { insertContactMessage } from "./contact-messages.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { sendResendEmail } from "./resend-send.server";
+import { uploadToR2, makeKey } from "./r2";
+
+function b64ToBytes(b64: string): Uint8Array {
+  const clean = b64.replace(/^data:[^;]+;base64,/, "");
+  const bin = atob(clean);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
 
 export const submitContactMessage = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
@@ -35,14 +44,32 @@ export const submitContactMessage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     if (await blockedRepo.isBlocked(data.name, data.email)) throw new Error(BLOCKED_MESSAGE);
-    let attachment: { filename: string; content: string; contentType: string } | undefined;
+
+    let pdfFileKey: string | null = null;
+    let pdfFilename: string | null = null;
+    let attachment: { filename: string; content: string } | undefined;
+
     if (data.pdf) {
       const clean = data.pdf.data.replace(/^data:[^;]+;base64,/, "");
-      const bytes = atob(clean).length;
-      if (bytes > 5 * 1024 * 1024) throw new Error("الحد الأقصى لحجم ملف PDF هو 5 ميغابايت");
-      attachment = { filename: data.pdf.filename, content: clean, contentType: data.pdf.mime };
+      const bytes = b64ToBytes(data.pdf.data);
+      if (bytes.length > 5 * 1024 * 1024) throw new Error("الحد الأقصى لحجم ملف PDF هو 5 ميغابايت");
+
+      pdfFilename = data.pdf.filename;
+      const key = makeKey("contact-pdfs", data.pdf.filename);
+      await uploadToR2({ key, body: bytes, contentType: "application/pdf" });
+      pdfFileKey = key;
+
+      attachment = { filename: data.pdf.filename, content: clean };
     }
-    await insertContactMessage({ name: data.name, email: data.email, message: data.message });
+
+    await insertContactMessage({
+      name: data.name,
+      email: data.email,
+      message: data.message,
+      pdf_file_key: pdfFileKey,
+      pdf_filename: pdfFilename,
+    });
+
     try {
       const safe = (value: string) =>
         value.replace(
@@ -53,7 +80,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       await sendResendEmail({
         to: "aliwadifaraj@gmail.com",
         subject: "رسالة تواصل جديدة من منصة العمران",
-        html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.9"><h2>رسالة تواصل جديدة</h2><p><strong>الاسم:</strong> ${safe(data.name)}</p><p><strong>البريد:</strong> ${safe(data.email)}</p><p><strong>الرسالة:</strong></p><p>${safe(data.message).replace(/\n/g, "<br>")}</p></div>`,
+        html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.9"><h2>رسالة تواصل جديدة</h2><p><strong>الاسم:</strong> ${safe(data.name)}</p><p><strong>البريد:</strong> ${safe(data.email)}</p><p><strong>الرسالة:</strong></p><p>${safe(data.message).replace(/\n/g, "<br>")}</p>${pdfFilename ? `<p><strong>المرفق:</strong> ${safe(pdfFilename)}</p>` : ""}</div>`,
         ...(attachment ? { attachments: [attachment] } : {}),
       });
     } catch (e) {

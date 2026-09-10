@@ -2,7 +2,7 @@ export async function sendResendEmail(opts: {
   to: string;
   subject: string;
   html: string;
-  attachments?: Array<{ filename: string; content: string; contentType?: string }>;
+  attachments?: Array<{ filename: string; content: string }>;
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {

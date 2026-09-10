@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { adminListMessages, adminDeleteContactMessage, adminReplyContactMessage, adminSendCustomEmail } from "@/lib/admin.functions";
-import { Loader2, Mail, Trash2, Bell, Send, CheckCircle2 } from "lucide-react";
+import { adminListMessages, adminDeleteContactMessage, adminReplyContactMessage, adminSendCustomEmail, adminGetContactPdfUrl } from "@/lib/admin.functions";
+import { Loader2, Mail, Trash2, Bell, Send, CheckCircle2, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -17,6 +17,7 @@ function MessagesPage() {
   const list = useServerFn(adminListMessages);
   const delFn = useServerFn(adminDeleteContactMessage);
   const replyFn = useServerFn(adminReplyContactMessage);
+  const getPdfFn = useServerFn(adminGetContactPdfUrl);
   const { data, isLoading } = useQuery({ queryKey: ["admin-messages"], queryFn: () => list() });
 
   const [replyText, setReplyText] = useState<Record<string, string>>({});
@@ -24,6 +25,7 @@ function MessagesPage() {
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [newMsg, setNewMsg] = useState({ to: "", subject: "", message: "" });
   const [sendingNew, setSendingNew] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState<Record<string, boolean>>({});
   const sendNewEmailFn = useServerFn(adminSendCustomEmail);
 
   async function handleSendNewEmail(e: React.FormEvent) {
@@ -71,6 +73,28 @@ function MessagesPage() {
     }
   }
 
+  async function handleDownloadPdf(id: string) {
+    setPdfLoading((s) => ({ ...s, [id]: true }));
+    try {
+      const result = await getPdfFn({ data: { id } });
+      if (!result.url) {
+        toast.error("تعذر الحصول على رابط الملف");
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = result.url;
+      a.download = result.filename;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err: any) {
+      toast.error(err?.message ?? "تعذر تحميل الملف");
+    } finally {
+      setPdfLoading((s) => ({ ...s, [id]: false }));
+    }
+  }
+
   if (isLoading)
     return (
       <div className="grid place-items-center py-20">
@@ -79,6 +103,25 @@ function MessagesPage() {
     );
 
   const rows = data ?? [];
+
+  function PdfBadge({ msg }: { msg: { id: string; pdf_filename: string | null; pdf_file_key: string | null } }) {
+    if (!msg.pdf_file_key) return null;
+    return (
+      <button
+        onClick={() => handleDownloadPdf(msg.id)}
+        disabled={pdfLoading[msg.id]}
+        className="inline-flex items-center gap-1.5 rounded-md bg-sky-600/20 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-600/30 transition disabled:opacity-50"
+      >
+        {pdfLoading[msg.id] ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Download className="h-3.5 w-3.5" />
+        )}
+        <FileText className="h-3.5 w-3.5" />
+        {msg.pdf_filename ?? "مرفق PDF"}
+      </button>
+    );
+  }
 
   return (
     <div dir="rtl">
@@ -111,6 +154,7 @@ function MessagesPage() {
                 <th className="p-3 font-semibold">الاسم</th>
                 <th className="p-3 font-semibold">الإيميل</th>
                 <th className="p-3 font-semibold">الرسالة</th>
+                <th className="p-3 font-semibold">المرفق</th>
                 <th className="p-3 font-semibold">التاريخ</th>
                 <th className="p-3 font-semibold">إجراء</th>
               </tr>
@@ -124,6 +168,7 @@ function MessagesPage() {
                       <a href={`mailto:${m.email}`} className="text-sky-400 hover:underline">{m.email}</a>
                     </td>
                     <td className="p-3 text-slate-300 max-w-md whitespace-pre-wrap">{m.message}</td>
+                    <td className="p-3"><PdfBadge msg={m} /></td>
                     <td className="p-3 text-slate-400 text-xs whitespace-nowrap">{new Date(m.created_at).toLocaleDateString("ar")}</td>
                     <td className="p-3">
                       <button
@@ -136,7 +181,7 @@ function MessagesPage() {
                     </td>
                   </tr>
                   <tr key={m.id + "-reply"} className="border-t border-slate-800/50 bg-slate-900/60">
-                    <td colSpan={5} className="p-3">
+                    <td colSpan={6} className="p-3">
                       {m.reply ? (
                         <div className="space-y-3">
                           <div className="flex items-center gap-2 text-xs text-emerald-400">
@@ -174,7 +219,7 @@ function MessagesPage() {
                 </>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={5} className="p-8 text-center text-slate-400">لا توجد رسائل بعد</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-slate-400">لا توجد رسائل بعد</td></tr>
               )}
             </tbody>
           </table>
@@ -192,6 +237,7 @@ function MessagesPage() {
                 <Mail className="inline h-3.5 w-3.5 ml-1" />{m.email}
               </a>
               <p className="text-sm text-slate-300 whitespace-pre-wrap">{m.message}</p>
+              {m.pdf_file_key && <PdfBadge msg={m} />}
 
               {m.reply ? (
                 <div className="space-y-2">
