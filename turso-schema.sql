@@ -351,3 +351,18 @@ CREATE TABLE IF NOT EXISTS blocked_users (
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_blocked_users_company ON blocked_users(company_name);
+
+-- ============ teachers_market (حراج المعلمين) ==========
+CREATE TABLE IF NOT EXISTS teachers_market (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  city TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  cv TEXT,
+  entry_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  exit_date DATETIME,
+  status TEXT DEFAULT 'active'
+);
+CREATE INDEX IF NOT EXISTS idx_teachers_market_email ON teachers_market(email);
+CREATE INDEX IF NOT EXISTS idx_teachers_market_status ON teachers_market(status);
