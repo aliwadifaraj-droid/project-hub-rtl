@@ -11,7 +11,7 @@ import { countUnreadTeamMessages } from "@/lib/chat.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
 import { testPush } from "@/lib/push-test.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, GraduationCap } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
@@ -139,257 +139,245 @@ function AdminLayout() {
     { to: "/admin/clients", label: "متابعة العملاء", icon: Eye, show: isAdmin },
     { to: "/admin/exclusivity", label: "الحصرية", icon: Lock, show: isAdmin },
     { to: "/admin/vip", label: "العملاء المميزون", icon: Star, show: isAdmin },
+    { to: "/admin/teacher-market", label: "حراج المعلمين", icon: GraduationCap, show: isAdmin },
     { to: "/admin/settings", label: "الإعدادات", icon: Settings2, show: isAdmin },
   ];
 
   async function openNotif(open: boolean) {
     setNotifOpen(open);
-    if (open && unreadCount > 0) {
-      await markAllRead();
-      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
+    if (open) {
+      refetchSupportEscalated();
     }
   }
 
+  useEffect(() => {
+    if (path === "/admin" || path === "/admin/") {
+      navigate({ to: "/admin/projects", replace: true });
+    }
+  }, [path, navigate]);
+
+  const visibleItems = items.filter((i) => i.show);
+  const supportCount = supportEscalatedCount;
+  const contactCount = contactUnread;
+  const teamCount = teamChatUnread;
+  const escalationsBadge = supportCount > 0 ? supportCount : null;
 
   return (
-    <div className="min-h-screen bg-secondary/30">
-      <Toaster position="top-center" dir="rtl" />
-      <header className="border-b border-border bg-background">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link to="/admin" className="flex items-center gap-2 font-bold">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
-              <Building2 className="h-5 w-5" />
-            </span>
-            لوحة التحكم
-          </Link>
-          <div className="flex items-center gap-2">
-            {/* Notifications bell with dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => openNotif(!notifOpen)}
-                aria-label="إشعاراتي"
-                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
-                  unreadCount > 0
-                    ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "border-border bg-background hover:bg-secondary"
-                }`}
-              >
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-              </button>
-              {notifOpen && (
-                <div className="absolute end-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-                  <div className="border-b border-border px-3 py-2 text-sm font-semibold">إشعاراتي</div>
-                  <div className="max-h-96 overflow-auto">
-                    {(notifs ?? []).length === 0 ? (
-                      <div className="p-4 text-center text-xs text-muted-foreground">لا توجد إشعارات</div>
-                    ) : (
-                      (notifs ?? []).map((n) => {
-                        const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-                          n.link ? (
-                            <Link
-                              to={n.link as never}
-                              onClick={async () => {
-                                await markRead({ data: { id: n.id } });
-                                qc.invalidateQueries({ queryKey: ["my-notifications"] });
-                                setNotifOpen(false);
-                              }}
-                              className="block"
-                            >
-                              {children}
-                            </Link>
-                          ) : (
-                            <div>{children}</div>
-                          );
-                        return (
-                          <Wrapper key={n.id}>
-                            <div className={`border-b border-border px-3 py-2 text-xs hover:bg-secondary ${n.read ? "" : "bg-primary/5"}`}>
-                              <div className="font-semibold">{n.title}</div>
-                              {n.body ? <div className="mt-0.5 text-muted-foreground">{n.body}</div> : null}
-                              <div className="mt-1 text-[10px] text-muted-foreground">
-                                {new Date(n.created_at).toLocaleString("ar")}
-                              </div>
-                            </div>
-                          </Wrapper>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <Link
-              to="/admin/ads"
-              aria-label="الإعلانات المعلقة"
-              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
-                pendingCount > 0
-                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
-                  : "border-border bg-background hover:bg-secondary"
-              }`}
-            >
-              <Megaphone className="h-4 w-4" />
-              {pendingCount > 0 && (
-                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                  {pendingCount > 99 ? "99+" : pendingCount}
-                </span>
-              )}
+    <div className="flex min-h-screen flex-col bg-secondary/20" dir="rtl">
+      <Toaster position="top-center" richColors />
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-16 items-center justify-between px-4">
+          <div className="flex items-center gap-3">
+            <Link to="/admin/projects" className="flex items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <span className="hidden text-lg font-bold sm:inline-block">لوحة التحكم</span>
             </Link>
-            {isAdmin && (
-              <Link
-                to="/admin/chat"
-                onClick={handleTeamChatBellClick}
-                aria-label="رسائل شات الفريق"
-                title="رسائل شات الفريق"
-                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
-                  teamChatUnread > 0
-                    ? "border-primary bg-primary text-primary-foreground animate-pulse hover:bg-primary/90"
-                    : "border-border bg-background hover:bg-secondary"
-                }`}
-              >
-                <MessagesSquare className="h-4 w-4" />
-                {teamChatUnread > 0 && (
-                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                    {teamChatUnread > 99 ? "99+" : teamChatUnread}
-                  </span>
-                )}
-              </Link>
+            {roleLabel && (
+              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+                {roleLabel}
+              </span>
             )}
-            <Link
-              to="/admin/support"
-              aria-label="دعم العملاء - محادثات محوَّلة"
-              title="عملاء بحاجة إلى موظف"
-              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
-                supportEscalatedCount > 0
-                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
-                  : "border-border bg-background hover:bg-secondary"
-              }`}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openNotif(true)}
+              className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+              title="الإشعارات"
             >
-              <Headphones className="h-4 w-4" />
-              {supportEscalatedCount > 0 && (
-                <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                  {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
-            </Link>
+            </button>
+
             {isAdmin && (
               <Link
                 to="/admin/messages"
                 onClick={handleContactBellClick}
-                aria-label="رسائل التواصل"
+                className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
                 title="رسائل التواصل"
-                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
-                  contactUnread > 0
-                    ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
-                    : "border-border bg-background hover:bg-secondary"
-                }`}
               >
-                <MessageSquare className="h-4 w-4" />
-                {contactUnread > 0 && (
-                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                    {contactUnread > 99 ? "99+" : contactUnread}
+                <Mail className="h-5 w-5" />
+                {contactCount > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {contactCount > 9 ? "9+" : contactCount}
                   </span>
                 )}
               </Link>
             )}
+
+            {isAdmin && (
+              <Link
+                to="/admin/chat"
+                onClick={handleTeamChatBellClick}
+                className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+                title="شات الفريق"
+              >
+                <MessagesSquare className="h-5 w-5" />
+                {teamCount > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {teamCount > 9 ? "9+" : teamCount}
+                  </span>
+                )}
+              </Link>
+            )}
+
+            <Link
+              to="/admin/support"
+              className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+              title="دعم العملاء"
+            >
+              <Headphones className="h-5 w-5" />
+              {escalationsBadge && (
+                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {escalationsBadge > 9 ? "9+" : escalationsBadge}
+                </span>
+              )}
+            </Link>
+
             {isAdmin && (
               <button
-                onClick={async () => {
-                  const to = window.prompt("أدخل البريد لإرسال بريد تجريبي:", "");
-                  if (!to) return;
-                  const tId = toast.loading("جارٍ إرسال البريد التجريبي...");
-                  try {
-                    const r = await sendTestEmail({ data: { to } });
-                    toast.success(`تم الإرسال بنجاح إلى ${r.to}${r.id ? ` (ID: ${r.id})` : ""}`, { id: tId });
-                  } catch (e: any) {
-                    toast.error(`فشل الإرسال: ${e?.message ?? "خطأ غير معروف"}`, { id: tId, duration: 8000 });
-                  }
-                }}
-                aria-label="إرسال بريد تجريبي"
-                title="إرسال بريد تجريبي"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
+                onClick={() => doTestPush().then(() => toast.success("تم إرسال إشعار تجريبي"))}
+                className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+                title="إشعار تجريبي"
               >
-                <Mail className="h-4 w-4" />
+                <Send className="h-5 w-5" />
               </button>
             )}
-            {isAdmin && (
-              <button
-                onClick={async () => {
-                  const tId = toast.loading("جارٍ إرسال إشعار تجريبي...");
-                  try {
-                    const r = await doTestPush();
-                    if (r.ok) {
-                      toast.success(r.message ?? `تم الإرسال إلى ${r.count} مشترك`, { id: tId, duration: 6000 });
-                    } else {
-                      const parts = [r.error ?? "فشل الإرسال"];
-                      if (typeof r.count === "number") parts.push(`المشتركون: ${r.count}`);
-                      if (typeof r.sent === "number") parts.push(`نجح: ${r.sent}`);
-                      if (typeof r.failed === "number") parts.push(`فشل: ${r.failed}`);
-                      if (r.configError) parts.push(`خطأ: ${r.configError}`);
-                      toast.error(parts.join(" | "), { id: tId, duration: 10000 });
-                    }
-                  } catch (e: any) {
-                    toast.error(`فشل: ${e?.message ?? "خطأ غير معروف"}`, { id: tId, duration: 8000 });
-                  }
-                }}
-                aria-label="تجربة الإشعارات"
-                title="تجربة الإشعارات"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            )}
-            <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-              {roleLabel}
-            </span>
-            <button onClick={logout} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-secondary">
-              <LogOut className="h-4 w-4" /> خروج
+
+n            <button
+              onClick={logout}
+              className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+              title="تسجيل الخروج"
+            >
+              <LogOut className="h-5 w-5" />
             </button>
           </div>
         </div>
-        <nav className="container mx-auto flex gap-1 overflow-x-auto px-2 pb-2">
-          {items.filter((i) => i.show).map((i) => {
-            const active = path.startsWith(i.to);
-            const isAdsItem = i.to === "/admin/ads";
-            const isPendingProjItem = i.to === "/admin/pending-projects";
-            return (
-              <Link
-                key={i.to} to={i.to}
-                className={`relative inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-secondary"}`}
-              >
-                <i.icon className="h-4 w-4" /> {i.label}
-                {isAdsItem && pendingCount > 0 && (
-                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                    {pendingCount > 99 ? "99+" : pendingCount}
-                  </span>
-                )}
-                {i.to === "/admin/chat" && teamChatUnread > 0 && (
-                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                    {teamChatUnread > 99 ? "99+" : teamChatUnread}
-                  </span>
-                )}
-                {i.to === "/admin/support" && supportEscalatedCount > 0 && (
-                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground animate-pulse">
-                    {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
-                  </span>
-                )}
-                {isPendingProjItem && pendingProjectsCount > 0 && (
-                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                    {pendingProjectsCount > 99 ? "99+" : pendingProjectsCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
       </header>
-      <main className="container mx-auto px-4 py-8">
-        <Outlet />
-      </main>
+
+      <div className="flex flex-1">
+        <nav className="hidden w-64 shrink-0 border-l border-border bg-background md:block">
+          <ul className="space-y-1 p-3">
+            {visibleItems.map((item) => {
+              const active = path === item.to || path.startsWith(item.to + "/");
+              return (
+                <li key={item.to}>
+                  <Link
+                    to={item.to}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-[image:var(--gradient-accent)] text-accent-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    }`}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background md:hidden">
+          <ul className="flex overflow-x-auto gap-1 p-2">
+            {visibleItems.map((item) => {
+              const active = path === item.to || path.startsWith(item.to + "/");
+              return (
+                <li key={item.to} className="shrink-0">
+                  <Link
+                    to={item.to}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                      active
+                        ? "bg-[image:var(--gradient-accent)] text-accent-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    }`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+          <Outlet />
+        </main>
+      </div>
+
+      {notifOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-end bg-black/20 p-4"
+          onClick={() => openNotif(false)}
+        >
+          <div
+            className="mt-16 w-full max-w-sm rounded-xl border border-border bg-background shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border p-3">
+              <h3 className="font-bold">الإشعارات</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => markAllRead().then(() => qc.invalidateQueries({ queryKey: ["my-notifications"] }))}
+                  className="text-xs text-primary hover:underline"
+                >
+                  تعليم الكل كمقروء
+                </button>
+                <button onClick={() => openNotif(false)} className="text-muted-foreground hover:text-foreground">
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {notifs && notifs.length > 0 ? (
+                notifs.map((n: any) => (
+                  <div
+                    key={n.id}
+                    className={`border-b border-border p-3 ${n.read ? "bg-background" : "bg-secondary/30"}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{n.title}</p>
+                        {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
+                        {n.link && (
+                          <Link
+                            to={n.link}
+                            onClick={() => {
+                              markRead({ data: { id: n.id } });
+                              openNotif(false);
+                            }}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            عرض
+                          </Link>
+                        )}
+                      </div>
+                      {!n.read && (
+                        <button
+                          onClick={() => markRead({ data: { id: n.id } }).then(() => qc.invalidateQueries({ queryKey: ["my-notifications"] }))}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="p-6 text-center text-sm text-muted-foreground">لا توجد إشعارات</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
