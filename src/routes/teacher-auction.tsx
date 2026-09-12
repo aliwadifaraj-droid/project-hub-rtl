@@ -34,10 +34,10 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/teacher-auction")({
   head: () => ({
     meta: [
-      { title: "حراج المعلمين — العمران" },
+      { title: "لوحة المعلمين — العمران" },
       {
         name: "description",
-        content: "سجّل في حراج المعلمين وفعّل إشعاراتك",
+        content: "سجّل دخولك إلى لوحة المعلمين أو أنشئ حساباً جديداً",
       },
     ],
   }),
@@ -53,7 +53,7 @@ function TeacherAuctionPage() {
   const [loginError, setLoginError] = useState("");
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [teacherEmail, setTeacherEmail] = useState("");
-  const [activeTab, setActiveTab] = useState("register");
+  const [activeTab, setActiveTab] = useState("login");
   const [loginForm, setLoginForm] = useState({
     email: "",
     password: "",
@@ -72,7 +72,7 @@ function TeacherAuctionPage() {
       return await register({ data });
     },
     onSuccess: () => {
-      toast.success("تم التسجيل بنجاح في حراج المعلمين");
+      toast.success("تم التسجيل بنجاح في لوحة المعلمين");
       setRegistered(true);
       setTeacherEmail(form.email);
     },
@@ -159,19 +159,82 @@ function TeacherAuctionPage() {
               <GraduationCap className="h-8 w-8" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              حراج المعلمين
+              لوحة المعلمين
             </h1>
             <p className="mt-2 text-muted-foreground">
-              سجّل بياناتك وانضم إلى حراج المعلمين
+              سجّل دخولك أو أنشئ حساباً جديداً للانضمام إلى لوحة المعلمين
             </p>
           </div>
 
           {!registered ? (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="register">تسجيل جديد</TabsTrigger>
                 <TabsTrigger value="login">دخول</TabsTrigger>
+                <TabsTrigger value="register">إنشاء حساب جديد</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="login">
+                <div className="rounded-xl border border-border bg-background p-6 shadow-sm md:p-8">
+                  <form onSubmit={handleLogin} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email" className="flex items-center gap-1.5">
+                        <Mail className="h-4 w-4" /> البريد الإلكتروني
+                      </Label>
+                      <Input
+                        id="login-email"
+                        type="email"
+                        value={loginForm.email}
+                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                        placeholder="example@email.com"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password" className="flex items-center gap-1.5">
+                        <Lock className="h-4 w-4" /> كلمة السر
+                      </Label>
+                      <Input
+                        id="login-password"
+                        type="password"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                        placeholder="أدخل كلمة السر"
+                        required
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full"
+                      size="lg"
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" /> جاري الدخول...
+                        </>
+                      ) : (
+                        "دخول"
+                      )}
+                    </Button>
+
+                    {loginError && (
+                      <p className="text-sm text-red-600 text-center mt-2">
+                        {loginError}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("register")}
+                      className="w-full text-center text-sm font-semibold text-primary hover:text-primary/80 transition"
+                    >
+                      ليس لديك حساب؟ إنشاء حساب جديد
+                    </button>
+                  </form>
+                </div>
+              </TabsContent>
 
               <TabsContent value="register">
                 <div className="rounded-xl border border-border bg-background p-6 shadow-sm md:p-8">
@@ -280,61 +343,14 @@ function TeacherAuctionPage() {
                         "تسجيل"
                       )}
                     </Button>
-                  </form>
-                </div>
-              </TabsContent>
 
-              <TabsContent value="login">
-                <div className="rounded-xl border border-border bg-background p-6 shadow-sm md:p-8">
-                  <form onSubmit={handleLogin} className="space-y-5">
-                    <div className="space-y-2">
-                      <Label htmlFor="login-email" className="flex items-center gap-1.5">
-                        <Mail className="h-4 w-4" /> البريد الإلكتروني
-                      </Label>
-                      <Input
-                        id="login-email"
-                        type="email"
-                        value={loginForm.email}
-                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                        placeholder="example@email.com"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password" className="flex items-center gap-1.5">
-                        <Lock className="h-4 w-4" /> كلمة السر
-                      </Label>
-                      <Input
-                        id="login-password"
-                        type="password"
-                        value={loginForm.password}
-                        onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                        placeholder="أدخل كلمة السر"
-                        required
-                      />
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full"
-                      size="lg"
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("login")}
+                      className="w-full text-center text-sm font-semibold text-primary hover:text-primary/80 transition"
                     >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" /> جاري الدخول...
-                        </>
-                      ) : (
-                        "دخول"
-                      )}
-                    </Button>
-
-                    {loginError && (
-                      <p className="text-sm text-red-600 text-center mt-2">
-                        {loginError}
-                      </p>
-                    )}
+                      لديك حساب بالفعل؟ تسجيل الدخول
+                    </button>
                   </form>
                 </div>
               </TabsContent>
@@ -349,7 +365,7 @@ function TeacherAuctionPage() {
                   تم التسجيل بنجاح
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  تم تسجيلك في حراج المعلمين بريد: {teacherEmail}
+                  تم تسجيلك في لوحة المعلمين بريد: {teacherEmail}
                 </p>
               </div>
 
