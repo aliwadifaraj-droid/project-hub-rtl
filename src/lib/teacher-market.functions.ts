@@ -34,22 +34,15 @@ export const registerTeacher = createServerFn({ method: "POST" })
     const email = data.email.trim().toLowerCase();
     const phone = data.phone.trim();
     const name = data.name.trim();
-
-    const existingByEmail = await findTeacherMarketByEmail(email);
-    if (existingByEmail) {
+    if (await findTeacherMarketByEmail(email)) {
       throw new Error("هذا البريد الإلكتروني مسجل بالفعل، يرجى استخدام بريد آخر أو تسجيل الدخول");
     }
-
-    const existingByPhone = await findTeacherMarketByPhone(phone);
-    if (existingByPhone) {
+    if (await findTeacherMarketByPhone(phone)) {
       throw new Error("رقم الهاتف مسجل بالفعل، يرجى استخدام رقم آخر أو تسجيل الدخول");
     }
-
-    const existingByName = await findTeacherMarketByName(name);
-    if (existingByName) {
+    if (await findTeacherMarketByName(name)) {
       throw new Error("الاسم مسجل بالفعل، يرجى استخدام اسم آخر أو تسجيل الدخول");
     }
-
     const id = await insertTeacherMarket({
       name,
       email,
@@ -63,13 +56,8 @@ export const registerTeacher = createServerFn({ method: "POST" })
   });
 
 export const checkTeacherByEmail = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z.object({ email: z.string().email() }).parse(d),
-  )
-  .handler(async ({ data }) => {
-    const row = await findTeacherMarketByEmail(data.email);
-    return row;
-  });
+  .inputValidator((d: unknown) => z.object({ email: z.string().email() }).parse(d))
+  .handler(async ({ data }) => findTeacherMarketByEmail(data.email));
 
 const loginSchema = z.object({
   email: z.string().email().max(200),
@@ -80,20 +68,14 @@ export const loginTeacher = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => loginSchema.parse(d))
   .handler(async ({ data }) => {
     const row = await findTeacherMarketByEmail(data.email);
-    if (!row) {
-      return { ok: false as const, error: "البريد الإلكتروني غير مسجل" };
-    }
-    if (row.password !== data.password) {
-      return { ok: false as const, error: "كلمة السر غير صحيحة" };
-    }
+    if (!row) return { ok: false as const, error: "البريد الإلكتروني غير مسجل" };
+    if (row.password !== data.password) return { ok: false as const, error: "كلمة السر غير صحيحة" };
     return { ok: true as const, email: row.email };
   });
 
 export const listTeachers = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async () => {
-    return await listTeachersMarket();
-  });
+  .handler(async () => listTeachersMarket());
 
 const updateSchema = z.object({
   id: z.number().int(),
@@ -114,13 +96,12 @@ export const updateTeacherStatus = createServerFn({ method: "POST" })
     const teacher = await getTeacherMarketById(data.id);
     await updateTeacherMarketStatus(data.id, data.status, data.exit_date);
     if (teacher) {
-      const body =
-        `تم تحديث حالتك إلى: ${statusLabels[data.status] ?? data.status}` +
-        (data.exit_date ? `\nتاريخ الخروج: ${data.exit_date}` : "");
       await insertTeacherNotification({
         teacher_email: teacher.email,
         title: "تحديث حالة المعلم",
-        body,
+        body:
+          `تم تحديث حالتك إلى: ${statusLabels[data.status] ?? data.status}` +
+          (data.exit_date ? `\nتاريخ الخروج: ${data.exit_date}` : ""),
       });
     }
     return { ok: true };
@@ -137,9 +118,7 @@ export const sendTeacherNotification = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => sendNotifSchema.parse(d))
   .handler(async ({ data }) => {
     const teacher = await getTeacherMarketById(data.id);
-    if (!teacher) {
-      return { ok: false as const, error: "المعلم غير موجود" };
-    }
+    if (!teacher) return { ok: false as const, error: "المعلم غير موجود" };
     await insertTeacherNotification({
       teacher_email: teacher.email,
       title: data.title,
@@ -153,12 +132,26 @@ const chatMessageSchema = z.object({
   body: z.string().trim().min(1).max(2000),
 });
 
+const chatEmailSchema = z.object({
+  email: z.string().email().max(200),
+});
+
 export const getTeacherChatMessages = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ email: z.string().email().max(200) }).parse(d))
+  .inputValidator((d: unknown) => chatEmailSchema.parse(d))
+  .handler(async ({ data }) => listTeacherChatMessages(data.email));
+
+export const getTeacherChatUnreadCount = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => chatEmailSchema.parse(d))
   .handler(async ({ data }) => {
     const messages = await listTeacherChatMessages(data.email);
+    return messages.filter((message) => message.sender === "admin" && !message.read).length;
+  });
+
+export const markTeacherChatRead = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => chatEmailSchema.parse(d))
+  .handler(async ({ data }) => {
     await markTeacherChatMessagesRead(data.email, "admin");
-    return messages;
+    return { ok: true };
   });
 
 export const sendTeacherChatMessage = createServerFn({ method: "POST" })
@@ -167,21 +160,29 @@ export const sendTeacherChatMessage = createServerFn({ method: "POST" })
     const email = data.email.trim().toLowerCase();
     const teacher = await findTeacherMarketByEmail(email);
     if (!teacher) return { ok: false as const, error: "المعلم غير موجود" };
-    await insertTeacherChatMessage({
-      teacher_email: email,
-      sender: "teacher",
-      body: data.body,
-    });
+    await insertTeacherChatMessage({ teacher_email: email, sender: "teacher", body: data.body });
     return { ok: true as const };
   });
 
 export const getAdminTeacherChatMessages = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ email: z.string().email().max(200) }).parse(d))
+  .inputValidator((d: unknown) => chatEmailSchema.parse(d))
+  .handler(async ({ data }) => listTeacherChatMessages(data.email));
+
+export const getAdminTeacherChatUnreadCount = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => chatEmailSchema.parse(d))
   .handler(async ({ data }) => {
     const messages = await listTeacherChatMessages(data.email);
+    return messages.filter((message) => message.sender === "teacher" && !message.read).length;
+  });
+
+export const markAdminTeacherChatRead = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => chatEmailSchema.parse(d))
+  .handler(async ({ data }) => {
     await markTeacherChatMessagesRead(data.email, "teacher");
-    return messages;
+    return { ok: true };
   });
 
 export const sendAdminTeacherChatMessage = createServerFn({ method: "POST" })
@@ -191,19 +192,11 @@ export const sendAdminTeacherChatMessage = createServerFn({ method: "POST" })
     const email = data.email.trim().toLowerCase();
     const teacher = await findTeacherMarketByEmail(email);
     if (!teacher) return { ok: false as const, error: "المعلم غير موجود" };
-    await insertTeacherChatMessage({
-      teacher_email: email,
-      sender: "admin",
-      body: data.body,
-    });
+    await insertTeacherChatMessage({ teacher_email: email, sender: "admin", body: data.body });
     return { ok: true as const };
   });
 
-// --- Teacher dashboard functions (public, no admin auth) ---
-
-const emailSchema = z.object({
-  email: z.string().email().max(200),
-});
+const emailSchema = z.object({ email: z.string().email().max(200) });
 
 export const getTeacherData = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => emailSchema.parse(d))
@@ -226,9 +219,7 @@ export const getTeacherData = createServerFn({ method: "POST" })
 
 export const getTeacherNotifications = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => emailSchema.parse(d))
-  .handler(async ({ data }) => {
-    return await listTeacherNotifications(data.email, 50);
-  });
+  .handler(async ({ data }) => listTeacherNotifications(data.email, 50));
 
 const markReadSchema = z.object({
   email: z.string().email().max(200),
