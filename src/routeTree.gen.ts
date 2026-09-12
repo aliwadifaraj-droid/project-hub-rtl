@@ -26,6 +26,8 @@ import { Route as SubscribeSuccessRouteImport } from './routes/subscribe-success
 import { Route as ThankYouRouteImport } from './routes/thank-you'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VipRouteImport } from './routes/vip'
+import { Route as TeacherAuctionRouteImport } from './routes/teacher-auction'
+import { Route as DashboardTeacherRouteImport } from './routes/dashboard-teacher'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -55,6 +57,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin.support'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
+import { Route as AuthenticatedAdminTeacherMarketRouteImport } from './routes/_authenticated/admin.teacher-market'
 import { Route as ApiAdminR2RouteImport } from './routes/api/admin/r2'
 import { Route as ApiCronCheckSubscriptionsRouteImport } from './routes/api/cron/check-subscriptions'
 import { Route as ApiCronVipExpiryRouteImport } from './routes/api/cron/vip-expiry'
@@ -149,6 +152,16 @@ const UnsubscribeRoute = UnsubscribeRouteImport.update({
 const VipRoute = VipRouteImport.update({
   id: '/vip',
   path: '/vip',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeacherAuctionRoute = TeacherAuctionRouteImport.update({
+  id: '/teacher-auction',
+  path: '/teacher-auction',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardTeacherRoute = DashboardTeacherRouteImport.update({
+  id: '/dashboard-teacher',
+  path: '/dashboard-teacher',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -311,6 +324,11 @@ const AuthenticatedAdminVipRoute = AuthenticatedAdminVipRouteImport.update({
   path: '/vip',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminTeacherMarketRoute = AuthenticatedAdminTeacherMarketRouteImport.update({
+  id: '/teacher-market',
+  path: '/teacher-market',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const ApiAdminR2Route = ApiAdminR2RouteImport.update({
   id: '/api/admin/r2',
   path: '/api/admin/r2',
@@ -389,6 +407,8 @@ export interface FileRoutesByFullPath {
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/vip': typeof VipRouteWithChildren
+  '/teacher-auction': typeof TeacherAuctionRoute
+  '/dashboard-teacher': typeof DashboardTeacherRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -417,6 +437,7 @@ export interface FileRoutesByFullPath {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/admin/teacher-market': typeof AuthenticatedAdminTeacherMarketRoute
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
@@ -446,6 +467,8 @@ export interface FileRoutesByTo {
   '/subscribe-success': typeof SubscribeSuccessRoute
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/teacher-auction': typeof TeacherAuctionRoute
+  '/dashboard-teacher': typeof DashboardTeacherRoute
   '/chat': typeof AuthenticatedChatRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/employees': typeof AuthenticatedEmployeesRoute
@@ -473,6 +496,7 @@ export interface FileRoutesByTo {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/admin/teacher-market': typeof AuthenticatedAdminTeacherMarketRoute
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
@@ -505,6 +529,8 @@ export interface FileRoutesById {
   '/thank-you': typeof ThankYouRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/vip': typeof VipRouteWithChildren
+  '/teacher-auction': typeof TeacherAuctionRoute
+  '/dashboard-teacher': typeof DashboardTeacherRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -533,6 +559,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/_authenticated/admin/teacher-market': typeof AuthenticatedAdminTeacherMarketRoute
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
@@ -565,6 +592,8 @@ export interface FileRouteTypes {
     | '/thank-you'
     | '/unsubscribe'
     | '/vip'
+    | '/teacher-auction'
+    | '/dashboard-teacher'
     | '/admin'
     | '/chat'
     | '/dashboard'
@@ -593,6 +622,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
+    | '/admin/teacher-market'
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
@@ -622,6 +652,8 @@ export interface FileRouteTypes {
     | '/subscribe-success'
     | '/thank-you'
     | '/unsubscribe'
+    | '/teacher-auction'
+    | '/dashboard-teacher'
     | '/chat'
     | '/dashboard'
     | '/employees'
@@ -649,6 +681,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
+    | '/admin/teacher-market'
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
@@ -680,6 +713,8 @@ export interface FileRouteTypes {
     | '/thank-you'
     | '/unsubscribe'
     | '/vip'
+    | '/teacher-auction'
+    | '/dashboard-teacher'
     | '/_authenticated/admin'
     | '/_authenticated/chat'
     | '/_authenticated/dashboard'
@@ -708,6 +743,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
+    | '/_authenticated/admin/teacher-market'
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
@@ -740,6 +776,8 @@ export interface RootRouteChildren {
   ThankYouRoute: typeof ThankYouRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VipRoute: typeof VipRouteWithChildren
+  TeacherAuctionRoute: typeof TeacherAuctionRoute
+  DashboardTeacherRoute: typeof DashboardTeacherRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
   ApiAdminR2Route: typeof ApiAdminR2Route
@@ -874,6 +912,20 @@ declare module '@tanstack/react-router' {
       path: '/vip'
       fullPath: '/vip'
       preLoaderRoute: typeof VipRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teacher-auction': {
+      id: '/teacher-auction'
+      path: '/teacher-auction'
+      fullPath: '/teacher-auction'
+      preLoaderRoute: typeof TeacherAuctionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard-teacher': {
+      id: '/dashboard-teacher'
+      path: '/dashboard-teacher'
+      fullPath: '/dashboard-teacher'
+      preLoaderRoute: typeof DashboardTeacherRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -1079,6 +1131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVipRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/teacher-market': {
+      id: '/_authenticated/admin/teacher-market'
+      path: '/teacher-market'
+      fullPath: '/admin/teacher-market'
+      preLoaderRoute: typeof AuthenticatedAdminTeacherMarketRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/api/admin/r2': {
       id: '/api/admin/r2'
       path: '/api/admin/r2'
@@ -1179,6 +1238,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVipRoute: typeof AuthenticatedAdminVipRoute
+  AuthenticatedAdminTeacherMarketRoute: typeof AuthenticatedAdminTeacherMarketRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -1203,6 +1263,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVipRoute: AuthenticatedAdminVipRoute,
+  AuthenticatedAdminTeacherMarketRoute: AuthenticatedAdminTeacherMarketRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
@@ -1266,6 +1327,8 @@ const rootRouteChildren: RootRouteChildren = {
   ThankYouRoute: ThankYouRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VipRoute: VipRouteWithChildren,
+  TeacherAuctionRoute: TeacherAuctionRoute,
+  DashboardTeacherRoute: DashboardTeacherRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ProjectIdRoute: ProjectIdRoute,
   ApiAdminR2Route: ApiAdminR2Route,
