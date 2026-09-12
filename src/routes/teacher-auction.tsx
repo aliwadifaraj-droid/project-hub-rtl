@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -47,7 +47,6 @@ export const Route = createFileRoute("/teacher-auction")({
 function TeacherAuctionPage() {
   const register = useServerFn(registerTeacher);
   const login = useServerFn(loginTeacher);
-  const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -103,17 +102,14 @@ function TeacherAuctionPage() {
     setSubmitting(true);
     try {
       const res = await login({ data: loginForm });
-      if (res.ok) {
+      if (res && res.ok) {
         localStorage.setItem("teacher_email", res.email);
-        try {
-          navigate({ to: "/dashboard-teacher" });
-        } catch {
-          setLoggedIn(true);
-        }
+        window.location.href = "/dashboard-teacher";
       } else {
         setLoginError("الايميل او كلمة السر غير صحيحة");
       }
-    } catch {
+    } catch (err) {
+      console.error("login error:", err);
       setLoginError("الايميل او كلمة السر غير صحيحة");
     }
     setSubmitting(false);
@@ -335,7 +331,7 @@ function TeacherAuctionPage() {
                     </Button>
 
                     {loginError && (
-                      <p className="text-sm text-red-600 text-center">
+                      <p className="text-sm text-red-600 text-center mt-2">
                         {loginError}
                       </p>
                     )}
