@@ -8,7 +8,6 @@ import {
   markTeacherNotifRead,
   markAllTeacherNotifsRead,
 } from "@/lib/teacher-market.functions";
-import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -202,7 +201,7 @@ function TeacherDashboardPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background" dir="rtl">
-      <SiteHeader />
+      {/* SiteHeader hidden on teacher dashboard */}
       <main className="flex-1">
         {/* Hero with bell + counter */}
         <section className="border-b border-border/60 bg-[image:var(--gradient-hero,none)]">

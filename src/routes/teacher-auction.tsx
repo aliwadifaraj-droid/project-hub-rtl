@@ -4,7 +4,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { registerTeacher, loginTeacher } from "@/lib/teacher-market.functions";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
-import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,7 +135,7 @@ function TeacherAuctionPage() {
   if (loggedIn) {
     return (
       <div className="min-h-screen bg-secondary/30" dir="rtl">
-        <SiteHeader />
+        {/* SiteHeader hidden on teacher pages */}
         <main className="container mx-auto px-4 py-12">
           <div className="mx-auto max-w-2xl text-center">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -151,7 +150,7 @@ function TeacherAuctionPage() {
 
   return (
     <div className="min-h-screen bg-secondary/30" dir="rtl">
-      <SiteHeader />
+      {/* SiteHeader hidden on teacher pages */}
       <main className="container mx-auto px-4 py-12">
         <div className="mx-auto max-w-2xl">
           <div className="mb-8 text-center">
