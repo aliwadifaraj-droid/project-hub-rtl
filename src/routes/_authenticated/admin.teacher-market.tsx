@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   listTeachers,
   updateTeacherStatus,
+  sendTeacherNotification,
 } from "@/lib/teacher-market.functions";
 import {
   Table,
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, GraduationCap } from "lucide-react";
+import { Loader2, GraduationCap, Bell, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/teacher-market")({
@@ -46,6 +47,7 @@ function statusBadge(s: string) {
 function AdminTeacherMarketPage() {
   const listFn = useServerFn(listTeachers);
   const updateFn = useServerFn(updateTeacherStatus);
+  const sendNotifFn = useServerFn(sendTeacherNotification);
   const qc = useQueryClient();
 
   const { data: teachers = [], isLoading } = useQuery({
@@ -56,6 +58,14 @@ function AdminTeacherMarketPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editExitDate, setEditExitDate] = useState("");
+
+  const [notifModalOpen, setNotifModalOpen] = useState(false);
+  const [notifTeacher, setNotifTeacher] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
 
   const updateMut = useMutation({
     mutationFn: async (input: {
@@ -75,6 +85,26 @@ function AdminTeacherMarketPage() {
     },
   });
 
+  const sendNotifMut = useMutation({
+    mutationFn: async (input: {
+      id: number;
+      title: string;
+      body: string;
+    }) => {
+      return await sendNotifFn({ data: input });
+    },
+    onSuccess: () => {
+      toast.success("تم إرسال الإشعار بنجاح");
+      setNotifModalOpen(false);
+      setNotifTeacher(null);
+      setNotifTitle("");
+      setNotifBody("");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "حدث خطأ أثناء الإرسال");
+    },
+  });
+
   function startEdit(
     id: number,
     currentStatus: string,
@@ -90,6 +120,26 @@ function AdminTeacherMarketPage() {
       id,
       status: editStatus,
       exit_date: editExitDate || null,
+    });
+  }
+
+  function openNotifModal(id: number, name: string) {
+    setNotifTeacher({ id, name });
+    setNotifTitle("");
+    setNotifBody("");
+    setNotifModalOpen(true);
+  }
+
+  function sendNotif() {
+    if (!notifTeacher) return;
+    if (!notifTitle.trim() || !notifBody.trim()) {
+      toast.error("يرجى تعبئة العنوان والنص");
+      return;
+    }
+    sendNotifMut.mutate({
+      id: notifTeacher.id,
+      title: notifTitle.trim(),
+      body: notifBody.trim(),
     });
   }
 
@@ -211,21 +261,110 @@ function AdminTeacherMarketPage() {
                         </Button>
                       </div>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          startEdit(t.id, t.status, t.exit_date)
-                        }
-                      >
-                        تعديل
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            startEdit(t.id, t.status, t.exit_date)
+                          }
+                        >
+                          تعديل
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openNotifModal(t.id, t.name)}
+                        >
+                          <Bell className="h-3 w-3 ml-1" />
+                          إشعار
+                        </Button>
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {/* Notification Modal */}
+      {notifModalOpen && notifTeacher && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setNotifModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10">
+                  <Bell className="h-4 w-4 text-primary" />
+                </div>
+                <h2 className="text-lg font-bold">إرسال إشعار</h2>
+              </div>
+              <button
+                onClick={() => setNotifModalOpen(false)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="mb-4 text-sm text-muted-foreground">
+              إلى: <span className="font-medium">{notifTeacher.name}</span>
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  العنوان
+                </label>
+                <Input
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                  placeholder="عنوان الإشعار"
+                  maxLength={200}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  النص
+                </label>
+                <textarea
+                  value={notifBody}
+                  onChange={(e) => setNotifBody(e.target.value)}
+                  placeholder="نص الإشعار..."
+                  maxLength={2000}
+                  rows={5}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setNotifModalOpen(false)}
+              >
+                إلغاء
+              </Button>
+              <Button
+                onClick={sendNotif}
+                disabled={sendNotifMut.isPending}
+              >
+                {sendNotifMut.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "إرسال"
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
