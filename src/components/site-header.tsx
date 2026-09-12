@@ -51,6 +51,7 @@ export function SiteHeader() {
   });
   const isAdmin = hasAdminRole(roles);
   const hideClientLinks = signedIn && !isAdmin;
+  const isTeacherDashboard = path === "/dashboard-teacher";
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
@@ -101,7 +102,7 @@ export function SiteHeader() {
           <span>العمران</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
-          {!hideClientLinks && (
+          {!hideClientLinks && !isTeacherDashboard && (
             <>
               <Link
                 to="/projects"
