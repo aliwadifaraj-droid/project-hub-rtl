@@ -32,6 +32,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   ShieldX,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -136,6 +138,7 @@ function TeacherDashboardPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
+  const [showData, setShowData] = useState(false);
 
   useEffect(() => {
     const e = localStorage.getItem("teacher_email");
@@ -201,7 +204,7 @@ function TeacherDashboardPage() {
     <div className="flex min-h-screen flex-col bg-background" dir="rtl">
       <SiteHeader />
       <main className="flex-1">
-        {/* Hero */}
+        {/* Hero with bell + counter */}
         <section className="border-b border-border/60 bg-[image:var(--gradient-hero,none)]">
           <div className="container mx-auto px-4 py-10 sm:py-14">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -218,14 +221,35 @@ function TeacherDashboardPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                onClick={handleLogout}
-                className="gap-2"
-              >
-                <LogOut className="h-4 w-4" />
-                تسجيل الخروج
-              </Button>
+
+              {/* Bell + counter */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById("notifications-card");
+                    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition hover:bg-secondary"
+                  aria-label="الإشعارات"
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                  className="gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  تسجيل الخروج
+                </Button>
+              </div>
             </div>
           </div>
         </section>
@@ -233,83 +257,103 @@ function TeacherDashboardPage() {
         {/* Cards */}
         <section className="container mx-auto px-4 py-8 sm:py-12">
           <div className="grid gap-6 lg:grid-cols-2">
-            {/* Card 1: My Data (read-only) */}
+            {/* Card 1: My Data — collapsed by default */}
             <Card className="overflow-hidden border-border/60 shadow-sm">
               <CardHeader className="border-b border-border/60 bg-secondary/30">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <User className="h-5 w-5 text-primary" />
-                  بياناتي
-                </CardTitle>
+                <button
+                  type="button"
+                  onClick={() => setShowData((v) => !v)}
+                  className="flex w-full items-center justify-between text-right"
+                >
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <User className="h-5 w-5 text-primary" />
+                    بياناتي
+                  </CardTitle>
+                  {showData ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </button>
               </CardHeader>
-              <CardContent className="p-6">
-                {teacherLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : teacher ? (
-                  <div className="space-y-5">
-                    <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary/20 px-4 py-3">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        الحالة
-                      </span>
-                      {statusBadge(teacher.status)}
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <InfoRow
-                        icon={User}
-                        label="الاسم"
-                        value={teacher.name}
-                      />
-                      <InfoRow
-                        icon={Mail}
-                        label="البريد الإلكتروني"
-                        value={teacher.email}
-                        ltr
-                      />
-                      <InfoRow
-                        icon={MapPin}
-                        label="المدينة"
-                        value={teacher.city}
-                      />
-                      <InfoRow
-                        icon={Phone}
-                        label="رقم الجوال"
-                        value={teacher.phone}
-                        ltr
-                      />
-                      <InfoRow
-                        icon={Calendar}
-                        label="تاريخ التسجيل"
-                        value={teacher.entry_date}
-                      />
-                      <InfoRow
-                        icon={CalendarClock}
-                        label="تاريخ الخروج"
-                        value={teacher.exit_date ?? "—"}
-                      />
-                    </div>
-                    {teacher.cv ? (
-                      <a
-                        href={teacher.cv}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-secondary"
-                      >
-                        <FileText className="h-4 w-4" />
-                        عرض السيرة الذاتية
-                      </a>
-                    ) : null}
+              <CardContent className="p-0">
+                {showData ? (
+                  <div className="p-6">
+                    {teacherLoading ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : teacher ? (
+                      <div className="space-y-5">
+                        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary/20 px-4 py-3">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            الحالة
+                          </span>
+                          {statusBadge(teacher.status)}
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <InfoRow
+                            icon={User}
+                            label="الاسم"
+                            value={teacher.name}
+                          />
+                          <InfoRow
+                            icon={Mail}
+                            label="البريد الإلكتروني"
+                            value={teacher.email}
+                            ltr
+                          />
+                          <InfoRow
+                            icon={MapPin}
+                            label="المدينة"
+                            value={teacher.city}
+                          />
+                          <InfoRow
+                            icon={Phone}
+                            label="رقم الجوال"
+                            value={teacher.phone}
+                            ltr
+                          />
+                          <InfoRow
+                            icon={Calendar}
+                            label="تاريخ التسجيل"
+                            value={teacher.entry_date}
+                          />
+                          <InfoRow
+                            icon={CalendarClock}
+                            label="تاريخ الخروج"
+                            value={teacher.exit_date ?? "—"}
+                          />
+                        </div>
+                        {teacher.cv ? (
+                          <a
+                            href={teacher.cv}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-secondary"
+                          >
+                            <FileText className="h-4 w-4" />
+                            عرض السيرة الذاتية
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="py-12 text-center text-sm text-muted-foreground">
+                        لم يتم العثور على بياناتك
+                      </p>
+                    )}
                   </div>
                 ) : (
-                  <p className="py-12 text-center text-sm text-muted-foreground">
-                    لم يتم العثور على بياناتك
-                  </p>
+                  <div className="flex items-center gap-3 px-6 py-5 text-sm text-muted-foreground">
+                    <User className="h-5 w-5 text-muted-foreground/50" />
+                    اضغط على البطاقة لعرض بياناتك
+                  </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Card 2: My Notifications */}
-            <Card className="overflow-hidden border-border/60 shadow-sm">
+            {/* Card 2: Notifications */}
+            <Card id="notifications-card" className="overflow-hidden border-border/60 shadow-sm">
               <CardHeader className="border-b border-border/60 bg-secondary/30">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-lg">
