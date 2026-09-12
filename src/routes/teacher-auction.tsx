@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -47,8 +47,11 @@ export const Route = createFileRoute("/teacher-auction")({
 function TeacherAuctionPage() {
   const register = useServerFn(registerTeacher);
   const login = useServerFn(loginTeacher);
+  const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [loginError, setLoginError] = useState("");
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [teacherEmail, setTeacherEmail] = useState("");
   const [activeTab, setActiveTab] = useState("register");
@@ -79,25 +82,6 @@ function TeacherAuctionPage() {
     },
   });
 
-  const loginMut = useMutation({
-    mutationFn: async (data: typeof loginForm) => {
-      return await login({ data });
-    },
-    onSuccess: (res) => {
-      if (res.ok) {
-        localStorage.setItem("teacherEmail", res.email);
-        setTeacherEmail(res.email);
-        setRegistered(true);
-        toast.success("تم تسجيل الدخول بنجاح");
-      } else {
-        toast.error(res.error || "فشل تسجيل الدخول");
-      }
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || "حدث خطأ أثناء تسجيل الدخول");
-    },
-  });
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name || !form.email || !form.city || !form.phone || !form.password) {
@@ -111,12 +95,27 @@ function TeacherAuctionPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    setLoginError("");
     if (!loginForm.email || !loginForm.password) {
-      toast.error("الرجاء تعبئة البريد الإلكتروني وكلمة السر");
+      setLoginError("الرجاء تعبئة البريد الإلكتروني وكلمة السر");
       return;
     }
     setSubmitting(true);
-    await loginMut.mutateAsync(loginForm);
+    try {
+      const res = await login({ data: loginForm });
+      if (res.ok) {
+        localStorage.setItem("teacher_email", res.email);
+        try {
+          navigate({ to: "/dashboard-teacher" });
+        } catch {
+          setLoggedIn(true);
+        }
+      } else {
+        setLoginError("الايميل او كلمة السر غير صحيحة");
+      }
+    } catch {
+      setLoginError("الايميل او كلمة السر غير صحيحة");
+    }
     setSubmitting(false);
   }
 
@@ -136,6 +135,22 @@ function TeacherAuctionPage() {
     } catch {
       toast.error("تعذر تفعيل الإشعارات");
     }
+  }
+
+  if (loggedIn) {
+    return (
+      <div className="min-h-screen bg-secondary/30" dir="rtl">
+        <SiteHeader />
+        <main className="container mx-auto px-4 py-12">
+          <div className="mx-auto max-w-2xl text-center">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              مرحبا
+            </h1>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
+    );
   }
 
   return (
@@ -318,6 +333,12 @@ function TeacherAuctionPage() {
                         "دخول"
                       )}
                     </Button>
+
+                    {loginError && (
+                      <p className="text-sm text-red-600 text-center">
+                        {loginError}
+                      </p>
+                    )}
                   </form>
                 </div>
               </TabsContent>
