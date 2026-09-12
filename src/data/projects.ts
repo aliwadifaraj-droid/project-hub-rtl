@@ -20,7 +20,7 @@ export function resolveImage(key: string) {
 
 /**
  * Build a public R2 URL from a stored key.
- * Handles legacy Supabase paths, /turso/ prefixes, and raw R2 keys.
+ * Handles legacy storage paths, /turso/ prefixes, and raw R2 keys.
  * Returns null if the key doesn't look like a valid R2 path.
  */
 export function buildR2Url(coverImage: string | null): string | null {

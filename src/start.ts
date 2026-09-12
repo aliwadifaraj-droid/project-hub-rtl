@@ -1,7 +1,6 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 const errorMiddleware = createMiddleware().server(async ({ request, next }) => {
   const url = new URL(request.url);
@@ -25,9 +24,6 @@ const errorMiddleware = createMiddleware().server(async ({ request, next }) => {
   }
 });
 
-// Auth is now cookie-based (httpOnly), so the browser sends the session
-// automatically — no bearer-token middleware needed.
 export const startInstance = createStart(() => ({
   requestMiddleware: [errorMiddleware],
-  functionMiddleware: [attachSupabaseAuth],
 }));
