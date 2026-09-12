@@ -100,6 +100,28 @@ export const updateTeacherStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const sendNotifSchema = z.object({
+  id: z.number().int(),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(2000),
+});
+
+export const sendTeacherNotification = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => sendNotifSchema.parse(d))
+  .handler(async ({ data }) => {
+    const teacher = await getTeacherMarketById(data.id);
+    if (!teacher) {
+      return { ok: false as const, error: "المعلم غير موجود" };
+    }
+    await insertTeacherNotification({
+      teacher_email: teacher.email,
+      title: data.title,
+      body: data.body,
+    });
+    return { ok: true as const };
+  });
+
 // --- Teacher dashboard functions (public, no admin auth) ---
 
 const emailSchema = z.object({
