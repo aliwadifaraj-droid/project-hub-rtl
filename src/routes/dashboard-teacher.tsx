@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   getTeacherData,
   getTeacherNotifications,
   markTeacherNotifRead,
   markAllTeacherNotifsRead,
+  getTeacherChatMessages,
+  sendTeacherChatMessage,
 } from "@/lib/teacher-market.functions";
 import { SiteFooter } from "@/components/site-footer";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,8 @@ import {
   ShieldX,
   ChevronDown,
   ChevronUp,
+  MessageCircle,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +59,15 @@ type TeacherNotification = {
   teacher_email: string;
   title: string;
   body: string | null;
+  read: boolean;
+  created_at: string;
+};
+
+type TeacherChatMessage = {
+  id: number;
+  teacher_email: string;
+  sender: "teacher" | "admin";
+  body: string;
   read: boolean;
   created_at: string;
 };
@@ -140,6 +153,8 @@ function TeacherDashboardPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [showData, setShowData] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const e = localStorage.getItem("teacher_email");
@@ -155,6 +170,8 @@ function TeacherDashboardPage() {
   const getNotifs = useServerFn(getTeacherNotifications);
   const markRead = useServerFn(markTeacherNotifRead);
   const markAllRead = useServerFn(markAllTeacherNotifsRead);
+  const getChatFn = useServerFn(getTeacherChatMessages);
+  const sendChatFn = useServerFn(sendTeacherChatMessage);
   const qc = useQueryClient();
 
   const { data: teacher, isLoading: teacherLoading } = useQuery({
@@ -169,6 +186,25 @@ function TeacherDashboardPage() {
     enabled: !!email,
   });
 
+  const {
+    data: chatMessages = [],
+    isLoading: chatLoading,
+    refetch: refetchChat,
+  } = useQuery({
+    queryKey: ["teacher-chat", email],
+    queryFn: () => getChatFn({ data: { email: email! } }),
+    enabled: !!email,
+    refetchInterval: 5000,
+  });
+
+  const scrollToBottom = useCallback(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages, scrollToBottom]);
+
   const markReadMut = useMutation({
     mutationFn: (id: number) => markRead({ data: { email: email!, id } }),
     onSuccess: () =>
@@ -182,6 +218,25 @@ function TeacherDashboardPage() {
       toast.success("تم تحديد جميع الإشعارات كمقروءة");
     },
   });
+
+  const sendChatMut = useMutation({
+    mutationFn: (body: string) =>
+      sendChatFn({ data: { email: email!, body } }),
+    onSuccess: () => {
+      setChatInput("");
+      refetchChat();
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "تعذر إرسال الرسالة");
+    },
+  });
+
+  function handleSendChat(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+    sendChatMut.mutate(trimmed);
+  }
 
   function handleLogout() {
     localStorage.removeItem("teacher_email");
@@ -199,7 +254,12 @@ function TeacherDashboardPage() {
     );
   }
 
-  const unreadCount = notifications.filter((n: TeacherNotification) => !n.read).length;
+  const unreadCount = notifications.filter(
+    (n: TeacherNotification) => !n.read,
+  ).length;
+  const unreadChatCount = chatMessages.filter(
+    (m: TeacherChatMessage) => m.sender === "admin" && !m.read,
+  ).length;
 
   return (
     <div className="flex min-h-screen flex-col bg-background" dir="rtl">
@@ -229,7 +289,11 @@ function TeacherDashboardPage() {
                   type="button"
                   onClick={() => {
                     const el = document.getElementById("notifications-card");
-                    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    if (el)
+                      el.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
                   }}
                   className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition hover:bg-secondary"
                   aria-label="الإشعارات"
@@ -359,7 +423,10 @@ function TeacherDashboardPage() {
             </Card>
 
             {/* Card 2: Notifications */}
-            <Card id="notifications-card" className="overflow-hidden border-border/60 shadow-sm">
+            <Card
+              id="notifications-card"
+              className="overflow-hidden border-border/60 shadow-sm"
+            >
               <CardHeader className="border-b border-border/60 bg-secondary/30">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -449,6 +516,101 @@ function TeacherDashboardPage() {
                       ))}
                     </div>
                   </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Card 3: Chat with admin */}
+            <Card
+              id="chat-card"
+              className="overflow-hidden border-border/60 shadow-sm lg:col-span-2"
+            >
+              <CardHeader className="border-b border-border/60 bg-secondary/30">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <MessageCircle className="h-5 w-5 text-primary" />
+                    محادثة مع الإدارة
+                    {unreadChatCount > 0 ? (
+                      <Badge variant="default" className="mr-1">
+                        {unreadChatCount} جديد
+                      </Badge>
+                    ) : null}
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {chatLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col" style={{ height: "420px" }}>
+                    <ScrollArea className="flex-1">
+                      <div className="space-y-3 p-4">
+                        {chatMessages.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              لا توجد رسائل بعد. ابدأ المحادثة مع الإدارة.
+                            </p>
+                          </div>
+                        ) : (
+                          chatMessages.map((m: TeacherChatMessage) => (
+                            <div
+                              key={m.id}
+                              className={`flex ${
+                                m.sender === "teacher"
+                                  ? "justify-end"
+                                  : "justify-start"
+                              }`}
+                            >
+                              <div
+                                className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                                  m.sender === "teacher"
+                                    ? "rounded-br-sm bg-primary text-primary-foreground"
+                                    : "rounded-bl-sm bg-secondary text-secondary-foreground"
+                                }`}
+                              >
+                                <p className="whitespace-pre-line">{m.body}</p>
+                                <p
+                                  className="mt-1 text-[10px] opacity-60"
+                                  dir="ltr"
+                                >
+                                  {m.created_at}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        <div ref={chatEndRef} />
+                      </div>
+                    </ScrollArea>
+                    <form
+                      onSubmit={handleSendChat}
+                      className="flex items-center gap-2 border-t border-border/60 p-3"
+                    >
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="اكتب رسالتك..."
+                        maxLength={2000}
+                        className="flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <Button
+                        type="submit"
+                        size="icon"
+                        disabled={sendChatMut.isPending || !chatInput.trim()}
+                        className="rounded-full"
+                      >
+                        {sendChatMut.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </form>
+                  </div>
                 )}
               </CardContent>
             </Card>
