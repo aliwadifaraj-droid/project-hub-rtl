@@ -9,6 +9,7 @@ import {
   markAllTeacherNotifsRead,
   getTeacherChatMessages,
   sendTeacherChatMessage,
+  markTeacherChatRead,
 } from "@/lib/teacher-market.functions";
 import { SiteFooter } from "@/components/site-footer";
 import { Button } from "@/components/ui/button";
@@ -172,6 +173,7 @@ function TeacherDashboardPage() {
   const markAllRead = useServerFn(markAllTeacherNotifsRead);
   const getChatFn = useServerFn(getTeacherChatMessages);
   const sendChatFn = useServerFn(sendTeacherChatMessage);
+  const markChatReadFn = useServerFn(markTeacherChatRead);
   const qc = useQueryClient();
 
   const { data: teacher, isLoading: teacherLoading } = useQuery({
@@ -204,6 +206,18 @@ function TeacherDashboardPage() {
   useEffect(() => {
     scrollToBottom();
   }, [chatMessages, scrollToBottom]);
+
+  useEffect(() => {
+    if (!email || chatMessages.length === 0) return;
+    const hasUnreadAdmin = chatMessages.some(
+      (m: TeacherChatMessage) => m.sender === "admin" && !m.read,
+    );
+    if (hasUnreadAdmin) {
+      markChatReadFn({ data: { email } }).then(() => {
+        qc.invalidateQueries({ queryKey: ["teacher-chat", email] });
+      });
+    }
+  }, [chatMessages, email, markChatReadFn, qc]);
 
   const markReadMut = useMutation({
     mutationFn: (id: number) => markRead({ data: { email: email!, id } }),
@@ -283,7 +297,7 @@ function TeacherDashboardPage() {
                 </div>
               </div>
 
-              {/* Bell + counter */}
+              {/* Bell + chat + counter */}
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -302,6 +316,27 @@ function TeacherDashboardPage() {
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
                       {unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById("chat-card");
+                    if (el)
+                      el.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
+                  }}
+                  className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition hover:bg-secondary"
+                  aria-label="رسائل الإدارة"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  {unreadChatCount > 0 && (
+                    <span className="absolute -top-1 -right-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                      {unreadChatCount}
                     </span>
                   )}
                 </button>

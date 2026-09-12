@@ -8,6 +8,7 @@ import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
+import { getTotalUnreadTeacherChatMessages } from "@/lib/teacher-chat-admin.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
 import { testPush } from "@/lib/push-test.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
@@ -30,6 +31,7 @@ function AdminLayout() {
   const countUnread = useServerFn(countMyUnreadNotifications);
   const countTeamUnread = useServerFn(countUnreadTeamMessages);
   const countOpenSupport = useServerFn(adminCountOpenSupportChats);
+  const countTeacherChatUnread = useServerFn(getTotalUnreadTeacherChatMessages);
   const doSignOut = useServerFn(signOut);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
@@ -92,6 +94,13 @@ function AdminLayout() {
     enabled: notifOpen,
   });
 
+  const { data: teacherChatUnread = 0 } = useQuery({
+    queryKey: ["teacher-chat-unread-total"],
+    queryFn: () => countTeacherChatUnread(),
+    enabled: isAdmin,
+    refetchInterval: 5000,
+  });
+
   const CONTACT_SEEN_KEY = "admin_contact_msgs_last_seen";
   const { data: contactUnread = 0, refetch: refetchContact } = useQuery({
     queryKey: ["contact-messages-unread"],
@@ -116,6 +125,10 @@ function AdminLayout() {
       localStorage.setItem(TEAM_CHAT_SEEN_KEY, new Date().toISOString());
     }
     qc.setQueryData(["chat-unread-count"], 0);
+  }
+
+  function handleTeacherChatBellClick() {
+    qc.setQueryData(["teacher-chat-unread-total"], 0);
   }
 
   async function logout() {
@@ -227,6 +240,22 @@ function AdminLayout() {
               </Link>
             )}
 
+            {isAdmin && (
+              <Link
+                to="/admin/teacher-market"
+                onClick={handleTeacherChatBellClick}
+                className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+                title="رسائل المعلمين"
+              >
+                <GraduationCap className="h-5 w-5" />
+                {teacherChatUnread > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {teacherChatUnread > 9 ? "9+" : teacherChatUnread}
+                  </span>
+                )}
+              </Link>
+            )}
+
             <Link
               to="/admin/support"
               className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -250,7 +279,7 @@ function AdminLayout() {
               </button>
             )}
 
-n            <button
+            <button
               onClick={logout}
               className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
               title="تسجيل الخروج"
