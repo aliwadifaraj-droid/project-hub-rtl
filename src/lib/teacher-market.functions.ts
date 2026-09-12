@@ -14,6 +14,7 @@ const registerSchema = z.object({
   city: z.string().min(1).max(100),
   phone: z.string().min(5).max(30),
   cv: z.string().max(500).optional().nullable(),
+  password: z.string().min(1).max(200),
 });
 
 export const registerTeacher = createServerFn({ method: "POST" })
@@ -25,6 +26,7 @@ export const registerTeacher = createServerFn({ method: "POST" })
       city: data.city,
       phone: data.phone,
       cv: data.cv ?? null,
+      password: data.password,
     });
     return { id };
   });
@@ -36,6 +38,24 @@ export const checkTeacherByEmail = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const row = await findTeacherMarketByEmail(data.email);
     return row;
+  });
+
+const loginSchema = z.object({
+  email: z.string().email().max(200),
+  password: z.string().min(1).max(200),
+});
+
+export const loginTeacher = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => loginSchema.parse(d))
+  .handler(async ({ data }) => {
+    const row = await findTeacherMarketByEmail(data.email);
+    if (!row) {
+      return { ok: false as const, error: "البريد الإلكتروني غير مسجل" };
+    }
+    if (row.password !== data.password) {
+      return { ok: false as const, error: "كلمة السر غير صحيحة" };
+    }
+    return { ok: true as const, email: row.email };
   });
 
 export const listTeachers = createServerFn({ method: "GET" })

@@ -7,6 +7,7 @@ export type TeacherMarketRow = {
   city: string;
   phone: string;
   cv: string | null;
+  password: string | null;
   entry_date: string;
   exit_date: string | null;
   status: string;
@@ -20,6 +21,7 @@ function decode(row: any): TeacherMarketRow {
     city: String(row.city ?? ""),
     phone: String(row.phone ?? ""),
     cv: row.cv ?? null,
+    password: row.password ?? null,
     entry_date: String(row.entry_date ?? ""),
     exit_date: row.exit_date ?? null,
     status: String(row.status ?? "active"),
@@ -39,10 +41,11 @@ export async function insertTeacherMarket(input: {
   city: string;
   phone: string;
   cv: string | null;
+  password: string | null;
 }): Promise<number> {
   await db.execute(
-    `INSERT INTO teachers_market (name, email, city, phone, cv) VALUES (?, ?, ?, ?, ?)`,
-    [input.name, input.email, input.city, input.phone, input.cv]
+    `INSERT INTO teachers_market (name, email, city, phone, cv, password) VALUES (?, ?, ?, ?, ?, ?)`,
+    [input.name, input.email, input.city, input.phone, input.cv, input.password]
   );
   const res = await db.execute(`SELECT last_insert_rowid() as id`);
   const rows = rowsToObjects<{ id: number }>(res);
