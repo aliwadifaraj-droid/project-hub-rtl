@@ -13,6 +13,9 @@ import {
   listTeacherNotifications,
   markTeacherNotificationRead,
   markAllTeacherNotificationsRead,
+  insertTeacherChatMessage,
+  listTeacherChatMessages,
+  markTeacherChatMessagesRead,
 } from "./teacher-market.repo";
 
 const registerSchema = z.object({
@@ -48,10 +51,10 @@ export const registerTeacher = createServerFn({ method: "POST" })
     }
 
     const id = await insertTeacherMarket({
-      name: name,
-      email: email,
+      name,
+      email,
       city: data.city,
-      phone: phone,
+      phone,
       profession: data.profession,
       cv: data.cv ?? null,
       password: data.password,
@@ -140,6 +143,57 @@ export const sendTeacherNotification = createServerFn({ method: "POST" })
     await insertTeacherNotification({
       teacher_email: teacher.email,
       title: data.title,
+      body: data.body,
+    });
+    return { ok: true as const };
+  });
+
+const chatMessageSchema = z.object({
+  email: z.string().email().max(200),
+  body: z.string().trim().min(1).max(2000),
+});
+
+export const getTeacherChatMessages = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ email: z.string().email().max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const messages = await listTeacherChatMessages(data.email);
+    await markTeacherChatMessagesRead(data.email, "admin");
+    return messages;
+  });
+
+export const sendTeacherChatMessage = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => chatMessageSchema.parse(d))
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    const teacher = await findTeacherMarketByEmail(email);
+    if (!teacher) return { ok: false as const, error: "المعلم غير موجود" };
+    await insertTeacherChatMessage({
+      teacher_email: email,
+      sender: "teacher",
+      body: data.body,
+    });
+    return { ok: true as const };
+  });
+
+export const getAdminTeacherChatMessages = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ email: z.string().email().max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const messages = await listTeacherChatMessages(data.email);
+    await markTeacherChatMessagesRead(data.email, "teacher");
+    return messages;
+  });
+
+export const sendAdminTeacherChatMessage = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => chatMessageSchema.parse(d))
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    const teacher = await findTeacherMarketByEmail(email);
+    if (!teacher) return { ok: false as const, error: "المعلم غير موجود" };
+    await insertTeacherChatMessage({
+      teacher_email: email,
+      sender: "admin",
       body: data.body,
     });
     return { ok: true as const };
