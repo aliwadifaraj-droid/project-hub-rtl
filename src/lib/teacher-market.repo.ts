@@ -83,8 +83,16 @@ export async function insertTeacherMarket(input: {
   password: string | null;
 }): Promise<number> {
   await db.execute(
-    `INSERT INTO teachers_market (name, email, city, phone, cv, password) VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.name, input.email, input.city, input.phone, input.cv, input.password]
+    `INSERT INTO teachers_market (name, email, city, phone, profession, cv, password) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      input.name,
+      input.email,
+      input.city,
+      input.phone,
+      input.profession,
+      input.cv,
+      input.password,
+    ]
   );
   const res = await db.execute(`SELECT last_insert_rowid() as id`);
   const rows = rowsToObjects<{ id: number }>(res);
