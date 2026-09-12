@@ -2,20 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { registerTeacher, loginTeacher } from "@lib/teacher-market.functions";
-import { SAUDI_CITIES } from "@lib/saudi-cities";
-import { SiteFooter } from "@components/site-footer";
-import { Button } from "@components/ui/button";
-import { Input } from "@components/ui/input";
-import { Label } from "@components/ui/label";
+import { registerTeacher, loginTeacher } from "@/lib/teacher-market.functions";
+import { SAUDI_CITIES } from "@/lib/saudi-cities";
+import { SiteFooter } from "@/components/site-footer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@components/ui/tabs";
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2,
   GraduationCap,
