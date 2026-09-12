@@ -2,6 +2,20 @@ import { db, rowsToObjects } from "./db";
 
 db.execute(`ALTER TABLE teachers_market ADD COLUMN profession TEXT`).catch(() => undefined);
 
+// Ensure unique constraints to prevent duplicate registrations at the DB level.
+// These run once on startup; if duplicates already exist the CREATE will fail
+// silently (caught) and the app-level checks in teacher-market.functions.ts
+// remain the primary guard.
+db.execute(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_market_email ON teachers_market(LOWER(TRIM(email)))`
+).catch(() => undefined);
+db.execute(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_market_phone ON teachers_market(LOWER(TRIM(phone)))`
+).catch(() => undefined);
+db.execute(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_market_name ON teachers_market(LOWER(TRIM(name)))`
+).catch(() => undefined);
+
 export type TeacherMarketRow = {
   id: number;
   name: string;
@@ -94,6 +108,28 @@ export async function findTeacherMarketByEmail(
   const res = await db.execute(
     `SELECT * FROM teachers_market WHERE email = ? COLLATE NOCASE LIMIT 1`,
     [email]
+  );
+  const rows = rowsToObjects<TeacherMarketRow>(res).map(decode);
+  return rows[0] ?? null;
+}
+
+export async function findTeacherMarketByPhone(
+  phone: string
+): Promise<TeacherMarketRow | null> {
+  const res = await db.execute(
+    `SELECT * FROM teachers_market WHERE phone = ? COLLATE NOCASE LIMIT 1`,
+    [phone]
+  );
+  const rows = rowsToObjects<TeacherMarketRow>(res).map(decode);
+  return rows[0] ?? null;
+}
+
+export async function findTeacherMarketByName(
+  name: string
+): Promise<TeacherMarketRow | null> {
+  const res = await db.execute(
+    `SELECT * FROM teachers_market WHERE name = ? COLLATE NOCASE LIMIT 1`,
+    [name]
   );
   const rows = rowsToObjects<TeacherMarketRow>(res).map(decode);
   return rows[0] ?? null;

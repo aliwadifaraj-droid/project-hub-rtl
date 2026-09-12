@@ -6,6 +6,8 @@ import {
   insertTeacherMarket,
   updateTeacherMarketStatus,
   findTeacherMarketByEmail,
+  findTeacherMarketByPhone,
+  findTeacherMarketByName,
   getTeacherMarketById,
   insertTeacherNotification,
   listTeacherNotifications,
@@ -26,11 +28,30 @@ const registerSchema = z.object({
 export const registerTeacher = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => registerSchema.parse(d))
   .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    const phone = data.phone.trim();
+    const name = data.name.trim();
+
+    const existingByEmail = await findTeacherMarketByEmail(email);
+    if (existingByEmail) {
+      throw new Error("هذا البريد الإلكتروني مسجل بالفعل، يرجى استخدام بريد آخر أو تسجيل الدخول");
+    }
+
+    const existingByPhone = await findTeacherMarketByPhone(phone);
+    if (existingByPhone) {
+      throw new Error("رقم الهاتف مسجل بالفعل، يرجى استخدام رقم آخر أو تسجيل الدخول");
+    }
+
+    const existingByName = await findTeacherMarketByName(name);
+    if (existingByName) {
+      throw new Error("الاسم مسجل بالفعل، يرجى استخدام اسم آخر أو تسجيل الدخول");
+    }
+
     const id = await insertTeacherMarket({
-      name: data.name,
-      email: data.email,
+      name: name,
+      email: email,
       city: data.city,
-      phone: data.phone,
+      phone: phone,
       profession: data.profession,
       cv: data.cv ?? null,
       password: data.password,
