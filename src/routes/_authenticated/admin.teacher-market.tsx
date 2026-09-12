@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   listTeachers,
   updateTeacherStatus,
   sendTeacherNotification,
+  getAdminTeacherChatMessages,
+  sendAdminTeacherChatMessage,
 } from "@/lib/teacher-market.functions";
 import {
   Table,
@@ -17,8 +19,31 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, GraduationCap, Bell, X } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, GraduationCap, Bell, X, MessageCircle, Send } from "lucide-react";
 import { toast } from "sonner";
+
+type TeacherRow = {
+  id: number;
+  name: string;
+  email: string;
+  city: string;
+  phone: string;
+  profession: string;
+  cv: string | null;
+  entry_date: string;
+  exit_date: string | null;
+  status: string;
+};
+
+type ChatMessage = {
+  id: number;
+  teacher_email: string;
+  sender: "teacher" | "admin";
+  body: string;
+  read: boolean;
+  created_at: string;
+};
 
 export const Route = createFileRoute("/_authenticated/admin/teacher-market")({
   component: AdminTeacherMarketPage,
@@ -48,6 +73,8 @@ function AdminTeacherMarketPage() {
   const listFn = useServerFn(listTeachers);
   const updateFn = useServerFn(updateTeacherStatus);
   const sendNotifFn = useServerFn(sendTeacherNotification);
+  const getChatFn = useServerFn(getAdminTeacherChatMessages);
+  const sendChatFn = useServerFn(sendAdminTeacherChatMessage);
   const qc = useQueryClient();
 
   const { data: teachers = [], isLoading } = useQuery({
@@ -66,6 +93,66 @@ function AdminTeacherMarketPage() {
   } | null>(null);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
+
+  const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [chatTeacher, setChatTeacher] = useState<{
+    id: number;
+    name: string;
+    email: string;
+  } | null>(null);
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  const {
+    data: chatMessages = [],
+    isLoading: chatLoading,
+    refetch: refetchChat,
+  } = useQuery<ChatMessage[]>({
+    queryKey: ["admin-teacher-chat", chatTeacher?.email],
+    queryFn: () =>
+      getChatFn({ data: { email: chatTeacher!.email } }),
+    enabled: !!chatTeacher?.email && chatModalOpen,
+    refetchInterval: chatModalOpen ? 5000 : false,
+  });
+
+  const scrollToBottom = useCallback(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages, scrollToBottom]);
+
+  const sendChatMut = useMutation({
+    mutationFn: (body: string) =>
+      sendChatFn({ data: { email: chatTeacher!.email, body } }),
+    onSuccess: () => {
+      setChatInput("");
+      refetchChat();
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "تعذر إرسال الرسالة");
+    },
+  });
+
+  function handleSendChat(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = chatInput.trim();
+    if (!trimmed || !chatTeacher) return;
+    sendChatMut.mutate(trimmed);
+  }
+
+  function openChatModal(t: TeacherRow) {
+    setChatTeacher({ id: t.id, name: t.name, email: t.email });
+    setChatInput("");
+    setChatModalOpen(true);
+  }
+
+  function closeChatModal() {
+    setChatModalOpen(false);
+    setChatTeacher(null);
+    setChatInput("");
+  }
 
   const updateMut = useMutation({
     mutationFn: async (input: {
@@ -184,7 +271,7 @@ function AdminTeacherMarketPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {teachers.map((t) => (
+              {teachers.map((t: TeacherRow) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-mono text-xs">{t.id}</TableCell>
                   <TableCell className="font-medium">{t.name}</TableCell>
@@ -283,6 +370,14 @@ function AdminTeacherMarketPage() {
                           <Bell className="h-3 w-3 ml-1" />
                           إشعار
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openChatModal(t)}
+                        >
+                          <MessageCircle className="h-3 w-3 ml-1" />
+                          محادثة
+                        </Button>
                       </div>
                     )}
                   </TableCell>
@@ -368,6 +463,115 @@ function AdminTeacherMarketPage() {
                 )}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Modal */}
+      {chatModalOpen && chatTeacher && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeChatModal}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-lg border border-border bg-background shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="flex items-center justify-between border-b border-border p-4">
+              <div className="flex items-center gap-2">
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10">
+                  <MessageCircle className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">محادثة مع المعلم</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {chatTeacher.name} — {chatTeacher.email}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeChatModal}
+                className="rounded-md p-1 text-muted-foreground hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {chatLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <ScrollArea className="flex-1" style={{ height: "400px" }}>
+                  <div className="space-y-3 p-4">
+                    {chatMessages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          لا توجد رسائل بعد. ابدأ المحادثة مع المعلم.
+                        </p>
+                      </div>
+                    ) : (
+                      chatMessages.map((m: ChatMessage) => (
+                        <div
+                          key={m.id}
+                          className={`flex ${
+                            m.sender === "admin"
+                              ? "justify-end"
+                              : "justify-start"
+                          }`}
+                        >
+                          <div
+                            className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                              m.sender === "admin"
+                                ? "rounded-br-sm bg-primary text-primary-foreground"
+                                : "rounded-bl-sm bg-secondary text-secondary-foreground"
+                            }`}
+                          >
+                            <p className="whitespace-pre-line">{m.body}</p>
+                            <p
+                              className="mt-1 text-[10px] opacity-60"
+                              dir="ltr"
+                            >
+                              {m.created_at}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+
+            <form
+              onSubmit={handleSendChat}
+              className="flex items-center gap-2 border-t border-border p-3"
+            >
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="اكتب رسالتك..."
+                maxLength={2000}
+                className="flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={sendChatMut.isPending || !chatInput.trim()}
+                className="rounded-full"
+              >
+                {sendChatMut.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </form>
           </div>
         </div>
       )}
