@@ -13,6 +13,15 @@ export type TeacherMarketRow = {
   status: string;
 };
 
+export type TeacherNotificationRow = {
+  id: number;
+  teacher_email: string;
+  title: string;
+  body: string | null;
+  read: boolean;
+  created_at: string;
+};
+
 function decode(row: any): TeacherMarketRow {
   return {
     id: Number(row.id),
@@ -25,6 +34,17 @@ function decode(row: any): TeacherMarketRow {
     entry_date: String(row.entry_date ?? ""),
     exit_date: row.exit_date ?? null,
     status: String(row.status ?? "active"),
+  };
+}
+
+function decodeNotification(row: any): TeacherNotificationRow {
+  return {
+    id: Number(row.id),
+    teacher_email: String(row.teacher_email ?? ""),
+    title: String(row.title ?? ""),
+    body: row.body ?? null,
+    read: Number(row.read) === 1,
+    created_at: String(row.created_at ?? ""),
   };
 }
 
@@ -72,4 +92,100 @@ export async function findTeacherMarketByEmail(
   );
   const rows = rowsToObjects<TeacherMarketRow>(res).map(decode);
   return rows[0] ?? null;
+}
+
+export async function getTeacherMarketById(
+  id: number
+): Promise<TeacherMarketRow | null> {
+  const res = await db.execute(
+    `SELECT * FROM teachers_market WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  const rows = rowsToObjects<TeacherMarketRow>(res).map(decode);
+  return rows[0] ?? null;
+}
+
+// --- Teacher notifications ---
+
+let _tnTableReady: Promise<void> | null = null;
+
+async function ensureTeacherNotificationsTable(): Promise<void> {
+  if (!_tnTableReady) {
+    _tnTableReady = (async () => {
+      await db.execute(
+        `CREATE TABLE IF NOT EXISTS teacher_notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          teacher_email TEXT NOT NULL,
+          title TEXT NOT NULL,
+          body TEXT,
+          read INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`
+      );
+      await db.execute(
+        `CREATE INDEX IF NOT EXISTS idx_teacher_notifications_email ON teacher_notifications(teacher_email)`
+      );
+    })().catch((e) => {
+      _tnTableReady = null;
+      throw e;
+    });
+  }
+  return _tnTableReady;
+}
+
+export async function insertTeacherNotification(input: {
+  teacher_email: string;
+  title: string;
+  body: string | null;
+}): Promise<void> {
+  await ensureTeacherNotificationsTable();
+  await db.execute(
+    `INSERT INTO teacher_notifications (teacher_email, title, body) VALUES (?, ?, ?)`,
+    [input.teacher_email, input.title, input.body]
+  );
+}
+
+export async function listTeacherNotifications(
+  email: string,
+  limit = 50
+): Promise<TeacherNotificationRow[]> {
+  await ensureTeacherNotificationsTable();
+  const res = await db.execute(
+    `SELECT * FROM teacher_notifications WHERE teacher_email = ? COLLATE NOCASE ORDER BY created_at DESC LIMIT ?`,
+    [email, limit]
+  );
+  return rowsToObjects<TeacherNotificationRow>(res).map(decodeNotification);
+}
+
+export async function countUnreadTeacherNotifications(
+  email: string
+): Promise<number> {
+  await ensureTeacherNotificationsTable();
+  const res = await db.execute(
+    `SELECT COUNT(*) AS c FROM teacher_notifications WHERE teacher_email = ? AND read = 0`,
+    [email]
+  );
+  const rows = rowsToObjects<{ c: number }>(res);
+  return Number(rows[0]?.c ?? 0);
+}
+
+export async function markTeacherNotificationRead(
+  email: string,
+  id: number
+): Promise<void> {
+  await ensureTeacherNotificationsTable();
+  await db.execute(
+    `UPDATE teacher_notifications SET read = 1 WHERE id = ? AND teacher_email = ?`,
+    [id, email]
+  );
+}
+
+export async function markAllTeacherNotificationsRead(
+  email: string
+): Promise<void> {
+  await ensureTeacherNotificationsTable();
+  await db.execute(
+    `UPDATE teacher_notifications SET read = 1 WHERE teacher_email = ? AND read = 0`,
+    [email]
+  );
 }

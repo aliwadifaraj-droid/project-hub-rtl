@@ -6,6 +6,11 @@ import {
   insertTeacherMarket,
   updateTeacherMarketStatus,
   findTeacherMarketByEmail,
+  getTeacherMarketById,
+  insertTeacherNotification,
+  listTeacherNotifications,
+  markTeacherNotificationRead,
+  markAllTeacherNotificationsRead,
 } from "./teacher-market.repo";
 
 const registerSchema = z.object({
@@ -70,10 +75,76 @@ const updateSchema = z.object({
   exit_date: z.string().nullable(),
 });
 
+const statusLabels: Record<string, string> = {
+  active: "نشط",
+  inactive: "غير نشط",
+  suspended: "موقوف",
+};
+
 export const updateTeacherStatus = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) => updateSchema.parse(d))
   .handler(async ({ data }) => {
+    const teacher = await getTeacherMarketById(data.id);
     await updateTeacherMarketStatus(data.id, data.status, data.exit_date);
+    if (teacher) {
+      const body =
+        `تم تحديث حالتك إلى: ${statusLabels[data.status] ?? data.status}` +
+        (data.exit_date ? `\nتاريخ الخروج: ${data.exit_date}` : "");
+      await insertTeacherNotification({
+        teacher_email: teacher.email,
+        title: "تحديث حالة المعلم",
+        body,
+      });
+    }
+    return { ok: true };
+  });
+
+// --- Teacher dashboard functions (public, no admin auth) ---
+
+const emailSchema = z.object({
+  email: z.string().email().max(200),
+});
+
+export const getTeacherData = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => emailSchema.parse(d))
+  .handler(async ({ data }) => {
+    const row = await findTeacherMarketByEmail(data.email);
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      city: row.city,
+      phone: row.phone,
+      cv: row.cv,
+      entry_date: row.entry_date,
+      exit_date: row.exit_date,
+      status: row.status,
+    };
+  });
+
+export const getTeacherNotifications = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => emailSchema.parse(d))
+  .handler(async ({ data }) => {
+    return await listTeacherNotifications(data.email, 50);
+  });
+
+const markReadSchema = z.object({
+  email: z.string().email().max(200),
+  id: z.number().int(),
+});
+
+export const markTeacherNotifRead = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => markReadSchema.parse(d))
+  .handler(async ({ data }) => {
+    await markTeacherNotificationRead(data.email, data.id);
+    return { ok: true };
+  });
+
+export const markAllTeacherNotifsRead = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => emailSchema.parse(d))
+  .handler(async ({ data }) => {
+    await markAllTeacherNotificationsRead(data.email);
     return { ok: true };
   });

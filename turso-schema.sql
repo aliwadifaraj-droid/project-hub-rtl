@@ -146,3 +146,15 @@ CREATE TABLE IF NOT EXISTS teachers_market (
 );
 CREATE INDEX IF NOT EXISTS idx_teachers_market_email ON teachers_market(email);
 CREATE INDEX IF NOT EXISTS idx_teachers_market_status ON teachers_market(status);
+
+-- ============ teacher_notifications (إشعارات المعلمين) ==========
+CREATE TABLE IF NOT EXISTS teacher_notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  teacher_email TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT,
+  read INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_teacher_notifications_email ON teacher_notifications(teacher_email);
+CREATE INDEX IF NOT EXISTS idx_teacher_notifications_unread ON teacher_notifications(teacher_email, read);
