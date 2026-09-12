@@ -39,6 +39,15 @@ export type TeacherNotificationRow = {
   created_at: string;
 };
 
+export type TeacherChatMessageRow = {
+  id: number;
+  teacher_email: string;
+  sender: "teacher" | "admin";
+  body: string;
+  read: boolean;
+  created_at: string;
+};
+
 function decode(row: any): TeacherMarketRow {
   return {
     id: Number(row.id),
@@ -61,6 +70,17 @@ function decodeNotification(row: any): TeacherNotificationRow {
     teacher_email: String(row.teacher_email ?? ""),
     title: String(row.title ?? ""),
     body: row.body ?? null,
+    read: Number(row.read) === 1,
+    created_at: String(row.created_at ?? ""),
+  };
+}
+
+function decodeChatMessage(row: any): TeacherChatMessageRow {
+  return {
+    id: Number(row.id),
+    teacher_email: String(row.teacher_email ?? ""),
+    sender: row.sender === "admin" ? "admin" : "teacher",
+    body: String(row.body ?? ""),
     read: Number(row.read) === 1,
     created_at: String(row.created_at ?? ""),
   };
@@ -236,5 +256,68 @@ export async function markAllTeacherNotificationsRead(
   await db.execute(
     `UPDATE teacher_notifications SET read = 1 WHERE teacher_email = ? AND read = 0`,
     [email]
+  );
+}
+
+// --- Teacher administration chat ---
+
+let _tcTableReady: Promise<void> | null = null;
+
+async function ensureTeacherChatTable(): Promise<void> {
+  if (!_tcTableReady) {
+    _tcTableReady = (async () => {
+      await db.execute(
+        `CREATE TABLE IF NOT EXISTS teacher_chat_messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          teacher_email TEXT NOT NULL,
+          sender TEXT NOT NULL CHECK (sender IN ('teacher', 'admin')),
+          body TEXT NOT NULL,
+          read INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`
+      );
+      await db.execute(
+        `CREATE INDEX IF NOT EXISTS idx_teacher_chat_messages_email ON teacher_chat_messages(teacher_email, created_at)`
+      );
+    })().catch((e) => {
+      _tcTableReady = null;
+      throw e;
+    });
+  }
+  return _tcTableReady;
+}
+
+export async function insertTeacherChatMessage(input: {
+  teacher_email: string;
+  sender: "teacher" | "admin";
+  body: string;
+}): Promise<void> {
+  await ensureTeacherChatTable();
+  await db.execute(
+    `INSERT INTO teacher_chat_messages (teacher_email, sender, body) VALUES (?, ?, ?)`,
+    [input.teacher_email, input.sender, input.body]
+  );
+}
+
+export async function listTeacherChatMessages(
+  email: string,
+  limit = 100
+): Promise<TeacherChatMessageRow[]> {
+  await ensureTeacherChatTable();
+  const res = await db.execute(
+    `SELECT * FROM teacher_chat_messages WHERE teacher_email = ? COLLATE NOCASE ORDER BY created_at ASC, id ASC LIMIT ?`,
+    [email, limit]
+  );
+  return rowsToObjects<TeacherChatMessageRow>(res).map(decodeChatMessage);
+}
+
+export async function markTeacherChatMessagesRead(
+  email: string,
+  sender: "teacher" | "admin"
+): Promise<void> {
+  await ensureTeacherChatTable();
+  await db.execute(
+    `UPDATE teacher_chat_messages SET read = 1 WHERE teacher_email = ? COLLATE NOCASE AND sender = ? AND read = 0`,
+    [email, sender]
   );
 }
