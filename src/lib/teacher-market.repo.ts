@@ -1,11 +1,14 @@
 import { db, rowsToObjects } from "./db";
 
+db.execute(`ALTER TABLE teachers_market ADD COLUMN profession TEXT`).catch(() => undefined);
+
 export type TeacherMarketRow = {
   id: number;
   name: string;
   email: string;
   city: string;
   phone: string;
+  profession: string;
   cv: string | null;
   password: string | null;
   entry_date: string;
@@ -29,6 +32,7 @@ function decode(row: any): TeacherMarketRow {
     email: String(row.email ?? ""),
     city: String(row.city ?? ""),
     phone: String(row.phone ?? ""),
+    profession: String(row.profession ?? ""),
     cv: row.cv ?? null,
     password: row.password ?? null,
     entry_date: String(row.entry_date ?? ""),
@@ -60,6 +64,7 @@ export async function insertTeacherMarket(input: {
   email: string;
   city: string;
   phone: string;
+  profession: string;
   cv: string | null;
   password: string | null;
 }): Promise<number> {

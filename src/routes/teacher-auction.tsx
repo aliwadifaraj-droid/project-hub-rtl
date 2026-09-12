@@ -27,6 +27,7 @@ import {
   MapPin,
   FileText,
   Lock,
+  Briefcase,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -62,6 +63,7 @@ function TeacherAuctionPage() {
     email: "",
     city: "",
     phone: "",
+    profession: "",
     cv: "",
     password: "",
   });
@@ -82,7 +84,7 @@ function TeacherAuctionPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.email || !form.city || !form.phone || !form.password) {
+    if (!form.name || !form.email || !form.city || !form.phone || !form.profession || !form.password) {
       toast.error("الرجاء تعبئة جميع الحقول المطلوبة");
       return;
     }
@@ -297,6 +299,32 @@ function TeacherAuctionPage() {
                         placeholder="05xxxxxxxx"
                         required
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="profession" className="flex items-center gap-1.5">
+                        <Briefcase className="h-4 w-4" /> المهنة
+                      </Label>
+                      <Select
+                        value={form.profession}
+                        onValueChange={(v) => setForm({ ...form, profession: v })}
+                      >
+                        <SelectTrigger id="profession" className="w-full">
+                          <SelectValue placeholder="اختر المهنة" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="نجار">نجار</SelectItem>
+                          <SelectItem value="حداد">حداد</SelectItem>
+                          <SelectItem value="بناء">بناء</SelectItem>
+                          <SelectItem value="كهربائي">كهربائي</SelectItem>
+                          <SelectItem value="سباك">سباك</SelectItem>
+                          <SelectItem value="مليس">مليس</SelectItem>
+                          <SelectItem value="دهان">دهان</SelectItem>
+                          <SelectItem value="مهندس مدني">مهندس مدني</SelectItem>
+                          <SelectItem value="مهندس معماري">مهندس معماري</SelectItem>
+                          <SelectItem value="مساح">مساح</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-2">

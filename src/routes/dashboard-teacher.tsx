@@ -20,6 +20,7 @@ import {
   MapPin,
   Phone,
   FileText,
+  Briefcase,
   Bell,
   Calendar,
   CalendarClock,
@@ -42,6 +43,7 @@ type TeacherData = {
   email: string;
   city: string;
   phone: string;
+  profession: string;
   cv: string | null;
   entry_date: string;
   exit_date: string | null;
@@ -312,6 +314,11 @@ function TeacherDashboardPage() {
                             label="رقم الجوال"
                             value={teacher.phone}
                             ltr
+                          />
+                          <InfoRow
+                            icon={Briefcase}
+                            label="المهنة"
+                            value={teacher.profession || "غير محدد"}
                           />
                           <InfoRow
                             icon={Calendar}

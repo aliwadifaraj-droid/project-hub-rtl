@@ -18,6 +18,7 @@ const registerSchema = z.object({
   email: z.string().email().max(200),
   city: z.string().min(1).max(100),
   phone: z.string().min(5).max(30),
+  profession: z.string().min(1).max(100),
   cv: z.string().max(500).optional().nullable(),
   password: z.string().min(1).max(200),
 });
@@ -30,6 +31,7 @@ export const registerTeacher = createServerFn({ method: "POST" })
       email: data.email,
       city: data.city,
       phone: data.phone,
+      profession: data.profession,
       cv: data.cv ?? null,
       password: data.password,
     });
@@ -139,6 +141,7 @@ export const getTeacherData = createServerFn({ method: "POST" })
       email: row.email,
       city: row.city,
       phone: row.phone,
+      profession: row.profession,
       cv: row.cv,
       entry_date: row.entry_date,
       exit_date: row.exit_date,

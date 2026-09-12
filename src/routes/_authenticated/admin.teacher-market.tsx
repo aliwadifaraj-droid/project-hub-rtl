@@ -175,6 +175,7 @@ function AdminTeacherMarketPage() {
                 <TableHead>البريد الإلكتروني</TableHead>
                 <TableHead>المدينة</TableHead>
                 <TableHead>الجوال</TableHead>
+                <TableHead>المهنة</TableHead>
                 <TableHead>السيرة الذاتية</TableHead>
                 <TableHead>تاريخ التسجيل</TableHead>
                 <TableHead>الحالة</TableHead>
@@ -191,6 +192,9 @@ function AdminTeacherMarketPage() {
                   <TableCell className="text-sm">{t.city}</TableCell>
                   <TableCell className="text-sm" dir="ltr">
                     {t.phone}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {t.profession || "-"}
                   </TableCell>
                   <TableCell className="text-sm">
                     {t.cv ? (
