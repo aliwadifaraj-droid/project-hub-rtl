@@ -2,20 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { registerTeacher, loginTeacher } from "@/lib/teacher-market.functions";
-import { SAUDI_CITIES } from "@/lib/saudi-cities";
-import { SiteFooter } from "@/components/site-footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { registerTeacher, loginTeacher } from "@lib/teacher-market.functions";
+import { SAUDI_CITIES } from "@lib/saudi-cities";
+import { SiteFooter } from "@components/site-footer";
+import { Button } from "@components/ui/button";
+import { Input } from "@components/ui/input";
+import { Label } from "@components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "@components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@components/ui/tabs";
 import {
   Loader2,
   GraduationCap,
@@ -51,6 +51,7 @@ function TeacherAuctionPage() {
   const [registered, setRegistered] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [registerError, setRegisterError] = useState("");
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [teacherEmail, setTeacherEmail] = useState("");
   const [activeTab, setActiveTab] = useState("login");
@@ -78,19 +79,27 @@ function TeacherAuctionPage() {
       setTeacherEmail(form.email);
     },
     onError: (err: Error) => {
-      toast.error(err.message || "حدث خطأ أثناء التسجيل");
+      const msg = err.message || "حدث خطأ أثناء التسجيل";
+      toast.error(msg);
+      setRegisterError(msg);
     },
   });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setRegisterError("");
     if (!form.name || !form.email || !form.city || !form.phone || !form.profession || !form.password) {
       toast.error("الرجاء تعبئة جميع الحقول المطلوبة");
       return;
     }
     setSubmitting(true);
-    await registerMut.mutateAsync(form);
-    setSubmitting(false);
+    try {
+      await registerMut.mutateAsync(form);
+    } catch (err) {
+      console.error("teacher registration error:", err);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -370,6 +379,12 @@ function TeacherAuctionPage() {
                         "تسجيل"
                       )}
                     </Button>
+
+                    {registerError && (
+                      <p className="text-sm text-red-600 text-center mt-2">
+                        {registerError}
+                      </p>
+                    )}
 
                     <button
                       type="button"
