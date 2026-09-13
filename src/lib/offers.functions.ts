@@ -267,7 +267,11 @@ export const adminUpdateOfferStatus = createServerFn({ method: "POST" })
         project_type: offer.source ?? "platform",
       });
       await requests.updateRequestStatus(requestId, "new");
-      await notificationsRepo.deleteOfferNotification(offer.id);
+      if (offer.pdf_key) {
+        await notificationsRepo.deleteAllOfferNotificationsByPdfKey(offer.pdf_key);
+      } else {
+        await notificationsRepo.deleteOfferNotification(offer.id);
+      }
       return { ok: true as const, moved: true, requestId };
     }
     await notificationsRepo.updateOfferNotificationStatus(data.id, data.status);
