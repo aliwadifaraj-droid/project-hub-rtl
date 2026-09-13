@@ -323,12 +323,19 @@ export async function deleteOfferNotification(id: string): Promise<void> {
 
 export async function updateOfferNotificationStatus(id: string, status: string): Promise<void> {
   await db.execute(
-    `UPDATE notifications SET offer_status = ? WHERE pdf_key = (SELECT pdf_key FROM notifications WHERE id = ?)`,
+    `UPDATE notifications SET offer_status = ? WHERE id = ?`,
     [status, id],
   );
 }
 
 export async function deleteOfferNotificationsByPdfKey(pdfKey: string): Promise<void> {
+  await db.execute(
+    `DELETE FROM notifications WHERE pdf_key = ? AND offer_status IS NOT NULL`,
+    [pdfKey],
+  );
+}
+
+export async function deleteAllOfferNotificationsByPdfKey(pdfKey: string): Promise<void> {
   await db.execute(
     `DELETE FROM notifications WHERE pdf_key = ? AND offer_status IS NOT NULL`,
     [pdfKey],
