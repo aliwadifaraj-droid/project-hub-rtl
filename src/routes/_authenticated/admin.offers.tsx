@@ -37,13 +37,30 @@ function AdminOffersPage() {
   });
 
   async function openPdf(key: string) {
-    const { url } = await pdfFn({ data: { key } });
-    window.open(url, "_blank", "noopener");
+    try {
+      const { url } = await pdfFn({ data: { key } });
+      if (!url) {
+        toast.error("تعذر الحصول على رابط الملف");
+        return;
+      }
+      window.open(url, "_blank", "noopener");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذر فتح الملف");
+    }
   }
 
   async function setStatus(id: string, status: "pending" | "new" | "reviewing" | "accepted" | "rejected") {
-    await updateFn({ data: { id, status } });
-    qc.invalidateQueries({ queryKey: ["admin-offers"] });
+    try {
+      const res = await updateFn({ data: { id, status } });
+      if (res?.moved) {
+        toast.success("تم قبول العرض ونقله إلى قسم الطلبات");
+      } else {
+        toast.success("تم تحديث حالة العرض");
+      }
+      qc.invalidateQueries({ queryKey: ["admin-offers"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذر تحديث حالة العرض");
+    }
   }
 
   const blockMut = useMutation({
