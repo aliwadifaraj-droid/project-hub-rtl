@@ -3,12 +3,12 @@ import * as vipRepo from "./vip.repo";
 import { SAUDI_CITIES } from "./saudi-cities";
 import { sendResendEmail } from "./resend-send.server";
 import { createVipToken } from "./vip-tokens.repo";
-import * as projectsRepo from "./projects.repo";
 
 function siteUrl(): string {
   return "https://ali-alhaddad.com".replace(/\/$/, "");
 }
 
+/** Extracts a known Saudi city from a free-text project location. */
 export function detectCity(location: string | null | undefined): string | null {
   if (!location) return null;
   const text = String(location);
@@ -34,11 +34,6 @@ export async function notifyVipSubscribersOfNewProject(project: {
     if (!city) return;
     const subs = await vipRepo.listActiveByCity(city);
     if (subs.length === 0) return;
-
-    // Fix: إنشاء الحصرية للعداد التلقائي
-    const now = new Date().toISOString();
-    const vipEndAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
-    await projectsRepo.setProjectExclusive(project.id, now, vipEndAt);
 
     const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
 
