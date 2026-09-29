@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { listMyTickets } from "@/lib/tickets.functions";
-import { Plus, MessageSquare, Loader2 } from "lucide-react";
+import { Plus, MessageSquare, Loader2, ArrowRight } from "lucide-react";
+import { SupportWidget } from "@/components/support-widget";
 
 export const Route = createFileRoute("/_authenticated/support/tickets")({
   ssr: false,
@@ -39,18 +40,24 @@ function MyTicketsPage() {
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      <div className="container mx-auto px-4 py-8 sm:py-12">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">تذاكري</h1>
+      <div className="border-b border-border bg-secondary/30">
+        <div className="container mx-auto flex items-center justify-between px-4 py-4">
+          <Link to="/admin" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground">
+            <ArrowRight className="h-4 w-4" />
+            رجوع للوحة
+          </Link>
+          <h1 className="text-xl font-bold">تذاكري</h1>
           <button
             onClick={() => navigate({ to: "/support/tickets/new" })}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
             تذكرة جديدة
           </button>
         </div>
+      </div>
 
+      <div className="container mx-auto px-4 py-8">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -68,7 +75,7 @@ function MyTicketsPage() {
             </Link>
           </div>
         ) : (
-          <div className="mt-6 grid gap-3">
+          <div className="grid gap-3">
             {tickets.map((t) => {
               const st = STATUS_STYLES[t.status] ?? STATUS_STYLES.open;
               return (
@@ -101,6 +108,7 @@ function MyTicketsPage() {
           </div>
         )}
       </div>
+      <SupportWidget />
     </div>
   );
 }

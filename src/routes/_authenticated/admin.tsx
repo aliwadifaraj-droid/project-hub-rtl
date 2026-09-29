@@ -2,17 +2,19 @@ import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tan
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { signOut } from "@/lib/auth.functions";
+import { signOut } from "@lib/auth.functions";
 import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.functions";
 import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
+import { adminCountOpenTickets } from "@/lib/tickets.functions";
 import { testPush } from "@/lib/push-test.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, Ticket } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+import { SupportWidget } from "@/components/support-widget";
 import { toast } from "sonner";
 
 const TEAM_CHAT_SEEN_KEY = "team_chat_last_seen";
@@ -30,6 +32,7 @@ function AdminLayout() {
   const countUnread = useServerFn(countMyUnreadNotifications);
   const countTeamUnread = useServerFn(countUnreadTeamMessages);
   const countOpenSupport = useServerFn(adminCountOpenSupportChats);
+  const countTickets = useServerFn(adminCountOpenTickets);
   const doSignOut = useServerFn(signOut);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
@@ -86,6 +89,15 @@ function AdminLayout() {
     enabled: !!roles && roles.length > 0,
     refetchInterval: 2000,
   });
+  const { data: openTicketsCount = 0 } = useQuery({
+    queryKey: ["open-tickets-count"],
+    queryFn: async () => {
+      const res = await countTickets();
+      return res.count;
+    },
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
   const { data: notifs } = useQuery({
     queryKey: ["my-notifications"],
     queryFn: () => listNotifs(),
@@ -129,6 +141,7 @@ function AdminLayout() {
     { to: "/admin/messages", label: "الرسائل", icon: MessageSquare, show: isAdmin },
     { to: "/admin/chat", label: "شات الفريق", icon: MessagesSquare, show: isAdmin },
     { to: "/admin/support", label: "دعم العملاء", icon: Headphones, show: true },
+    { to: "/admin/tickets", label: "تذاكر الدعم", icon: Ticket, show: isAdmin },
     { to: "/admin/bot-training", label: "تدريب البوت", icon: Bot, show: isAdmin },
     { to: "/admin/bot-settings", label: "إعدادات البوت", icon: Settings2, show: isAdmin },
     { to: "/admin/groq-settings", label: "إعدادات Groq", icon: Bot, show: isAdmin },
@@ -172,7 +185,7 @@ function AdminLayout() {
                   unreadCount > 0
                     ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
                     : "border-border bg-background hover:bg-secondary"
-                }`}
+                }`
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
@@ -267,7 +280,7 @@ function AdminLayout() {
                 supportEscalatedCount > 0
                   ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
                   : "border-border bg-background hover:bg-secondary"
-              }`}
+              }`
             >
               <Headphones className="h-4 w-4" />
               {supportEscalatedCount > 0 && (
@@ -276,6 +289,25 @@ function AdminLayout() {
                 </span>
               )}
             </Link>
+            {isAdmin && (
+              <Link
+                to="/admin/tickets"
+                aria-label="تذاكر الدعم"
+                title="تذاكر الدعم"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+                  openTicketsCount > 0
+                    ? "border-primary bg-primary text-primary-foreground animate-pulse hover:bg-primary/90"
+                    : "border-border bg-background hover:bg-secondary"
+                }`
+              >
+                <Ticket className="h-4 w-4" />
+                {openTicketsCount > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {openTicketsCount > 99 ? "99+" : openTicketsCount}
+                  </span>
+                )}
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 to="/admin/messages"
@@ -377,6 +409,11 @@ function AdminLayout() {
                     {supportEscalatedCount > 99 ? "99+" : supportEscalatedCount}
                   </span>
                 )}
+                {i.to === "/admin/tickets" && openTicketsCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {openTicketsCount > 99 ? "99+" : openTicketsCount}
+                  </span>
+                )}
                 {isPendingProjItem && pendingProjectsCount > 0 && (
                   <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                     {pendingProjectsCount > 99 ? "99+" : pendingProjectsCount}
@@ -390,6 +427,7 @@ function AdminLayout() {
       <main className="container mx-auto px-4 py-8">
         <Outlet />
       </main>
+      <SupportWidget />
     </div>
   );
 }

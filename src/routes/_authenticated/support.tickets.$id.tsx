@@ -1,10 +1,11 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTicketMessages, replyToTicket, closeTicket } from "@/lib/tickets.functions";
-import { Loader2, Send, XCircle, Paperclip } from "lucide-react";
+import { Loader2, Send, XCircle, Paperclip, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
+import { SupportWidget } from "@/components/support-widget";
 
 export const Route = createFileRoute("/_authenticated/support/tickets/$id")({
   ssr: false,
@@ -82,14 +83,16 @@ function TicketDetailPage() {
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      <div className="container mx-auto max-w-3xl px-4 py-8 sm:py-12">
-        <button
-          onClick={() => navigate({ to: "/support/tickets" })}
-          className="mb-4 text-sm text-muted-foreground transition hover:text-foreground"
-        >
-          ← رجوع لتذاكري
-        </button>
+      <div className="border-b border-border bg-secondary/30">
+        <div className="container mx-auto flex items-center px-4 py-4">
+          <Link to="/support/tickets" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground">
+            <ArrowRight className="h-4 w-4" />
+            رجوع لتذاكري
+          </Link>
+        </div>
+      </div>
 
+      <div className="container mx-auto max-w-3xl px-4 py-8">
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">{ticket.subject}</h1>
@@ -166,6 +169,7 @@ function TicketDetailPage() {
           </div>
         )}
       </div>
+      <SupportWidget />
     </div>
   );
 }
