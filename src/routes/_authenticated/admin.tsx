@@ -7,7 +7,7 @@ import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.fun
 import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
-import { countUnreadTeamMessages } from "@/lib/chat.functions";
+import { countUnreadTeamMessages } from "@lib/chat.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
 import { adminCountOpenTickets } from "@/lib/tickets.functions";
 import { testPush } from "@/lib/push-test.functions";
@@ -185,7 +185,7 @@ function AdminLayout() {
                   unreadCount > 0
                     ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
                     : "border-border bg-background hover:bg-secondary"
-                }`
+                }`}
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
@@ -280,7 +280,7 @@ function AdminLayout() {
                 supportEscalatedCount > 0
                   ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
                   : "border-border bg-background hover:bg-secondary"
-              }`
+              }`}
             >
               <Headphones className="h-4 w-4" />
               {supportEscalatedCount > 0 && (
@@ -298,7 +298,7 @@ function AdminLayout() {
                   openTicketsCount > 0
                     ? "border-primary bg-primary text-primary-foreground animate-pulse hover:bg-primary/90"
                     : "border-border bg-background hover:bg-secondary"
-                }`
+                }`}
               >
                 <Ticket className="h-4 w-4" />
                 {openTicketsCount > 0 && (
