@@ -167,3 +167,11 @@ export async function countOpenTickets(): Promise<number> {
   const r = await db.execute(`SELECT COUNT(*) AS c FROM tickets WHERE status = 'open'`);
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
+
+export async function countOpenTicketsByUser(userId: string): Promise<number> {
+  const r = await db.execute(
+    `SELECT COUNT(*) AS c FROM tickets WHERE user_id = ? AND status = 'open'`,
+    [userId],
+  );
+  return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
+}

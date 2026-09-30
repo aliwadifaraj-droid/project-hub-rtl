@@ -125,3 +125,9 @@ export const adminCountOpenTickets = createServerFn({ method: "GET" })
   .handler(async () => {
     return { count: await ticketsRepo.countOpenTickets() };
   });
+
+export const countMyOpenTickets = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    return { count: await ticketsRepo.countOpenTicketsByUser(context.userId) };
+  });
