@@ -2,12 +2,12 @@ import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tan
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { signOut } from "@lib/auth.functions";
+import { signOut } from "@/lib/auth.functions";
 import { getMyRoles, sendTestEmail, countContactMessages } from "@/lib/admin.functions";
 import { countPendingAds } from "@/lib/ads.functions";
 import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
-import { countUnreadTeamMessages } from "@lib/chat.functions";
+import { countUnreadTeamMessages } from "@/lib/chat.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
 import { adminCountOpenTickets } from "@/lib/tickets.functions";
 import { testPush } from "@/lib/push-test.functions";
