@@ -16,6 +16,15 @@ const statusLabels: Record<string, string> = {
   closed: "مغلقة",
 };
 
+function NewTicketLink({ className }: { className: string }) {
+  return (
+    <a href="/client-support/tickets/new" className={className}>
+      <Plus className="h-4 w-4" />
+      تذكرة جديدة
+    </a>
+  );
+}
+
 function ClientTicketsPage() {
   const listTickets = useServerFn(listMyClientTickets);
   const { data: tickets = [], isLoading, isError } = useQuery({
@@ -32,10 +41,7 @@ function ClientTicketsPage() {
             العودة للوحة العميل
           </Link>
           <h1 className="text-xl font-bold">تذاكر الدعم</h1>
-          <Link to="/client-support/tickets/new" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90">
-            <Plus className="h-4 w-4" />
-            تذكرة جديدة
-          </Link>
+          <NewTicketLink className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90" />
         </div>
       </div>
       <main className="container mx-auto px-4 py-8">
@@ -47,7 +53,7 @@ function ClientTicketsPage() {
           <div className="mt-12 flex flex-col items-center justify-center text-center">
             <Ticket className="h-12 w-12 text-muted-foreground/40" />
             <p className="mt-4 text-sm text-muted-foreground">لا توجد تذاكر حالياً</p>
-            <Link to="/client-support/tickets/new" className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-primary transition hover:bg-secondary"><Plus className="h-4 w-4" /> افتح تذكرة جديدة</Link>
+            <NewTicketLink className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-primary transition hover:bg-secondary" />
           </div>
         ) : (
           <div className="grid gap-3">
