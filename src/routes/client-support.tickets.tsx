@@ -30,6 +30,7 @@ function ClientTicketsPage() {
   const { data: tickets = [], isLoading, isError } = useQuery({
     queryKey: ["client-support-tickets"],
     queryFn: () => listTickets(),
+    refetchInterval: 5000,
   });
 
   function openNewTicket(): void {
@@ -99,6 +100,12 @@ function ClientTicketsPage() {
                   <span className="text-xs text-muted-foreground">{new Date(ticket.created_at * 1000).toLocaleDateString("ar-SA")}</span>
                 </div>
                 <h2 className="mt-2 text-sm font-semibold">{ticket.subject}</h2>
+                {ticket.latest_message && (
+                  <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                    {ticket.latest_message_sender === "admin" ? "رد الدعم: " : "رسالتك: "}
+                    {ticket.latest_message}
+                  </p>
+                )}
               </Link>
             ))}
           </div>
