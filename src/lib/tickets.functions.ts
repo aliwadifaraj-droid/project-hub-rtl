@@ -49,7 +49,7 @@ export const replyToTicket = createServerFn({ method: "POST" })
     if (ticket.user_id !== context.userId && !context.roles.includes("admin")) {
       throw new Error("غير مصرح لك بالرد على هذه التذكرة");
     }
-    const senderType = context.roles.includes("admin") ? "admin" : "user";
+    const senderType = context.roles.some((role: string) => role === "admin" || role === "employee") ? "admin" : "user";
     await ticketsRepo.addTicketMessage({
       ticket_id: data.id,
       sender_type: senderType,
