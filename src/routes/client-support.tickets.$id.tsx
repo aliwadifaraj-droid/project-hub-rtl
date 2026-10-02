@@ -20,7 +20,11 @@ function ClientTicketDetailsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
-  const { data, isLoading, isError } = useQuery({ queryKey: ["client-support-ticket", id], queryFn: () => getTicket({ data: { id } }) });
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["client-support-ticket", id],
+    queryFn: () => getTicket({ data: { id } }),
+    refetchInterval: 5000,
+  });
 
   useEffect(() => { if (isError) setError("تعذر تحميل التذكرة."); }, [isError]);
 
