@@ -36,6 +36,8 @@ export type TicketRow = {
   priority: string;
   created_at: number;
   updated_at: number;
+  latest_message: string | null;
+  latest_message_sender: string | null;
 };
 
 export type TicketMessageRow = {
@@ -59,6 +61,8 @@ function decodeTicket(row: any): TicketRow {
     priority: String(row.priority ?? "medium"),
     created_at: Number(row.created_at ?? 0),
     updated_at: Number(row.updated_at ?? 0),
+    latest_message: row.latest_message ?? null,
+    latest_message_sender: row.latest_message_sender ?? null,
   };
 }
 
@@ -102,7 +106,10 @@ export async function createTicket(input: {
 
 export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
   const r = await db.execute(
-    `SELECT * FROM tickets WHERE user_id = ? ORDER BY updated_at DESC`,
+    `SELECT tickets.*,
+            (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
+            (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender
+     FROM tickets WHERE user_id = ? ORDER BY updated_at DESC`,
     [userId],
   );
   return rowsToObjects(r).map(decodeTicket);
