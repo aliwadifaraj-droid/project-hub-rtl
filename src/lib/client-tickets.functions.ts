@@ -54,6 +54,7 @@ export const getMyClientTicket = createServerFn({ method: "POST" })
     const ticket = await ticketsRepo.getTicketById(data.id);
     if (!ticket || ticket.user_id !== clientId) throw new Error("التذكرة غير موجودة");
     const messages = await ticketsRepo.listTicketMessages(data.id);
+    await ticketsRepo.markTicketMessagesRead(data.id, clientId);
     return { ticket, messages };
   });
 
