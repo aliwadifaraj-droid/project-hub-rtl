@@ -38,6 +38,8 @@ export type TicketRow = {
   updated_at: number;
   latest_message: string | null;
   latest_message_sender: string | null;
+  requester_name: string;
+  requester_email: string;
 };
 
 export type TicketMessageRow = {
@@ -63,6 +65,8 @@ function decodeTicket(row: any): TicketRow {
     updated_at: Number(row.updated_at ?? 0),
     latest_message: row.latest_message ?? null,
     latest_message_sender: row.latest_message_sender ?? null,
+    requester_name: String(row.requester_name ?? row.user_id ?? ""),
+    requester_email: String(row.requester_email ?? ""),
   };
 }
 
@@ -117,13 +121,32 @@ export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
 
 export async function listAllTickets(): Promise<TicketRow[]> {
   const r = await db.execute(
-    `SELECT * FROM tickets ORDER BY updated_at DESC LIMIT 500`,
+    `SELECT tickets.*,
+            COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(c.email, u.email, '') AS requester_email
+     FROM tickets
+     LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
+     LEFT JOIN profiles p ON p.user_id = tickets.user_id
+     LEFT JOIN clients c ON c.id = tickets.user_id
+     LEFT JOIN users u ON u.id = tickets.user_id
+     ORDER BY tickets.updated_at DESC LIMIT 500`,
   );
   return rowsToObjects(r).map(decodeTicket);
 }
 
 export async function getTicketById(id: string): Promise<TicketRow | null> {
-  const r = await db.execute(`SELECT * FROM tickets WHERE id = ? LIMIT 1`, [id]);
+  const r = await db.execute(
+    `SELECT tickets.*,
+            COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(c.email, u.email, '') AS requester_email
+     FROM tickets
+     LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
+     LEFT JOIN profiles p ON p.user_id = tickets.user_id
+     LEFT JOIN clients c ON c.id = tickets.user_id
+     LEFT JOIN users u ON u.id = tickets.user_id
+     WHERE tickets.id = ? LIMIT 1`,
+    [id],
+  );
   const row = rowsToObjects(r)[0];
   return row ? decodeTicket(row) : null;
 }
