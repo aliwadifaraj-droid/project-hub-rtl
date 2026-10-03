@@ -107,7 +107,6 @@ function AdminTicketsPage() {
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-          {/* Sidebar list */}
           <div className="space-y-2 lg:max-h-[600px] lg:overflow-y-auto">
             {tickets.map((t) => (
               <button
@@ -126,6 +125,7 @@ function AdminTicketsPage() {
                   </span>
                 </div>
                 <h3 className="mt-1.5 truncate text-sm font-semibold">{t.subject}</h3>
+                <p className="mt-1 truncate text-xs font-medium text-foreground/80">{t.requester_name}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {new Date(t.created_at * 1000).toLocaleDateString("ar-SA")}
                 </p>
@@ -133,7 +133,6 @@ function AdminTicketsPage() {
             ))}
           </div>
 
-          {/* Detail panel */}
           {activeId && detail ? (
             <div className="rounded-xl border border-border bg-card">
               <div className="border-b border-border/60 p-4">
@@ -146,7 +145,8 @@ function AdminTicketsPage() {
                 <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span>التصنيف: {detail.ticket.category}</span>
                   {detail.ticket.order_id && <span>رقم الطلب: {detail.ticket.order_id}</span>}
-                  <span>المستخدم: {detail.ticket.user_id}</span>
+                  <span>صاحب التذكرة: {detail.ticket.requester_name}</span>
+                  {detail.ticket.requester_email && <span>{detail.ticket.requester_email}</span>}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <select
