@@ -38,6 +38,7 @@ export type TicketRow = {
   updated_at: number;
   latest_message: string | null;
   latest_message_sender: string | null;
+  admin_message_count: number;
   requester_name: string;
   requester_email: string;
 };
@@ -65,6 +66,7 @@ function decodeTicket(row: any): TicketRow {
     updated_at: Number(row.updated_at ?? 0),
     latest_message: row.latest_message ?? null,
     latest_message_sender: row.latest_message_sender ?? null,
+    admin_message_count: Number(row.admin_message_count ?? 0),
     requester_name: String(row.requester_name ?? row.user_id ?? ""),
     requester_email: String(row.requester_email ?? ""),
   };
@@ -112,7 +114,8 @@ export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
   const r = await db.execute(
     `SELECT tickets.*,
             (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
-            (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender
+            (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender,
+            (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') AS admin_message_count
      FROM tickets WHERE user_id = ? ORDER BY updated_at DESC`,
     [userId],
   );

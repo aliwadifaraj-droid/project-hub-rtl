@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { closeMyClientTicket, getMyClientTicket, replyToMyClientTicket } from "@/lib/client-tickets.functions";
 import { ArrowRight, Loader2, Send } from "lucide-react";
+import { markTicketMessagesRead } from "@/lib/client-ticket-unread";
 
 export const Route = createFileRoute("/client-support/tickets/$id")({
   ssr: false,
@@ -26,7 +27,12 @@ function ClientTicketDetailsPage() {
     refetchInterval: 5000,
   });
 
-  useEffect(() => { if (isError) setError("تعذر تحميل التذكرة."); }, [isError]);
+  useEffect(() => {
+    if (isError) setError("تعذر تحميل التذكرة.");
+    if (data) {
+      markTicketMessagesRead(id, data.messages.filter((item) => item.sender_type === "admin").length);
+    }
+  }, [data, id, isError]);
 
   async function handleReply(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();

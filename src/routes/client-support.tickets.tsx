@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { createClientTicket, listMyClientTickets } from "@/lib/client-tickets.functions";
 import { MessageSquare, Plus, Loader2, ArrowRight, Ticket, X } from "lucide-react";
+import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 
 export const Route = createFileRoute("/client-support/tickets")({
   ssr: false,
@@ -94,12 +95,19 @@ function ClientTicketsPage() {
         ) : (
           <div className="grid gap-3">
             {tickets.map((ticket) => (
-              <Link key={ticket.id} to="/client-support/tickets/$id" params={{ id: ticket.id }} className="block rounded-xl border border-border bg-card p-4 transition hover:border-primary/40 hover:shadow-sm">
+              <Link key={ticket.id} to="/client-support/tickets/$id" params={{ id: ticket.id }} className="block rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 transition hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground"><MessageSquare className="h-4 w-4" /> {statusLabels[ticket.status] ?? ticket.status}</span>
                   <span className="text-xs text-muted-foreground">{new Date(ticket.created_at * 1000).toLocaleDateString("ar-SA")}</span>
                 </div>
-                <h2 className="mt-2 text-sm font-semibold">{ticket.subject}</h2>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold">{ticket.subject}</h2>
+                  {getTicketUnreadCount(ticket) > 0 && (
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">
+                      {getTicketUnreadCount(ticket) > 99 ? "99+" : getTicketUnreadCount(ticket)}
+                    </span>
+                  )}
+                </div>
                 {ticket.latest_message && (
                   <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
                     {ticket.latest_message_sender === "admin" ? "رد الدعم: " : "رسالتك: "}
