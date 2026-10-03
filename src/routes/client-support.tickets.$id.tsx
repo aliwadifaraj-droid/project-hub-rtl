@@ -2,9 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { closeMyClientTicket, getMyClientTicket, replyToMyClientTicket } from "@/lib/client-tickets.functions";
+import { closeMyClientTicket, getMyClientTicket, markMyClientTicketRead, replyToMyClientTicket } from "@/lib/client-tickets.functions";
 import { ArrowRight, Loader2, Send } from "lucide-react";
-import { markTicketMessagesRead } from "@/lib/client-ticket-unread";
 
 export const Route = createFileRoute("/client-support/tickets/$id")({
   ssr: false,
@@ -16,6 +15,7 @@ function ClientTicketDetailsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const getTicket = useServerFn(getMyClientTicket);
+  const markRead = useServerFn(markMyClientTicketRead);
   const reply = useServerFn(replyToMyClientTicket);
   const close = useServerFn(closeMyClientTicket);
   const [message, setMessage] = useState("");
@@ -29,10 +29,11 @@ function ClientTicketDetailsPage() {
 
   useEffect(() => {
     if (isError) setError("تعذر تحميل التذكرة.");
-    if (data) {
-      markTicketMessagesRead(id, data.messages.filter((item) => item.sender_type === "admin").length);
+    if (data && data.ticket.unread_admin_message_count > 0) {
+      void markRead({ data: { id } });
+      void queryClient.invalidateQueries({ queryKey: ["client-support-tickets"] });
     }
-  }, [data, id, isError]);
+  }, [data, id, isError, markRead, queryClient]);
 
   async function handleReply(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();

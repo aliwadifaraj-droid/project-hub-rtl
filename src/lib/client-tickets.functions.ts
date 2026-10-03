@@ -39,6 +39,14 @@ export const createClientTicket = createServerFn({ method: "POST" })
 
 const ticketIdSchema = z.object({ id: z.string().uuid() });
 
+export const markMyClientTicketRead = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => ticketIdSchema.parse(data))
+  .handler(async ({ data }) => {
+    const clientId = await requireClientId();
+    await ticketsRepo.markTicketMessagesRead(data.id, clientId);
+    return { ok: true };
+  });
+
 export const getMyClientTicket = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => ticketIdSchema.parse(data))
   .handler(async ({ data }) => {

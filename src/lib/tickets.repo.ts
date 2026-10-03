@@ -10,9 +10,12 @@ db.execute(`
     status TEXT DEFAULT 'open',
     priority TEXT DEFAULT 'medium',
     created_at INTEGER DEFAULT (unixepoch()),
-    updated_at INTEGER DEFAULT (unixepoch())
+    updated_at INTEGER DEFAULT (unixepoch()),
+    client_read_admin_count INTEGER NOT NULL DEFAULT 0
   )
 `).catch(() => undefined);
+
+db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined);
 
 db.execute(`
   CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -38,7 +41,7 @@ export type TicketRow = {
   updated_at: number;
   latest_message: string | null;
   latest_message_sender: string | null;
-  admin_message_count: number;
+  unread_admin_message_count: number;
   requester_name: string;
   requester_email: string;
 };
@@ -66,7 +69,7 @@ function decodeTicket(row: any): TicketRow {
     updated_at: Number(row.updated_at ?? 0),
     latest_message: row.latest_message ?? null,
     latest_message_sender: row.latest_message_sender ?? null,
-    admin_message_count: Number(row.admin_message_count ?? 0),
+    unread_admin_message_count: Number(row.unread_admin_message_count ?? 0),
     requester_name: String(row.requester_name ?? row.user_id ?? ""),
     requester_email: String(row.requester_email ?? ""),
   };
@@ -115,7 +118,7 @@ export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
     `SELECT tickets.*,
             (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
             (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender,
-            (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') AS admin_message_count
+            MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets WHERE user_id = ? ORDER BY updated_at DESC`,
     [userId],
   );
@@ -126,7 +129,8 @@ export async function listAllTickets(): Promise<TicketRow[]> {
   const r = await db.execute(
     `SELECT tickets.*,
             COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
-            COALESCE(c.email, u.email, '') AS requester_email
+            COALESCE(c.email, u.email, '') AS requester_email,
+            MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
      LEFT JOIN profiles p ON p.user_id = tickets.user_id
@@ -141,7 +145,8 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
   const r = await db.execute(
     `SELECT tickets.*,
             COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
-            COALESCE(c.email, u.email, '') AS requester_email
+            COALESCE(c.email, u.email, '') AS requester_email,
+            MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
      LEFT JOIN profiles p ON p.user_id = tickets.user_id
@@ -152,6 +157,15 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
   );
   const row = rowsToObjects(r)[0];
   return row ? decodeTicket(row) : null;
+}
+
+export async function markTicketMessagesRead(ticketId: string, userId: string): Promise<void> {
+  await db.execute(
+    `UPDATE tickets
+     SET client_read_admin_count = (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin')
+     WHERE id = ? AND user_id = ?`,
+    [ticketId, userId],
+  );
 }
 
 export async function listTicketMessages(ticketId: string): Promise<TicketMessageRow[]> {
