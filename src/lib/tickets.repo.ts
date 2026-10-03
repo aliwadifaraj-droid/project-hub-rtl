@@ -1,6 +1,6 @@
 import { db, rowsToObjects } from "./db";
 
-db.execute(`
+const ticketsTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS tickets (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -13,11 +13,9 @@ db.execute(`
     updated_at INTEGER DEFAULT (unixepoch()),
     client_read_admin_count INTEGER NOT NULL DEFAULT 0
   )
-`).catch(() => undefined);
+`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => undefined);
 
-db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined);
-
-db.execute(`
+const ticketMessagesTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS ticket_messages (
     id TEXT PRIMARY KEY,
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -27,7 +25,11 @@ db.execute(`
     attachment_url TEXT,
     created_at INTEGER DEFAULT (unixepoch())
   )
-`).catch(() => undefined);
+`).then(() => undefined);
+
+async function ensureTicketTables(): Promise<void> {
+  await Promise.all([ticketsTableReady, ticketMessagesTableReady]);
+}
 
 export type TicketRow = {
   id: string;
@@ -96,6 +98,7 @@ export async function createTicket(input: {
   message: string;
   attachment_url?: string | null;
 }): Promise<string> {
+  await ensureTicketTables();
   const id = crypto.randomUUID();
   const msgId = crypto.randomUUID();
   await db.batch([
@@ -114,6 +117,7 @@ export async function createTicket(input: {
 }
 
 export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
+  await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
             (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
@@ -126,6 +130,7 @@ export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
 }
 
 export async function listAllTickets(): Promise<TicketRow[]> {
+  await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
             COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
@@ -142,6 +147,7 @@ export async function listAllTickets(): Promise<TicketRow[]> {
 }
 
 export async function getTicketById(id: string): Promise<TicketRow | null> {
+  await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
             COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
@@ -160,6 +166,7 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
 }
 
 export async function markTicketMessagesRead(ticketId: string, userId: string): Promise<void> {
+  await ensureTicketTables();
   await db.execute(
     `UPDATE tickets
      SET client_read_admin_count = (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin')
@@ -169,6 +176,7 @@ export async function markTicketMessagesRead(ticketId: string, userId: string): 
 }
 
 export async function listTicketMessages(ticketId: string): Promise<TicketMessageRow[]> {
+  await ensureTicketTables();
   const r = await db.execute(
     `SELECT * FROM ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC`,
     [ticketId],
@@ -183,6 +191,7 @@ export async function addTicketMessage(input: {
   message: string;
   attachment_url?: string | null;
 }): Promise<void> {
+  await ensureTicketTables();
   await db.batch([
     {
       sql: `INSERT INTO ticket_messages (id, ticket_id, sender_type, sender_id, message, attachment_url, created_at)
@@ -197,6 +206,7 @@ export async function addTicketMessage(input: {
 }
 
 export async function updateTicketStatus(id: string, status: string): Promise<void> {
+  await ensureTicketTables();
   await db.execute(
     `UPDATE tickets SET status = ?, updated_at = unixepoch() WHERE id = ?`,
     [status, id],
@@ -204,6 +214,7 @@ export async function updateTicketStatus(id: string, status: string): Promise<vo
 }
 
 export async function updateTicketPriority(id: string, priority: string): Promise<void> {
+  await ensureTicketTables();
   await db.execute(
     `UPDATE tickets SET priority = ?, updated_at = unixepoch() WHERE id = ?`,
     [priority, id],
@@ -211,11 +222,13 @@ export async function updateTicketPriority(id: string, priority: string): Promis
 }
 
 export async function countOpenTickets(): Promise<number> {
+  await ensureTicketTables();
   const r = await db.execute(`SELECT COUNT(*) AS c FROM tickets WHERE status = 'open'`);
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
 
 export async function countOpenTicketsByUser(userId: string): Promise<number> {
+  await ensureTicketTables();
   const r = await db.execute(
     `SELECT COUNT(*) AS c FROM tickets WHERE user_id = ? AND status = 'open'`,
     [userId],
