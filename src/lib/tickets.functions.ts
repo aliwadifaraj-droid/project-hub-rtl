@@ -3,131 +3,18 @@ import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as ticketsRepo from "./tickets.repo";
 
-const createSchema = z.object({
-  subject: z.string().trim().min(3).max(200),
-  category: z.string().trim().min(1).max(50),
-  order_id: z.string().trim().max(100).optional().nullable(),
-  priority: z.enum(["low", "medium", "high"]).optional(),
-  message: z.string().trim().min(3).max(5000),
-  attachment_url: z.string().url().max(500).optional().nullable(),
-});
-
-export const createTicket = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => createSchema.parse(d))
-  .handler(async ({ data, context }) => {
-    const id = await ticketsRepo.createTicket({
-      user_id: context.userId,
-      order_id: data.order_id ?? null,
-      subject: data.subject,
-      category: data.category,
-      priority: data.priority ?? "medium",
-      message: data.message,
-      attachment_url: data.attachment_url ?? null,
-    });
-    return { id };
-  });
-
-export const listMyTickets = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    return await ticketsRepo.listTicketsByUser(context.userId);
-  });
-
-const replySchema = z.object({
-  id: z.string().uuid(),
-  message: z.string().trim().min(1).max(5000),
-  attachment_url: z.string().url().max(500).optional().nullable(),
-});
-
-export const replyToTicket = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => replySchema.parse(d))
-  .handler(async ({ data, context }) => {
-    const ticket = await ticketsRepo.getTicketById(data.id);
-    if (!ticket) throw new Error("التذكرة غير موجودة");
-    if (ticket.user_id !== context.userId && !context.roles.includes("admin")) {
-      throw new Error("غير مصرح لك بالرد على هذه التذكرة");
-    }
-    const senderType = context.roles.some((role: string) => role === "admin" || role === "employee") ? "admin" : "user";
-    await ticketsRepo.addTicketMessage({
-      ticket_id: data.id,
-      sender_type: senderType,
-      sender_id: context.userId,
-      message: data.message,
-      attachment_url: data.attachment_url ?? null,
-    });
-    return { ok: true };
-  });
-
+const createSchema = z.object({ subject: z.string().trim().min(3).max(200), category: z.string().trim().min(1).max(50), order_id: z.string().trim().max(100).optional().nullable(), priority: z.enum(["low", "medium", "high"]).optional(), message: z.string().trim().min(3).max(5000), attachment_url: z.string().url().max(500).optional().nullable() });
+export const createTicket = createServerFn({ method: "POST" }).middleware([requireAuth]).inputValidator((d: unknown) => createSchema.parse(d)).handler(async ({ data, context }) => { const id = await ticketsRepo.createTicket({ user_id: context.userId, order_id: data.order_id ?? null, subject: data.subject, category: data.category, priority: data.priority ?? "medium", message: data.message, attachment_url: data.attachment_url ?? null }); return { id }; });
+export const listMyTickets = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => ticketsRepo.listTicketsByUser(context.userId));
+const replySchema = z.object({ id: z.string().uuid(), message: z.string().trim().min(1).max(5000), attachment_url: z.string().url().max(500).optional().nullable() });
+export const replyToTicket = createServerFn({ method: "POST" }).middleware([requireAuth]).inputValidator((d: unknown) => replySchema.parse(d)).handler(async ({ data, context }) => { const ticket = await ticketsRepo.getTicketById(data.id); if (!ticket) throw new Error("التذكرة غير موجودة"); if (ticket.user_id !== context.userId && !context.roles.includes("admin")) throw new Error("غير مصرح لك بالرد على هذه التذكرة"); const senderType = context.roles.some((role: string) => role === "admin" || role === "employee") ? "admin" : "user"; await ticketsRepo.addTicketMessage({ ticket_id: data.id, sender_type: senderType, sender_id: context.userId, message: data.message, attachment_url: data.attachment_url ?? null }); return { ok: true }; });
 const closeSchema = z.object({ id: z.string().uuid() });
-
-export const closeTicket = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => closeSchema.parse(d))
-  .handler(async ({ data, context }) => {
-    const ticket = await ticketsRepo.getTicketById(data.id);
-    if (!ticket) throw new Error("التذكرة غير موجودة");
-    if (ticket.user_id !== context.userId && !context.roles.includes("admin")) {
-      throw new Error("غير مصرح لك بإغلاق هذه التذكرة");
-    }
-    await ticketsRepo.updateTicketStatus(data.id, "closed");
-    return { ok: true };
-  });
-
-export const getTicketMessages = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const ticket = await ticketsRepo.getTicketById(data.id);
-    if (!ticket) throw new Error("التذكرة غير موجودة");
-    if (ticket.user_id !== context.userId && !context.roles.includes("admin")) {
-      throw new Error("غير مصرح لك بعرض هذه التذكرة");
-    }
-    const messages = await ticketsRepo.listTicketMessages(data.id);
-    return { ticket, messages };
-  });
-
-export const adminListTickets = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    return await ticketsRepo.listAllTickets();
-  });
-
-export const adminGetTicket = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    const ticket = await ticketsRepo.getTicketById(data.id);
-    if (!ticket) throw new Error("التذكرة غير موجودة");
-    const messages = await ticketsRepo.listTicketMessages(data.id);
-    return { ticket, messages };
-  });
-
-export const adminUpdateTicketStatus = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["open", "pending", "resolved", "closed"]) }).parse(d))
-  .handler(async ({ data }) => {
-    await ticketsRepo.updateTicketStatus(data.id, data.status);
-    return { ok: true };
-  });
-
-export const adminUpdateTicketPriority = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), priority: z.enum(["low", "medium", "high"]) }).parse(d))
-  .handler(async ({ data }) => {
-    await ticketsRepo.updateTicketPriority(data.id, data.priority);
-    return { ok: true };
-  });
-
-export const adminCountOpenTickets = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    return { count: await ticketsRepo.countOpenTickets() };
-  });
-
-export const countMyOpenTickets = createServerFn({ method: "GET" })
-  .middleware([requireAuth])
-  .handler(async ({ context }) => {
-    return { count: await ticketsRepo.countOpenTicketsByUser(context.userId) };
-  });
+export const closeTicket = createServerFn({ method: "POST" }).middleware([requireAuth]).inputValidator((d: unknown) => closeSchema.parse(d)).handler(async ({ data, context }) => { const ticket = await ticketsRepo.getTicketById(data.id); if (!ticket) throw new Error("التذكرة غير موجودة"); if (ticket.user_id !== context.userId && !context.roles.includes("admin")) throw new Error("غير مصرح لك بإغلاق هذه التذكرة"); await ticketsRepo.updateTicketStatus(data.id, "closed"); return { ok: true }; });
+export const getTicketMessages = createServerFn({ method: "POST" }).middleware([requireAuth]).inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d)).handler(async ({ data, context }) => { const ticket = await ticketsRepo.getTicketById(data.id); if (!ticket) throw new Error("التذكرة غير موجودة"); if (ticket.user_id !== context.userId && !context.roles.includes("admin")) throw new Error("غير مصرح لك بعرض هذه التذكرة"); const messages = await ticketsRepo.listTicketMessages(data.id); return { ticket, messages }; });
+export const adminListTickets = createServerFn({ method: "GET" }).middleware([requireAdmin]).handler(async () => ticketsRepo.listAllTickets());
+export const adminGetTicket = createServerFn({ method: "POST" }).middleware([requireAdmin]).inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d)).handler(async ({ data }) => { const ticket = await ticketsRepo.getTicketById(data.id); if (!ticket) throw new Error("التذكرة غير موجودة"); const messages = await ticketsRepo.listTicketMessages(data.id); return { ticket, messages }; });
+export const adminUpdateTicketStatus = createServerFn({ method: "POST" }).middleware([requireAdmin]).inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["open", "pending", "resolved", "closed"]) }).parse(d)).handler(async ({ data }) => { await ticketsRepo.updateTicketStatus(data.id, data.status); return { ok: true }; });
+export const adminUpdateTicketPriority = createServerFn({ method: "POST" }).middleware([requireAdmin]).inputValidator((d: unknown) => z.object({ id: z.string().uuid(), priority: z.enum(["low", "medium", "high"]) }).parse(d)).handler(async ({ data }) => { await ticketsRepo.updateTicketPriority(data.id, data.priority); return { ok: true }; });
+export const adminCountOpenTickets = createServerFn({ method: "GET" }).middleware([requireAdmin]).handler(async () => ({ count: await ticketsRepo.countOpenTickets() }));
+export const countMyOpenTickets = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => ({ count: await ticketsRepo.countOpenTicketsByUser(context.userId) }));
+export const adminDeleteTicket = createServerFn({ method: "POST" }).middleware([requireAdmin]).inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d)).handler(async ({ data }) => { await ticketsRepo.deleteTicket(data.id); return { ok: true }; });
