@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getClientSession } from "@/lib/client.functions";
-import { ClientPortal } from "@/components/client-portal";
+import { ClientPortalShell } from "@/components/client-portal-shell";
 
 export const Route = createFileRoute("/client-portal")({
   ssr: false,
@@ -9,5 +9,5 @@ export const Route = createFileRoute("/client-portal")({
     if (!session) throw redirect({ to: "/client-login" });
     return { session };
   },
-  component: ClientPortal,
+  component: ClientPortalShell,
 });
