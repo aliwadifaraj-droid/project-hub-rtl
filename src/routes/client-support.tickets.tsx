@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { createClientTicket, listMyClientTickets } from "@/lib/client-tickets.functions";
+import { useEffect, useState } from "react";
+import { createClientTicket, listMyClientTickets, markMyClientTicketRead } from "@/lib/client-tickets.functions";
 import { MessageSquare, Plus, Loader2, ArrowRight, Ticket, X } from "lucide-react";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 
@@ -21,6 +21,7 @@ const statusLabels: Record<string, string> = {
 function ClientTicketsPage() {
   const listTickets = useServerFn(listMyClientTickets);
   const createTicket = useServerFn(createClientTicket);
+  const markRead = useServerFn(markMyClientTicketRead);
   const queryClient = useQueryClient();
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [subject, setSubject] = useState("");
@@ -33,6 +34,23 @@ function ClientTicketsPage() {
     queryFn: () => listTickets(),
     refetchInterval: 5000,
   });
+
+  useEffect(() => {
+    const unreadTickets = tickets.filter((ticket) => getTicketUnreadCount(ticket) > 0);
+    if (unreadTickets.length === 0) return;
+
+    let cancelled = false;
+    void Promise.all(unreadTickets.map((ticket) => markRead({ data: { id: ticket.id } }))).then(() => {
+      if (cancelled) return;
+      queryClient.setQueryData(["client-support-tickets"], (current: typeof tickets | undefined) =>
+        current?.map((ticket) => ({ ...ticket, unread_admin_message_count: 0 })),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [markRead, queryClient, tickets]);
 
   function openNewTicket(): void {
     setError("");
