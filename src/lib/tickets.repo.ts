@@ -11,9 +11,10 @@ const ticketsTableReady = db.execute(`
     priority TEXT DEFAULT 'medium',
     created_at INTEGER DEFAULT (unixepoch()),
     updated_at INTEGER DEFAULT (unixepoch()),
-    client_read_admin_count INTEGER NOT NULL DEFAULT 0
+    client_read_admin_count INTEGER NOT NULL DEFAULT 0,
+    client_company_name TEXT
   )
-`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => undefined);
+`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => undefined);
 
 const ticketMessagesTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -97,15 +98,16 @@ export async function createTicket(input: {
   priority?: string;
   message: string;
   attachment_url?: string | null;
+  client_company_name?: string | null;
 }): Promise<string> {
   await ensureTicketTables();
   const id = crypto.randomUUID();
   const msgId = crypto.randomUUID();
   await db.batch([
     {
-      sql: `INSERT INTO tickets (id, user_id, order_id, subject, category, status, priority, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'open', ?, unixepoch(), unixepoch())`,
-      args: [id, input.user_id, input.order_id ?? null, input.subject, input.category, input.priority ?? "medium"],
+      sql: `INSERT INTO tickets (id, user_id, order_id, subject, category, status, priority, client_company_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'open', ?, ?, unixepoch(), unixepoch())`,
+      args: [id, input.user_id, input.order_id ?? null, input.subject, input.category, input.priority ?? "medium", input.client_company_name ?? null],
     },
     {
       sql: `INSERT INTO ticket_messages (id, ticket_id, sender_type, sender_id, message, attachment_url, created_at)
@@ -133,7 +135,7 @@ export async function listAllTickets(): Promise<TicketRow[]> {
   await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
-            COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
@@ -150,7 +152,7 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
   await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
-            COALESCE(NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets

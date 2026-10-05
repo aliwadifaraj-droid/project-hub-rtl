@@ -4,12 +4,16 @@ import { getSessionClaims } from "./auth.server";
 import * as clientRepo from "./client.repo";
 import * as ticketsRepo from "./tickets.repo";
 
-async function requireClientId(): Promise<string> {
+async function getRequiredClientProfile(): Promise<clientRepo.ClientProfile> {
   const claims = await getSessionClaims();
   if (!claims) throw new Error("يجب تسجيل الدخول");
   const profile = await clientRepo.getClientProfile(claims.sub) ?? await clientRepo.getClientProfileByEmail(claims.email);
   if (!profile) throw new Error("جلسة العميل غير صالحة");
-  return claims.sub;
+  return profile;
+}
+
+async function requireClientId(): Promise<string> {
+  return (await getRequiredClientProfile()).user_id;
 }
 
 export const listMyClientTickets = createServerFn({ method: "GET" }).handler(async () => {
@@ -26,8 +30,15 @@ const createTicketSchema = z.object({
 export const createClientTicket = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createTicketSchema.parse(data))
   .handler(async ({ data }) => {
-    const clientId = await requireClientId();
-    const id = await ticketsRepo.createTicket({ user_id: clientId, subject: data.subject, category: data.category, priority: "medium", message: data.message });
+    const profile = await getRequiredClientProfile();
+    const id = await ticketsRepo.createTicket({
+      user_id: profile.user_id,
+      subject: data.subject,
+      category: data.category,
+      priority: "medium",
+      message: data.message,
+      client_company_name: profile.company_name.trim() || null,
+    });
     return { id };
   });
 
