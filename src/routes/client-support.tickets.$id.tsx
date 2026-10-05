@@ -22,12 +22,11 @@ function ClientTicketDetailsPage() {
 
   useEffect(() => {
     if (isError) setError("تعذر تحميل التذكرة.");
-    if (data && data.ticket.unread_admin_message_count > 0) {
-      void markRead({ data: { id } }).then(() => {
-        queryClient.setQueryData(["client-support-tickets"], (current: Array<{ id: string; unread_admin_message_count: number }> | undefined) => current?.map((ticket) => ticket.id === id ? { ...ticket, unread_admin_message_count: 0 } : ticket));
-        return queryClient.invalidateQueries({ queryKey: ["client-support-tickets"] });
-      }).catch(() => undefined);
-    }
+    if (!data) return;
+    void markRead({ data: { id } }).then(() => {
+      queryClient.setQueryData(["client-support-tickets"], (current: Array<{ id: string; unread_admin_message_count: number }> | undefined) => current?.map((ticket) => ticket.id === id ? { ...ticket, unread_admin_message_count: 0 } : ticket));
+      return queryClient.invalidateQueries({ queryKey: ["client-support-tickets"] });
+    }).catch(() => undefined);
   }, [data, id, isError, markRead, queryClient]);
 
   async function handleReply(event: React.FormEvent<HTMLFormElement>): Promise<void> { event.preventDefault(); setSending(true); setError(""); try { await reply({ data: { id, message } }); setMessage(""); await queryClient.invalidateQueries({ queryKey: ["client-support-ticket", id] }); } catch { setError("تعذر إرسال الرد حالياً."); } finally { setSending(false); } }
