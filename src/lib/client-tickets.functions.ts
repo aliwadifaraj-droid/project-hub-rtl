@@ -3,7 +3,6 @@ import { z } from "zod";
 import { getSessionClaims } from "./auth.server";
 import * as clientRepo from "./client.repo";
 import * as ticketsRepo from "./tickets.repo";
-import { db } from "./db";
 
 async function requireClientId(): Promise<string> {
   const claims = await getSessionClaims();
@@ -11,18 +10,6 @@ async function requireClientId(): Promise<string> {
   const profile = await clientRepo.getClientProfile(claims.sub) ?? await clientRepo.getClientProfileByEmail(claims.email);
   if (!profile) throw new Error("جلسة العميل غير صالحة");
   return claims.sub;
-}
-
-async function markClientTicketRead(ticketId: string, clientId: string): Promise<void> {
-  await db.execute(
-    `UPDATE tickets
-     SET client_read_admin_count = (
-       SELECT COUNT(*) FROM ticket_messages
-       WHERE ticket_id = ? AND sender_type = 'admin'
-     )
-     WHERE id = ? AND user_id = ?`,
-    [ticketId, ticketId, clientId],
-  );
 }
 
 export const listMyClientTickets = createServerFn({ method: "GET" }).handler(async () => {
@@ -52,7 +39,7 @@ export const markMyClientTicketRead = createServerFn({ method: "POST" })
     const clientId = await requireClientId();
     const ticket = await ticketsRepo.getTicketById(data.id);
     if (!ticket || ticket.user_id !== clientId) throw new Error("التذكرة غير موجودة");
-    await markClientTicketRead(data.id, clientId);
+    await ticketsRepo.markTicketMessagesRead(data.id, clientId);
     return { ok: true };
   });
 
@@ -63,7 +50,7 @@ export const getMyClientTicket = createServerFn({ method: "POST" })
     const ticket = await ticketsRepo.getTicketById(data.id);
     if (!ticket || ticket.user_id !== clientId) throw new Error("التذكرة غير موجودة");
     const messages = await ticketsRepo.listTicketMessages(data.id);
-    await markClientTicketRead(data.id, clientId);
+    await ticketsRepo.markTicketMessagesRead(data.id, clientId);
     const refreshedTicket = await ticketsRepo.getTicketById(data.id);
     return { ticket: refreshedTicket ?? ticket, messages };
   });
