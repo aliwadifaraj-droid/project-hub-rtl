@@ -67,14 +67,16 @@ export function ClientPortalShell() {
             </div>
             <h2 id="vip-intro-title" className="mt-5 text-center text-2xl font-extrabold">كن من عملاء منصة العمران المميزين</h2>
             <p className="mt-4 text-center leading-8 text-muted-foreground">
-              احصل على عروض ومشاريع مناسبة حسب المدن التي تختارها، واستفد من دعم فني فوري بكل حفاوة وترحيب، لتكون تجربتك مع منصة العمران أوضح وأسهل.
+              كعميل مميز، لن تبحث عن المشاريع، بل المشاريع هي من ستصلك.
+              <br />
+              ستصلك مشاريع حصرية ومفلترة حسب مدينتك فقط، مع دعم فني فوري يرد عليك في ثوانٍ، لتكون تجربتك أسرع وأوضح.
             </p>
             <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row">
               <button type="button" onClick={closeVipIntro} className="inline-flex flex-1 items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
-                إلغاء
+                لاحقاً
               </button>
               <Link to="/vip/" onClick={closeVipIntro} className="inline-flex flex-1 items-center justify-center rounded-xl bg-amber-600 px-5 py-3 font-bold text-white transition hover:bg-amber-700">
-                هل تريد الانضمام معنا؟
+                نعم، أريد أن أكون مميزاً
               </Link>
             </div>
           </div>
