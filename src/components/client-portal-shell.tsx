@@ -37,7 +37,7 @@ export function ClientPortalShell() {
   return (
     <div className="relative">
       <ClientPortal />
-      <div className="pointer-events-none absolute left-4 top-40 z-50 flex flex-col gap-2 sm:left-6 sm:top-44">
+      <div className="pointer-events-none absolute left-2 top-46 z-50 flex flex-col gap-2 sm:left-4 sm:top-50">
         <Link to="/client-support/tickets" className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg transition hover:bg-emerald-100">
           <Ticket className="h-4 w-4" />
           تذاكر الدعم
