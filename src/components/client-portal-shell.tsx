@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -7,15 +7,15 @@ import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
-import { submitApprovalReceipt, validateApprovalToken } from "@/lib/tameed.functions";
+import { submitApprovalReceipt } from "@/lib/tameed.functions";
 import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
 
 export function ClientPortalShell() {
+  const navigate = useNavigate();
   const listTickets = useServerFn(listMyClientTickets);
   const getVipStatus = useServerFn(getClientVipStatus);
-  const doValidateToken = useServerFn(validateApprovalToken);
   const uploadReceipt = useServerFn(uploadFile);
   const verifyReceipt = useServerFn(validateReceiptOcr);
   const submitReceipt = useServerFn(submitApprovalReceipt);
@@ -25,6 +25,7 @@ export function ClientPortalShell() {
   const [tameedToken, setTameedToken] = useState("");
   const [tameedStep, setTameedStep] = useState<"input" | "info">("input");
   const [tameedLoading, setTameedLoading] = useState(false);
+  const [tameedError, setTameedError] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [receiptSubmitting, setReceiptSubmitting] = useState(false);
@@ -67,6 +68,7 @@ export function ClientPortalShell() {
     setShowTameed(true);
     setTameedStep("input");
     setTameedToken("");
+    setTameedError("");
     setReceiptFile(null);
     setReceiptApproved(false);
     setReceiptAmount(null);
@@ -79,6 +81,7 @@ export function ClientPortalShell() {
     setShowTameed(false);
     setTameedStep("input");
     setTameedToken("");
+    setTameedError("");
     setReceiptFile(null);
     setReceiptApproved(false);
     setReceiptAmount(null);
@@ -94,24 +97,29 @@ export function ClientPortalShell() {
     }
     setTameedLoading(true);
     try {
-      const res = await doValidateToken({ data: { token: tameedToken.trim() } });
-      if (!res.valid) {
-        toast.error(res.reason);
+      const res = await fetch("/api/approvals/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: tameedToken.trim() }),
+      });
+      const data = await res.json();
+
+      if (!data.valid) {
+        const msg = data.error || "رمز التعميد غير صحيح";
+        toast.error(msg);
+        setTameedError(msg);
         return;
       }
-      setTameedResult({
-        token_id: res.token_id,
-        approved: res.approved,
-        amount: res.amount,
-        allowed_payment_now: res.allowed_payment_now,
-        bank_name: res.bank_name,
-        holder_name: res.holder_name,
-        iban: res.iban,
-      });
-      setTameedStep("info");
+
+      localStorage.setItem("approval_token", data.token);
+
       toast.success("تم التحقق من الرمز بنجاح");
+      closeTameed();
+      navigate({ to: "/projects" });
     } catch {
-      toast.error("تعذر التحقق من رمز التعميد");
+      const msg = "تعذر التحقق من رمز التعميد";
+      toast.error(msg);
+      setTameedError(msg);
     } finally {
       setTameedLoading(false);
     }
@@ -248,12 +256,17 @@ export function ClientPortalShell() {
                   id="tameed-token"
                   type="text"
                   value={tameedToken}
-                  onChange={(e) => setTameedToken(e.target.value)}
+                  onChange={(e) => { setTameedToken(e.target.value); setTameedError(""); }}
                   placeholder="AOM-XXXXXX"
                   className="w-full rounded-xl border border-border bg-background px-4 py-3 text-center text-lg font-bold tracking-wider outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   dir="ltr"
                   autoComplete="off"
                 />
+                {tameedError && (
+                  <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-semibold text-destructive">
+                    {tameedError}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={handleValidateToken}
