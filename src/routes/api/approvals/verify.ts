@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { db, rowsToObjects } from "@/lib/db";
+import { findTokenByCode } from "@/lib/approvals.repo";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -33,35 +33,25 @@ export const Route = createFileRoute("/api/approvals/verify")({
         }
 
         try {
-          const result = await db.execute(
-            `SELECT * FROM approval_tokens WHERE token = ? OR code = ? LIMIT 1`,
-            [code, code],
-          );
-          const rows = rowsToObjects(result);
-          const row = rows[0];
-
+          const row = await findTokenByCode(code);
           if (!row) {
-            return jsonResponse({ valid: false, error: "رمز التعميد غير صحيح" }, 200);
+            return jsonResponse({ valid: false, error: "رمز التعميد غير صحيح" });
           }
 
-          const token = String(row.token ?? row.code ?? row.token_code ?? "");
-          const tokenId = String(row.id ?? "");
-          const status = String(row.status ?? "active");
-
-          if (status === "used" || status === "completed" || status === "complete") {
-            return jsonResponse({ valid: false, error: "تم استخدام هذا الرمز مسبقاً" }, 200);
+          if (row.status === "used" || row.status === "completed" || row.status === "complete") {
+            return jsonResponse({ valid: false, error: "تم استخدام هذا الرمز مسبقاً" });
           }
 
           return jsonResponse({
             valid: true,
-            token_id: tokenId,
-            token,
-            client_name: String(row.client_name ?? ""),
-            project_name: String(row.project_name ?? ""),
-            amount: Number(row.total_commission ?? row.amount ?? 0),
-            allowed_payment_now: Number(row.allowed_payment_now ?? row.allowed_amount ?? 0),
-            paid_amount: Number(row.paid_amount ?? 0),
-            status,
+            token_id: row.id,
+            token: row.token_code,
+            client_name: row.client_name,
+            project_name: row.project_name,
+            amount: Number(row.total_commission),
+            allowed_payment_now: Number(row.allowed_amount),
+            paid_amount: Number(row.paid_amount),
+            status: row.status,
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : "server error";

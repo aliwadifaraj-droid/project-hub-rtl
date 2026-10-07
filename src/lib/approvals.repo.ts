@@ -53,56 +53,64 @@ let approvalTablesReady: Promise<void> | null = null;
 function ensureApprovalTables(): Promise<void> {
   if (approvalTablesReady) return approvalTablesReady;
 
-  approvalTablesReady = db.batch([
-    {
-      sql: `CREATE TABLE IF NOT EXISTS approval_tokens (
-        id TEXT PRIMARY KEY,
-        token TEXT,
-        code TEXT,
-        user_id TEXT,
-        client_name TEXT,
-        project_id TEXT,
-        project_name TEXT,
-        total_commission TEXT,
-        allowed_payment_now TEXT,
-        paid_amount TEXT NOT NULL DEFAULT '0',
-        status TEXT NOT NULL DEFAULT 'active',
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )`,
-      args: [],
-    },
-    {
-      sql: `CREATE TABLE IF NOT EXISTS approval_receipts (
-        id TEXT PRIMARY KEY,
-        token_id TEXT NOT NULL,
-        token_code TEXT,
-        user_id TEXT,
-        client_name TEXT,
-        amount TEXT NOT NULL,
-        ocr_result TEXT,
-        ocr_amount TEXT,
-        receipt_image_key TEXT,
-        receipt_image_url TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        approved_at TEXT
-      )`,
-      args: [],
-    },
-    {
-      sql: "CREATE INDEX IF NOT EXISTS idx_approval_tokens_status ON approval_tokens(status)",
-      args: [],
-    },
-    {
-      sql: "CREATE INDEX IF NOT EXISTS idx_approval_receipts_status ON approval_receipts(status)",
-      args: [],
-    },
-    {
-      sql: "CREATE INDEX IF NOT EXISTS idx_approval_receipts_token ON approval_receipts(token_id)",
-      args: [],
-    },
-  ]).then(() => undefined);
+  approvalTablesReady = (async () => {
+    await db.batch([
+      {
+        sql: `CREATE TABLE IF NOT EXISTS approval_tokens (
+          id TEXT PRIMARY KEY,
+          token TEXT,
+          code TEXT,
+          user_id TEXT,
+          client_name TEXT,
+          project_id TEXT,
+          project_name TEXT,
+          total_commission TEXT,
+          allowed_payment_now TEXT,
+          paid_amount TEXT NOT NULL DEFAULT '0',
+          status TEXT NOT NULL DEFAULT 'active',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`,
+        args: [],
+      },
+      {
+        sql: `CREATE TABLE IF NOT EXISTS approval_receipts (
+          id TEXT PRIMARY KEY,
+          token_id TEXT NOT NULL,
+          token_code TEXT,
+          user_id TEXT,
+          client_name TEXT,
+          amount TEXT NOT NULL,
+          ocr_result TEXT,
+          ocr_amount TEXT,
+          receipt_image_key TEXT,
+          receipt_image_url TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          approved_at TEXT
+        )`,
+        args: [],
+      },
+    ]);
+
+    const tokenColumns = await db.execute("PRAGMA table_info(approval_tokens)");
+    const receiptColumns = await db.execute("PRAGMA table_info(approval_receipts)");
+    const tokenColumnNames = new Set(rowsToObjects<{ name: string }>(tokenColumns).map((column) => String(column.name)));
+    const receiptColumnNames = new Set(rowsToObjects<{ name: string }>(receiptColumns).map((column) => String(column.name)));
+    const indexes = [];
+
+    if (tokenColumnNames.has("status")) {
+      indexes.push({ sql: "CREATE INDEX IF NOT EXISTS idx_approval_tokens_status ON approval_tokens(status)", args: [] });
+    }
+    if (receiptColumnNames.has("status")) {
+      indexes.push({ sql: "CREATE INDEX IF NOT EXISTS idx_approval_receipts_status ON approval_receipts(status)", args: [] });
+    }
+    if (receiptColumnNames.has("token_id")) {
+      indexes.push({ sql: "CREATE INDEX IF NOT EXISTS idx_approval_receipts_token ON approval_receipts(token_id)", args: [] });
+    }
+
+    if (indexes.length > 0) await db.batch(indexes);
+  })();
 
   return approvalTablesReady;
 }
@@ -223,8 +231,14 @@ export async function findTokenById(id: string): Promise<ApprovalTokenRow | null
 
 export async function findTokenByCode(code: string): Promise<ApprovalTokenRow | null> {
   const columns = await getApprovalTokenColumns();
-  const lookupColumn = columns.has("code") ? "code" : columns.has("token") ? "token" : "token_code";
-  const r = await db.execute(`SELECT * FROM approval_tokens WHERE ${lookupColumn} = ? LIMIT 1`, [code]);
+  const lookupColumns = ["token", "code", "token_code"].filter((column) => columns.has(column));
+  if (lookupColumns.length === 0) return null;
+
+  const conditions = lookupColumns.map((column) => `${column} = ?`).join(" OR ");
+  const r = await db.execute(
+    `SELECT * FROM approval_tokens WHERE ${conditions} LIMIT 1`,
+    lookupColumns.map(() => code),
+  );
   const rows = rowsToObjects(r);
   return rows[0] ? decodeToken(rows[0]) : null;
 }
