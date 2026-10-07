@@ -13,9 +13,27 @@ import {
   adminGetBankInfo,
 } from "@/lib/approvals.functions";
 import {
-  BadgeCheck, Plus, X, Loader2, Check, Building2, FolderKanban,
-  Coins, Wallet, Receipt, Image as ImageIcon, CheckCircle2, XCircle,
+  BadgeCheck,
+  Plus,
+  X,
+  Loader2,
+  Check,
+  Building2,
+  FolderKanban,
+  Coins,
+  Wallet,
+  Receipt,
+  Image as ImageIcon,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/approvals")({
@@ -324,21 +342,27 @@ function AdminApprovalsPage() {
               <div>
                 <label className="mb-1 block text-sm font-semibold">العميل</label>
                 <div className="relative">
-                  <Building2 className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <select
-                    required value={clientId}
-                    onChange={(e) => {
-                      setClientId(e.target.value);
-                      const c = (clients ?? []).find((x) => x.id === e.target.value);
+                  <Building2 className="absolute end-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Select
+                    value={clientId}
+                    onValueChange={(value) => {
+                      setClientId(value);
+                      const c = (clients ?? []).find((client) => client.id === value);
                       setClientName(c?.name ?? "");
                     }}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    required
                   >
-                    <option value="" disabled>اختر العميل</option>
-                    {(clients ?? []).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring">
+                      <SelectValue placeholder="اختر العميل" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(clients ?? []).map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name} ({client.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div>
