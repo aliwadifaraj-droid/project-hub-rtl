@@ -351,3 +351,19 @@ CREATE TABLE IF NOT EXISTS blocked_users (
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_blocked_users_company ON blocked_users(company_name);
+
+-- ============ approval_tokens (client approval/تعميد) ============
+CREATE TABLE IF NOT EXISTS approval_tokens (
+  id                 TEXT PRIMARY KEY,
+  user_id            TEXT NOT NULL,
+  token              TEXT NOT NULL UNIQUE,
+  amount             REAL NOT NULL DEFAULT 0,
+  allowed_payment_now REAL NOT NULL DEFAULT 0,
+  status             TEXT NOT NULL DEFAULT 'unused',
+  used_by            TEXT,
+  used_at            TEXT,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_approval_tokens_user ON approval_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_approval_tokens_token ON approval_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_approval_tokens_status ON approval_tokens(status);
