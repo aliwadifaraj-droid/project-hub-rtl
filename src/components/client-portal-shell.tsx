@@ -107,7 +107,7 @@ export function ClientPortalShell() {
           تذاكر الدعم
           {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </Link>
-        <button type="button" onClick={openTameed} className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 shadow-lg transition hover:bg-blue-100">
+        <button type="button" onClick={openTameed} className="pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 shadow-lg transition hover:bg-blue-100">
           <BadgeCheck className="h-4 w-4" />
           تعميد
         </button>
