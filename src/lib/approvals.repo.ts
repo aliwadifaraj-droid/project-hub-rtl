@@ -154,13 +154,13 @@ export async function getVipBankInfo(): Promise<string> {
 function decodeToken(r: any): ApprovalTokenRow {
   return {
     id: String(r.id ?? ""),
-    token_code: String(r.token_code ?? r.code ?? r.token ?? ""),
-    client_id: String(r.client_id ?? r.user_id ?? ""),
+    token_code: String(r.token_code || r.code || r.token || ""),
+    client_id: String(r.client_id || r.user_id || ""),
     client_name: String(r.client_name ?? ""),
     project_id: String(r.project_id ?? ""),
     project_name: String(r.project_name ?? ""),
-    total_commission: String(r.total_commission ?? r.amount ?? "0"),
-    allowed_amount: String(r.allowed_amount ?? r.allowed_payment_now ?? "0"),
+    total_commission: String(r.total_commission || r.amount || "0"),
+    allowed_amount: String(r.allowed_amount || r.allowed_payment_now || "0"),
     paid_amount: String(r.paid_amount ?? "0"),
     status: String(r.status ?? "active"),
     created_at: String(r.created_at ?? ""),
@@ -172,8 +172,8 @@ function decodeReceipt(r: any): ApprovalReceiptRow {
   return {
     id: String(r.id ?? ""),
     token_id: String(r.token_id ?? ""),
-    token_code: String(r.token_code ?? r.code ?? r.token ?? ""),
-    client_id: String(r.client_id ?? r.user_id ?? ""),
+    token_code: String(r.token_code || r.code || r.token || ""),
+    client_id: String(r.client_id || r.user_id || ""),
     client_name: String(r.client_name ?? ""),
     amount: String(r.amount ?? "0"),
     ocr_result: r.ocr_result ?? null,
