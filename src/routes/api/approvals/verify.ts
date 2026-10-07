@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { findTokenByCode, getVipBankInfo } from "@/lib/approvals.repo";
+import { getSessionClaims } from "@/lib/auth.server";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -54,8 +55,13 @@ export const Route = createFileRoute("/api/approvals/verify")({
         }
 
         try {
+          const claims = await getSessionClaims();
+          if (!claims) {
+            return jsonResponse({ valid: false, error: "رمز التعميد غير صحيح" });
+          }
+
           const row = await findTokenByCode(code);
-          if (!row) {
+          if (!row || row.client_id !== claims.sub) {
             return jsonResponse({ valid: false, error: "رمز التعميد غير صحيح" });
           }
 
@@ -75,9 +81,8 @@ export const Route = createFileRoute("/api/approvals/verify")({
             status: row.status,
             bankAccount: await getBankAccountInfo(),
           });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "server error";
-          return jsonResponse({ valid: false, error: msg }, 500);
+        } catch {
+          return jsonResponse({ valid: false, error: "تعذر التحقق من رمز التعميد" }, 500);
         }
       },
     },

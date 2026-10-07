@@ -30,7 +30,7 @@ Amount must be numeric only with no currency symbol or commas. The date may appe
 const FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find the IBAN, transfer amount, and transaction date. Search all small text carefully. Return JSON only: {"iban":"SA...","amount":100,"date":"the date exactly as visible"}. Return null only when a field is genuinely not visible. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri.`;
 
 function extractJson(text: string): Record<string, unknown> | null {
-  const cleaned = text.replace(/<[\s\S]*?>/gi, "").trim();
+  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
@@ -132,7 +132,7 @@ export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
   let bestResult: OcrResult = EMPTY_RESULT;
   for (const model of VISION_MODELS) {
     try {
-      let result = await callModel(model, dataUrl, apiKey);
+      let result = await callModel(model, dataUrl);
       if (result.amount === null || result.date === null) {
         const focusedResult = await callModel(model, dataUrl, apiKey, true);
         result = {
@@ -161,16 +161,8 @@ export async function scanReceipt(file: File): Promise<OcrResult> {
 }
 
 export function validateOcrResult(result: OcrResult, expectedAmount: number): { ok: boolean; message: string } {
-  // 1) التاريخ: لازم يكون خلال آخر 7 أيام
-  if (!result.date) return { ok: false, message: "لم يتم العثور على تاريخ في الإيصال" };
-  const receiptDate = new Date(result.date);
-  if (isNaN(receiptDate.getTime())) return { ok: false, message: "تاريخ الإيصال غير صالح" };
-  const now = new Date();
-  const diffHours = (now.getTime() - receiptDate.getTime()) / 3_600_000;
-  if (diffHours > 168) return { ok: false, message: "الإيصال قديم — يجب أن يكون خلال آخر 7 أيام" };
-  if (diffHours < -24) return { ok: false, message: "تاريخ الإيصال في المستقبل" };
+  // المبلغ هو معيار المطابقة الوحيد لرمز التعميد.
 
-  // 2) المبلغ: يسمح بفارق بسيط ناتج عن قراءة الإيصال
   if (result.amount === null) return { ok: false, message: "لم يتم قراءة مبلغ التحويل من الإيصال" };
   const required = Number(expectedAmount);
   const found = Number(result.amount);
