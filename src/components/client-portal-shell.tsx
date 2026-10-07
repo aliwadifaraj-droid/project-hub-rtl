@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -13,7 +13,6 @@ import { validateReceiptOcr } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
 
 export function ClientPortalShell() {
-  const navigate = useNavigate();
   const listTickets = useServerFn(listMyClientTickets);
   const getVipStatus = useServerFn(getClientVipStatus);
   const uploadReceipt = useServerFn(uploadFile);
@@ -22,8 +21,8 @@ export function ClientPortalShell() {
   const queryClient = useQueryClient();
   const [showVipIntro, setShowVipIntro] = useState(false);
   const [showTameed, setShowTameed] = useState(false);
-  const [tameedToken, setTameedToken] = useState("");
-  const [tameedStep, setTameedStep] = useState<"input" | "info">("input");
+  const [tameedCode, setTameedCode] = useState("");
+  const [tameedStep, setTameedStep] = useState<"input" | "payment">("input");
   const [tameedLoading, setTameedLoading] = useState(false);
   const [tameedError, setTameedError] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -67,7 +66,7 @@ export function ClientPortalShell() {
   function openTameed(): void {
     setShowTameed(true);
     setTameedStep("input");
-    setTameedToken("");
+    setTameedCode("");
     setTameedError("");
     setReceiptFile(null);
     setReceiptApproved(false);
@@ -80,7 +79,7 @@ export function ClientPortalShell() {
   function closeTameed(): void {
     setShowTameed(false);
     setTameedStep("input");
-    setTameedToken("");
+    setTameedCode("");
     setTameedError("");
     setReceiptFile(null);
     setReceiptApproved(false);
@@ -91,7 +90,7 @@ export function ClientPortalShell() {
   }
 
   async function handleValidateToken(): Promise<void> {
-    if (!tameedToken.trim()) {
+    if (!tameedCode.trim()) {
       toast.error("أدخل رمز التعميد");
       return;
     }
@@ -100,22 +99,31 @@ export function ClientPortalShell() {
       const res = await fetch("/api/approvals/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: tameedToken.trim() }),
+        body: JSON.stringify({ code: tameedCode.trim() }),
       });
-      const data = await res.json();
+      const result = { data: await res.json() };
 
-      if (!data.valid) {
-        const msg = data.error || "رمز التعميد غير صحيح";
+      if (!result.data.valid) {
+        const msg = result.data.error || "رمز التعميد غير صحيح";
         toast.error(msg);
         setTameedError(msg);
         return;
       }
 
-      localStorage.setItem("approval_token", data.token);
-
+      localStorage.setItem('approval_token', tameedCode.trim());
+      localStorage.setItem('approval_data', JSON.stringify(result.data));
+      setTameedResult({
+        token_id: String(result.data.token_id ?? ""),
+        approved: false,
+        amount: Number(result.data.amount ?? 0),
+        allowed_payment_now: Number(result.data.allowed_payment_now ?? result.data.amount ?? 0),
+        bank_name: String(result.data.bankAccount?.bank_name ?? result.data.bank_name ?? ""),
+        holder_name: String(result.data.bankAccount?.holder_name ?? result.data.holder_name ?? ""),
+        iban: String(result.data.bankAccount?.iban ?? result.data.iban ?? ""),
+      });
+      setTameedStep('payment');
+      setTameedError('');
       toast.success("تم التحقق من الرمز بنجاح");
-      closeTameed();
-      navigate({ to: "/projects" });
     } catch {
       const msg = "تعذر التحقق من رمز التعميد";
       toast.error(msg);
@@ -255,8 +263,8 @@ export function ClientPortalShell() {
                 <input
                   id="tameed-token"
                   type="text"
-                  value={tameedToken}
-                  onChange={(e) => { setTameedToken(e.target.value); setTameedError(""); }}
+                  value={tameedCode}
+                  onChange={(e) => { setTameedCode(e.target.value); setTameedError(""); }}
                   placeholder="AOM-XXXXXX"
                   className="w-full rounded-xl border border-border bg-background px-4 py-3 text-center text-lg font-bold tracking-wider outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   dir="ltr"
@@ -270,7 +278,7 @@ export function ClientPortalShell() {
                 <button
                   type="button"
                   onClick={handleValidateToken}
-                  disabled={tameedLoading || !tameedToken.trim()}
+                  disabled={tameedLoading || !tameedCode.trim()}
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {tameedLoading ? (
@@ -288,7 +296,7 @@ export function ClientPortalShell() {
               </div>
             )}
 
-            {tameedStep === "info" && tameedResult && (
+            {tameedStep === "payment" && tameedResult && (
               tameedResult.approved ? (
                 <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center text-xl font-extrabold text-emerald-800">
                   تم الاعتماد
@@ -319,7 +327,10 @@ export function ClientPortalShell() {
                     <div>
                       <div className="text-xs font-medium text-muted-foreground">المبلغ المطلوب</div>
                       <div className="mt-1 text-2xl font-extrabold text-blue-700">
-                        {tameedResult.allowed_payment_now.toLocaleString("ar-SA")} <span className="text-sm font-medium text-muted-foreground">ريال</span>
+                        {tameedResult.amount.toLocaleString("ar-SA")} <span className="text-sm font-medium text-muted-foreground">ريال</span>
+                        <div className="mt-1 text-sm font-semibold text-muted-foreground">
+                          المبلغ المسموح الآن: {tameedResult.allowed_payment_now.toLocaleString("ar-SA")} ريال
+                        </div>
                       </div>
                     </div>
                   </div>
