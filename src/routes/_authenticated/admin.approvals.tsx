@@ -6,15 +6,16 @@ import {
   adminCreateApprovalToken,
   adminListApprovalTokens,
   adminListApprovalReceipts,
+  adminGetApprovalClients,
+  adminGetApprovalProjects,
   adminApproveReceipt,
-} from "@/lib/tameed.functions";
-import { adminListClients } from "@/lib/admin.functions";
-import { listProjects } from "@/lib/admin.functions";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, Check, X, Plus, BadgeCheck, Eye } from "lucide-react";
+  adminRejectReceipt,
+  adminGetBankInfo,
+} from "@/lib/approvals.functions";
+import {
+  BadgeCheck, Plus, X, Loader2, Check, Building2, FolderKanban,
+  Coins, Wallet, Receipt, Image as ImageIcon, CheckCircle2, XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/approvals")({
@@ -22,68 +23,81 @@ export const Route = createFileRoute("/_authenticated/admin/approvals")({
 });
 
 function AdminApprovalsPage() {
-  const listClients = useServerFn(adminListClients);
-  const listProjectsFn = useServerFn(listProjects);
-  const createToken = useServerFn(adminCreateApprovalToken);
-  const listTokens = useServerFn(adminListApprovalTokens);
-  const listReceipts = useServerFn(adminListApprovalReceipts);
-  const approveReceipt = useServerFn(adminApproveReceipt);
+  const fetchTokens = useServerFn(adminListApprovalTokens);
+  const fetchReceipts = useServerFn(adminListApprovalReceipts);
+  const fetchClients = useServerFn(adminGetApprovalClients);
+  const fetchProjects = useServerFn(adminGetApprovalProjects);
+  const fetchBankInfo = useServerFn(adminGetBankInfo);
+  const doCreateToken = useServerFn(adminCreateApprovalToken);
+  const doApprove = useServerFn(adminApproveReceipt);
+  const doReject = useServerFn(adminRejectReceipt);
   const qc = useQueryClient();
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [selectedClient, setSelectedClient] = useState("");
-  const [selectedProject, setSelectedProject] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [clientId, setClientId] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [projectName, setProjectName] = useState("");
   const [totalCommission, setTotalCommission] = useState("");
-  const [allowedNow, setAllowedNow] = useState("");
+  const [allowedAmount, setAllowedAmount] = useState("");
   const [creating, setCreating] = useState(false);
-  const [previewReceipt, setPreviewReceipt] = useState<string | null>(null);
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ["admin-clients-approvals"],
-    queryFn: () => listClients(),
-  });
-
-  const { data: projects = [] } = useQuery({
-    queryKey: ["admin-projects-approvals"],
-    queryFn: () => listProjectsFn(),
-  });
-
-  const { data: tokens = [], refetch: refetchTokens } = useQuery({
+  const { data: tokens, isLoading: tokensLoading } = useQuery({
     queryKey: ["approval-tokens"],
-    queryFn: () => listTokens(),
-    refetchInterval: 10000,
+    queryFn: () => fetchTokens(),
   });
 
-  const { data: receipts = [], refetch: refetchReceipts } = useQuery({
+  const { data: receipts, isLoading: receiptsLoading } = useQuery({
     queryKey: ["approval-receipts"],
-    queryFn: () => listReceipts(),
-    refetchInterval: 10000,
+    queryFn: () => fetchReceipts(),
   });
 
-  async function handleCreate() {
-    if (!selectedClient || !selectedProject || !totalCommission || !allowedNow) {
-      toast.error("يرجى ملء جميع الحقول");
+  const { data: clients } = useQuery({
+    queryKey: ["approval-clients"],
+    queryFn: () => fetchClients(),
+    enabled: showModal,
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: ["approval-projects"],
+    queryFn: () => fetchProjects(),
+    enabled: showModal,
+  });
+
+  const { data: bankInfo } = useQuery({
+    queryKey: ["approval-bank-info"],
+    queryFn: () => fetchBankInfo(),
+  });
+
+  async function handleCreateToken(e: React.FormEvent) {
+    e.preventDefault();
+    if (!clientId || !projectId || !totalCommission || !allowedAmount) {
+      toast.error("جميع الحقول مطلوبة");
       return;
     }
     setCreating(true);
     try {
-      const res = await createToken({
+      const token = await doCreateToken({
         data: {
-          user_id: selectedClient,
-          project_id: selectedProject,
-          total_commission: parseFloat(totalCommission),
-          allowed_payment_now: parseFloat(allowedNow),
+          client_id: clientId,
+          client_name: clientName,
+          project_id: projectId,
+          project_name: projectName,
+          total_commission: totalCommission,
+          allowed_amount: allowedAmount,
         },
       });
-      toast.success(`تم إنشاء الرمز: ${res.token}`);
-      setShowCreate(false);
-      setSelectedClient("");
-      setSelectedProject("");
+      toast.success(`تم إنشاء رمز التعميد: ${token.token_code}`);
+      setShowModal(false);
+      setClientId("");
+      setClientName("");
+      setProjectId("");
+      setProjectName("");
       setTotalCommission("");
-      setAllowedNow("");
-      refetchTokens();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "حدث خطأ");
+      setAllowedAmount("");
+      qc.invalidateQueries({ queryKey: ["approval-tokens"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "فشل إنشاء الرمز");
     } finally {
       setCreating(false);
     }
@@ -91,268 +105,302 @@ function AdminApprovalsPage() {
 
   async function handleApprove(receiptId: string) {
     try {
-      const res = await approveReceipt({ data: { receipt_id: receiptId } });
-      if (res.completed) {
-        toast.success("تم الاعتماد وإكمال التوكن");
+      const result = await doApprove({ data: { receipt_id: receiptId } });
+      if (result.token_status === "completed") {
+        toast.success(`تم الاعتماد! اكتملت العمولة بالكامل. المتبقي: 0 ريال`);
       } else {
-        toast.success(`تم الاعتماد. المبلغ المدفوع: ${res.newPaid} ريال`);
+        toast.success(`تم الاعتماد! المتبقي: ${result.remaining.toFixed(2)} ريال`);
       }
-      refetchTokens();
-      refetchReceipts();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "حدث خطأ");
+      qc.invalidateQueries({ queryKey: ["approval-receipts"] });
+      qc.invalidateQueries({ queryKey: ["approval-tokens"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "فشل الاعتماد");
     }
   }
 
-  function statusBadge(s: string) {
-    const map: Record<string, string> = {
-      active: "bg-blue-100 text-blue-800",
-      completed: "bg-green-100 text-green-800",
-      used: "bg-gray-100 text-gray-800",
-      approved: "bg-green-100 text-green-800",
-    };
-    const labels: Record<string, string> = {
-      active: "نشط",
-      completed: "مكتمل",
-      used: "مستخدم",
-      approved: "معتمد",
-    };
-    return (
-      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${map[s] ?? "bg-secondary"}`}>
-        {labels[s] ?? s}
-      </span>
-    );
+  async function handleReject(receiptId: string) {
+    try {
+      await doReject({ data: { receipt_id: receiptId } });
+      toast.success("تم رفض الإيصال");
+      qc.invalidateQueries({ queryKey: ["approval-receipts"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "فشل الرفض");
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">اعتماد العملاء</h1>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4 ms-1" />
-          إنشاء رمز تعميد
-        </Button>
-      </div>
-
-      {/* Tokens Table */}
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">رموز التعميد</h2>
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>العميل</TableHead>
-                <TableHead>الرمز</TableHead>
-                <TableHead>إجمالي العمولة</TableHead>
-                <TableHead>المدفوع</TableHead>
-                <TableHead>المتبقي</TableHead>
-                <TableHead>الحالة</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tokens.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    لا توجد رموز تعميد
-                  </TableCell>
-                </TableRow>
-              ) : (
-                tokens.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell>{t.company_name ?? t.client_email ?? t.user_id}</TableCell>
-                    <TableCell className="font-mono font-bold" dir="ltr">{t.token}</TableCell>
-                    <TableCell>{t.amount.toLocaleString("ar-SA")} ريال</TableCell>
-                    <TableCell>{(t.paid_amount ?? 0).toLocaleString("ar-SA")} ريال</TableCell>
-                    <TableCell>{(t.amount - (t.paid_amount ?? 0)).toLocaleString("ar-SA")} ريال</TableCell>
-                    <TableCell>{statusBadge(t.status)}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-[image:var(--gradient-accent)] text-accent-foreground">
+            <BadgeCheck className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-xl font-bold">اعتماد العملاء</h1>
+            <p className="text-sm text-muted-foreground">رموز التعميد والإيصالات</p>
+          </div>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-sm font-bold text-background hover:bg-foreground/90"
+        >
+          <Plus className="h-4 w-4" /> إنشاء رمز تعميد
+        </button>
       </div>
 
-      {/* Receipts Table */}
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">الإيصالات</h2>
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>العميل</TableHead>
-                <TableHead>الرمز</TableHead>
-                <TableHead>المبلغ المحول</TableHead>
-                <TableHead>OCR</TableHead>
-                <TableHead>الإيصال</TableHead>
-                <TableHead>إجراء</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {receipts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    لا توجد إيصالات
-                  </TableCell>
-                </TableRow>
-              ) : (
-                receipts.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>{r.company_name ?? r.client_email ?? r.user_id}</TableCell>
-                    <TableCell className="font-mono font-bold" dir="ltr">{r.token ?? "—"}</TableCell>
-                    <TableCell>{r.amount.toLocaleString("ar-SA")} ريال</TableCell>
-                    <TableCell>
-                      {r.ocr_status === "مطابق" ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                          <Check className="h-3 w-3" /> مطابق
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                          <X className="h-3 w-3" /> غير مطابق
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {r.receipt_path ? (
-                        <button
-                          onClick={() => setPreviewReceipt(r.receipt_path)}
-                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-                        >
-                          <Eye className="h-4 w-4" /> عرض
-                        </button>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {r.ocr_status === "مطابق" ? (
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(r.id)}
-                        >
-                          <BadgeCheck className="h-4 w-4 ms-1" />
-                          اعتماد
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">غير متاح</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      {/* Create Token Modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true">
-          <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setShowCreate(false)}
-              aria-label="إغلاق"
-              className="absolute left-4 top-4 rounded-full p-2 text-muted-foreground hover:bg-secondary"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <h2 className="text-xl font-bold mb-4">إنشاء رمز تعميد</h2>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="client-select">العميل</Label>
-                <select
-                  id="client-select"
-                  value={selectedClient}
-                  onChange={(e) => setSelectedClient(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-primary"
-                >
-                  <option value="">اختر العميل</option>
-                  {clients.map((c) => (
-                    <option key={c.user_id} value={c.user_id}>
-                      {c.display_name ?? c.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="project-select">المشروع</Label>
-                <select
-                  id="project-select"
-                  value={selectedProject}
-                  onChange={(e) => setSelectedProject(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-primary"
-                >
-                  <option value="">اختر المشروع</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="total-commission">إجمالي العمولة (ريال)</Label>
-                <Input
-                  id="total-commission"
-                  type="number"
-                  value={totalCommission}
-                  onChange={(e) => setTotalCommission(e.target.value)}
-                  placeholder="0"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="allowed-now">المبلغ المسموح الآن (ريال)</Label>
-                <Input
-                  id="allowed-now"
-                  type="number"
-                  value={allowedNow}
-                  onChange={(e) => setAllowedNow(e.target.value)}
-                  placeholder="0"
-                  className="mt-1"
-                />
-              </div>
-              <Button
-                onClick={handleCreate}
-                disabled={creating}
-                className="w-full"
-              >
-                {creating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin ms-1" />
-                    جارٍ الإنشاء...
-                  </>
-                ) : (
-                  "إنشاء الرمز"
-                )}
-              </Button>
-            </div>
+      {/* Bank Info Display */
+      {bankInfo && bankInfo.iban && (
+        <div className="mb-6 rounded-lg border border-border bg-card p-4 text-sm">
+          <div className="mb-1 font-semibold text-muted-foreground">معلومات البنك (من site_settings)</div>
+          <div className="flex flex-wrap gap-4">
+            {bankInfo.bank_name && <span><strong>البنك:</strong> {bankInfo.bank_name}</span>}
+            {bankInfo.account_name && <span><strong>اسم الحساب:</strong> {bankInfo.account_name}</span>}
+            {bankInfo.iban && <span><strong>IBAN:</strong> {bankInfo.iban}</span>}
           </div>
         </div>
       )}
 
-      {/* Receipt Preview Modal */}
-      {previewReceipt && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setPreviewReceipt(null)}
-        >
-          <div className="relative max-w-2xl">
-            <button
-              type="button"
-              onClick={() => setPreviewReceipt(null)}
-              aria-label="إغلاق"
-              className="absolute -top-2 -left-2 z-10 rounded-full bg-card p-2 shadow-lg"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <img
-              src={previewReceipt}
-              alt="إيصال"
-              className="max-h-[80vh] rounded-lg shadow-2xl"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
+      {/* Tokens Table */}
+      <div className="mb-8">
+        <h2 className="mb-3 text-lg font-bold">رموز التعميد</h2>
+        {tokensLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (tokens ?? []).length === 0 ? (
+          <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+            لا توجد رموز تعميد بعد.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50 text-right">
+                  <th className="px-4 py-3 font-semibold">الرمز</th>
+                  <th className="px-4 py-3 font-semibold">العميل</th>
+                  <th className="px-4 py-3 font-semibold">المشروع</th>
+                  <th className="px-4 py-3 font-semibold">العمولة الإجمالية</th>
+                  <th className="px-4 py-3 font-semibold">المدفوع</th>
+                  <th className="px-4 py-3 font-semibold">المتبقي</th>
+                  <th className="px-4 py-3 font-semibold">الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(tokens ?? []).map((t) => {
+                  const paid = parseFloat(t.paid_amount) || 0;
+                  const total = parseFloat(t.total_commission) || 0;
+                  const remaining = Math.max(0, total - paid);
+                  return (
+                    <tr key={t.id} className="border-b border-border/50 hover:bg-secondary/30">
+                      <td className="px-4 py-3 font-mono font-bold text-primary">{t.token_code}</td>
+                      <td className="px-4 py-3">{t.client_name}</td>
+                      <td className="px-4 py-3">{t.project_name}</td>
+                      <td className="px-4 py-3 font-medium">{t.total_commission} ريال</td>
+                      <td className="px-4 py-3 text-green-600 font-medium">{t.paid_amount} ريال</td>
+                      <td className="px-4 py-3 text-orange-600 font-medium">{remaining.toFixed(2)} ريال</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          t.status === "completed"
+                            ? "bg-green-500/15 text-green-600"
+                            : t.status === "active"
+                            ? "bg-blue-500/15 text-blue-600"
+                            : "bg-slate-200 text-slate-500"
+                        }`}>
+                          {t.status === "completed" ? <CheckCircle2 className="h-3 w-3" /> : null}
+                          {t.status === "completed" ? "مكتمل" : t.status === "active" ? "نشط" : "ملغي"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Receipts Table */}
+      <div>
+        <h2 className="mb-3 text-lg font-bold">إيصالات التحويل</h2>
+        {receiptsLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (receipts ?? []).length === 0 ? (
+          <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+            لا توجد إيصالات بعد.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50 text-right">
+                  <th className="px-4 py-3 font-semibold">العميل</th>
+                  <th className="px-4 py-3 font-semibold">الرمز</th>
+                  <th className="px-4 py-3 font-semibold">المبلغ المحوّل</th>
+                  <th className="px-4 py-3 font-semibold">نتيجة OCR</th>
+                  <th className="px-4 py-3 font-semibold">صورة الإيصال</th>
+                  <th className="px-4 py-3 font-semibold">الحالة</th>
+                  <th className="px-4 py-3 font-semibold">إجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(receipts ?? []).map((r) => (
+                  <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/30">
+                    <td className="px-4 py-3">{r.client_name}</td>
+                    <td className="px-4 py-3 font-mono font-bold text-primary">{r.token_code}</td>
+                    <td className="px-4 py-3 font-medium">{r.amount} ريال</td>
+                    <td className="px-4 py-3">
+                      {r.ocr_result === "match" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-600">
+                          <Check className="h-3 w-3" /> مطابق
+                        </span>
+                      ) : r.ocr_result === "mismatch" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-medium text-red-600">
+                          <X className="h-3 w-3" /> غير مطابق
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.receipt_image_url ? (
+                        <a href={r.receipt_image_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary underline">
+                          <ImageIcon className="h-3.5 w-3.5" /> عرض
+                        </a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        r.status === "approved"
+                          ? "bg-green-500/15 text-green-600"
+                          : r.status === "rejected"
+                          ? "bg-red-500/15 text-red-600"
+                          : "bg-yellow-500/15 text-yellow-600"
+                      }`}>
+                        {r.status === "approved" ? <CheckCircle2 className="h-3 w-3" /> : null}
+                        {r.status === "rejected" ? <XCircle className="h-3 w-3" /> : null}
+                        {r.status === "approved" ? "معتمد" : r.status === "rejected" ? "مرفوض" : "قيد الانتظار"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.status === "pending" ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleApprove(r.id)}
+                            className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-green-700"
+                          >
+                            <Check className="h-3 w-3" /> اعتماد
+                          </button>
+                          <button
+                            onClick={() => handleReject(r.id)}
+                            className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-500/15"
+                          >
+                            <X className="h-3 w-3" /> رفض
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Create Token Modal */
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">إنشاء رمز تعميد</h2>
+              <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateToken} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-semibold">العميل</label>
+                <div className="relative">
+                  <Building2 className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <select
+                    required value={clientId}
+                    onChange={(e) => {
+                      setClientId(e.target.value);
+                      const c = (clients ?? []).find((x) => x.id === e.target.value);
+                      setClientName(c?.name ?? "");
+                    }}
+                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="" disabled>اختر العميل</option>
+                    {(clients ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold">المشروع</label>
+                <div className="relative">
+                  <FolderKanban className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <select
+                    required value={projectId}
+                    onChange={(e) => {
+                      setProjectId(e.target.value);
+                      const p = (projects ?? []).find((x) => x.id === e.target.value);
+                      setProjectName(p?.name ?? "");
+                    }}
+                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="" disabled>اختر المشروع</option>
+                    {(projects ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold">إجمالي العمولة (ريال)</label>
+                <div className="relative">
+                  <Coins className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="number" step="0.01" required value={totalCommission}
+                    onChange={(e) => setTotalCommission(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold">المبلغ المسموح الآن (ريال)</label>
+                <div className="relative">
+                  <Wallet className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="number" step="0.01" required value={allowedAmount}
+                    onChange={(e) => setAllowedAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit" disabled={creating}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-foreground px-5 py-2.5 text-sm font-bold text-background hover:bg-foreground/90 disabled:opacity-60"
+                >
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
+                  توليد الرمز
+                </button>
+                <button
+                  type="button" onClick={() => setShowModal(false)}
+                  className="rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold hover:bg-secondary"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
