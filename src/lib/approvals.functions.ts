@@ -12,6 +12,7 @@ import {
   getVipBankInfo,
 } from "./approvals.repo";
 import { listAllClientProfiles } from "./client.repo";
+import { findClientByEmail } from "./clients.repo";
 import { listAllProjects } from "./projects.repo";
 
 const createTokenSchema = z.object({
@@ -47,10 +48,13 @@ export const adminGetApprovalClients = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     const profiles = await listAllClientProfiles();
-    return profiles.map((p) => ({
-      id: p.user_id,
-      name: p.company_name || p.email,
-      email: p.email,
+    return Promise.all(profiles.map(async (p) => {
+      const client = await findClientByEmail(p.email);
+      return {
+        id: client?.id ?? p.user_id,
+        name: p.company_name || p.email,
+        email: p.email,
+      };
     }));
   });
 
