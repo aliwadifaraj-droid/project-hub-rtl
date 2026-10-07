@@ -148,7 +148,7 @@ function AdminApprovalsPage() {
         </button>
       </div>
 
-      {/* Bank Info Display */
+      {/* Bank Info Display */}
       {bankInfo && bankInfo.iban && (
         <div className="mb-6 rounded-lg border border-border bg-card p-4 text-sm">
           <div className="mb-1 font-semibold text-muted-foreground">معلومات البنك (من site_settings)</div>
@@ -310,7 +310,7 @@ function AdminApprovalsPage() {
         )}
       </div>
 
-      {/* Create Token Modal */
+      {/* Create Token Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-lg">
