@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft } from "lucide-react";
 import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
@@ -186,40 +186,32 @@ export function ClientPortalShell() {
     }
   }
 
-  async function copyToClipboard(text: string, label: string): Promise<void> {
-    const value = text.replace(/\s/g, "");
-    if (!value) {
-      toast.error("لا يوجد نص لنسخه");
-      return;
-    }
+  async function copyToClipboard(e: MouseEvent<HTMLButtonElement>, text: string): Promise<void> {
+    e.preventDefault();
+    e.stopPropagation();
+    const cleanText = String(text || "").trim();
+    if (!cleanText) return;
 
     try {
-      await navigator.clipboard.writeText(value);
-      toast.success(`تم نسخ ${label}`);
+      await navigator.clipboard.writeText(cleanText);
+      alert(`تم النسخ: ${cleanText}`);
       return;
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = value;
-      textarea.setAttribute("readonly", "");
+      textarea.value = cleanText;
       textarea.style.position = "fixed";
-      textarea.style.top = "0";
       textarea.style.left = "-9999px";
       document.body.appendChild(textarea);
       textarea.focus();
       textarea.select();
-      textarea.setSelectionRange(0, value.length);
-
+      textarea.setSelectionRange(0, cleanText.length);
       try {
-        if (document.execCommand("copy")) {
-          toast.success(`تم نسخ ${label}`);
-          return;
-        }
+        document.execCommand("copy");
       } finally {
-        textarea.remove();
+        document.body.removeChild(textarea);
       }
+      alert(`تم النسخ: ${cleanText}`);
     }
-
-    toast.error("تعذر نسخ النص");
   }
 
   return (
@@ -339,7 +331,7 @@ export function ClientPortalShell() {
                       <div className="text-xs font-medium text-muted-foreground">اسم صاحب الحساب</div>
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <span className="font-bold text-foreground" dir="ltr">{tameedResult.holder_name}</span>
-                        <button type="button" onClick={() => void copyToClipboard(tameedResult.holder_name, "اسم صاحب الحساب")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                        <button type="button" onClick={(e) => void copyToClipboard(e, tameedResult.holder_name)} style={{ pointerEvents: "auto", zIndex: 10 }} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
                           <Copy className="h-3 w-3" />
                           نسخ
                         </button>
@@ -349,7 +341,7 @@ export function ClientPortalShell() {
                       <div className="text-xs font-medium text-muted-foreground">رقم الحساب (IBAN)</div>
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <span className="font-mono text-sm font-bold text-foreground" dir="ltr">{tameedResult.iban}</span>
-                        <button type="button" onClick={() => void copyToClipboard(tameedResult.iban, "الآيبان")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                        <button type="button" onClick={(e) => void copyToClipboard(e, tameedResult.iban)} style={{ pointerEvents: "auto", zIndex: 10 }} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
                           <Copy className="h-3 w-3" />
                           نسخ
                         </button>
