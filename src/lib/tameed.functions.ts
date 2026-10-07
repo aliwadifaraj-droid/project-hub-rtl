@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSessionClaims } from "./auth.server";
 import { db, rowsToObjects } from "./db";
+import { requireAdmin } from "./auth-middleware.server";
 
 type TameedBankInfo = {
   bank_name: string;
@@ -106,3 +107,122 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
 
     return { ok: true as const, alreadyApproved: false as const };
   });
+
+// ============ Admin functions ============
+
+const createTokenSchema = z.object({
+  user_id: z.string().min(1),
+  project_id: z.string().min(1),
+  total_commission: z.number().positive(),
+  allowed_payment_now: z.number().positive(),
+});
+
+export const adminCreateApprovalToken = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((data: unknown) => createTokenSchema.parse(data))
+  .handler(async ({ data }) => {
+    const token = generateAomToken();
+    const id = crypto.randomUUID();
+    await db.execute(
+      `INSERT INTO approval_tokens (id, user_id, token, amount, allowed_payment_now, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'active', datetime('now'))`,
+      [id, data.user_id, token, data.total_commission, data.allowed_payment_now],
+    );
+    return { id, token, amount: data.total_commission, allowed_payment_now: data.allowed_payment_now };
+  });
+
+export const adminListApprovalTokens = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const result = await db.execute(
+      `SELECT t.*, cp.company_name, cp.email as client_email
+       FROM approval_tokens t
+       LEFT JOIN client_profiles cp ON t.user_id = cp.user_id
+       ORDER BY t.created_at DESC`,
+    );
+    return rowsToObjects(result).map((row: any) => ({
+      id: String(row.id),
+      user_id: String(row.user_id),
+      token: String(row.token),
+      amount: Number(row.amount ?? 0),
+      allowed_payment_now: Number(row.allowed_payment_now ?? 0),
+      status: String(row.status ?? "active"),
+      paid_amount: Number(row.paid_amount ?? 0),
+      created_at: String(row.created_at ?? ""),
+      company_name: (row.company_name as string | null) ?? null,
+      client_email: (row.client_email as string | null) ?? null,
+    }));
+  });
+
+export const adminListApprovalReceipts = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const result = await db.execute(
+      `SELECT r.*, t.token, t.amount as total_commission, t.paid_amount,
+              cp.company_name, cp.email as client_email
+       FROM approval_receipts r
+       LEFT JOIN approval_tokens t ON r.token_id = t.id
+       LEFT JOIN client_profiles cp ON r.user_id = cp.user_id
+       ORDER BY r.created_at DESC`,
+    );
+    return rowsToObjects(result).map((row: any) => ({
+      id: String(row.id),
+      token_id: String(row.token_id),
+      user_id: String(row.user_id),
+      receipt_path: (row.receipt_path as string | null) ?? null,
+      ocr_status: (row.ocr_status as string | null) ?? null,
+      amount: Number(row.amount ?? 0),
+      created_at: String(row.created_at ?? ""),
+      token: (row.token as string | null) ?? null,
+      total_commission: row.total_commission != null ? Number(row.total_commission) : null,
+      paid_amount: row.paid_amount != null ? Number(row.paid_amount) : null,
+      company_name: (row.company_name as string | null) ?? null,
+      client_email: (row.client_email as string | null) ?? null,
+    }));
+  });
+
+const approveSchema = z.object({ receipt_id: z.string().min(1) });
+
+export const adminApproveReceipt = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((data: unknown) => approveSchema.parse(data))
+  .handler(async ({ data }) => {
+    const receiptResult = await db.execute(
+      `SELECT token_id, amount FROM approval_receipts WHERE id = ? AND ocr_status = 'مطابق' LIMIT 1`,
+      [data.receipt_id],
+    );
+    const receipt = rowsToObjects(receiptResult)[0] as any;
+    if (!receipt) throw new Error("الإيصال غير موجود أو غير مطابق");
+
+    const tokenResult = await db.execute(
+      `SELECT amount, paid_amount, status FROM approval_tokens WHERE id = ? LIMIT 1`,
+      [String(receipt.token_id)],
+    );
+    const token = rowsToObjects(tokenResult)[0] as any;
+    if (!token) throw new Error("التوكن غير موجود");
+
+    const newPaid = Number(token.paid_amount ?? 0) + Number(receipt.amount);
+    await db.execute(
+      `UPDATE approval_tokens SET paid_amount = ? WHERE id = ?`,
+      [newPaid, String(receipt.token_id)],
+    );
+
+    if (newPaid >= Number(token.amount)) {
+      await db.execute(
+        `UPDATE approval_tokens SET status = 'completed' WHERE id = ?`,
+        [String(receipt.token_id)],
+      );
+      return { ok: true, completed: true, newPaid };
+    }
+
+    return { ok: true, completed: false, newPaid };
+  });
+
+function generateAomToken(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `AOM-${code}`;
+}
