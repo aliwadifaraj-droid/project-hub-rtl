@@ -7,21 +7,34 @@ import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
-import { validateApprovalToken } from "@/lib/tameed.functions";
+import { submitApprovalReceipt, validateApprovalToken } from "@/lib/tameed.functions";
+import { uploadFile } from "@/lib/files.functions";
+import { validateReceiptOcr } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
 
 export function ClientPortalShell() {
   const listTickets = useServerFn(listMyClientTickets);
   const getVipStatus = useServerFn(getClientVipStatus);
   const doValidateToken = useServerFn(validateApprovalToken);
+  const uploadReceipt = useServerFn(uploadFile);
+  const verifyReceipt = useServerFn(validateReceiptOcr);
+  const submitReceipt = useServerFn(submitApprovalReceipt);
   const queryClient = useQueryClient();
   const [showVipIntro, setShowVipIntro] = useState(false);
   const [showTameed, setShowTameed] = useState(false);
   const [tameedToken, setTameedToken] = useState("");
   const [tameedStep, setTameedStep] = useState<"input" | "info">("input");
   const [tameedLoading, setTameedLoading] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptSubmitting, setReceiptSubmitting] = useState(false);
+  const [receiptApproved, setReceiptApproved] = useState(false);
+  const [receiptAmount, setReceiptAmount] = useState<number | null>(null);
+  const [receiptError, setReceiptError] = useState("");
+  const [receiptSent, setReceiptSent] = useState(false);
   const [tameedResult, setTameedResult] = useState<{
     token_id: string;
+    approved: boolean;
     amount: number;
     allowed_payment_now: number;
     bank_name: string;
@@ -54,6 +67,11 @@ export function ClientPortalShell() {
     setShowTameed(true);
     setTameedStep("input");
     setTameedToken("");
+    setReceiptFile(null);
+    setReceiptApproved(false);
+    setReceiptAmount(null);
+    setReceiptError("");
+    setReceiptSent(false);
     setTameedResult(null);
   }
 
@@ -61,6 +79,11 @@ export function ClientPortalShell() {
     setShowTameed(false);
     setTameedStep("input");
     setTameedToken("");
+    setReceiptFile(null);
+    setReceiptApproved(false);
+    setReceiptAmount(null);
+    setReceiptError("");
+    setReceiptSent(false);
     setTameedResult(null);
   }
 
@@ -78,6 +101,7 @@ export function ClientPortalShell() {
       }
       setTameedResult({
         token_id: res.token_id,
+        approved: res.approved,
         amount: res.amount,
         allowed_payment_now: res.allowed_payment_now,
         bank_name: res.bank_name,
@@ -90,6 +114,59 @@ export function ClientPortalShell() {
       toast.error("تعذر التحقق من رمز التعميد");
     } finally {
       setTameedLoading(false);
+    }
+  }
+
+  async function handleReceiptUpload(file: File | null): Promise<void> {
+    setReceiptFile(file);
+    setReceiptApproved(false);
+    setReceiptAmount(null);
+    setReceiptError("");
+    setReceiptSent(false);
+    if (!file || !tameedResult) return;
+    if (!file.type.startsWith("image/")) {
+      setReceiptError("يجب رفع صورة الإيصال");
+      return;
+    }
+
+    setReceiptLoading(true);
+    try {
+      const imageData = await fileToBase64(file);
+      const result = await verifyReceipt({
+        data: { imageData, expectedAmount: tameedResult.allowed_payment_now },
+      });
+      setReceiptAmount(result.result.amount);
+      if (!result.approved) {
+        setReceiptError(result.result.amount !== tameedResult.allowed_payment_now
+          ? "المبلغ في الإيصال غير مطابق للمبلغ المطلوب"
+          : result.reason);
+        return;
+      }
+      setReceiptApproved(true);
+    } catch {
+      setReceiptError("تعذر فحص الإيصال");
+    } finally {
+      setReceiptLoading(false);
+    }
+  }
+
+  async function handleSubmitReceipt(): Promise<void> {
+    if (!receiptFile || !receiptApproved || !tameedResult) return;
+    setReceiptSubmitting(true);
+    setReceiptError("");
+    try {
+      const imageData = await fileToBase64(receiptFile);
+      const uploaded = await uploadReceipt({
+        data: { filename: receiptFile.name, mime: receiptFile.type, purpose: "other", data: imageData },
+      });
+      await submitReceipt({
+        data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.allowed_payment_now },
+      });
+      setReceiptSent(true);
+    } catch {
+      setReceiptError("تعذر إرسال التعميد");
+    } finally {
+      setReceiptSubmitting(false);
     }
   }
 
@@ -199,58 +276,77 @@ export function ClientPortalShell() {
             )}
 
             {tameedStep === "info" && tameedResult && (
-              <div className="mt-6 space-y-4">
-                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                  <div className="mb-3">
-                    <div className="text-xs font-medium text-muted-foreground">اسم صاحب الحساب</div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="font-bold text-foreground" dir="ltr">{tameedResult.holder_name}</span>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(tameedResult.holder_name, "اسم صاحب الحساب")}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary"
-                      >
-                        <Copy className="h-3 w-3" />
-                        نسخ
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mb-3">
-                    <div className="text-xs font-medium text-muted-foreground">رقم الحساب (IBAN)</div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-bold text-foreground" dir="ltr">{tameedResult.iban}</span>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(tameedResult.iban, "الآيبان")}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary"
-                      >
-                        <Copy className="h-3 w-3" />
-                        نسخ
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground">المبلغ المطلوب</div>
-                    <div className="mt-1">
-                      <span className="text-2xl font-extrabold text-blue-700">
-                        {tameedResult.allowed_payment_now.toLocaleString("ar-SA")}
-                      </span>
-                      <span className="ms-1 text-sm font-medium text-muted-foreground">ريال</span>
-                    </div>
-                  </div>
+              tameedResult.approved ? (
+                <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center text-xl font-extrabold text-emerald-800">
+                  تم الاعتماد
                 </div>
-                <button
-                  type="button"
-                  onClick={closeTameed}
-                  className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary"
-                >
-                  تم
-                </button>
-              </div>
+              ) : (
+                <div className="mt-6 space-y-4">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-muted-foreground">اسم صاحب الحساب</div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className="font-bold text-foreground" dir="ltr">{tameedResult.holder_name}</span>
+                        <button type="button" onClick={() => copyToClipboard(tameedResult.holder_name, "اسم صاحب الحساب")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                          <Copy className="h-3 w-3" />
+                          نسخ
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-muted-foreground">رقم الحساب (IBAN)</div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm font-bold text-foreground" dir="ltr">{tameedResult.iban}</span>
+                        <button type="button" onClick={() => copyToClipboard(tameedResult.iban, "الآيبان")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                          <Copy className="h-3 w-3" />
+                          نسخ
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground">المبلغ المطلوب</div>
+                      <div className="mt-1 text-2xl font-extrabold text-blue-700">
+                        {tameedResult.allowed_payment_now.toLocaleString("ar-SA")} <span className="text-sm font-medium text-muted-foreground">ريال</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {receiptSent ? (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center font-bold text-emerald-800">
+                      تم ارسال اعتمادكم بنجاح سيتم اشعاركم لاحقا
+                    </div>
+                  ) : (
+                    <>
+                      <label htmlFor="tameed-receipt" className="block text-sm font-semibold text-foreground">صورة الإيصال
+                        <input id="tameed-receipt" type="file" accept="image/*" onChange={(event) => void handleReceiptUpload(event.target.files?.[0] ?? null)} className="mt-2 block w-full rounded-xl border border-border bg-background px-3 py-3 text-sm" />
+                      </label>
+                      {receiptLoading && <p className="text-sm text-muted-foreground">جارٍ فحص الإيصال...</p>}
+                      {receiptAmount !== null && receiptApproved && <p className="text-sm font-semibold text-emerald-700">تم مطابقة مبلغ الإيصال</p>}
+                      {receiptError && <p className="text-sm font-semibold text-destructive">{receiptError}</p>}
+                      <button type="button" onClick={() => void handleSubmitReceipt()} disabled={!receiptApproved || receiptSubmitting || receiptLoading} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                        {receiptSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                        إرسال التعميد
+                      </button>
+                    </>
+                  )}
+                  <button type="button" onClick={closeTameed} className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
+                    تم
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>
       )}
     </div>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
