@@ -81,7 +81,7 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     if (!claims) throw new Error("يجب تسجيل الدخول");
 
     const tokenResult = await db.execute(
-      `SELECT user_id, status, allowed_payment_now
+      `SELECT user_id, status, amount, allowed_payment_now
        FROM approval_tokens
        WHERE id = ? AND user_id = ?
        LIMIT 1`,
@@ -90,13 +90,15 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     const token = rowsToObjects<{
       user_id: string;
       status: string;
+      amount: number;
       allowed_payment_now: number;
     }>(tokenResult)[0];
 
     if (!token) throw new Error("التوكن غير صالح");
     if (token.status === "approved") return { ok: true as const, alreadyApproved: true as const };
     if (token.status === "used" || token.status === "complete") throw new Error("تم استخدام هذا الرمز مسبقاً");
-    if (Math.abs(Number(token.allowed_payment_now) - data.amount) > 0.01) throw new Error("المبلغ غير مطابق");
+    const requiredAmount = Number(token.amount);
+    if (Math.abs(requiredAmount - data.amount) > 2) throw new Error("المبلغ غير مطابق");
 
     await db.execute(
       `INSERT INTO approval_receipts

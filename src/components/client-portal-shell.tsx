@@ -40,6 +40,7 @@ export function ClientPortalShell() {
     bank_name: string;
     holder_name: string;
     iban: string;
+    account_number: string;
   } | null>(null);
 
   const { data: tickets = [] } = useQuery({
@@ -112,14 +113,18 @@ export function ClientPortalShell() {
 
       localStorage.setItem('approval_token', tameedCode.trim());
       localStorage.setItem('approval_data', JSON.stringify(result.data));
+      const bankAccount = result.data.bankAccount ?? {};
+      const iban = String(bankAccount.iban ?? result.data.iban ?? "");
+      const accountNumber = String(bankAccount.account_number ?? result.data.account_number ?? iban ?? "");
       setTameedResult({
         token_id: String(result.data.token_id ?? ""),
         approved: false,
         amount: Number(result.data.amount ?? 0),
         allowed_payment_now: Number(result.data.allowed_payment_now ?? result.data.amount ?? 0),
-        bank_name: String(result.data.bankAccount?.bank_name ?? result.data.bank_name ?? ""),
-        holder_name: String(result.data.bankAccount?.holder_name ?? result.data.holder_name ?? ""),
-        iban: String(result.data.bankAccount?.iban ?? result.data.iban ?? ""),
+        bank_name: String(bankAccount.bank_name ?? result.data.bank_name ?? ""),
+        holder_name: String(bankAccount.holder_name ?? result.data.holder_name ?? ""),
+        iban,
+        account_number: accountNumber,
       });
       setTameedStep('payment');
       setTameedError('');
@@ -148,14 +153,13 @@ export function ClientPortalShell() {
     setReceiptLoading(true);
     try {
       const imageData = await fileToBase64(file);
+      const requiredAmount = Number(tameedResult.amount);
       const result = await verifyReceipt({
-        data: { imageData, expectedAmount: tameedResult.allowed_payment_now },
+        data: { imageData, expectedAmount: requiredAmount },
       });
       setReceiptAmount(result.result.amount);
       if (!result.approved) {
-        setReceiptError(result.result.amount !== tameedResult.allowed_payment_now
-          ? "المبلغ في الإيصال غير مطابق للمبلغ المطلوب"
-          : result.reason);
+        setReceiptError(result.reason || "المبلغ في الإيصال غير مطابق للمبلغ المطلوب");
         return;
       }
       setReceiptApproved(true);
@@ -176,7 +180,7 @@ export function ClientPortalShell() {
         data: { filename: receiptFile.name, mime: receiptFile.type, purpose: "other", data: imageData },
       });
       await submitReceipt({
-        data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.allowed_payment_now },
+        data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.amount },
       });
       setReceiptSent(true);
     } catch {
@@ -340,8 +344,8 @@ export function ClientPortalShell() {
                     <div className="mb-3">
                       <div className="text-xs font-medium text-muted-foreground">رقم الحساب (IBAN)</div>
                       <div className="mt-1 flex items-center justify-between gap-2">
-                        <span className="font-mono text-sm font-bold text-foreground" dir="ltr">{tameedResult.iban}</span>
-                        <button type="button" onClick={(e) => void copyToClipboard(e, tameedResult.iban)} style={{ pointerEvents: "auto", zIndex: 10 }} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                        <span className="font-mono text-sm font-bold text-foreground" dir="ltr">{tameedResult.iban || tameedResult.account_number}</span>
+                        <button type="button" onClick={(e) => void copyToClipboard(e, tameedResult.iban || tameedResult.account_number)} style={{ pointerEvents: "auto", zIndex: 10 }} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
                           <Copy className="h-3 w-3" />
                           نسخ
                         </button>

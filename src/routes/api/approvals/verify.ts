@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { findTokenByCode } from "@/lib/approvals.repo";
+import { findTokenByCode, getVipBankInfo } from "@/lib/approvals.repo";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +13,27 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
+}
+
+async function getBankAccountInfo(): Promise<{
+  bank_name: string;
+  holder_name: string;
+  iban: string;
+  account_number: string;
+}> {
+  try {
+    const raw = await getVipBankInfo();
+    if (!raw) return { bank_name: "", holder_name: "", iban: "", account_number: "" };
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      bank_name: String(parsed.bank_name ?? ""),
+      holder_name: String(parsed.holder_name ?? parsed.account_name ?? ""),
+      iban: String(parsed.iban ?? ""),
+      account_number: String(parsed.account_number ?? parsed.iban ?? ""),
+    };
+  } catch {
+    return { bank_name: "", holder_name: "", iban: "", account_number: "" };
+  }
 }
 
 export const Route = createFileRoute("/api/approvals/verify")({
@@ -52,6 +73,7 @@ export const Route = createFileRoute("/api/approvals/verify")({
             allowed_payment_now: Number(row.allowed_amount),
             paid_amount: Number(row.paid_amount),
             status: row.status,
+            bankAccount: await getBankAccountInfo(),
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : "server error";

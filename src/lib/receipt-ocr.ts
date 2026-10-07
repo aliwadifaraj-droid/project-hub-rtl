@@ -30,7 +30,7 @@ Amount must be numeric only with no currency symbol or commas. The date may appe
 const FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find the IBAN, transfer amount, and transaction date. Search all small text carefully. Return JSON only: {"iban":"SA...","amount":100,"date":"the date exactly as visible"}. Return null only when a field is genuinely not visible. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri.`;
 
 function extractJson(text: string): Record<string, unknown> | null {
-  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const cleaned = text.replace(/<[\s\S]*?>/gi, "").trim();
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
@@ -174,8 +174,8 @@ export function validateOcrResult(result: OcrResult, expectedAmount: number): { 
   if (result.amount === null) return { ok: false, message: "لم يتم قراءة مبلغ التحويل من الإيصال" };
   const required = Number(expectedAmount);
   const found = Number(result.amount);
-  if (!Number.isFinite(required) || !Number.isFinite(found) || Math.abs(found - required) >= 2) {
-    return { ok: false, message: `المبلغ في الإيصال (${found} ر.س) لا يطابق قيمة الباقة (${required} ر.س)` };
+  if (!Number.isFinite(required) || !Number.isFinite(found) || Math.abs(found - required) > 2) {
+    return { ok: false, message: `المبلغ في الإيصال (${found} ر.س) لا يطابق المبلغ المطلوب (${required} ر.س)` };
   }
 
   return { ok: true, message: "تم التحقق من الإيصال بنجاح" };
