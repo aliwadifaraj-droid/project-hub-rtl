@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { findTokenByCode, getVipBankInfo } from "@/lib/approvals.repo";
 import { getSessionClaims } from "@/lib/auth.server";
-import { getClientProfileByEmail } from "@/lib/client.repo";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -62,12 +61,7 @@ export const Route = createFileRoute("/api/approvals/verify")({
           }
 
           const row = await findTokenByCode(code);
-          const profile = row ? await getClientProfileByEmail(claims.email) : null;
-          const belongsToSession = Boolean(row && (
-            row.client_id === claims.sub
-            || row.client_id === profile?.user_id
-          ));
-          if (!row || !belongsToSession) {
+          if (!row || row.client_id !== claims.sub) {
             return jsonResponse({ valid: false, error: "رمز التعميد غير صحيح" });
           }
 
