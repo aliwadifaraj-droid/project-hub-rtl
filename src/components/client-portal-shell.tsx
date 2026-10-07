@@ -186,9 +186,36 @@ export function ClientPortalShell() {
     }
   }
 
-  function copyToClipboard(text: string, label: string): void {
-    navigator.clipboard.writeText(text.replace(/\s/g, ""));
-    toast.success(`تم نسخ ${label}`);
+  async function copyToClipboard(text: string, label: string): Promise<void> {
+    const value = text.replace(/\s/g, "");
+    let copied = false;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      }
+    } catch {
+      copied = false;
+    }
+
+    if (!copied) {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      copied = document.execCommand("copy");
+      textarea.remove();
+    }
+
+    if (copied) {
+      toast.success(`تم نسخ ${label}`);
+    } else {
+      toast.error("تعذر نسخ النص");
+    }
   }
 
   return (
@@ -308,7 +335,7 @@ export function ClientPortalShell() {
                       <div className="text-xs font-medium text-muted-foreground">اسم صاحب الحساب</div>
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <span className="font-bold text-foreground" dir="ltr">{tameedResult.holder_name}</span>
-                        <button type="button" onClick={() => copyToClipboard(tameedResult.holder_name, "اسم صاحب الحساب")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                        <button type="button" onClick={() => void copyToClipboard(tameedResult.holder_name, "اسم صاحب الحساب")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
                           <Copy className="h-3 w-3" />
                           نسخ
                         </button>
@@ -318,7 +345,7 @@ export function ClientPortalShell() {
                       <div className="text-xs font-medium text-muted-foreground">رقم الحساب (IBAN)</div>
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <span className="font-mono text-sm font-bold text-foreground" dir="ltr">{tameedResult.iban}</span>
-                        <button type="button" onClick={() => copyToClipboard(tameedResult.iban, "الآيبان")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                        <button type="button" onClick={() => void copyToClipboard(tameedResult.iban, "الآيبان")} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
                           <Copy className="h-3 w-3" />
                           نسخ
                         </button>
