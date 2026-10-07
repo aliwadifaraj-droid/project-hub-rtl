@@ -34,6 +34,20 @@ export type ApprovalReceiptRow = {
   approved_at: string | null;
 };
 
+type ApprovalTokenInput = {
+  client_id?: string;
+  user_id?: string;
+  client_name?: string;
+  project_id?: string;
+  project_name?: string;
+  total_commission?: string;
+  totalCommission?: string;
+  allowed_amount?: string;
+  allowed_payment_now?: string;
+  token?: string;
+  code?: string;
+};
+
 let approvalTablesReady: Promise<void> | null = null;
 
 function ensureApprovalTables(): Promise<void> {
@@ -43,13 +57,14 @@ function ensureApprovalTables(): Promise<void> {
     {
       sql: `CREATE TABLE IF NOT EXISTS approval_tokens (
         id TEXT PRIMARY KEY,
-        token_code TEXT NOT NULL UNIQUE,
-        client_id TEXT NOT NULL,
-        client_name TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        project_name TEXT NOT NULL,
-        total_commission TEXT NOT NULL,
-        allowed_amount TEXT NOT NULL,
+        token TEXT,
+        code TEXT,
+        user_id TEXT,
+        client_name TEXT,
+        project_id TEXT,
+        project_name TEXT,
+        total_commission TEXT,
+        allowed_payment_now TEXT,
         paid_amount TEXT NOT NULL DEFAULT '0',
         status TEXT NOT NULL DEFAULT 'active',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -61,9 +76,9 @@ function ensureApprovalTables(): Promise<void> {
       sql: `CREATE TABLE IF NOT EXISTS approval_receipts (
         id TEXT PRIMARY KEY,
         token_id TEXT NOT NULL,
-        token_code TEXT NOT NULL,
-        client_id TEXT NOT NULL,
-        client_name TEXT NOT NULL,
+        token_code TEXT,
+        user_id TEXT,
+        client_name TEXT,
         amount TEXT NOT NULL,
         ocr_result TEXT,
         ocr_amount TEXT,
@@ -92,6 +107,12 @@ function ensureApprovalTables(): Promise<void> {
   return approvalTablesReady;
 }
 
+async function getApprovalTokenColumns(): Promise<Set<string>> {
+  await ensureApprovalTables();
+  const result = await db.execute("PRAGMA table_info(approval_tokens)");
+  return new Set(rowsToObjects<{ name: string }>(result).map((column) => String(column.name)));
+}
+
 export async function getVipBankInfo(): Promise<string> {
   const r = await db.execute(
     "SELECT value FROM site_settings WHERE key = ? LIMIT 1",
@@ -103,14 +124,14 @@ export async function getVipBankInfo(): Promise<string> {
 
 function decodeToken(r: any): ApprovalTokenRow {
   return {
-    id: String(r.id),
-    token_code: String(r.token_code ?? ""),
-    client_id: String(r.client_id ?? ""),
+    id: String(r.id ?? ""),
+    token_code: String(r.token_code ?? r.code ?? r.token ?? ""),
+    client_id: String(r.client_id ?? r.user_id ?? ""),
     client_name: String(r.client_name ?? ""),
     project_id: String(r.project_id ?? ""),
     project_name: String(r.project_name ?? ""),
     total_commission: String(r.total_commission ?? "0"),
-    allowed_amount: String(r.allowed_amount ?? "0"),
+    allowed_amount: String(r.allowed_amount ?? r.allowed_payment_now ?? "0"),
     paid_amount: String(r.paid_amount ?? "0"),
     status: String(r.status ?? "active"),
     created_at: String(r.created_at ?? ""),
@@ -120,10 +141,10 @@ function decodeToken(r: any): ApprovalTokenRow {
 
 function decodeReceipt(r: any): ApprovalReceiptRow {
   return {
-    id: String(r.id),
+    id: String(r.id ?? ""),
     token_id: String(r.token_id ?? ""),
-    token_code: String(r.token_code ?? ""),
-    client_id: String(r.client_id ?? ""),
+    token_code: String(r.token_code ?? r.code ?? r.token ?? ""),
+    client_id: String(r.client_id ?? r.user_id ?? ""),
     client_name: String(r.client_name ?? ""),
     amount: String(r.amount ?? "0"),
     ocr_result: r.ocr_result ?? null,
@@ -139,37 +160,57 @@ function decodeReceipt(r: any): ApprovalReceiptRow {
 function genTokenCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "AOM-";
-  for (let i = 0; i < 4; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
 
-export async function createApprovalToken(data: {
-  client_id: string;
-  client_name: string;
-  project_id: string;
-  project_name: string;
-  total_commission: string;
-  allowed_amount: string;
-}): Promise<ApprovalTokenRow> {
-  await ensureApprovalTables();
+export async function createApprovalToken(data: ApprovalTokenInput = {}): Promise<ApprovalTokenRow> {
+  const columns = await getApprovalTokenColumns();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  let token_code = genTokenCode();
+  let generatedCode = data.code ?? data.token ?? genTokenCode();
+
   for (let attempt = 0; attempt < 5; attempt++) {
+    const lookupColumn = columns.has("code") ? "code" : columns.has("token") ? "token" : "token_code";
     const existing = await db.execute(
-      "SELECT id FROM approval_tokens WHERE token_code = ? LIMIT 1",
-      [token_code],
+      `SELECT id FROM approval_tokens WHERE ${lookupColumn} = ? LIMIT 1`,
+      [generatedCode],
     );
     if (rowsToObjects(existing).length === 0) break;
-    token_code = genTokenCode();
+    generatedCode = genTokenCode();
   }
+
+  const values: Record<string, string> = {
+    id,
+    token: generatedCode,
+    code: generatedCode,
+    token_code: generatedCode,
+    user_id: data.user_id ?? data.client_id ?? "",
+    client_id: data.client_id ?? data.user_id ?? "",
+    client_name: data.client_name ?? "",
+    project_id: data.project_id ?? "",
+    project_name: data.project_name ?? "",
+    total_commission: data.total_commission ?? data.totalCommission ?? "",
+    allowed_payment_now: data.allowed_payment_now ?? data.allowed_amount ?? "",
+    allowed_amount: data.allowed_amount ?? data.allowed_payment_now ?? "",
+    paid_amount: "0",
+    status: "active",
+    created_at: now,
+    updated_at: now,
+  };
+
+  const preferredColumns = [
+    "id", "token", "code", "user_id", "client_name", "project_id", "project_name",
+    "total_commission", "allowed_payment_now", "paid_amount", "status", "created_at", "updated_at",
+    "token_code", "client_id", "allowed_amount",
+  ];
+  const insertColumns = preferredColumns.filter((column) => columns.has(column));
+  const insertValues = insertColumns.map((column) => values[column]);
   await db.execute(
-    `INSERT INTO approval_tokens (id, token_code, client_id, client_name, project_id, project_name, total_commission, allowed_amount, paid_amount, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, '0', 'active', ?, ?)`,
-    [id, token_code, data.client_id, data.client_name, data.project_id, data.project_name, data.total_commission, data.allowed_amount, now, now],
+    `INSERT INTO approval_tokens (${insertColumns.join(", ")}) VALUES (${insertColumns.map(() => "?").join(", ")})`,
+    insertValues,
   );
+
   return (await findTokenById(id))!;
 }
 
@@ -181,8 +222,9 @@ export async function findTokenById(id: string): Promise<ApprovalTokenRow | null
 }
 
 export async function findTokenByCode(code: string): Promise<ApprovalTokenRow | null> {
-  await ensureApprovalTables();
-  const r = await db.execute("SELECT * FROM approval_tokens WHERE token_code = ? LIMIT 1", [code]);
+  const columns = await getApprovalTokenColumns();
+  const lookupColumn = columns.has("code") ? "code" : columns.has("token") ? "token" : "token_code";
+  const r = await db.execute(`SELECT * FROM approval_tokens WHERE ${lookupColumn} = ? LIMIT 1`, [code]);
   const rows = rowsToObjects(r);
   return rows[0] ? decodeToken(rows[0]) : null;
 }
@@ -209,23 +251,26 @@ export async function updateTokenPaidAmount(tokenId: string, paidAmount: string,
 }
 
 export async function createApprovalReceipt(data: {
-  token_id: string;
-  token_code: string;
-  client_id: string;
-  client_name: string;
-  amount: string;
+  token_id?: string;
+  token_code?: string;
+  token?: string;
+  code?: string;
+  client_id?: string;
+  user_id?: string;
+  client_name?: string;
+  amount?: string;
   ocr_result?: string | null;
   ocr_amount?: string | null;
   receipt_image_key?: string | null;
   receipt_image_url?: string | null;
-}): Promise<string> {
+} = {}): Promise<string> {
   await ensureApprovalTables();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.execute(
-    `INSERT INTO approval_receipts (id, token_id, token_code, client_id, client_name, amount, ocr_result, ocr_amount, receipt_image_key, receipt_image_url, status, created_at)
+    `INSERT INTO approval_receipts (id, token_id, token_code, user_id, client_name, amount, ocr_result, ocr_amount, receipt_image_key, receipt_image_url, status, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-    [id, data.token_id, data.token_code, data.client_id, data.client_name, data.amount, data.ocr_result ?? null, data.ocr_amount ?? null, data.receipt_image_key ?? null, data.receipt_image_url ?? null, now],
+    [id, data.token_id ?? "", data.token_code ?? data.code ?? data.token ?? "", data.user_id ?? data.client_id ?? "", data.client_name ?? "", data.amount ?? "", data.ocr_result ?? null, data.ocr_amount ?? null, data.receipt_image_key ?? null, data.receipt_image_url ?? null, now],
   );
   return id;
 }
@@ -253,7 +298,6 @@ export async function updateReceiptStatus(receiptId: string, status: string): Pr
 }
 
 export async function getReceiptWithToken(receiptId: string): Promise<{ receipt: ApprovalReceiptRow; token: ApprovalTokenRow } | null> {
-  await ensureApprovalTables();
   const receipt = await findReceiptById(receiptId);
   if (!receipt) return null;
   const token = await findTokenById(receipt.token_id);
