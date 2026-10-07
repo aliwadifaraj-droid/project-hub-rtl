@@ -359,7 +359,8 @@ CREATE TABLE IF NOT EXISTS approval_tokens (
   token              TEXT NOT NULL UNIQUE,
   amount             REAL NOT NULL DEFAULT 0,
   allowed_payment_now REAL NOT NULL DEFAULT 0,
-  status             TEXT NOT NULL DEFAULT 'unused',
+  paid_amount        REAL NOT NULL DEFAULT 0,
+  status             TEXT NOT NULL DEFAULT 'active',
   used_by            TEXT,
   used_at            TEXT,
   created_at         TEXT NOT NULL DEFAULT (datetime('now'))
@@ -367,3 +368,16 @@ CREATE TABLE IF NOT EXISTS approval_tokens (
 CREATE INDEX IF NOT EXISTS idx_approval_tokens_user ON approval_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_approval_tokens_token ON approval_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_approval_tokens_status ON approval_tokens(status);
+
+-- ============ approval_receipts ============
+CREATE TABLE IF NOT EXISTS approval_receipts (
+  id           TEXT PRIMARY KEY,
+  token_id     TEXT NOT NULL,
+  user_id      TEXT NOT NULL,
+  receipt_path TEXT,
+  ocr_status   TEXT NOT NULL DEFAULT 'مطابق',
+  amount       REAL NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_approval_receipts_token ON approval_receipts(token_id);
+CREATE INDEX IF NOT EXISTS idx_approval_receipts_user ON approval_receipts(user_id);
