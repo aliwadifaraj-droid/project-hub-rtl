@@ -86,8 +86,8 @@ export function ClientPortalShell() {
       });
       setTameedStep("info");
       toast.success("تم التحقق من الرمز بنجاح");
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
+    } catch {
+      toast.error("تعذر التحقق من رمز التعميد");
     } finally {
       setTameedLoading(false);
     }
