@@ -93,10 +93,31 @@ function ensureApprovalTables(): Promise<void> {
       },
     ]);
 
-    const tokenColumns = await db.execute("PRAGMA table_info(approval_tokens)");
+    let tokenColumnNames = new Set<string>();
     const receiptColumns = await db.execute("PRAGMA table_info(approval_receipts)");
-    const tokenColumnNames = new Set(rowsToObjects<{ name: string }>(tokenColumns).map((column) => String(column.name)));
+    tokenColumnNames = new Set(rowsToObjects<{ name: string }>(await db.execute("PRAGMA table_info(approval_tokens)")).map((column) => String(column.name)));
     const receiptColumnNames = new Set(rowsToObjects<{ name: string }>(receiptColumns).map((column) => String(column.name)));
+    const missingTokenColumns: Record<string, string> = {
+      code: "TEXT",
+      token_code: "TEXT",
+      client_id: "TEXT",
+      client_name: "TEXT",
+      project_id: "TEXT",
+      project_name: "TEXT",
+      total_commission: "TEXT",
+      allowed_amount: "TEXT",
+      updated_at: "TEXT",
+    };
+    const schemaUpdates = Object.entries(missingTokenColumns)
+      .filter(([column]) => !tokenColumnNames.has(column))
+      .map(([column, definition]) => ({
+        sql: `ALTER TABLE approval_tokens ADD COLUMN ${column} ${definition}`,
+        args: [],
+      }));
+    if (schemaUpdates.length > 0) {
+      await db.batch(schemaUpdates);
+      tokenColumnNames = new Set(rowsToObjects<{ name: string }>(await db.execute("PRAGMA table_info(approval_tokens)")).map((column) => String(column.name)));
+    }
     const indexes = [];
 
     if (tokenColumnNames.has("status")) {
@@ -138,7 +159,7 @@ function decodeToken(r: any): ApprovalTokenRow {
     client_name: String(r.client_name ?? ""),
     project_id: String(r.project_id ?? ""),
     project_name: String(r.project_name ?? ""),
-    total_commission: String(r.total_commission ?? "0"),
+    total_commission: String(r.total_commission ?? r.amount ?? "0"),
     allowed_amount: String(r.allowed_amount ?? r.allowed_payment_now ?? "0"),
     paid_amount: String(r.paid_amount ?? "0"),
     status: String(r.status ?? "active"),
@@ -165,6 +186,10 @@ function decodeReceipt(r: any): ApprovalReceiptRow {
   };
 }
 
+function normalizeTokenCode(code: string): string {
+  return code.trim().toUpperCase().replace(/[‐‑‒–—−]/g, "-").replace(/\s+/g, "");
+}
+
 function genTokenCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "AOM-";
@@ -176,7 +201,7 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
   const columns = await getApprovalTokenColumns();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  let generatedCode = data.code ?? data.token ?? genTokenCode();
+  let generatedCode = normalizeTokenCode(data.code ?? data.token ?? genTokenCode());
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const lookupColumn = columns.has("code") ? "code" : columns.has("token") ? "token" : "token_code";
@@ -198,6 +223,7 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
     client_name: data.client_name ?? "",
     project_id: data.project_id ?? "",
     project_name: data.project_name ?? "",
+    amount: data.total_commission ?? data.totalCommission ?? "",
     total_commission: data.total_commission ?? data.totalCommission ?? "",
     allowed_payment_now: data.allowed_payment_now ?? data.allowed_amount ?? "",
     allowed_amount: data.allowed_amount ?? data.allowed_payment_now ?? "",
@@ -209,7 +235,7 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
 
   const preferredColumns = [
     "id", "token", "code", "user_id", "client_name", "project_id", "project_name",
-    "total_commission", "allowed_payment_now", "paid_amount", "status", "created_at", "updated_at",
+    "amount", "total_commission", "allowed_payment_now", "paid_amount", "status", "created_at", "updated_at",
     "token_code", "client_id", "allowed_amount",
   ];
   const insertColumns = preferredColumns.filter((column) => columns.has(column));
@@ -231,13 +257,14 @@ export async function findTokenById(id: string): Promise<ApprovalTokenRow | null
 
 export async function findTokenByCode(code: string): Promise<ApprovalTokenRow | null> {
   const columns = await getApprovalTokenColumns();
+  const normalizedCode = normalizeTokenCode(code);
   const lookupColumns = ["token", "code", "token_code"].filter((column) => columns.has(column));
   if (lookupColumns.length === 0) return null;
 
   const conditions = lookupColumns.map((column) => `${column} = ?`).join(" OR ");
   const r = await db.execute(
     `SELECT * FROM approval_tokens WHERE ${conditions} LIMIT 1`,
-    lookupColumns.map(() => code),
+    lookupColumns.map(() => normalizedCode),
   );
   const rows = rowsToObjects(r);
   return rows[0] ? decodeToken(rows[0]) : null;
