@@ -93,11 +93,16 @@ function AdminApprovalsPage() {
       toast.error("جميع الحقول مطلوبة");
       return;
     }
+    const selectedClient = (clients ?? []).find((client) => client.id === clientId);
+    if (!selectedClient) {
+      toast.error("يرجى اختيار العميل مرة أخرى");
+      return;
+    }
     setCreating(true);
     try {
       const token = await doCreateToken({
         data: {
-          client_id: clientId,
+          client_id: selectedClient.client_id,
           client_name: clientName,
           project_id: projectId,
           project_name: projectName,
