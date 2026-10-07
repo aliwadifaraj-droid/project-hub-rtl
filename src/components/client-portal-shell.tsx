@@ -188,34 +188,38 @@ export function ClientPortalShell() {
 
   async function copyToClipboard(text: string, label: string): Promise<void> {
     const value = text.replace(/\s/g, "");
-    let copied = false;
-
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value);
-        copied = true;
-      }
-    } catch {
-      copied = false;
+    if (!value) {
+      toast.error("لا يوجد نص لنسخه");
+      return;
     }
 
-    if (!copied) {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`تم نسخ ${label}`);
+      return;
+    } catch {
       const textarea = document.createElement("textarea");
       textarea.value = value;
       textarea.setAttribute("readonly", "");
       textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
+      textarea.style.top = "0";
+      textarea.style.left = "-9999px";
       document.body.appendChild(textarea);
+      textarea.focus();
       textarea.select();
-      copied = document.execCommand("copy");
-      textarea.remove();
+      textarea.setSelectionRange(0, value.length);
+
+      try {
+        if (document.execCommand("copy")) {
+          toast.success(`تم نسخ ${label}`);
+          return;
+        }
+      } finally {
+        textarea.remove();
+      }
     }
 
-    if (copied) {
-      toast.success(`تم نسخ ${label}`);
-    } else {
-      toast.error("تعذر نسخ النص");
-    }
+    toast.error("تعذر نسخ النص");
   }
 
   return (
@@ -354,9 +358,9 @@ export function ClientPortalShell() {
                     <div>
                       <div className="text-xs font-medium text-muted-foreground">المبلغ المطلوب</div>
                       <div className="mt-1 text-2xl font-extrabold text-blue-700">
-                        {tameedResult.amount.toLocaleString("ar-SA")} <span className="text-sm font-medium text-muted-foreground">ريال</span>
+                        {tameedResult.amount.toLocaleString("en-US")} <span className="text-sm font-medium text-muted-foreground">ريال</span>
                         <div className="mt-1 text-sm font-semibold text-muted-foreground">
-                          المبلغ المسموح الآن: {tameedResult.allowed_payment_now.toLocaleString("ar-SA")} ريال
+                          المبلغ المسموح الآن: {tameedResult.allowed_payment_now.toLocaleString("en-US")} ريال
                         </div>
                       </div>
                     </div>
