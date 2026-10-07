@@ -30,7 +30,7 @@ Amount must be numeric only with no currency symbol or commas. The date may appe
 const FOCUSED_PROMPT = `Read this Saudi bank transfer receipt. Find the IBAN, transfer amount, and transaction date. Search all small text carefully. Return JSON only: {"iban":"SA...","amount":100,"date":"the date exactly as visible"}. Return null only when a field is genuinely not visible. The date can be DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or Hijri.`;
 
 function extractJson(text: string): Record<string, unknown> | null {
-  const cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, "").trim();
+  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
@@ -42,6 +42,16 @@ function extractJson(text: string): Record<string, unknown> | null {
 
 function normalizeDigits(value: string): string {
   return value.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+}
+
+function extractAmount(text: string): number | null {
+  const normalizedText = normalizeDigits(text);
+  const match = normalizedText.match(/(\d[\d,]*\.?\d*)\s*SAR/i)
+    || normalizedText.match(/المبلغ[^\d]*(\d[\d,]*)/)
+    || normalizedText.match(/Amount[^\d]*(\d[\d,]*)/i);
+  if (!match) return null;
+  const amount = Number.parseFloat(match[1].replace(/,/g, ""));
+  return Number.isFinite(amount) ? amount : null;
 }
 
 function normalizeReceiptDate(value: string | null): string | null {
@@ -95,11 +105,10 @@ async function callModel(model: string, dataUrl: string, apiKey: string, focused
 
   const amountRaw = parsed.amount;
   const amountText = amountRaw == null ? null : normalizeDigits(String(amountRaw));
+  const extractedAmount = amountText == null ? null : extractAmount(amountText);
   const amountNum = typeof amountRaw === "number"
     ? amountRaw
-    : amountText != null
-      ? Number(amountText.replace(/[^\d.]/g, ""))
-      : null;
+    : extractedAmount ?? (amountText != null ? Number(amountText.replace(/[^\d.]/g, "")) : null);
   const dateText = firstString(parsed, ["date", "transaction_date", "transfer_date", "transactionDate", "transferDate", "date_time", "dateTime"]);
 
   const ibanText = firstString(parsed, ["iban", "IBAN", "account_number", "accountNumber", "bank_account", "bankAccount"]);
@@ -161,10 +170,12 @@ export function validateOcrResult(result: OcrResult, expectedAmount: number): { 
   if (diffHours > 168) return { ok: false, message: "الإيصال قديم — يجب أن يكون خلال آخر 7 أيام" };
   if (diffHours < -24) return { ok: false, message: "تاريخ الإيصال في المستقبل" };
 
-  // 2) المبلغ: لازم يطابق قيمة الباقة بالضبط
+  // 2) المبلغ: يسمح بفارق بسيط ناتج عن قراءة الإيصال
   if (result.amount === null) return { ok: false, message: "لم يتم قراءة مبلغ التحويل من الإيصال" };
-  if (Math.abs(result.amount - expectedAmount) > 0.01) {
-    return { ok: false, message: `المبلغ في الإيصال (${result.amount} ر.س) لا يطابق قيمة الباقة (${expectedAmount} ر.س)` };
+  const required = Number(expectedAmount);
+  const found = Number(result.amount);
+  if (!Number.isFinite(required) || !Number.isFinite(found) || Math.abs(found - required) >= 2) {
+    return { ok: false, message: `المبلغ في الإيصال (${found} ر.س) لا يطابق قيمة الباقة (${required} ر.س)` };
   }
 
   return { ok: true, message: "تم التحقق من الإيصال بنجاح" };
