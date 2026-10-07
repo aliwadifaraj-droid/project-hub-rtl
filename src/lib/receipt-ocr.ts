@@ -132,7 +132,7 @@ export async function scanReceiptDataUrl(dataUrl: string): Promise<OcrResult> {
   let bestResult: OcrResult = EMPTY_RESULT;
   for (const model of VISION_MODELS) {
     try {
-      let result = await callModel(model, dataUrl);
+      let result = await callModel(model, dataUrl, apiKey);
       if (result.amount === null || result.date === null) {
         const focusedResult = await callModel(model, dataUrl, apiKey, true);
         result = {
