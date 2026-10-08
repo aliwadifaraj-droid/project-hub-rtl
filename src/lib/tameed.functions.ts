@@ -12,6 +12,17 @@ type TameedBankInfo = {
   iban: string;
 };
 
+function explainDatabaseError(error: unknown, operation: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/no such table|table .* does not exist/i.test(message)) {
+    return new Error(`جدول Turso المطلوب غير موجود أثناء ${operation}: approval_receipts`);
+  }
+  if (/no such column|column .* does not exist|unknown column/i.test(message)) {
+    return new Error(`عمود مفقود في جدول Turso أثناء ${operation}: ${message}`);
+  }
+  return new Error(`تعذر ${operation} في Turso: ${message}`);
+}
+
 async function getBankInfo(): Promise<TameedBankInfo> {
   const result = await db.execute(
     "SELECT value FROM site_settings WHERE key = ? LIMIT 1",
@@ -82,13 +93,18 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     const claims = await getSessionClaims();
     if (!claims) throw new Error("يجب تسجيل الدخول");
 
-    const tokenResult = await db.execute(
-      `SELECT id, token, code, client_id, client_name, total_commission, allowed_payment_now, status
-       FROM approval_tokens
-       WHERE id = ? AND client_id = ?
-       LIMIT 1`,
-      [data.token_id, claims.sub],
-    );
+    let tokenResult;
+    try {
+      tokenResult = await db.execute(
+        `SELECT id, token, code, client_id, client_name, total_commission, allowed_payment_now, status
+         FROM approval_tokens
+         WHERE id = ? AND client_id = ?
+         LIMIT 1`,
+        [data.token_id, claims.sub],
+      );
+    } catch (error: unknown) {
+      throw explainDatabaseError(error, "التحقق من رمز التعميد");
+    }
     const token = rowsToObjects<{
       id: string;
       token: string | null;
@@ -110,18 +126,29 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
       throw new Error("المبلغ غير مطابق");
     }
 
-    const receiptImageUrl = await signGetUrl(data.receipt_path, 60 * 60 * 24 * 7);
-    await createApprovalReceipt({
-      token_id: token.id,
-      token_code: token.token ?? token.code ?? "",
-      user_id: token.client_id,
-      client_name: token.client_name ?? "",
-      amount: String(data.amount),
-      ocr_result: "match",
-      ocr_amount: String(data.amount),
-      receipt_image_key: data.receipt_path,
-      receipt_image_url: receiptImageUrl,
-    });
+    let receiptImageUrl: string;
+    try {
+      receiptImageUrl = await signGetUrl(data.receipt_path, 60 * 60 * 24 * 7);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`تم رفع الصورة، لكن تعذر إنشاء رابط R2: ${message}`);
+    }
+
+    try {
+      await createApprovalReceipt({
+        token_id: token.id,
+        token_code: token.token ?? token.code ?? "",
+        user_id: token.client_id,
+        client_name: token.client_name ?? "",
+        amount: String(data.amount),
+        ocr_result: "match",
+        ocr_amount: String(data.amount),
+        receipt_image_key: data.receipt_path,
+        receipt_image_url: receiptImageUrl,
+      });
+    } catch (error: unknown) {
+      throw explainDatabaseError(error, "حفظ الإيصال");
+    }
 
     return { ok: true as const, alreadyApproved: false as const };
   });
