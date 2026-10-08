@@ -31,6 +31,8 @@ export type ApprovalReceiptRow = {
   receipt_image_key: string | null;
   receipt_image_url: string | null;
   status: string;
+  project_name: string | null;
+  paid_amount: string | null;
   created_at: string;
   approved_at: string | null;
 };
@@ -87,6 +89,8 @@ function ensureApprovalTables(): Promise<void> {
           receipt_image_key TEXT,
           receipt_image_url TEXT,
           status TEXT NOT NULL DEFAULT 'pending',
+          project_name TEXT,
+          paid_amount TEXT,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           approved_at TEXT
         )`,
@@ -112,6 +116,8 @@ function ensureApprovalTables(): Promise<void> {
     };
     const missingReceiptColumns: Record<string, string> = {
       approved_at: "TEXT",
+      project_name: "TEXT",
+      paid_amount: "TEXT",
     };
     const schemaUpdates = Object.entries(missingTokenColumns)
       .filter(([column]) => !tokenColumnNames.has(column))
@@ -150,6 +156,12 @@ function ensureApprovalTables(): Promise<void> {
 async function getApprovalTokenColumns(): Promise<Set<string>> {
   await ensureApprovalTables();
   const result = await db.execute("PRAGMA table_info(approval_tokens)");
+  return new Set(rowsToObjects<{ name: string }>(result).map((column) => String(column.name)));
+}
+
+async function getApprovalReceiptColumns(): Promise<Set<string>> {
+  await ensureApprovalTables();
+  const result = await db.execute("PRAGMA table_info(approval_receipts)");
   return new Set(rowsToObjects<{ name: string }>(result).map((column) => String(column.name)));
 }
 
@@ -193,6 +205,8 @@ function decodeReceipt(r: any): ApprovalReceiptRow {
     receipt_image_key: r.receipt_image_key ?? null,
     receipt_image_url: r.receipt_image_url ?? null,
     status: String(r.status ?? "pending"),
+    project_name: r.project_name ?? null,
+    paid_amount: r.paid_amount ?? null,
     created_at: String(r.created_at ?? ""),
     approved_at: r.approved_at ?? null,
   };
@@ -305,11 +319,31 @@ export async function updateTokenPaidAmount(tokenId: string, paidAmount: string,
 
 export async function approveTokenWithPaidAmount(tokenId: string, paidAmount: string): Promise<void> {
   await ensureApprovalTables();
+  const receiptColumns = await getApprovalReceiptColumns();
   const now = new Date().toISOString();
+
   await db.execute(
     "UPDATE approval_tokens SET paid_amount = ?, status = 'approved', approved_at = ?, updated_at = ? WHERE id = ?",
     [paidAmount, now, now, tokenId],
   );
+
+  const token = await findTokenById(tokenId);
+  if (!token) return;
+
+  const latestReceipt = await findLatestReceiptByTokenId(tokenId);
+  if (latestReceipt) {
+    if (receiptColumns.has("project_name")) {
+      await db.execute(
+        "UPDATE approval_receipts SET project_name = ?, paid_amount = ?, approved_at = ? WHERE id = ?",
+        [token.project_name, paidAmount, now, latestReceipt.id],
+      );
+    } else {
+      await db.execute(
+        "UPDATE approval_receipts SET paid_amount = ?, approved_at = ? WHERE id = ?",
+        [paidAmount, now, latestReceipt.id],
+      );
+    }
+  }
 }
 
 export async function createApprovalReceipt(data: {
@@ -346,6 +380,16 @@ export async function listAllApprovalReceipts(): Promise<ApprovalReceiptRow[]> {
 export async function findReceiptById(id: string): Promise<ApprovalReceiptRow | null> {
   await ensureApprovalTables();
   const r = await db.execute("SELECT * FROM approval_receipts WHERE id = ? LIMIT 1", [id]);
+  const rows = rowsToObjects(r);
+  return rows[0] ? decodeReceipt(rows[0]) : null;
+}
+
+export async function findLatestReceiptByTokenId(tokenId: string): Promise<ApprovalReceiptRow | null> {
+  await ensureApprovalTables();
+  const r = await db.execute(
+    "SELECT * FROM approval_receipts WHERE token_id = ? ORDER BY created_at DESC LIMIT 1",
+    [tokenId],
+  );
   const rows = rowsToObjects(r);
   return rows[0] ? decodeReceipt(rows[0]) : null;
 }
