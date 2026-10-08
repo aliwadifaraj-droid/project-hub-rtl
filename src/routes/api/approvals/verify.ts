@@ -69,18 +69,13 @@ export const Route = createFileRoute("/api/approvals/verify")({
             return jsonResponse({ valid: false, error: "تم استخدام هذا الرمز مسبقاً" });
           }
 
-          let receipt_id = "";
-          let approved_at: string | null = null;
-          let receipt_paid_amount: number | null = null;
-
-          if (row.status === "approved" || row.status === "completed") {
-            const latestReceipt = await findLatestReceiptByTokenId(row.id);
-            if (latestReceipt) {
-              receipt_id = latestReceipt.id;
-              approved_at = latestReceipt.approved_at;
-              receipt_paid_amount = Number(latestReceipt.paid_amount ?? row.paid_amount);
-            }
-          }
+          const latestReceipt = await findLatestReceiptByTokenId(row.id);
+          const receipt_id = latestReceipt?.id ?? "";
+          const receipt_status = latestReceipt?.status ?? null;
+          const approved_at = latestReceipt?.approved_at ?? row.approved_at;
+          const receipt_paid_amount = latestReceipt
+            ? Number(latestReceipt.paid_amount ?? row.paid_amount)
+            : null;
 
           return jsonResponse({
             valid: true,
@@ -95,6 +90,7 @@ export const Route = createFileRoute("/api/approvals/verify")({
             approved_at: row.approved_at,
             receipt_id,
             receipt_paid_amount,
+            receipt_status,
             bankAccount: await getBankAccountInfo(),
           });
         } catch {
