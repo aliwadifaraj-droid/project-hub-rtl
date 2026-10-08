@@ -3,6 +3,17 @@
 // Bank info is stored in site_settings under key "vip_bank_info".
 import { db, rowsToObjects } from "./db";
 
+export type ApprovalInstallmentRow = {
+  id: string;
+  token_id: string;
+  installment_number: number;
+  amount: string;
+  paid_amount: string;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+};
+
 export type ApprovalTokenRow = {
   id: string;
   token_code: string;
@@ -17,6 +28,7 @@ export type ApprovalTokenRow = {
   created_at: string;
   updated_at: string;
   approved_at: string | null;
+  installments: ApprovalInstallmentRow[];
 };
 
 export type ApprovalReceiptRow = {
@@ -47,6 +59,7 @@ type ApprovalTokenInput = {
   totalCommission?: string;
   allowed_amount?: string;
   allowed_payment_now?: string;
+  installments?: string[];
   token?: string;
   code?: string;
 };
@@ -77,6 +90,19 @@ function ensureApprovalTables(): Promise<void> {
         args: [],
       },
       {
+        sql: `CREATE TABLE IF NOT EXISTS approval_installments (
+          id TEXT PRIMARY KEY,
+          token_id TEXT NOT NULL,
+          installment_number INTEGER NOT NULL,
+          amount TEXT NOT NULL,
+          paid_amount TEXT NOT NULL DEFAULT '0',
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          paid_at TEXT
+        )`,
+        args: [],
+      },
+      {
         sql: `CREATE TABLE IF NOT EXISTS approval_receipts (
           id TEXT PRIMARY KEY,
           token_id TEXT NOT NULL,
@@ -100,8 +126,10 @@ function ensureApprovalTables(): Promise<void> {
 
     let tokenColumnNames = new Set<string>();
     const receiptColumns = await db.execute("PRAGMA table_info(approval_receipts)");
+    const installmentColumns = await db.execute("PRAGMA table_info(approval_installments)");
     tokenColumnNames = new Set(rowsToObjects<{ name: string }>(await db.execute("PRAGMA table_info(approval_tokens)")).map((column) => String(column.name)));
     const receiptColumnNames = new Set(rowsToObjects<{ name: string }>(receiptColumns).map((column) => String(column.name)));
+    const installmentColumnNames = new Set(rowsToObjects<{ name: string }>(installmentColumns).map((column) => String(column.name)));
     const missingTokenColumns: Record<string, string> = {
       code: "TEXT",
       token_code: "TEXT",
@@ -146,6 +174,9 @@ function ensureApprovalTables(): Promise<void> {
     if (receiptColumnNames.has("token_id")) {
       indexes.push({ sql: "CREATE INDEX IF NOT EXISTS idx_approval_receipts_token ON approval_receipts(token_id)", args: [] });
     }
+    if (installmentColumnNames.has("token_id")) {
+      indexes.push({ sql: "CREATE INDEX IF NOT EXISTS idx_approval_installments_token ON approval_installments(token_id, installment_number)", args: [] });
+    }
 
     if (indexes.length > 0) await db.batch(indexes);
   })();
@@ -174,6 +205,19 @@ export async function getVipBankInfo(): Promise<string> {
   return row?.value ?? "";
 }
 
+function decodeInstallment(r: any): ApprovalInstallmentRow {
+  return {
+    id: String(r.id ?? ""),
+    token_id: String(r.token_id ?? ""),
+    installment_number: Number(r.installment_number ?? 0),
+    amount: String(r.amount ?? "0"),
+    paid_amount: String(r.paid_amount ?? "0"),
+    status: String(r.status ?? "pending"),
+    created_at: String(r.created_at ?? ""),
+    paid_at: r.paid_at ?? null,
+  };
+}
+
 function decodeToken(r: any): ApprovalTokenRow {
   return {
     id: String(r.id ?? ""),
@@ -189,6 +233,7 @@ function decodeToken(r: any): ApprovalTokenRow {
     created_at: String(r.created_at ?? ""),
     updated_at: String(r.updated_at ?? ""),
     approved_at: r.approved_at ?? null,
+    installments: [],
   };
 }
 
@@ -271,14 +316,33 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
     insertValues,
   );
 
+  const installmentAmounts = data.installments?.length ? data.installments : [data.allowed_amount ?? data.allowed_payment_now ?? "0"];
+  await db.batch(installmentAmounts.map((amount, index) => ({
+    sql: `INSERT INTO approval_installments (id, token_id, installment_number, amount, paid_amount, status, created_at)
+      VALUES (?, ?, ?, ?, '0', 'pending', ?)`,
+    args: [crypto.randomUUID(), id, index + 1, amount, now],
+  })));
+
   return (await findTokenById(id))!;
+}
+
+export async function listApprovalInstallments(tokenId: string): Promise<ApprovalInstallmentRow[]> {
+  await ensureApprovalTables();
+  const r = await db.execute(
+    "SELECT * FROM approval_installments WHERE token_id = ? ORDER BY installment_number ASC",
+    [tokenId],
+  );
+  return rowsToObjects(r).map(decodeInstallment);
 }
 
 export async function findTokenById(id: string): Promise<ApprovalTokenRow | null> {
   await ensureApprovalTables();
   const r = await db.execute("SELECT * FROM approval_tokens WHERE id = ? LIMIT 1", [id]);
   const rows = rowsToObjects(r);
-  return rows[0] ? decodeToken(rows[0]) : null;
+  if (!rows[0]) return null;
+  const token = decodeToken(rows[0]);
+  token.installments = await listApprovalInstallments(id);
+  return token;
 }
 
 export async function findTokenByCode(code: string): Promise<ApprovalTokenRow | null> {
@@ -293,13 +357,17 @@ export async function findTokenByCode(code: string): Promise<ApprovalTokenRow | 
     lookupColumns.map(() => normalizedCode),
   );
   const rows = rowsToObjects(r);
-  return rows[0] ? decodeToken(rows[0]) : null;
+  return rows[0] ? findTokenById(String(rows[0].id)) : null;
 }
 
 export async function listAllApprovalTokens(): Promise<ApprovalTokenRow[]> {
   await ensureApprovalTables();
   const r = await db.execute("SELECT * FROM approval_tokens ORDER BY created_at DESC");
-  return rowsToObjects(r).map(decodeToken);
+  return Promise.all(rowsToObjects(r).map(async (row) => {
+    const token = decodeToken(row);
+    token.installments = await listApprovalInstallments(token.id);
+    return token;
+  }));
 }
 
 export async function listActiveApprovalTokens(): Promise<ApprovalTokenRow[]> {
@@ -322,13 +390,26 @@ export async function approveTokenWithPaidAmount(tokenId: string, paidAmount: st
   const receiptColumns = await getApprovalReceiptColumns();
   const now = new Date().toISOString();
 
+  const totalCommission = Number((await findTokenById(tokenId))?.total_commission ?? 0);
+  const nextStatus = Number(paidAmount) >= totalCommission - 0.01 ? "approved" : "active";
   await db.execute(
-    "UPDATE approval_tokens SET paid_amount = ?, status = 'approved', approved_at = ?, updated_at = ? WHERE id = ?",
-    [paidAmount, now, now, tokenId],
+    "UPDATE approval_tokens SET paid_amount = ?, status = ?, approved_at = ?, updated_at = ? WHERE id = ?",
+    [paidAmount, nextStatus, nextStatus === "approved" ? now : null, now, tokenId],
   );
 
   const token = await findTokenById(tokenId);
   if (!token) return;
+
+  let remainingPaid = Math.max(0, Number(paidAmount) || 0);
+  for (const installment of token.installments) {
+    const installmentAmount = Math.max(0, Number(installment.amount) || 0);
+    const installmentPaid = Math.min(installmentAmount, remainingPaid);
+    remainingPaid -= installmentPaid;
+    await db.execute(
+      "UPDATE approval_installments SET paid_amount = ?, status = ?, paid_at = ? WHERE id = ?",
+      [String(installmentPaid), installmentPaid >= installmentAmount ? "paid" : "pending", installmentPaid > 0 && installmentPaid >= installmentAmount ? now : null, installment.id],
+    );
+  }
 
   const latestReceipt = await findLatestReceiptByTokenId(tokenId);
   if (latestReceipt) {
