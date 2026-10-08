@@ -4,7 +4,7 @@ import { getSessionClaims } from "./auth.server";
 import { db, rowsToObjects } from "./db";
 import { requireAdmin } from "./auth-middleware.server";
 import { signGetUrl } from "./r2";
-import { createApprovalReceipt } from "./approvals.repo";
+import { approveTokenWithPaidAmount, createApprovalReceipt, updateReceiptStatus } from "./approvals.repo";
 
 type TameedBankInfo = {
   bank_name: string;
@@ -245,20 +245,10 @@ export const adminApproveReceipt = createServerFn({ method: "POST" })
     if (!token) throw new Error("التوكن غير موجود");
 
     const newPaid = Number(token.paid_amount ?? 0) + Number(receipt.amount);
-    await db.execute(
-      `UPDATE approval_tokens SET paid_amount = ? WHERE id = ?`,
-      [newPaid, String(receipt.token_id)],
-    );
+    await approveTokenWithPaidAmount(String(receipt.token_id), String(newPaid));
+    await updateReceiptStatus(data.receipt_id, "approved");
 
-    if (newPaid >= Number(token.amount)) {
-      await db.execute(
-        `UPDATE approval_tokens SET status = 'completed' WHERE id = ?`,
-        [String(receipt.token_id)],
-      );
-      return { ok: true, completed: true, newPaid };
-    }
-
-    return { ok: true, completed: false, newPaid };
+    return { ok: true, completed: newPaid >= Number(token.amount), newPaid };
   });
 
 function generateAomToken(): string {
