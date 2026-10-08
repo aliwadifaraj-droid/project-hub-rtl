@@ -326,6 +326,35 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
   return (await findTokenById(id))!;
 }
 
+export async function addApprovalInstallment(tokenId: string, amount: string): Promise<ApprovalInstallmentRow> {
+  await ensureApprovalTables();
+  const value = Number(amount);
+  if (!Number.isFinite(value) || value <= 0) throw new Error("مبلغ الدفعة غير صحيح");
+  const token = await findTokenById(tokenId);
+  if (!token) throw new Error("رمز التعميد غير موجود");
+  const scheduled = token.installments.reduce((sum, installment) => sum + (Number(installment.amount) || 0), 0);
+  const total = Number(token.total_commission) || 0;
+  if (scheduled + value > total + 0.01) throw new Error("مجموع الدفعات يتجاوز إجمالي العمولة");
+  if (token.status === "approved") throw new Error("تم اعتماد كامل العمولة");
+
+  const installment: ApprovalInstallmentRow = {
+    id: crypto.randomUUID(),
+    token_id: tokenId,
+    installment_number: token.installments.length + 1,
+    amount: String(value),
+    paid_amount: "0",
+    status: "pending",
+    created_at: new Date().toISOString(),
+    paid_at: null,
+  };
+  await db.execute(
+    `INSERT INTO approval_installments (id, token_id, installment_number, amount, paid_amount, status, created_at)
+     VALUES (?, ?, ?, ?, '0', 'pending', ?)`,
+    [installment.id, installment.token_id, installment.installment_number, installment.amount, installment.created_at],
+  );
+  return installment;
+}
+
 export async function listApprovalInstallments(tokenId: string): Promise<ApprovalInstallmentRow[]> {
   await ensureApprovalTables();
   const r = await db.execute(
