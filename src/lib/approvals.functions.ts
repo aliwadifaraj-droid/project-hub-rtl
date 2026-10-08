@@ -22,6 +22,19 @@ const createTokenSchema = z.object({
   project_name: z.string().min(1),
   total_commission: z.string().min(1),
   allowed_amount: z.string().min(1),
+  installments: z.array(z.string().min(1)).min(1),
+}).superRefine((data, ctx) => {
+  const total = Number(data.total_commission);
+  const installmentsTotal = data.installments.reduce((sum, amount) => sum + Number(amount), 0);
+  if (!Number.isFinite(total) || total <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["total_commission"], message: "إجمالي العمولة غير صحيح" });
+  }
+  if (data.installments.some((amount) => !Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["installments"], message: "مبالغ الدفعات يجب أن تكون أكبر من صفر" });
+  }
+  if (Math.abs(installmentsTotal - total) > 0.01) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["installments"], message: "مجموع الدفعات يجب أن يساوي إجمالي العمولة" });
+  }
 });
 
 export const adminCreateApprovalToken = createServerFn({ method: "POST" })
@@ -100,9 +113,12 @@ export const adminApproveReceipt = createServerFn({ method: "POST" })
     if (receipt.status !== "pending") throw new Error("تمت معالجة هذا الإيصال مسبقاً");
 
     const receiptAmount = parseFloat(receipt.amount) || 0;
+    if (receiptAmount <= 0) throw new Error("مبلغ الإيصال غير صحيح");
     const currentPaid = parseFloat(token.paid_amount) || 0;
     const totalCommission = parseFloat(token.total_commission) || 0;
     const newPaid = currentPaid + receiptAmount;
+
+    if (newPaid > totalCommission + 0.01) throw new Error("مبلغ الإيصالات يتجاوز إجمالي العمولة");
 
     await updateReceiptStatus(receipt.id, "approved");
     await approveTokenWithPaidAmount(token.id, String(newPaid));
@@ -114,7 +130,7 @@ export const adminApproveReceipt = createServerFn({ method: "POST" })
       new_paid: newPaid,
       total_commission: totalCommission,
       remaining: Math.max(0, totalCommission - newPaid),
-      token_status: "approved",
+      token_status: newPaid >= totalCommission - 0.01 ? "approved" : "active",
     };
   });
 
