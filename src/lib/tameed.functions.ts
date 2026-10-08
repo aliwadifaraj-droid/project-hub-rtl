@@ -81,30 +81,50 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     if (!claims) throw new Error("يجب تسجيل الدخول");
 
     const tokenResult = await db.execute(
-      `SELECT user_id, status, amount, allowed_payment_now
+      `SELECT id, token, code, client_id, client_name, total_commission, status
        FROM approval_tokens
-       WHERE id = ? AND user_id = ?
+       WHERE id = ? AND client_id = ?
        LIMIT 1`,
       [data.token_id, claims.sub],
     );
     const token = rowsToObjects<{
-      user_id: string;
+      id: string;
+      token: string | null;
+      code: string | null;
+      client_id: string;
+      client_name: string | null;
+      total_commission: string | number;
       status: string;
-      amount: number;
-      allowed_payment_now: number;
     }>(tokenResult)[0];
 
     if (!token) throw new Error("التوكن غير صالح");
     if (token.status === "approved") return { ok: true as const, alreadyApproved: true as const };
-    if (token.status === "used" || token.status === "complete") throw new Error("تم استخدام هذا الرمز مسبقاً");
-    const requiredAmount = Number(token.amount);
-    if (Math.abs(requiredAmount - data.amount) > 2) throw new Error("المبلغ غير مطابق");
+    if (token.status === "used" || token.status === "completed" || token.status === "complete") {
+      throw new Error("تم استخدام هذا الرمز مسبقاً");
+    }
+    const requiredAmount = Number(token.total_commission);
+    if (!Number.isFinite(requiredAmount) || Math.abs(requiredAmount - data.amount) > 2) {
+      throw new Error("المبلغ غير مطابق");
+    }
 
     await db.execute(
       `INSERT INTO approval_receipts
-       (id, token_id, user_id, receipt_path, ocr_status, amount, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-      [crypto.randomUUID(), data.token_id, claims.sub, data.receipt_path, "مطابق", data.amount],
+       (id, token_id, token_code, client_id, client_name, amount, ocr_result, ocr_amount,
+        receipt_image_key, receipt_image_url, status, created_at, approved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), NULL)`,
+      [
+        crypto.randomUUID(),
+        token.id,
+        token.token ?? token.code ?? "",
+        token.client_id,
+        token.client_name ?? "",
+        String(data.amount),
+        "Tesseract.js",
+        String(data.amount),
+        data.receipt_path,
+        null,
+        "pending",
+      ],
     );
 
     return { ok: true as const, alreadyApproved: false as const };
