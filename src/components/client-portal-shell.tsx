@@ -9,7 +9,7 @@ import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
 import { submitApprovalReceipt } from "@/lib/tameed.functions";
 import { uploadFile } from "@/lib/files.functions";
-import { validateReceiptOcr } from "@/lib/receipt-ocr";
+import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
 
 export function ClientPortalShell() {
@@ -152,19 +152,19 @@ export function ClientPortalShell() {
 
     setReceiptLoading(true);
     try {
-      const imageData = await fileToBase64(file);
+      const ocrResult = await scanReceiptFile(file);
       const requiredAmount = Number(tameedResult.amount);
+      setReceiptAmount(ocrResult.amount);
       const result = await verifyReceipt({
-        data: { imageData, expectedAmount: requiredAmount },
+        data: { amount: ocrResult.amount, date: ocrResult.date, expectedAmount: requiredAmount },
       });
-      setReceiptAmount(result.result.amount);
       if (!result.approved) {
         setReceiptError(result.reason || "المبلغ في الإيصال غير مطابق للمبلغ المطلوب");
         return;
       }
       setReceiptApproved(true);
     } catch {
-      setReceiptError("تعذر فحص الإيصال");
+      setReceiptError("تعذر فحص الإيصال. حاول برفع صورة أوضح.");
     } finally {
       setReceiptLoading(false);
     }
