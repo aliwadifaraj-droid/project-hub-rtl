@@ -153,7 +153,7 @@ export function ClientPortalShell() {
     setReceiptLoading(true);
     try {
       const ocrResult = await scanReceiptFile(file);
-      const requiredAmount = Number(tameedResult.amount);
+      const requiredAmount = Number(tameedResult.allowed_payment_now);
       setReceiptAmount(ocrResult.amount);
       const result = await verifyReceipt({
         data: { amount: ocrResult.amount, date: ocrResult.date, expectedAmount: requiredAmount },
@@ -177,10 +177,10 @@ export function ClientPortalShell() {
     try {
       const imageData = await fileToBase64(receiptFile);
       const uploaded = await uploadReceipt({
-        data: { filename: receiptFile.name, mime: receiptFile.type, purpose: "other", data: imageData },
+        data: { filename: receiptFile.name, mime: receiptFile.type, purpose: "vip-receipt", data: imageData },
       });
       await submitReceipt({
-        data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.amount },
+        data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.allowed_payment_now },
       });
       setReceiptSent(true);
     } catch {
