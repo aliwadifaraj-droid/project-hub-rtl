@@ -4,6 +4,7 @@ import { getSessionClaims } from "./auth.server";
 import { db, rowsToObjects } from "./db";
 import { requireAdmin } from "./auth-middleware.server";
 import { signGetUrl } from "./r2";
+import { createApprovalReceipt } from "./approvals.repo";
 
 type TameedBankInfo = {
   bank_name: string;
@@ -110,25 +111,17 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     }
 
     const receiptImageUrl = await signGetUrl(data.receipt_path, 60 * 60 * 24 * 7);
-    await db.execute(
-      `INSERT INTO approval_receipts
-       (id, token_id, token_code, user_id, client_name, amount, ocr_result, ocr_amount,
-        receipt_image_key, receipt_image_url, status, created_at, approved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), NULL)`,
-      [
-        crypto.randomUUID(),
-        token.id,
-        token.token ?? token.code ?? "",
-        token.client_id,
-        token.client_name ?? "",
-        String(data.amount),
-        "Tesseract.js",
-        String(data.amount),
-        data.receipt_path,
-        receiptImageUrl,
-        "pending",
-      ],
-    );
+    await createApprovalReceipt({
+      token_id: token.id,
+      token_code: token.token ?? token.code ?? "",
+      user_id: token.client_id,
+      client_name: token.client_name ?? "",
+      amount: String(data.amount),
+      ocr_result: "match",
+      ocr_amount: String(data.amount),
+      receipt_image_key: data.receipt_path,
+      receipt_image_url: receiptImageUrl,
+    });
 
     return { ok: true as const, alreadyApproved: false as const };
   });
@@ -183,24 +176,22 @@ export const adminListApprovalReceipts = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     const result = await db.execute(
-      `SELECT r.*, t.token, t.amount as total_commission, t.paid_amount,
-              cp.company_name, cp.email as client_email
-       FROM approval_receipts r
-       LEFT JOIN approval_tokens t ON r.token_id = t.id
-       LEFT JOIN client_profiles cp ON r.user_id = cp.user_id
-       ORDER BY r.created_at DESC`,
+      `SELECT t.*, cp.company_name, cp.email as client_email
+       FROM approval_receipts t
+       LEFT JOIN client_profiles cp ON t.user_id = cp.user_id
+       ORDER BY t.created_at DESC`,
     );
     return rowsToObjects(result).map((row: any) => ({
       id: String(row.id),
-      token_id: String(row.token_id),
       user_id: String(row.user_id),
-      receipt_path: (row.receipt_path as string | null) ?? null,
-      ocr_status: (row.ocr_status as string | null) ?? null,
+      receipt_path: (row.receipt_image_key as string | null) ?? null,
+      receipt_url: (row.receipt_image_url as string | null) ?? null,
+      ocr_status: (row.ocr_result as string | null) ?? null,
       amount: Number(row.amount ?? 0),
       created_at: String(row.created_at ?? ""),
-      token: (row.token as string | null) ?? null,
-      total_commission: row.total_commission != null ? Number(row.total_commission) : null,
-      paid_amount: row.paid_amount != null ? Number(row.paid_amount) : null,
+      token: (row.token_code as string | null) ?? null,
+      total_commission: null,
+      paid_amount: null,
       company_name: (row.company_name as string | null) ?? null,
       client_email: (row.client_email as string | null) ?? null,
     }));
@@ -213,7 +204,7 @@ export const adminApproveReceipt = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => approveSchema.parse(data))
   .handler(async ({ data }) => {
     const receiptResult = await db.execute(
-      `SELECT token_id, amount FROM approval_receipts WHERE id = ? AND ocr_status = 'مطابق' LIMIT 1`,
+      `SELECT token_id, amount FROM approval_receipts WHERE id = ? AND ocr_result = 'match' LIMIT 1`,
       [data.receipt_id],
     );
     const receipt = rowsToObjects(receiptResult)[0] as any;
