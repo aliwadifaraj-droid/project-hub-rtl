@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const VISION_MODELS = [
-  "qwen/qwen3.6-27b",
+  "qwen/qwen3.8-27b",
 ];
 
 export interface OcrResult {
@@ -22,7 +22,7 @@ const EMPTY_RESULT: OcrResult = {
 };
 
 const SYSTEM_PROMPT = `You are an expert OCR assistant specialized in reading Saudi bank transfer receipts and payment app screenshots (Al Rajhi, AlAhli, STC Pay, Urpay, Apple Pay, mada, etc).
-Read the bank account identifier (IBAN), transfer amount, and transaction date from this receipt. Search the entire image carefully, including small text and the receipt header/footer.
+Read the bank account identifier (IBAN), transfer amount, and transaction date from this receipt. Search the entire image carefully, including small text and the receipt header/footer. On Al Rajhi receipts, the transfer amount may appear beside Amount or المبلغ and may be written as 3500 SAR, 3,500 SAR, 3500 ريال, or ٣٥٠٠ ريال. Return the numeric transfer amount exactly, without the currency label.
 Respond with a JSON object only — no markdown, no explanation, no code fences:
 {"bank":null,"iban":null,"amount":100,"date":"YYYY-MM-DD","time":null}
 Amount must be numeric only with no currency symbol or commas. The date may appear as DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD, Arabic-Indic digits, or a Hijri date. Convert a Hijri date to Gregorian YYYY-MM-DD. If a date is visible, never return null; return the date you can read. Only return null when the field is genuinely not visible. Do not include thinking or reasoning text outside the JSON.`;
@@ -46,9 +46,10 @@ function normalizeDigits(value: string): string {
 
 function extractAmount(text: string): number | null {
   const normalizedText = normalizeDigits(text);
-  const match = normalizedText.match(/(\d[\d,]*\.?\d*)\s*SAR/i)
-    || normalizedText.match(/المبلغ[^\d]*(\d[\d,]*)/)
-    || normalizedText.match(/Amount[^\d]*(\d[\d,]*)/i);
+  const match = normalizedText.match(/(\d[\d,]*\.?\d*)\s*(?:SAR|ر\.س|ريال)/i)
+    || normalizedText.match(/(?:SAR|ر\.س|ريال)\s*(\d[\d,]*\.?\d*)/i)
+    || normalizedText.match(/المبلغ[^\d]*(\d[\d,]*\.?\d*)/)
+    || normalizedText.match(/Amount[^\d]*(\d[\d,]*\.?\d*)/i);
   if (!match) return null;
   const amount = Number.parseFloat(match[1].replace(/,/g, ""));
   return Number.isFinite(amount) ? amount : null;
