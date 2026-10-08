@@ -183,8 +183,9 @@ export function ClientPortalShell() {
         data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.allowed_payment_now },
       });
       setReceiptSent(true);
-    } catch {
-      setReceiptError("تعذر إرسال التعميد");
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : "سبب غير معروف";
+      setReceiptError(`تعذر إرسال التعميد: ${detail}`);
     } finally {
       setReceiptSubmitting(false);
     }
