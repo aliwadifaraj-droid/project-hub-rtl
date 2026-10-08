@@ -58,6 +58,7 @@ function AdminApprovalsPage() {
   const [projectName, setProjectName] = useState("");
   const [totalCommission, setTotalCommission] = useState("");
   const [allowedAmount, setAllowedAmount] = useState("");
+  const [installmentsText, setInstallmentsText] = useState("");
   const [creating, setCreating] = useState(false);
 
   const { data: tokens, isLoading: tokensLoading } = useQuery({
@@ -93,6 +94,13 @@ function AdminApprovalsPage() {
       toast.error("جميع الحقول مطلوبة");
       return;
     }
+    const installments = installmentsText.split(/[\n,،]+/).map((value) => value.trim()).filter(Boolean);
+    if (installments.length === 0) installments.push(allowedAmount);
+    const installmentsTotal = installments.reduce((sum, value) => sum + (Number(value) || 0), 0);
+    if (installments.some((value) => !Number.isFinite(Number(value)) || Number(value) <= 0) || Math.abs(installmentsTotal - Number(totalCommission)) > 0.01) {
+      toast.error("يجب أن تكون الدفعات موجبة ومجموعها مساوياً لإجمالي العمولة");
+      return;
+    }
     const selectedClient = (clients ?? []).find((client) => client.id === clientId);
     if (!selectedClient) {
       toast.error("يرجى اختيار العميل مرة أخرى");
@@ -107,7 +115,8 @@ function AdminApprovalsPage() {
           project_id: projectId,
           project_name: projectName,
           total_commission: totalCommission,
-          allowed_amount: allowedAmount,
+          allowed_amount: installments[0],
+          installments,
         },
       });
       toast.success(`تم إنشاء رمز التعميد: ${token.token_code}`);
@@ -118,6 +127,7 @@ function AdminApprovalsPage() {
       setProjectName("");
       setTotalCommission("");
       setAllowedAmount("");
+      setInstallmentsText("");
       qc.invalidateQueries({ queryKey: ["approval-tokens"] });
     } catch (e: any) {
       toast.error(e?.message ?? "فشل إنشاء الرمز");
@@ -204,13 +214,13 @@ function AdminApprovalsPage() {
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border bg-secondary/50 text-right"><th className="px-4 py-3 font-semibold">الرمز</th><th className="px-4 py-3 font-semibold">العميل</th><th className="px-4 py-3 font-semibold">المشروع</th><th className="px-4 py-3 font-semibold">العمولة الإجمالية</th><th className="px-4 py-3 font-semibold">المدفوع</th><th className="px-4 py-3 font-semibold">المتبقي</th><th className="px-4 py-3 font-semibold">الحالة</th></tr></thead>
+              <thead><tr className="border-b border-border bg-secondary/50 text-right"><th className="px-4 py-3 font-semibold">الرمز</th><th className="px-4 py-3 font-semibold">العميل</th><th className="px-4 py-3 font-semibold">المشروع</th><th className="px-4 py-3 font-semibold">العمولة الإجمالية</th><th className="px-4 py-3 font-semibold">الدفعات</th><th className="px-4 py-3 font-semibold">المدفوع</th><th className="px-4 py-3 font-semibold">المتبقي</th><th className="px-4 py-3 font-semibold">الحالة</th></tr></thead>
               <tbody>
                 {(tokens ?? []).map((t) => {
                   const paid = parseFloat(t.paid_amount) || 0;
                   const total = parseFloat(t.total_commission) || 0;
                   const remaining = Math.max(0, total - paid);
-                  return <tr key={t.id} className="border-b border-border/50 hover:bg-secondary/30"><td className="px-4 py-3 font-mono font-bold text-primary">{t.token_code}</td><td className="px-4 py-3">{t.client_name}</td><td className="px-4 py-3">{t.project_name}</td><td className="px-4 py-3 font-medium">{t.total_commission} ريال</td><td className="px-4 py-3 font-medium text-green-600">{t.paid_amount} ريال</td><td className="px-4 py-3 font-medium text-orange-600">{remaining.toFixed(2)} ريال</td><td className="px-4 py-3"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${t.status === "approved" ? "bg-green-500/15 text-green-600" : t.status === "active" ? "bg-blue-500/15 text-blue-600" : "bg-slate-200 text-slate-500"}`}>{t.status === "approved" ? <CheckCircle2 className="h-3 w-3" /> : null}{t.status === "approved" ? "معتمد" : t.status === "active" ? "نشط" : "ملغي"}</span></td></tr>;
+                  return <tr key={t.id} className="border-b border-border/50 hover:bg-secondary/30"><td className="px-4 py-3 font-mono font-bold text-primary">{t.token_code}</td><td className="px-4 py-3">{t.client_name}</td><td className="px-4 py-3">{t.project_name}</td><td className="px-4 py-3 font-medium">{t.total_commission} ريال</td><td className="px-4 py-3"><div className="space-y-1 text-xs">{(t.installments ?? []).map((installment) => <div key={installment.id} className={installment.status === "paid" ? "text-green-600" : "text-muted-foreground"}>د{installment.installment_number}: {installment.amount} ريال {installment.status === "paid" ? "✓" : ""}</div>)}</div></td><td className="px-4 py-3 font-medium text-green-600">{t.paid_amount} ريال</td><td className="px-4 py-3 font-medium text-orange-600">{remaining.toFixed(2)} ريال</td><td className="px-4 py-3"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${t.status === "approved" ? "bg-green-500/15 text-green-600" : t.status === "active" ? "bg-blue-500/15 text-blue-600" : "bg-slate-200 text-slate-500"}`}>{t.status === "approved" ? <CheckCircle2 className="h-3 w-3" /> : null}{t.status === "approved" ? "معتمد" : t.status === "active" ? "نشط" : "ملغي"}</span></td></tr>;
                 })}
               </tbody>
             </table>
@@ -240,7 +250,10 @@ function AdminApprovalsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">إنشاء رمز تعميد</h2><button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button></div>
-            <form onSubmit={handleCreateToken} className="space-y-4"><div><label className="mb-1 block text-sm font-semibold">العميل</label><div className="relative"><Building2 className="absolute end-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Select value={clientId} onValueChange={(value) => { setClientId(value); const c = (clients ?? []).find((client) => client.id === value); setClientName(c?.name ?? ""); }} required><SelectTrigger className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"><SelectValue placeholder="اختر العميل" /></SelectTrigger><SelectContent>{(clients ?? []).map((client) => <SelectItem key={client.id} value={client.id}>{client.name} ({client.email})</SelectItem>)}</SelectContent></Select></div></div><div><label className="mb-1 block text-sm font-semibold">المشروع</label><div className="relative"><FolderKanban className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><select required value={projectId} onChange={(e) => { setProjectId(e.target.value); const p = (projects ?? []).find((x) => x.id === e.target.value); setProjectName(p?.name ?? ""); }} className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"><option value="" disabled>اختر المشروع</option>{(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div><div><label className="mb-1 block text-sm font-semibold">إجمالي العمولة (ريال)</label><div className="relative"><Coins className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="number" step="0.01" required value={totalCommission} onChange={(e) => setTotalCommission(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring" /></div></div><div><label className="mb-1 block text-sm font-semibold">المبلغ المسموح الآن (ريال)</label><div className="relative"><Wallet className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="number" step="0.01" required value={allowedAmount} onChange={(e) => setAllowedAmount(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring" /></div></div><div className="flex gap-2 pt-2"><button type="submit" disabled={creating} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-foreground px-5 py-2.5 text-sm font-bold text-background hover:bg-foreground/90 disabled:opacity-60">{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}توليد الرمز</button><button type="button" onClick={() => setShowModal(false)} className="rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold hover:bg-secondary">إلغاء</button></div></form>
+            <form onSubmit={handleCreateToken} className="space-y-4"><div><label className="mb-1 block text-sm font-semibold">العميل</label><div className="relative"><Building2 className="absolute end-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Select value={clientId} onValueChange={(value) => { setClientId(value); const c = (clients ?? []).find((client) => client.id === value); setClientName(c?.name ?? ""); }} required><SelectTrigger className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"><SelectValue placeholder="اختر العميل" /></SelectTrigger><SelectContent>{(clients ?? []).map((client) => <SelectItem key={client.id} value={client.id}>{client.name} ({client.email})</SelectItem>)}</SelectContent></Select></div></div><div><label className="mb-1 block text-sm font-semibold">المشروع</label><div className="relative"><FolderKanban className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><select required value={projectId} onChange={(e) => { setProjectId(e.target.value); const p = (projects ?? []).find((x) => x.id === e.target.value); setProjectName(p?.name ?? ""); }} className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring"><option value="" disabled>اختر المشروع</option>{(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div><div><label className="mb-1 block text-sm font-semibold">إجمالي العمولة (ريال)</label><div className="relative"><Coins className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="number" step="0.01" required value={totalCommission} onChange={(e) => setTotalCommission(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring" /></div></div><div><label className="mb-1 block text-sm font-semibold">المبلغ المسموح الآن (ريال)</label><div className="relative"><Wallet className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="number" step="0.01" required value={allowedAmount} onChange={(e) => setAllowedAmount(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-input bg-background px-4 py-2.5 ps-10 text-sm outline-none focus:ring-2 focus:ring-ring" /></div></div><div><label className="mb-1 block text-sm font-semibold">مبالغ الدفعات (مبلغ في كل سطر)</label><textarea required value={installmentsText} onChange={(e) => setInstallmentsText(e.target.value)} placeholder="مثال:
+220
+220
+220" rows={3} className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" /><p className="mt-1 text-xs text-muted-foreground">يجب أن يساوي مجموعها إجمالي العمولة. سيبقى رمز التعميد واحداً لكل الدفعات.</p></div><div className="flex gap-2 pt-2"><button type="submit" disabled={creating} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-foreground px-5 py-2.5 text-sm font-bold text-background hover:bg-foreground/90 disabled:opacity-60">{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}توليد الرمز</button><button type="button" onClick={() => setShowModal(false)} className="rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-semibold hover:bg-secondary">إلغاء</button></div></form>
           </div>
         </div>
       )}
