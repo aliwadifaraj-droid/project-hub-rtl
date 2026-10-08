@@ -9,6 +9,7 @@ import {
   getReceiptWithToken,
   updateReceiptStatus,
   approveTokenWithPaidAmount,
+  addApprovalInstallment,
   getVipBankInfo,
 } from "./approvals.repo";
 import { listAllClientProfiles } from "./client.repo";
@@ -22,17 +23,18 @@ const createTokenSchema = z.object({
   project_name: z.string().min(1),
   total_commission: z.string().min(1),
   allowed_amount: z.string().min(1),
-  installments: z.array(z.string().min(1)).min(1),
+  installments: z.array(z.string().min(1)).optional(),
 }).superRefine((data, ctx) => {
   const total = Number(data.total_commission);
-  const installmentsTotal = data.installments.reduce((sum, amount) => sum + Number(amount), 0);
+  const installments = data.installments?.length ? data.installments : [data.allowed_amount];
+  const installmentsTotal = installments.reduce((sum, amount) => sum + Number(amount), 0);
   if (!Number.isFinite(total) || total <= 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["total_commission"], message: "إجمالي العمولة غير صحيح" });
   }
-  if (data.installments.some((amount) => !Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
+  if (installments.some((amount) => !Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["installments"], message: "مبالغ الدفعات يجب أن تكون أكبر من صفر" });
   }
-  if (Math.abs(installmentsTotal - total) > 0.01) {
+  if (data.installments?.length && Math.abs(installmentsTotal - total) > 0.01) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["installments"], message: "مجموع الدفعات يجب أن يساوي إجمالي العمولة" });
   }
 });
@@ -49,6 +51,18 @@ export const adminListApprovalTokens = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     return listAllApprovalTokens();
+  });
+
+const addInstallmentSchema = z.object({
+  token_id: z.string().min(1),
+  amount: z.string().min(1),
+});
+
+export const adminAddApprovalInstallment = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => addInstallmentSchema.parse(d))
+  .handler(async ({ data }) => {
+    return addApprovalInstallment(data.token_id, data.amount);
   });
 
 export const adminListApprovalReceipts = createServerFn({ method: "GET" })
