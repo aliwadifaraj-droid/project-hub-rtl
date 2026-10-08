@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSessionClaims } from "./auth.server";
 import { db, rowsToObjects } from "./db";
 import { requireAdmin } from "./auth-middleware.server";
+import { getPublicUrl } from "./r2";
 
 type TameedBankInfo = {
   bank_name: string;
@@ -107,9 +108,10 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
       throw new Error("المبلغ غير مطابق");
     }
 
+    const receiptImageUrl = getPublicUrl(data.receipt_path);
     await db.execute(
       `INSERT INTO approval_receipts
-       (id, token_id, token_code, client_id, client_name, amount, ocr_result, ocr_amount,
+       (id, token_id, token_code, user_id, client_name, amount, ocr_result, ocr_amount,
         receipt_image_key, receipt_image_url, status, created_at, approved_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), NULL)`,
       [
@@ -122,7 +124,7 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
         "Tesseract.js",
         String(data.amount),
         data.receipt_path,
-        null,
+        receiptImageUrl,
         "pending",
       ],
     );
