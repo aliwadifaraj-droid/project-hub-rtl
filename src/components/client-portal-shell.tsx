@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft } from "lucide-react";
 import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
@@ -32,8 +32,10 @@ export function ClientPortalShell() {
   const [receiptAmount, setReceiptAmount] = useState<number | null>(null);
   const [receiptError, setReceiptError] = useState("");
   const [receiptSent, setReceiptSent] = useState(false);
-  const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | null>(null);
+  const [approvalButtonState, setApprovalButtonState] = useState<"idle" | "pending" | "approved">("idle");
   const [approvedProjectName, setApprovedProjectName] = useState("");
+  const approvalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const approvalResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tameedResult, setTameedResult] = useState<{
     token_id: string;
     approved: boolean;
@@ -61,6 +63,26 @@ export function ClientPortalShell() {
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
 
+  useEffect(() => {
+    return () => {
+      if (approvalPollRef.current) clearInterval(approvalPollRef.current);
+      if (approvalResetRef.current) clearTimeout(approvalResetRef.current);
+    };
+  }, []);
+
+  function stopApprovalPolling(): void {
+    if (approvalPollRef.current) {
+      clearInterval(approvalPollRef.current);
+      approvalPollRef.current = null;
+    }
+  }
+
+  function resetApprovalButton(): void {
+    stopApprovalPolling();
+    setApprovalButtonState("idle");
+    setApprovedProjectName("");
+  }
+
   function closeVipIntro(): void {
     setShowVipIntro(false);
     void queryClient.invalidateQueries({ queryKey: ["client-vip-status"] });
@@ -76,8 +98,6 @@ export function ClientPortalShell() {
     setReceiptAmount(null);
     setReceiptError("");
     setReceiptSent(false);
-    setApprovalStatus(null);
-    setApprovedProjectName("");
     setTameedResult(null);
   }
 
@@ -91,8 +111,6 @@ export function ClientPortalShell() {
     setReceiptAmount(null);
     setReceiptError("");
     setReceiptSent(false);
-    setApprovalStatus(null);
-    setApprovedProjectName("");
     setTameedResult(null);
   }
 
@@ -124,7 +142,7 @@ export function ClientPortalShell() {
       const accountNumber = String(bankAccount.account_number ?? result.data.account_number ?? iban ?? "");
       setTameedResult({
         token_id: String(result.data.token_id ?? ""),
-        approved: false,
+        approved: result.data.status === "approved" || result.data.status === "completed",
         amount: Number(result.data.amount ?? 0),
         allowed_payment_now: Number(result.data.allowed_payment_now ?? result.data.amount ?? 0),
         bank_name: String(bankAccount.bank_name ?? result.data.bank_name ?? ""),
@@ -189,8 +207,8 @@ export function ClientPortalShell() {
         data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.allowed_payment_now },
       });
       setReceiptSent(true);
-      setApprovalStatus("pending");
-      startApprovalPolling();
+      setApprovalButtonState("pending");
+      startApprovalPolling(tameedCode.trim());
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "سبب غير معروف";
       setReceiptError(`تعذر إرسال التعميد: ${detail}`);
@@ -199,25 +217,34 @@ export function ClientPortalShell() {
     }
   }
 
-  function startApprovalPolling(): void {
-    const code = tameedCode.trim();
+  function startApprovalPolling(code: string): void {
+    stopApprovalPolling();
     if (!code) return;
-    const intervalId = setInterval(async () => {
+
+    const checkApproval = async (): Promise<void> => {
       try {
-        const res = await fetch("/api/approvals/verify", {
+        const response = await fetch("/api/approvals/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code }),
         });
-        const data = await res.json();
-        if (data.valid && (data.status === "approved" || data.status === "completed")) {
-          clearInterval(intervalId);
-          setApprovalStatus("approved");
-          setApprovedProjectName(String(data.project_name ?? ""));
-        }
+        const data = await response.json();
+        if (!data.valid || (data.status !== "approved" && data.status !== "completed")) return;
+
+        stopApprovalPolling();
+        setApprovedProjectName(String(data.project_name ?? ""));
+        setApprovalButtonState("approved");
+        approvalResetRef.current = setTimeout(() => {
+          approvalResetRef.current = null;
+          resetApprovalButton();
+        }, 5000);
       } catch {
+        return;
       }
-    }, 3000);
+    };
+
+    void checkApproval();
+    approvalPollRef.current = setInterval(() => void checkApproval(), 3000);
   }
 
   async function copyToClipboard(e: MouseEvent<HTMLButtonElement>, text: string): Promise<void> {
@@ -257,9 +284,24 @@ export function ClientPortalShell() {
           تذاكر الدعم
           {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </Link>
-        <button type="button" onClick={openTameed} className="pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 shadow-lg transition hover:bg-blue-100">
+        <button
+          type="button"
+          onClick={openTameed}
+          disabled={approvalButtonState === "pending"}
+          className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
+            approvalButtonState === "pending"
+              ? "cursor-wait border border-yellow-300 bg-yellow-100 text-yellow-800"
+              : approvalButtonState === "approved"
+                ? "border border-emerald-300 bg-emerald-100 text-emerald-800"
+                : "border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
+          }`}
+        >
           <BadgeCheck className="h-4 w-4" />
-          تعميد
+          {approvalButtonState === "pending"
+            ? "قيد المراجعة"
+            : approvalButtonState === "approved"
+              ? `تم استلام العمولة المرتبطة بمشروع ${approvedProjectName} بنجاح`
+              : "تعميد"}
         </button>
         {vipStatus?.isPremium ? (
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
@@ -393,16 +435,8 @@ export function ClientPortalShell() {
                   </div>
 
                   {receiptSent ? (
-                    <div>
-                      {approvalStatus === "approved" ? (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center font-bold text-emerald-800">
-                          تم اعتماد مبلغ عمولة مشروع {approvedProjectName}
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-center font-bold text-yellow-800">
-                          قيد الانتظار ⏳
-                        </div>
-                      )}
+                    <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-center font-bold text-yellow-800">
+                      شكراً لك، تم رفع الإيصال بنجاح وهو الآن قيد المراجعة.
                     </div>
                   ) : (
                     <>

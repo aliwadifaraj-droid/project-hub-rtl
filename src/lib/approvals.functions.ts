@@ -103,10 +103,9 @@ export const adminApproveReceipt = createServerFn({ method: "POST" })
     const currentPaid = parseFloat(token.paid_amount) || 0;
     const totalCommission = parseFloat(token.total_commission) || 0;
     const newPaid = currentPaid + receiptAmount;
-    const newStatus = newPaid >= totalCommission ? "completed" : "approved";
 
     await updateReceiptStatus(receipt.id, "approved");
-    await approveTokenWithPaidAmount(token.id, String(newPaid), newStatus);
+    await approveTokenWithPaidAmount(token.id, String(newPaid));
 
     return {
       ok: true,
@@ -115,7 +114,7 @@ export const adminApproveReceipt = createServerFn({ method: "POST" })
       new_paid: newPaid,
       total_commission: totalCommission,
       remaining: Math.max(0, totalCommission - newPaid),
-      token_status: newStatus,
+      token_status: "approved",
     };
   });
 

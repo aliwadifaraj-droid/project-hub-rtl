@@ -110,14 +110,23 @@ function ensureApprovalTables(): Promise<void> {
       updated_at: "TEXT",
       approved_at: "TEXT",
     };
+    const missingReceiptColumns: Record<string, string> = {
+      approved_at: "TEXT",
+    };
     const schemaUpdates = Object.entries(missingTokenColumns)
       .filter(([column]) => !tokenColumnNames.has(column))
       .map(([column, definition]) => ({
         sql: `ALTER TABLE approval_tokens ADD COLUMN ${column} ${definition}`,
         args: [],
       }));
-    if (schemaUpdates.length > 0) {
-      await db.batch(schemaUpdates);
+    const receiptSchemaUpdates = Object.entries(missingReceiptColumns)
+      .filter(([column]) => !receiptColumnNames.has(column))
+      .map(([column, definition]) => ({
+        sql: `ALTER TABLE approval_receipts ADD COLUMN ${column} ${definition}`,
+        args: [],
+      }));
+    if (schemaUpdates.length > 0 || receiptSchemaUpdates.length > 0) {
+      await db.batch([...schemaUpdates, ...receiptSchemaUpdates]);
       tokenColumnNames = new Set(rowsToObjects<{ name: string }>(await db.execute("PRAGMA table_info(approval_tokens)")).map((column) => String(column.name)));
     }
     const indexes = [];
@@ -294,12 +303,12 @@ export async function updateTokenPaidAmount(tokenId: string, paidAmount: string,
   );
 }
 
-export async function approveTokenWithPaidAmount(tokenId: string, paidAmount: string, status: string): Promise<void> {
+export async function approveTokenWithPaidAmount(tokenId: string, paidAmount: string): Promise<void> {
   await ensureApprovalTables();
   const now = new Date().toISOString();
   await db.execute(
-    "UPDATE approval_tokens SET paid_amount = ?, status = ?, approved_at = ?, updated_at = ? WHERE id = ?",
-    [paidAmount, status, now, now, tokenId],
+    "UPDATE approval_tokens SET paid_amount = ?, status = 'approved', approved_at = ?, updated_at = ? WHERE id = ?",
+    [paidAmount, now, now, tokenId],
   );
 }
 

@@ -65,7 +65,7 @@ export const Route = createFileRoute("/api/approvals/verify")({
             return jsonResponse({ valid: false, error: "رمز التعميد غير صحيح" });
           }
 
-          if (row.status === "used" || row.status === "completed" || row.status === "complete") {
+          if (row.status === "used") {
             return jsonResponse({ valid: false, error: "تم استخدام هذا الرمز مسبقاً" });
           }
 
