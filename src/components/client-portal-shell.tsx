@@ -32,6 +32,8 @@ export function ClientPortalShell() {
   const [receiptAmount, setReceiptAmount] = useState<number | null>(null);
   const [receiptError, setReceiptError] = useState("");
   const [receiptSent, setReceiptSent] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | null>(null);
+  const [approvedProjectName, setApprovedProjectName] = useState("");
   const [tameedResult, setTameedResult] = useState<{
     token_id: string;
     approved: boolean;
@@ -74,6 +76,8 @@ export function ClientPortalShell() {
     setReceiptAmount(null);
     setReceiptError("");
     setReceiptSent(false);
+    setApprovalStatus(null);
+    setApprovedProjectName("");
     setTameedResult(null);
   }
 
@@ -87,6 +91,8 @@ export function ClientPortalShell() {
     setReceiptAmount(null);
     setReceiptError("");
     setReceiptSent(false);
+    setApprovalStatus(null);
+    setApprovedProjectName("");
     setTameedResult(null);
   }
 
@@ -183,12 +189,35 @@ export function ClientPortalShell() {
         data: { token_id: tameedResult.token_id, receipt_path: uploaded.key, amount: receiptAmount ?? tameedResult.allowed_payment_now },
       });
       setReceiptSent(true);
+      setApprovalStatus("pending");
+      startApprovalPolling();
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "سبب غير معروف";
       setReceiptError(`تعذر إرسال التعميد: ${detail}`);
     } finally {
       setReceiptSubmitting(false);
     }
+  }
+
+  function startApprovalPolling(): void {
+    const code = tameedCode.trim();
+    if (!code) return;
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch("/api/approvals/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+        if (data.valid && (data.status === "approved" || data.status === "completed")) {
+          clearInterval(intervalId);
+          setApprovalStatus("approved");
+          setApprovedProjectName(String(data.project_name ?? ""));
+        }
+      } catch {
+      }
+    }, 3000);
   }
 
   async function copyToClipboard(e: MouseEvent<HTMLButtonElement>, text: string): Promise<void> {
@@ -364,8 +393,16 @@ export function ClientPortalShell() {
                   </div>
 
                   {receiptSent ? (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center font-bold text-emerald-800">
-                      تم ارسال اعتمادكم بنجاح سيتم اشعاركم لاحقا
+                    <div>
+                      {approvalStatus === "approved" ? (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center font-bold text-emerald-800">
+                          تم اعتماد مبلغ عمولة مشروع {approvedProjectName}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-center font-bold text-yellow-800">
+                          قيد الانتظار ⏳
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>

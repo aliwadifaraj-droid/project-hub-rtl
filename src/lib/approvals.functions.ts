@@ -8,7 +8,7 @@ import {
   listAllApprovalReceipts,
   getReceiptWithToken,
   updateReceiptStatus,
-  updateTokenPaidAmount,
+  approveTokenWithPaidAmount,
   getVipBankInfo,
 } from "./approvals.repo";
 import { listAllClientProfiles } from "./client.repo";
@@ -103,13 +103,15 @@ export const adminApproveReceipt = createServerFn({ method: "POST" })
     const currentPaid = parseFloat(token.paid_amount) || 0;
     const totalCommission = parseFloat(token.total_commission) || 0;
     const newPaid = currentPaid + receiptAmount;
-    const newStatus = newPaid >= totalCommission ? "completed" : "active";
+    const newStatus = newPaid >= totalCommission ? "completed" : "approved";
 
     await updateReceiptStatus(receipt.id, "approved");
-    await updateTokenPaidAmount(token.id, String(newPaid), newStatus);
+    await approveTokenWithPaidAmount(token.id, String(newPaid), newStatus);
 
     return {
       ok: true,
+      project_name: token.project_name,
+      receipt_amount: receiptAmount,
       new_paid: newPaid,
       total_commission: totalCommission,
       remaining: Math.max(0, totalCommission - newPaid),

@@ -16,6 +16,7 @@ export type ApprovalTokenRow = {
   status: string;
   created_at: string;
   updated_at: string;
+  approved_at: string | null;
 };
 
 export type ApprovalReceiptRow = {
@@ -107,6 +108,7 @@ function ensureApprovalTables(): Promise<void> {
       total_commission: "TEXT",
       allowed_amount: "TEXT",
       updated_at: "TEXT",
+      approved_at: "TEXT",
     };
     const schemaUpdates = Object.entries(missingTokenColumns)
       .filter(([column]) => !tokenColumnNames.has(column))
@@ -165,6 +167,7 @@ function decodeToken(r: any): ApprovalTokenRow {
     status: String(r.status ?? "active"),
     created_at: String(r.created_at ?? ""),
     updated_at: String(r.updated_at ?? ""),
+    approved_at: r.approved_at ?? null,
   };
 }
 
@@ -288,6 +291,15 @@ export async function updateTokenPaidAmount(tokenId: string, paidAmount: string,
   await db.execute(
     "UPDATE approval_tokens SET paid_amount = ?, status = ?, updated_at = ? WHERE id = ?",
     [paidAmount, status, now, tokenId],
+  );
+}
+
+export async function approveTokenWithPaidAmount(tokenId: string, paidAmount: string, status: string): Promise<void> {
+  await ensureApprovalTables();
+  const now = new Date().toISOString();
+  await db.execute(
+    "UPDATE approval_tokens SET paid_amount = ?, status = ?, approved_at = ?, updated_at = ? WHERE id = ?",
+    [paidAmount, status, now, now, tokenId],
   );
 }
 
