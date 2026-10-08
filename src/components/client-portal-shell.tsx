@@ -71,7 +71,45 @@ export function ClientPortalShell() {
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
 
   useEffect(() => {
+    let cancelled = false;
+    const code = localStorage.getItem("approval_token")?.trim();
+    if (!code) return () => undefined;
+
+    async function restoreApprovalState(): Promise<void> {
+      try {
+        const response = await fetch("/api/approvals/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        const data = await response.json();
+        if (cancelled || !data.valid) return;
+
+        if (data.receipt_status === "pending") {
+          setReceiptSent(true);
+          setApprovalButtonState("pending");
+          return;
+        }
+
+        if (data.status === "approved" || data.status === "completed" || data.receipt_status === "approved") {
+          const receiptId = String(data.receipt_id ?? data.token_id ?? "");
+          if (localStorage.getItem("lastSeenApprovedId") === receiptId) return;
+          setApprovedInfo({
+            receipt_id: receiptId,
+            project_name: String(data.project_name ?? ""),
+            paid_amount: Number(data.receipt_paid_amount ?? data.paid_amount ?? data.amount ?? 0),
+            approved_at: String(data.approved_at ?? new Date().toISOString()),
+          });
+          setApprovalButtonState("approved");
+        }
+      } catch {
+        return;
+      }
+    }
+
+    void restoreApprovalState();
     return () => {
+      cancelled = true;
       if (approvalPollRef.current) clearInterval(approvalPollRef.current);
     };
   }, []);
@@ -156,6 +194,12 @@ export function ClientPortalShell() {
         iban,
         account_number: accountNumber,
       });
+      if (result.data.receipt_status === "pending") {
+        setReceiptSent(true);
+        setApprovalButtonState("pending");
+      } else if (result.data.status === "approved" || result.data.status === "completed" || result.data.receipt_status === "approved") {
+        setApprovalButtonState("approved");
+      }
       setTameedStep('payment');
       setTameedError('');
       toast.success("تم التحقق من الرمز بنجاح");
