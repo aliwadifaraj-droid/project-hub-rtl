@@ -82,7 +82,7 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     if (!claims) throw new Error("يجب تسجيل الدخول");
 
     const tokenResult = await db.execute(
-      `SELECT id, token, code, client_id, client_name, total_commission, status
+      `SELECT id, token, code, client_id, client_name, total_commission, allowed_amount, allowed_payment_now, status
        FROM approval_tokens
        WHERE id = ? AND client_id = ?
        LIMIT 1`,
@@ -95,6 +95,8 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
       client_id: string;
       client_name: string | null;
       total_commission: string | number;
+      allowed_amount: string | number | null;
+      allowed_payment_now: string | number | null;
       status: string;
     }>(tokenResult)[0];
 
@@ -103,7 +105,7 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     if (token.status === "used" || token.status === "completed" || token.status === "complete") {
       throw new Error("تم استخدام هذا الرمز مسبقاً");
     }
-    const requiredAmount = Number(token.total_commission);
+    const requiredAmount = Number(token.allowed_amount ?? token.allowed_payment_now ?? token.total_commission);
     if (!Number.isFinite(requiredAmount) || Math.abs(requiredAmount - data.amount) > 2) {
       throw new Error("المبلغ غير مطابق");
     }
