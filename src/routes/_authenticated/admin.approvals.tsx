@@ -147,6 +147,23 @@ function AdminApprovalsPage() {
     }
   }
 
+  function formatApprovedDate(isoString: string | null | undefined): string {
+    if (!isoString) return "—";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "—";
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -210,9 +227,9 @@ function AdminApprovalsPage() {
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-border bg-secondary/50 text-right"><th className="px-4 py-3 font-semibold">العميل</th><th className="px-4 py-3 font-semibold">الرمز</th><th className="px-4 py-3 font-semibold">المبلغ المحوّل</th><th className="px-4 py-3 font-semibold">نتيجة OCR</th><th className="px-4 py-3 font-semibold">صورة الإيصال</th><th className="px-4 py-3 font-semibold">الحالة</th><th className="px-4 py-3 font-semibold">إجراء</th></tr></thead>
+              <thead><tr className="border-b border-border bg-secondary/50 text-right"><th className="px-4 py-3 font-semibold">العميل</th><th className="px-4 py-3 font-semibold">الرمز</th><th className="px-4 py-3 font-semibold">المشروع</th><th className="px-4 py-3 font-semibold">المبلغ المحوّل</th><th className="px-4 py-3 font-semibold">نتيجة OCR</th><th className="px-4 py-3 font-semibold">صورة الإيصال</th><th className="px-4 py-3 font-semibold">الحالة</th><th className="px-4 py-3 font-semibold">تاريخ الاعتماد</th><th className="px-4 py-3 font-semibold">إجراء</th></tr></thead>
               <tbody>
-                {(receipts ?? []).map((r) => <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/30"><td className="px-4 py-3">{r.client_name}</td><td className="px-4 py-3 font-mono font-bold text-primary">{r.token_code}</td><td className="px-4 py-3 font-medium">{r.amount} ريال</td><td className="px-4 py-3">{r.ocr_result === "match" ? <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-600"><Check className="h-3 w-3" /> مطابق</span> : r.ocr_result === "mismatch" ? <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-medium text-red-600"><X className="h-3 w-3" /> غير مطابق</span> : <span className="text-xs text-muted-foreground">—</span>}</td><td className="px-4 py-3">{r.receipt_image_url ? <a href={r.receipt_image_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary underline"><ImageIcon className="h-3.5 w-3.5" /> عرض</a> : <span className="text-xs text-muted-foreground">—</span>}</td><td className="px-4 py-3"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${r.status === "approved" ? "bg-green-500/15 text-green-600" : r.status === "rejected" ? "bg-red-500/15 text-red-600" : "bg-yellow-500/15 text-yellow-600"}`}>{r.status === "approved" ? <CheckCircle2 className="h-3 w-3" /> : r.status === "rejected" ? <XCircle className="h-3 w-3" /> : null}{r.status === "approved" ? "معتمد" : r.status === "rejected" ? "مرفوض" : "قيد الانتظار"}</span></td><td className="px-4 py-3">{r.status === "pending" ? <div className="flex gap-1"><button onClick={() => handleApprove(r.id)} className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-green-700"><Check className="h-3 w-3" /> اعتماد</button><button onClick={() => handleReject(r.id)} className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-500/15"><X className="h-3 w-3" /> رفض</button></div> : <span className="text-xs text-muted-foreground">—</span>}</td></tr>)} 
+                {(receipts ?? []).map((r) => <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/30"><td className="px-4 py-3">{r.client_name}</td><td className="px-4 py-3 font-mono font-bold text-primary">{r.token_code}</td><td className="px-4 py-3">{(r as any).project_name ?? "—"}</td><td className="px-4 py-3 font-medium">{r.amount} ريال</td><td className="px-4 py-3">{r.ocr_result === "match" ? <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-600"><Check className="h-3 w-3" /> مطابق</span> : r.ocr_result === "mismatch" ? <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-medium text-red-600"><X className="h-3 w-3" /> غير مطابق</span> : <span className="text-xs text-muted-foreground">—</span>}</td><td className="px-4 py-3">{r.receipt_image_url ? <a href={r.receipt_image_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary underline"><ImageIcon className="h-3.5 w-3.5" /> عرض</a> : <span className="text-xs text-muted-foreground">—</span>}</td><td className="px-4 py-3"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${r.status === "approved" ? "bg-green-500/15 text-green-600" : r.status === "rejected" ? "bg-red-500/15 text-red-600" : "bg-yellow-500/15 text-yellow-600"}`}>{r.status === "approved" ? <CheckCircle2 className="h-3 w-3" /> : r.status === "rejected" ? <XCircle className="h-3 w-3" /> : null}{r.status === "approved" ? "معتمد" : r.status === "rejected" ? "مرفوض" : "قيد الانتظار"}</span></td><td className="px-4 py-3 text-xs text-muted-foreground" dir="ltr">{formatApprovedDate((r as any).approved_at)}</td><td className="px-4 py-3">{r.status === "pending" ? <div className="flex gap-1"><button onClick={() => handleApprove(r.id)} className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-green-700"><Check className="h-3 w-3" /> اعتماد</button><button onClick={() => handleReject(r.id)} className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-500/15"><X className="h-3 w-3" /> رفض</button></div> : <span className="text-xs text-muted-foreground">—</span>}</td></tr>)}
               </tbody>
             </table>
           </div>
