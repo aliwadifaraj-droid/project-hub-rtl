@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { findTokenByCode, getVipBankInfo } from "@/lib/approvals.repo";
+import { findTokenByCode, findLatestReceiptByTokenId, getVipBankInfo } from "@/lib/approvals.repo";
 import { getSessionClaims } from "@/lib/auth.server";
 
 const CORS_HEADERS = {
@@ -69,6 +69,19 @@ export const Route = createFileRoute("/api/approvals/verify")({
             return jsonResponse({ valid: false, error: "تم استخدام هذا الرمز مسبقاً" });
           }
 
+          let receipt_id = "";
+          let approved_at: string | null = null;
+          let receipt_paid_amount: number | null = null;
+
+          if (row.status === "approved" || row.status === "completed") {
+            const latestReceipt = await findLatestReceiptByTokenId(row.id);
+            if (latestReceipt) {
+              receipt_id = latestReceipt.id;
+              approved_at = latestReceipt.approved_at;
+              receipt_paid_amount = Number(latestReceipt.paid_amount ?? row.paid_amount);
+            }
+          }
+
           return jsonResponse({
             valid: true,
             token_id: row.id,
@@ -79,6 +92,9 @@ export const Route = createFileRoute("/api/approvals/verify")({
             allowed_payment_now: Number(row.allowed_amount),
             paid_amount: Number(row.paid_amount),
             status: row.status,
+            approved_at: row.approved_at,
+            receipt_id,
+            receipt_paid_amount,
             bankAccount: await getBankAccountInfo(),
           });
         } catch {
