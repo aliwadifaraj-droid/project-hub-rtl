@@ -70,6 +70,7 @@ export const Route = createFileRoute("/api/approvals/verify")({
           }
 
           const latestReceipt = await findLatestReceiptByTokenId(row.id);
+          const nextInstallment = row.installments.find((installment) => installment.status !== "paid");
           const receipt_id = latestReceipt?.id ?? "";
           const receipt_status = latestReceipt?.status ?? null;
           const approved_at = latestReceipt?.approved_at ?? row.approved_at;
@@ -84,7 +85,14 @@ export const Route = createFileRoute("/api/approvals/verify")({
             client_name: row.client_name,
             project_name: row.project_name,
             amount: Number(row.total_commission),
-            allowed_payment_now: Number(row.allowed_amount),
+            allowed_payment_now: Number(nextInstallment?.amount ?? row.allowed_amount),
+            next_installment_number: nextInstallment?.installment_number ?? null,
+            installments: row.installments.map((installment) => ({
+              number: installment.installment_number,
+              amount: Number(installment.amount),
+              paid_amount: Number(installment.paid_amount),
+              status: installment.status,
+            })),
             paid_amount: Number(row.paid_amount),
             status: row.status,
             approved_at: row.approved_at,
