@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft } from "lucide-react";
+import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Info } from "lucide-react";
 import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
@@ -11,6 +11,13 @@ import { submitApprovalReceipt } from "@/lib/tameed.functions";
 import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
+
+type ApprovedReceiptInfo = {
+  receipt_id: string;
+  project_name: string;
+  paid_amount: number;
+  approved_at: string;
+};
 
 export function ClientPortalShell() {
   const listTickets = useServerFn(listMyClientTickets);
@@ -33,9 +40,9 @@ export function ClientPortalShell() {
   const [receiptError, setReceiptError] = useState("");
   const [receiptSent, setReceiptSent] = useState(false);
   const [approvalButtonState, setApprovalButtonState] = useState<"idle" | "pending" | "approved">("idle");
-  const [approvedProjectName, setApprovedProjectName] = useState("");
+  const [approvedInfo, setApprovedInfo] = useState<ApprovedReceiptInfo | null>(null);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
   const approvalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const approvalResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tameedResult, setTameedResult] = useState<{
     token_id: string;
     approved: boolean;
@@ -66,7 +73,6 @@ export function ClientPortalShell() {
   useEffect(() => {
     return () => {
       if (approvalPollRef.current) clearInterval(approvalPollRef.current);
-      if (approvalResetRef.current) clearTimeout(approvalResetRef.current);
     };
   }, []);
 
@@ -80,7 +86,7 @@ export function ClientPortalShell() {
   function resetApprovalButton(): void {
     stopApprovalPolling();
     setApprovalButtonState("idle");
-    setApprovedProjectName("");
+    setApprovedInfo(null);
   }
 
   function closeVipIntro(): void {
@@ -232,12 +238,22 @@ export function ClientPortalShell() {
         if (!data.valid || (data.status !== "approved" && data.status !== "completed")) return;
 
         stopApprovalPolling();
-        setApprovedProjectName(String(data.project_name ?? ""));
-        setApprovalButtonState("approved");
-        approvalResetRef.current = setTimeout(() => {
-          approvalResetRef.current = null;
+
+        const receiptId = String(data.receipt_id ?? data.token_id ?? "");
+        const lastSeen = localStorage.getItem("lastSeenApprovedId");
+
+        if (lastSeen === receiptId) {
           resetApprovalButton();
-        }, 5000);
+          return;
+        }
+
+        setApprovedInfo({
+          receipt_id: receiptId,
+          project_name: String(data.project_name ?? ""),
+          paid_amount: Number(data.paid_amount ?? data.amount ?? 0),
+          approved_at: String(data.approved_at ?? new Date().toISOString()),
+        });
+        setApprovalButtonState("approved");
       } catch {
         return;
       }
@@ -245,6 +261,14 @@ export function ClientPortalShell() {
 
     void checkApproval();
     approvalPollRef.current = setInterval(() => void checkApproval(), 3000);
+  }
+
+  function closeApprovalModal(): void {
+    if (approvedInfo) {
+      localStorage.setItem("lastSeenApprovedId", approvedInfo.receipt_id);
+    }
+    setShowApprovalModal(false);
+    resetApprovalButton();
   }
 
   async function copyToClipboard(e: MouseEvent<HTMLButtonElement>, text: string): Promise<void> {
@@ -275,6 +299,22 @@ export function ClientPortalShell() {
     }
   }
 
+  function formatGregorianDate(isoString: string): string {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return isoString;
+      return d.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return isoString;
+    }
+  }
+
   return (
     <div className="relative">
       <ClientPortal />
@@ -284,25 +324,36 @@ export function ClientPortalShell() {
           تذاكر الدعم
           {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </Link>
-        <button
-          type="button"
-          onClick={openTameed}
-          disabled={approvalButtonState === "pending"}
-          className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
-            approvalButtonState === "pending"
-              ? "cursor-wait border border-yellow-300 bg-yellow-100 text-yellow-800"
-              : approvalButtonState === "approved"
-                ? "border border-emerald-300 bg-emerald-100 text-emerald-800"
+        {approvalButtonState === "approved" ? (
+          <div className="pointer-events-auto absolute -top-24 left-0 flex flex-col gap-1.5">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg">
+              <CheckCircle2 className="h-4 w-4" />
+              تم اعتماد العمولة
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowApprovalModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+            >
+              <Info className="h-3.5 w-3.5" />
+              اضغط للتفاصيل
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={openTameed}
+            disabled={approvalButtonState === "pending"}
+            className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
+              approvalButtonState === "pending"
+                ? "cursor-wait border border-yellow-300 bg-yellow-100 text-yellow-800"
                 : "border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
-          }`}
-        >
-          <BadgeCheck className="h-4 w-4" />
-          {approvalButtonState === "pending"
-            ? "قيد المراجعة"
-            : approvalButtonState === "approved"
-              ? `تم استلام العمولة المرتبطة بمشروع ${approvedProjectName} بنجاح`
-              : "تعميد"}
-        </button>
+            }`}
+          >
+            <BadgeCheck className="h-4 w-4" />
+            {approvalButtonState === "pending" ? "قيد المراجعة" : "تعميد"}
+          </button>
+        )}
         {vipStatus?.isPremium ? (
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
             <Crown className="h-4 w-4" />
@@ -315,6 +366,46 @@ export function ClientPortalShell() {
           </button>
         )}
       </div>
+
+      {showApprovalModal && approvedInfo && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="approval-modal-title">
+          <div className="relative w-full max-w-md rounded-3xl border border-emerald-200 bg-card p-6 shadow-2xl sm:p-8">
+            <button type="button" onClick={closeApprovalModal} aria-label="إغلاق" className="absolute left-4 top-4 rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground">
+              <X className="h-5 w-5" />
+            </button>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <h2 id="approval-modal-title" className="mt-5 text-center text-2xl font-extrabold text-emerald-800">تفاصيل اعتماد العمولة</h2>
+
+            <div className="mt-6 space-y-4">
+              <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
+                <p className="text-xs font-semibold text-muted-foreground">اسم المشروع</p>
+                <p className="mt-1 text-sm font-bold text-foreground">{approvedInfo.project_name || "—"}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
+                <p className="text-xs font-semibold text-muted-foreground">المبلغ المدفوع</p>
+                <p className="mt-1 text-lg font-extrabold text-emerald-700">
+                  {approvedInfo.paid_amount.toLocaleString("en-US")} <span className="text-sm font-medium text-muted-foreground">ر.س</span>
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
+                <p className="text-xs font-semibold text-muted-foreground">تاريخ الاعتماد</p>
+                <p className="mt-1 text-sm font-bold text-foreground" dir="ltr">{formatGregorianDate(approvedInfo.approved_at)}</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={closeApprovalModal}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              إغلاق ومتابعة
+            </button>
+          </div>
+        </div>
+      )}
 
       {showVipIntro && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby="vip-intro-title">
