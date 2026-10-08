@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSessionClaims } from "./auth.server";
 import { db, rowsToObjects } from "./db";
 import { requireAdmin } from "./auth-middleware.server";
-import { getPublicUrl } from "./r2";
+import { signGetUrl } from "./r2";
 
 type TameedBankInfo = {
   bank_name: string;
@@ -108,7 +108,7 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
       throw new Error("المبلغ غير مطابق");
     }
 
-    const receiptImageUrl = getPublicUrl(data.receipt_path);
+    const receiptImageUrl = await signGetUrl(data.receipt_path, 60 * 60 * 24 * 7);
     await db.execute(
       `INSERT INTO approval_receipts
        (id, token_id, token_code, user_id, client_name, amount, ocr_result, ocr_amount,
