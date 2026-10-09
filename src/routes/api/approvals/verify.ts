@@ -24,7 +24,7 @@ async function getBankAccountInfo(): Promise<{
 }> {
   const fallback = {
     bank_name: "الإنماء",
-    holder_name: "AHMED SALMI",
+    holder_name: "AHMED SALMI - الإنماء",
     iban: "SA7805000068207858373000",
     account_number: "SA7805000068207858373000",
   };
