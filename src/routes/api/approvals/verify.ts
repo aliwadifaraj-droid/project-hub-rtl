@@ -33,9 +33,11 @@ async function getBankAccountInfo(): Promise<{
     const raw = await getVipBankInfo();
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const bankName = String(parsed.bank_name ?? fallback.bank_name);
+    const holderName = String(parsed.holder_name ?? parsed.account_name ?? fallback.holder_name);
     return {
-      bank_name: String(parsed.bank_name ?? fallback.bank_name),
-      holder_name: String(parsed.holder_name ?? parsed.account_name ?? fallback.holder_name),
+      bank_name: bankName,
+      holder_name: `${holderName} - ${bankName}`,
       iban: String(parsed.iban ?? fallback.iban),
       account_number: String(parsed.account_number ?? parsed.iban ?? fallback.account_number),
     };
