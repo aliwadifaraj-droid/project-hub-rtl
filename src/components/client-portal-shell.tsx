@@ -532,6 +532,13 @@ export function ClientPortalShell() {
                     </>
                   )}
                 </button>
+                <button
+                  type="button"
+                  onClick={closeTameed}
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary"
+                >
+                  العودة للمنصة
+                </button>
               </div>
             )}
 
@@ -593,7 +600,7 @@ export function ClientPortalShell() {
                     </>
                   )}
                   <button type="button" onClick={closeTameed} className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
-                    تم
+                    العودة للمنصة
                   </button>
                 </div>
               )
