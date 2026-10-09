@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Info, Printer } from "lucide-react";
+import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Printer } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
@@ -373,22 +373,7 @@ export function ClientPortalShell() {
           تذاكر الدعم
           {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </Link>
-        {approvalButtonState === "approved" ? (
-          <div className="pointer-events-auto absolute -top-24 left-0 flex flex-col gap-1.5">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg">
-              <CheckCircle2 className="h-4 w-4" />
-              تم اعتماد العمولة
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowApprovalModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-            >
-              <Info className="h-3.5 w-3.5" />
-              اضغط للتفاصيل
-            </button>
-          </div>
-        ) : (
+        {approvalButtonState === "approved" ? null : (
           <button
             type="button"
             onClick={openTameed}
