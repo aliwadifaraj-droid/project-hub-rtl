@@ -604,7 +604,7 @@ export function ClientPortalShell() {
 
       {showReceiptModal && receiptModalData && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 print:bg-none print:p-0" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
-          <div className="receipt-card relative w-full max-w-sm rounded-2xl border border-border bg-white p-6 shadow-2xl print:shadow-none">
+          <div className="receipt-card relative w-[90vw] max-w-sm rounded-2xl border border-border bg-white p-4 shadow-2xl print:shadow-none sm:p-6">
             <h2 id="receipt-modal-title" className="mb-6 text-center text-xl font-bold text-emerald-600">
               إيصال معتمد ✓
             </h2>
@@ -626,15 +626,16 @@ export function ClientPortalShell() {
 
             <div className="my-4 border-t border-dashed border-gray-200" />
 
-            <div className="flex items-center justify-between gap-4 px-2">
-              <div className="flex-shrink-0">
+            <div className="flex flex-col items-center justify-center gap-3 px-2 sm:flex-row sm:justify-between sm:gap-4">
+              <div className="relative flex-shrink-0 order-2 sm:order-1">
                 <QRCodeSVG
                   value={`https://ali-alhaddad.com/verify/${receiptModalData.code}`}
                   size={90}
                   level="M"
                 />
+                <img src="/seal.svg" alt="ختم" className="absolute -right-1 -top-1 h-[38px] w-[38px] opacity-80 sm:hidden" />
               </div>
-              <div className="flex-shrink-0">
+              <div className="hidden flex-shrink-0 sm:block">
                 <img src="/seal.svg" alt="ختم" width={70} height={70} />
               </div>
             </div>
