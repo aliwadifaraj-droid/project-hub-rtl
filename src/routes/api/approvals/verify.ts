@@ -77,6 +77,10 @@ export const Route = createFileRoute("/api/approvals/verify")({
           const receipt_paid_amount = latestReceipt
             ? Number(latestReceipt.paid_amount ?? row.paid_amount)
             : null;
+          const totalAmount = Number(row.total_commission);
+          const paidAmount = Number(row.paid_amount);
+          const remainingAmount = Math.max(0, totalAmount - paidAmount);
+          const nextPaymentAmount = Number(nextInstallment?.amount ?? row.allowed_amount);
 
           return jsonResponse({
             valid: true,
@@ -84,8 +88,8 @@ export const Route = createFileRoute("/api/approvals/verify")({
             token: row.token_code,
             client_name: row.client_name,
             project_name: row.project_name,
-            amount: Number(row.total_commission),
-            allowed_payment_now: Number(nextInstallment?.amount ?? row.allowed_amount),
+            amount: remainingAmount,
+            allowed_payment_now: Math.min(nextPaymentAmount, remainingAmount),
             next_installment_number: nextInstallment?.installment_number ?? null,
             installments: row.installments.map((installment) => ({
               number: installment.installment_number,
