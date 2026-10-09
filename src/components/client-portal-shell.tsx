@@ -373,21 +373,19 @@ export function ClientPortalShell() {
           تذاكر الدعم
           {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </Link>
-        {approvalButtonState === "approved" ? null : (
-          <button
-            type="button"
-            onClick={openTameed}
-            disabled={approvalButtonState === "pending"}
-            className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
-              approvalButtonState === "pending"
-                ? "cursor-wait border border-yellow-300 bg-yellow-100 text-yellow-800"
-                : "border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
-            }`}
-          >
-            <BadgeCheck className="h-4 w-4" />
-            {approvalButtonState === "pending" ? "قيد المراجعة" : "تعميد"}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={openTameed}
+          disabled={approvalButtonState === "pending"}
+          className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
+            approvalButtonState === "pending"
+              ? "cursor-wait border border-yellow-300 bg-yellow-100 text-yellow-800"
+              : "border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
+          }`}
+        >
+          <BadgeCheck className="h-4 w-4" />
+          {approvalButtonState === "pending" ? "قيد المراجعة" : "تعميد"}
+        </button>
         {vipStatus?.isPremium ? (
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
             <Crown className="h-4 w-4" />
