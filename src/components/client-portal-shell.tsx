@@ -2,7 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Info } from "lucide-react";
+import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Info, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
@@ -42,6 +43,8 @@ export function ClientPortalShell() {
   const [approvalButtonState, setApprovalButtonState] = useState<"idle" | "pending" | "approved">("idle");
   const [approvedInfo, setApprovedInfo] = useState<ApprovedReceiptInfo | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptModalData, setReceiptModalData] = useState<{ code: string; amount: number } | null>(null);
   const approvalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [tameedResult, setTameedResult] = useState<{
     token_id: string;
@@ -258,6 +261,8 @@ export function ClientPortalShell() {
       });
       setReceiptSent(true);
       setApprovalButtonState("pending");
+      setReceiptModalData({ code: tameedCode.trim(), amount: receiptAmount ?? tameedResult.allowed_payment_now });
+      setShowReceiptModal(true);
       startApprovalPolling(tameedCode.trim());
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "سبب غير معروف";
@@ -593,6 +598,59 @@ export function ClientPortalShell() {
                 </div>
               )
             )}
+          </div>
+        </div>
+      )}
+
+      {showReceiptModal && receiptModalData && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 print:bg-none print:p-0" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+          <div className="receipt-card relative w-full max-w-sm rounded-2xl border border-border bg-white p-6 shadow-2xl print:shadow-none">
+            <h2 id="receipt-modal-title" className="mb-6 text-center text-xl font-bold text-emerald-600">
+              إيصال معتمد ✓
+            </h2>
+
+            <div className="space-y-2 text-center">
+              <p className="text-lg font-bold text-gray-800">منصة العمران</p>
+              <p className="text-sm text-gray-500" dir="ltr">ali-alhaddad.com</p>
+              <div className="my-3 border-t border-dashed border-gray-200" />
+              <p className="text-sm text-gray-600">
+                رقم العملية: <span className="font-bold text-gray-800" dir="ltr">{receiptModalData.code}</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                المبلغ: <span className="font-bold text-gray-800">{receiptModalData.amount.toLocaleString("en-US")} ر.س</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                التاريخ: <span className="font-bold text-gray-800">{new Date().toLocaleString("ar-SA")}</span>
+              </p>
+            </div>
+
+            <div className="my-4 border-t border-dashed border-gray-200" />
+
+            <div className="flex items-center justify-between gap-4 px-2">
+              <div className="flex-shrink-0">
+                <QRCodeSVG
+                  value={`https://ali-alhaddad.com/verify/${receiptModalData.code}`}
+                  size={90}
+                  level="M"
+                />
+              </div>
+              <div className="flex-shrink-0">
+                <img src="/seal.png" alt="ختم" width={70} height={70} />
+              </div>
+            </div>
+
+            <p className="mt-4 text-center text-xs text-gray-400">
+              وثيقة صادرة إلكترونياً ويمكن التحقق عبر QR
+            </p>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700 print:hidden"
+            >
+              <Printer className="h-4 w-4" />
+              طباعة
+            </button>
           </div>
         </div>
       )}
