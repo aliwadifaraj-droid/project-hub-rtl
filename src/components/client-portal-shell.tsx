@@ -2,7 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Info } from "lucide-react";
+import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
@@ -42,6 +43,8 @@ export function ClientPortalShell() {
   const [approvalButtonState, setApprovalButtonState] = useState<"idle" | "pending" | "approved">("idle");
   const [approvedInfo, setApprovedInfo] = useState<ApprovedReceiptInfo | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptModalData, setReceiptModalData] = useState<{ code: string; amount: number } | null>(null);
   const approvalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [tameedResult, setTameedResult] = useState<{
     token_id: string;
@@ -258,6 +261,8 @@ export function ClientPortalShell() {
       });
       setReceiptSent(true);
       setApprovalButtonState("pending");
+      setReceiptModalData({ code: tameedCode.trim(), amount: receiptAmount ?? tameedResult.allowed_payment_now });
+      setShowReceiptModal(true);
       startApprovalPolling(tameedCode.trim());
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "سبب غير معروف";
@@ -368,36 +373,19 @@ export function ClientPortalShell() {
           تذاكر الدعم
           {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
         </Link>
-        {approvalButtonState === "approved" ? (
-          <div className="pointer-events-auto absolute -top-24 left-0 flex flex-col gap-1.5">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg">
-              <CheckCircle2 className="h-4 w-4" />
-              تم اعتماد العمولة
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowApprovalModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-            >
-              <Info className="h-3.5 w-3.5" />
-              اضغط للتفاصيل
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={openTameed}
-            disabled={approvalButtonState === "pending"}
-            className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
-              approvalButtonState === "pending"
-                ? "cursor-wait border border-yellow-300 bg-yellow-100 text-yellow-800"
-                : "border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
-            }`}
-          >
-            <BadgeCheck className="h-4 w-4" />
-            {approvalButtonState === "pending" ? "قيد المراجعة" : "تعميد"}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={openTameed}
+          disabled={approvalButtonState === "pending"}
+          className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
+            approvalButtonState === "pending"
+              ? "cursor-wait border border-yellow-300 bg-yellow-100 text-yellow-800"
+              : "border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
+          }`}
+        >
+          <BadgeCheck className="h-4 w-4" />
+          {approvalButtonState === "pending" ? "قيد المراجعة" : "تعميد"}
+        </button>
         {vipStatus?.isPremium ? (
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
             <Crown className="h-4 w-4" />
@@ -527,6 +515,13 @@ export function ClientPortalShell() {
                     </>
                   )}
                 </button>
+                <button
+                  type="button"
+                  onClick={closeTameed}
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary"
+                >
+                  العودة للمنصة
+                </button>
               </div>
             )}
 
@@ -588,11 +583,83 @@ export function ClientPortalShell() {
                     </>
                   )}
                   <button type="button" onClick={closeTameed} className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
-                    تم
+                    العودة للمنصة
                   </button>
                 </div>
               )
             )}
+          </div>
+        </div>
+      )}
+
+      {showReceiptModal && receiptModalData && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 print:bg-none print:p-0" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+          <div className="receipt-card relative w-[90vw] max-w-sm rounded-2xl border border-border bg-white p-4 shadow-2xl print:shadow-none sm:p-6">
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(false)}
+              aria-label="إغلاق الإيصال"
+              className="absolute left-3 top-3 rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 print:hidden"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h2 id="receipt-modal-title" className="mb-6 text-center text-xl font-bold text-emerald-600">
+              إيصال معتمد ✓
+            </h2>
+
+            <div className="space-y-2 text-center">
+              <p className="text-lg font-bold text-gray-800">منصة العمران</p>
+              <p className="text-sm text-gray-500" dir="ltr">ali-alhaddad.com</p>
+              <div className="my-3 border-t border-dashed border-gray-200" />
+              <p className="text-sm text-gray-600">
+                رقم العملية: <span className="font-bold text-gray-800" dir="ltr">{receiptModalData.code}</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                المبلغ: <span className="font-bold text-gray-800">{receiptModalData.amount.toLocaleString("en-US")} ر.س</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                التاريخ: <span className="font-bold text-gray-800">{new Date().toLocaleString("ar-SA")}</span>
+              </p>
+            </div>
+
+            <div className="my-4 border-t border-dashed border-gray-200" />
+
+            <div className="flex flex-row items-center justify-center gap-4 px-2">
+              <div className="order-2 flex flex-shrink-0 flex-col items-center">
+                <img src="/seal.svg" alt="ختم" className="h-[38px] w-[38px] opacity-80 sm:h-[70px] sm:w-[70px]" />
+                <span className="text-[7px] text-gray-500">
+                  {new Date().toLocaleDateString('ar-EG', {day:'2-digit', month:'2-digit'})}
+                </span>
+              </div>
+              <div className="order-1 flex-shrink-0">
+                <QRCodeSVG
+                  value={`https://ali-alhaddad.com/verify/${receiptModalData.code}`}
+                  size={90}
+                  level="M"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(false)}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 font-bold text-gray-700 transition hover:bg-gray-50 print:hidden"
+            >
+              العودة للمنصة
+            </button>
+
+            <p className="mt-4 text-center text-xs text-gray-400">
+              وثيقة صادرة إلكترونياً ويمكن التحقق عبر QR
+            </p>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700 print:hidden"
+            >
+              <Printer className="h-4 w-4" />
+              طباعة
+            </button>
           </div>
         </div>
       )}
