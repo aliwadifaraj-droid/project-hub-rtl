@@ -626,11 +626,11 @@ export function ClientPortalShell() {
 
             <div className="my-4 border-t border-dashed border-gray-200" />
 
-            <div className="flex flex-col items-center justify-center gap-2 px-2 sm:flex-row sm:justify-between sm:gap-4">
-              <div className="order-1 flex-shrink-0 self-end mr-2 sm:order-2 sm:self-auto sm:mr-0">
+            <div className="flex flex-row items-center justify-center gap-4 px-2">
+              <div className="order-2 flex-shrink-0">
                 <img src="/seal.svg" alt="ختم" className="h-[38px] w-[38px] opacity-80 sm:h-[70px] sm:w-[70px]" />
               </div>
-              <div className="order-2 flex-shrink-0 sm:order-1">
+              <div className="order-1 flex-shrink-0">
                 <QRCodeSVG
                   value={`https://ali-alhaddad.com/verify/${receiptModalData.code}`}
                   size={90}
