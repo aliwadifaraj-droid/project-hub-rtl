@@ -22,18 +22,25 @@ async function getBankAccountInfo(): Promise<{
   iban: string;
   account_number: string;
 }> {
+  const fallback = {
+    bank_name: "",
+    holder_name: "AHMED SALMI",
+    iban: "SA7805000068207858373000",
+    account_number: "SA7805000068207858373000",
+  };
+
   try {
     const raw = await getVipBankInfo();
-    if (!raw) return { bank_name: "", holder_name: "", iban: "", account_number: "" };
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return {
-      bank_name: String(parsed.bank_name ?? ""),
-      holder_name: String(parsed.holder_name ?? parsed.account_name ?? ""),
-      iban: String(parsed.iban ?? ""),
-      account_number: String(parsed.account_number ?? parsed.iban ?? ""),
+      bank_name: String(parsed.bank_name ?? fallback.bank_name),
+      holder_name: String(parsed.holder_name ?? parsed.account_name ?? fallback.holder_name),
+      iban: String(parsed.iban ?? fallback.iban),
+      account_number: String(parsed.account_number ?? parsed.iban ?? fallback.account_number),
     };
   } catch {
-    return { bank_name: "", holder_name: "", iban: "", account_number: "" };
+    return fallback;
   }
 }
 
