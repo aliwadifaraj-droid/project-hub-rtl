@@ -55,6 +55,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin.support'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
+import { Route as AuthenticatedAdminApprovalsRouteImport } from './routes/_authenticated/admin.approvals'
 import { Route as ApiAdminR2RouteImport } from './routes/api/admin/r2'
 import { Route as ApiCronCheckSubscriptionsRouteImport } from './routes/api/cron/check-subscriptions'
 import { Route as ApiCronVipExpiryRouteImport } from './routes/api/cron/vip-expiry'
@@ -311,6 +312,12 @@ const AuthenticatedAdminVipRoute = AuthenticatedAdminVipRouteImport.update({
   path: '/vip',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminApprovalsRoute =
+  AuthenticatedAdminApprovalsRouteImport.update({
+    id: '/approvals',
+    path: '/approvals',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const ApiAdminR2Route = ApiAdminR2RouteImport.update({
   id: '/api/admin/r2',
   path: '/api/admin/r2',
@@ -533,6 +540,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
+  '/_authenticated/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
   '/api/cron/vip-expiry': typeof ApiCronVipExpiryRoute
@@ -593,6 +601,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/users'
     | '/admin/vip'
+    | '/admin/approvals'
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
@@ -708,6 +717,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/vip'
+    | '/_authenticated/admin/approvals'
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
     | '/api/cron/vip-expiry'
@@ -720,8 +730,15 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByTo: FileRoutesByTo
   fileRoutesById: FileRoutesById
 }
+
+export type FileRoutesByFullPath = keyof FileRouteTypes['fileRoutesByFullPath']
+export type FileRoutesByTo = keyof FileRouteTypes['fileRoutesByTo']
+export type FileRoutesById = keyof FileRouteTypes['fileRoutesById']
+
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
@@ -740,426 +757,85 @@ export interface RootRouteChildren {
   ThankYouRoute: typeof ThankYouRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VipRoute: typeof VipRouteWithChildren
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEmployeesRoute: typeof AuthenticatedEmployeesRoute
+  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
+  AdsAdIdRoute: typeof AdsAdIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ProjectIdRoute: typeof ProjectIdRoute
-  ApiAdminR2Route: typeof ApiAdminR2Route
-  ApiCronCheckSubscriptionsRoute: typeof ApiCronCheckSubscriptionsRoute
-  ApiCronVipExpiryRoute: typeof ApiCronVipExpiryRoute
-  ApiNotificationsSendRoute: typeof ApiNotificationsSendRoute
-  ApiNotificationsSubscribeRoute: typeof ApiNotificationsSubscribeRoute
-  ApiPublicUploadRoute: typeof ApiPublicUploadRoute
-  ApiPushSendRoute: typeof ApiPushSendRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
 }
 
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ads': {
-      id: '/ads'
-      path: '/ads'
-      fullPath: '/ads'
-      preLoaderRoute: typeof AdsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/client-login': {
-      id: '/client-login'
-      path: '/client-login'
-      fullPath: '/client-login'
-      preLoaderRoute: typeof ClientLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/client-logout': {
-      id: '/client-logout'
-      path: '/client-logout'
-      fullPath: '/client-logout'
-      preLoaderRoute: typeof ClientLogoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/client-portal': {
-      id: '/client-portal'
-      path: '/client-portal'
-      fullPath: '/client-portal'
-      preLoaderRoute: typeof ClientPortalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contact': {
-      id: '/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof ContactRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/maintenance': {
-      id: '/maintenance'
-      path: '/maintenance'
-      fullPath: '/maintenance'
-      preLoaderRoute: typeof MaintenanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-requests': {
-      id: '/my-requests'
-      path: '/my-requests'
-      fullPath: '/my-requests'
-      preLoaderRoute: typeof MyRequestsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/projects': {
-      id: '/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof ProjectsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/subscribe-success': {
-      id: '/subscribe-success'
-      path: '/subscribe-success'
-      fullPath: '/subscribe-success'
-      preLoaderRoute: typeof SubscribeSuccessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/thank-you': {
-      id: '/thank-you'
-      path: '/thank-you'
-      fullPath: '/thank-you'
-      preLoaderRoute: typeof ThankYouRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/unsubscribe': {
-      id: '/unsubscribe'
-      path: '/unsubscribe'
-      fullPath: '/unsubscribe'
-      preLoaderRoute: typeof UnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vip': {
-      id: '/vip'
-      path: '/vip'
-      fullPath: '/vip'
-      preLoaderRoute: typeof VipRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/admin': {
-      id: '/_authenticated/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AuthenticatedAdminRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/chat': {
-      id: '/_authenticated/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof AuthenticatedChatRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/employees': {
-      id: '/_authenticated/employees'
-      path: '/employees'
-      fullPath: '/employees'
-      preLoaderRoute: typeof AuthenticatedEmployeesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/upload': {
-      id: '/_authenticated/upload'
-      path: '/upload'
-      fullPath: '/upload'
-      preLoaderRoute: typeof AuthenticatedUploadRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/ads/$adId': {
-      id: '/ads/$adId'
-      path: '/$adId'
-      fullPath: '/ads/$adId'
-      preLoaderRoute: typeof AdsAdIdRouteImport
-      parentRoute: typeof AdsRoute
-    }
-    '/email/unsubscribe': {
-      id: '/email/unsubscribe'
-      path: '/email/unsubscribe'
-      fullPath: '/email/unsubscribe'
-      preLoaderRoute: typeof EmailUnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/project/$id': {
-      id: '/project/$id'
-      path: '/project/$id'
-      fullPath: '/project/$id'
-      preLoaderRoute: typeof ProjectIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vip/': {
-      id: '/vip/'
-      path: '/'
-      fullPath: '/vip/'
-      preLoaderRoute: typeof VipIndexRouteImport
-      parentRoute: typeof VipRoute
-    }
-    '/_authenticated/admin/': {
-      id: '/_authenticated/admin/'
-      path: '/'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/ads': {
-      id: '/_authenticated/admin/ads'
-      path: '/ads'
-      fullPath: '/admin/ads'
-      preLoaderRoute: typeof AuthenticatedAdminAdsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/bot-settings': {
-      id: '/_authenticated/admin/bot-settings'
-      path: '/bot-settings'
-      fullPath: '/admin/bot-settings'
-      preLoaderRoute: typeof AuthenticatedAdminBotSettingsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/bot-test': {
-      id: '/_authenticated/admin/bot-test'
-      path: '/bot-test'
-      fullPath: '/admin/bot-test'
-      preLoaderRoute: typeof AuthenticatedAdminBotTestRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/bot-training': {
-      id: '/_authenticated/admin/bot-training'
-      path: '/bot-training'
-      fullPath: '/admin/bot-training'
-      preLoaderRoute: typeof AuthenticatedAdminBotTrainingRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/chat': {
-      id: '/_authenticated/admin/chat'
-      path: '/chat'
-      fullPath: '/admin/chat'
-      preLoaderRoute: typeof AuthenticatedAdminChatRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/clients': {
-      id: '/_authenticated/admin/clients'
-      path: '/clients'
-      fullPath: '/admin/clients'
-      preLoaderRoute: typeof AuthenticatedAdminClientsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/employees': {
-      id: '/_authenticated/admin/employees'
-      path: '/employees'
-      fullPath: '/admin/employees'
-      preLoaderRoute: typeof AuthenticatedAdminEmployeesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/exclusivity': {
-      id: '/_authenticated/admin/exclusivity'
-      path: '/exclusivity'
-      fullPath: '/admin/exclusivity'
-      preLoaderRoute: typeof AuthenticatedAdminExclusivityRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/groq-settings': {
-      id: '/_authenticated/admin/groq-settings'
-      path: '/groq-settings'
-      fullPath: '/admin/groq-settings'
-      preLoaderRoute: typeof AuthenticatedAdminGroqSettingsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/messages': {
-      id: '/_authenticated/admin/messages'
-      path: '/messages'
-      fullPath: '/admin/messages'
-      preLoaderRoute: typeof AuthenticatedAdminMessagesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/my-projects': {
-      id: '/_authenticated/admin/my-projects'
-      path: '/my-projects'
-      fullPath: '/admin/my-projects'
-      preLoaderRoute: typeof AuthenticatedAdminMyProjectsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/offers': {
-      id: '/_authenticated/admin/offers'
-      path: '/offers'
-      fullPath: '/admin/offers'
-      preLoaderRoute: typeof AuthenticatedAdminOffersRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/pending-projects': {
-      id: '/_authenticated/admin/pending-projects'
-      path: '/pending-projects'
-      fullPath: '/admin/pending-projects'
-      preLoaderRoute: typeof AuthenticatedAdminPendingProjectsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/projects': {
-      id: '/_authenticated/admin/projects'
-      path: '/projects'
-      fullPath: '/admin/projects'
-      preLoaderRoute: typeof AuthenticatedAdminProjectsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/requests': {
-      id: '/_authenticated/admin/requests'
-      path: '/requests'
-      fullPath: '/admin/requests'
-      preLoaderRoute: typeof AuthenticatedAdminRequestsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/support': {
-      id: '/_authenticated/admin/support'
-      path: '/support'
-      fullPath: '/admin/support'
-      preLoaderRoute: typeof AuthenticatedAdminSupportRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/users': {
-      id: '/_authenticated/admin/users'
-      path: '/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/vip': {
-      id: '/_authenticated/admin/vip'
-      path: '/vip'
-      fullPath: '/admin/vip'
-      preLoaderRoute: typeof AuthenticatedAdminVipRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/api/admin/r2': {
-      id: '/api/admin/r2'
-      path: '/api/admin/r2'
-      fullPath: '/api/admin/r2'
-      preLoaderRoute: typeof ApiAdminR2RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/cron/check-subscriptions': {
-      id: '/api/cron/check-subscriptions'
-      path: '/api/cron/check-subscriptions'
-      fullPath: '/api/cron/check-subscriptions'
-      preLoaderRoute: typeof ApiCronCheckSubscriptionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/cron/vip-expiry': {
-      id: '/api/cron/vip-expiry'
-      path: '/api/cron/vip-expiry'
-      fullPath: '/api/cron/vip-expiry'
-      preLoaderRoute: typeof ApiCronVipExpiryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/notifications/send': {
-      id: '/api/notifications/send'
-      path: '/api/notifications/send'
-      fullPath: '/api/notifications/send'
-      preLoaderRoute: typeof ApiNotificationsSendRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/notifications/subscribe': {
-      id: '/api/notifications/subscribe'
-      path: '/api/notifications/subscribe'
-      fullPath: '/api/notifications/subscribe'
-      preLoaderRoute: typeof ApiNotificationsSubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/upload': {
-      id: '/api/public/upload'
-      path: '/api/public/upload'
-      fullPath: '/api/public/upload'
-      preLoaderRoute: typeof ApiPublicUploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/push/send': {
-      id: '/api/push/send'
-      path: '/api/push/send'
-      fullPath: '/api/push/send'
-      preLoaderRoute: typeof ApiPushSendRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/suppression': {
-      id: '/lovable/email/suppression'
-      path: '/lovable/email/suppression'
-      fullPath: '/lovable/email/suppression'
-      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/queue/process': {
-      id: '/lovable/email/queue/process'
-      path: '/lovable/email/queue/process'
-      fullPath: '/lovable/email/queue/process'
-      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/transactional/preview': {
-      id: '/lovable/email/transactional/preview'
-      path: '/lovable/email/transactional/preview'
-      fullPath: '/lovable/email/transactional/preview'
-      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lovable/email/transactional/send': {
-      id: '/lovable/email/transactional/send'
-      path: '/lovable/email/transactional/send'
-      fullPath: '/lovable/email/transactional/send'
-      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-  }
+const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AdsRoute: AdsRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ClientLoginRoute: ClientLoginRoute,
+  ClientLogoutRoute: ClientLogoutRoute,
+  ClientPortalRoute: ClientPortalRoute,
+  ContactRoute: ContactRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  MaintenanceRoute: MaintenanceRoute,
+  MyRequestsRoute: MyRequestsRoute,
+  ProjectsRoute: ProjectsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SubscribeSuccessRoute: SubscribeSuccessRoute,
+  ThankYouRoute: ThankYouRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
+  VipRoute: VipRouteWithChildren,
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEmployeesRoute: AuthenticatedEmployeesRoute,
+  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
+  AdsAdIdRoute: AdsAdIdRoute,
+  EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  ProjectIdRoute: ProjectIdRoute,
+  LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
+  LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
 }
 
-interface AuthenticatedAdminRouteChildren {
+export interface AdsRouteChildren {
+  AdsAdIdRoute: typeof AdsAdIdRoute
+}
+
+const AdsRouteChildren: AdsRouteChildren = {
+  AdsAdIdRoute: AdsAdIdRoute,
+}
+
+export interface VipRouteChildren {
+  VipIndexRoute: typeof VipIndexRoute
+}
+
+const VipRouteChildren: VipRouteChildren = {
+  VipIndexRoute: VipIndexRoute,
+}
+
+export interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEmployeesRoute: typeof AuthenticatedEmployeesRoute
+  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEmployeesRoute: AuthenticatedEmployeesRoute,
+  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
+}
+
+export interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAdsRoute: typeof AuthenticatedAdminAdsRoute
   AuthenticatedAdminBotSettingsRoute: typeof AuthenticatedAdminBotSettingsRoute
   AuthenticatedAdminBotTestRoute: typeof AuthenticatedAdminBotTestRoute
@@ -1179,6 +855,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVipRoute: typeof AuthenticatedAdminVipRoute
+  AuthenticatedAdminApprovalsRoute: typeof AuthenticatedAdminApprovalsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -1203,89 +880,435 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVipRoute: AuthenticatedAdminVipRoute,
+  AuthenticatedAdminApprovalsRoute: AuthenticatedAdminApprovalsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
+const AdsRouteWithChildren = AdsRoute._addFileChildren(AdsRouteChildren)
+const VipRouteWithChildren = VipRoute._addFileChildren(VipRouteChildren)
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
-
-interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
-  AuthenticatedChatRoute: typeof AuthenticatedChatRoute
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedEmployeesRoute: typeof AuthenticatedEmployeesRoute
-  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
-}
-
-const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
-  AuthenticatedChatRoute: AuthenticatedChatRoute,
-  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedEmployeesRoute: AuthenticatedEmployeesRoute,
-  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
-}
-
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
-interface AdsRouteChildren {
-  AdsAdIdRoute: typeof AdsAdIdRoute
+const rootRoute = rootRouteImport._addFileChildren(rootRouteChildren)
+const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)
+
+type FileMirrors = {
+  '/': {
+    id: '/'
+    path: '/'
+    fullPath: '/'
+    preLoaderRoute: typeof IndexRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/ads': {
+    id: '/ads'
+    path: '/ads'
+    fullPath: '/ads'
+    preLoaderRoute: typeof AdsRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/auth': {
+    id: '/auth'
+    path: '/auth'
+    fullPath: '/auth'
+    preLoaderRoute: typeof AuthRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/client-login': {
+    id: '/client-login'
+    path: '/client-login'
+    fullPath: '/client-login'
+    preLoaderRoute: typeof ClientLoginRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/client-logout': {
+    id: '/client-logout'
+    path: '/client-logout'
+    fullPath: '/client-logout'
+    preLoaderRoute: typeof ClientLogoutRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/client-portal': {
+    id: '/client-portal'
+    path: '/client-portal'
+    fullPath: '/client-portal'
+    preLoaderRoute: typeof ClientPortalRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/contact': {
+    id: '/contact'
+    path: '/contact'
+    fullPath: '/contact'
+    preLoaderRoute: typeof ContactRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/forgot-password': {
+    id: '/forgot-password'
+    path: '/forgot-password'
+    fullPath: '/forgot-password'
+    preLoaderRoute: typeof ForgotPasswordRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/maintenance': {
+    id: '/maintenance'
+    path: '/maintenance'
+    fullPath: '/maintenance'
+    preLoaderRoute: typeof MaintenanceRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/my-requests': {
+    id: '/my-requests'
+    path: '/my-requests'
+    fullPath: '/my-requests'
+    preLoaderRoute: typeof MyRequestsRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/projects': {
+    id: '/projects'
+    path: '/projects'
+    fullPath: '/projects'
+    preLoaderRoute: typeof ProjectsRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/reset-password': {
+    id: '/reset-password'
+    path: '/reset-password'
+    fullPath: '/reset-password'
+    preLoaderRoute: typeof ResetPasswordRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/subscribe-success': {
+    id: '/subscribe-success'
+    path: '/subscribe-success'
+    fullPath: '/subscribe-success'
+    preLoaderRoute: typeof SubscribeSuccessRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/thank-you': {
+    id: '/thank-you'
+    path: '/thank-you'
+    fullPath: '/thank-you'
+    preLoaderRoute: typeof ThankYouRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/unsubscribe': {
+    id: '/unsubscribe'
+    path: '/unsubscribe'
+    fullPath: '/unsubscribe'
+    preLoaderRoute: typeof UnsubscribeRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/vip': {
+    id: '/vip'
+    path: '/vip'
+    fullPath: '/vip'
+    preLoaderRoute: typeof VipRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/_authenticated': {
+    id: '/_authenticated'
+    path: '/_authenticated'
+    fullPath: '/_authenticated'
+    preLoaderRoute: typeof AuthenticatedRouteRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/_authenticated/admin': {
+    id: '/_authenticated/admin'
+    path: '/admin'
+    fullPath: '/admin'
+    preLoaderRoute: typeof AuthenticatedAdminRouteImport
+    parentRoute: typeof AuthenticatedRouteRoute
+  }
+  '/_authenticated/chat': {
+    id: '/_authenticated/chat'
+    path: '/chat'
+    fullPath: '/chat'
+    preLoaderRoute: typeof AuthenticatedChatRouteImport
+    parentRoute: typeof AuthenticatedRouteRoute
+  }
+  '/_authenticated/dashboard': {
+    id: '/_authenticated/dashboard'
+    path: '/dashboard'
+    fullPath: '/dashboard'
+    preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+    parentRoute: typeof AuthenticatedRouteRoute
+  }
+  '/_authenticated/employees': {
+    id: '/_authenticated/employees'
+    path: '/employees'
+    fullPath: '/employees'
+    preLoaderRoute: typeof AuthenticatedEmployeesRouteImport
+    parentRoute: typeof AuthenticatedRouteRoute
+  }
+  '/_authenticated/upload': {
+    id: '/_authenticated/upload'
+    path: '/upload'
+    fullPath: '/upload'
+    preLoaderRoute: typeof AuthenticatedUploadRouteImport
+    parentRoute: typeof AuthenticatedRouteRoute
+  }
+  '/ads/$adId': {
+    id: '/ads/$adId'
+    path: '/$adId'
+    fullPath: '/ads/$adId'
+    preLoaderRoute: typeof AdsAdIdRouteImport
+    parentRoute: typeof AdsRoute
+  }
+  '/email/unsubscribe': {
+    id: '/email/unsubscribe'
+    path: '/email/unsubscribe'
+    fullPath: '/email/unsubscribe'
+    preLoaderRoute: typeof EmailUnsubscribeRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/project/$id': {
+    id: '/project/$id'
+    path: '/project/$id'
+    fullPath: '/project/$id'
+    preLoaderRoute: typeof ProjectIdRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/vip/': {
+    id: '/vip/'
+    path: '/'
+    fullPath: '/vip/'
+    preLoaderRoute: typeof VipIndexRouteImport
+    parentRoute: typeof VipRoute
+  }
+  '/_authenticated/admin/': {
+    id: '/_authenticated/admin/'
+    path: '/'
+    fullPath: '/admin/'
+    preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/ads': {
+    id: '/_authenticated/admin/ads'
+    path: '/ads'
+    fullPath: '/admin/ads'
+    preLoaderRoute: typeof AuthenticatedAdminAdsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/bot-settings': {
+    id: '/_authenticated/admin/bot-settings'
+    path: '/bot-settings'
+    fullPath: '/admin/bot-settings'
+    preLoaderRoute: typeof AuthenticatedAdminBotSettingsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/bot-test': {
+    id: '/_authenticated/admin/bot-test'
+    path: '/bot-test'
+    fullPath: '/admin/bot-test'
+    preLoaderRoute: typeof AuthenticatedAdminBotTestRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/bot-training': {
+    id: '/_authenticated/admin/bot-training'
+    path: '/bot-training'
+    fullPath: '/admin/bot-training'
+    preLoaderRoute: typeof AuthenticatedAdminBotTrainingRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/chat': {
+    id: '/_authenticated/admin/chat'
+    path: '/chat'
+    fullPath: '/admin/chat'
+    preLoaderRoute: typeof AuthenticatedAdminChatRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/clients': {
+    id: '/_authenticated/admin/clients'
+    path: '/clients'
+    fullPath: '/admin/clients'
+    preLoaderRoute: typeof AuthenticatedAdminClientsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/employees': {
+    id: '/_authenticated/admin/employees'
+    path: '/employees'
+    fullPath: '/admin/employees'
+    preLoaderRoute: typeof AuthenticatedAdminEmployeesRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/exclusivity': {
+    id: '/_authenticated/admin/exclusivity'
+    path: '/exclusivity'
+    fullPath: '/admin/exclusivity'
+    preLoaderRoute: typeof AuthenticatedAdminExclusivityRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/groq-settings': {
+    id: '/_authenticated/admin/groq-settings'
+    path: '/groq-settings'
+    fullPath: '/admin/groq-settings'
+    preLoaderRoute: typeof AuthenticatedAdminGroqSettingsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/messages': {
+    id: '/_authenticated/admin/messages'
+    path: '/messages'
+    fullPath: '/admin/messages'
+    preLoaderRoute: typeof AuthenticatedAdminMessagesRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/my-projects': {
+    id: '/_authenticated/admin/my-projects'
+    path: '/my-projects'
+    fullPath: '/admin/my-projects'
+    preLoaderRoute: typeof AuthenticatedAdminMyProjectsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/offers': {
+    id: '/_authenticated/admin/offers'
+    path: '/offers'
+    fullPath: '/admin/offers'
+    preLoaderRoute: typeof AuthenticatedAdminOffersRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/pending-projects': {
+    id: '/_authenticated/admin/pending-projects'
+    path: '/pending-projects'
+    fullPath: '/admin/pending-projects'
+    preLoaderRoute: typeof AuthenticatedAdminPendingProjectsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/projects': {
+    id: '/_authenticated/admin/projects'
+    path: '/projects'
+    fullPath: '/admin/projects'
+    preLoaderRoute: typeof AuthenticatedAdminProjectsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/requests': {
+    id: '/_authenticated/admin/requests'
+    path: '/requests'
+    fullPath: '/admin/requests'
+    preLoaderRoute: typeof AuthenticatedAdminRequestsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/settings': {
+    id: '/_authenticated/admin/settings'
+    path: '/settings'
+    fullPath: '/admin/settings'
+    preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/support': {
+    id: '/_authenticated/admin/support'
+    path: '/support'
+    fullPath: '/admin/support'
+    preLoaderRoute: typeof AuthenticatedAdminSupportRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/users': {
+    id: '/_authenticated/admin/users'
+    path: '/users'
+    fullPath: '/admin/users'
+    preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/vip': {
+    id: '/_authenticated/admin/vip'
+    path: '/vip'
+    fullPath: '/admin/vip'
+    preLoaderRoute: typeof AuthenticatedAdminVipRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/approvals': {
+    id: '/_authenticated/admin/approvals'
+    path: '/approvals'
+    fullPath: '/admin/approvals'
+    preLoaderRoute: typeof AuthenticatedAdminApprovalsRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/api/admin/r2': {
+    id: '/api/admin/r2'
+    path: '/api/admin/r2'
+    fullPath: '/api/admin/r2'
+    preLoaderRoute: typeof ApiAdminR2RouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/api/cron/check-subscriptions': {
+    id: '/api/cron/check-subscriptions'
+    path: '/api/cron/check-subscriptions'
+    fullPath: '/api/cron/check-subscriptions'
+    preLoaderRoute: typeof ApiCronCheckSubscriptionsRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/api/cron/vip-expiry': {
+    id: '/api/cron/vip-expiry'
+    path: '/api/cron/vip-expiry'
+    fullPath: '/api/cron/vip-expiry'
+    preLoaderRoute: typeof ApiCronVipExpiryRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/api/notifications/send': {
+    id: '/api/notifications/send'
+    path: '/api/notifications/send'
+    fullPath: '/api/notifications/send'
+    preLoaderRoute: typeof ApiNotificationsSendRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/api/notifications/subscribe': {
+    id: '/api/notifications/subscribe'
+    path: '/api/notifications/subscribe'
+    fullPath: '/api/notifications/subscribe'
+    preLoaderRoute: typeof ApiNotificationsSubscribeRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/api/public/upload': {
+    id: '/api/public/upload'
+    path: '/api/public/upload'
+    fullPath: '/api/public/upload'
+    preLoaderRoute: typeof ApiPublicUploadRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/api/push/send': {
+    id: '/api/push/send'
+    path: '/api/push/send'
+    fullPath: '/api/push/send'
+    preLoaderRoute: typeof ApiPushSendRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/lovable/email/suppression': {
+    id: '/lovable/email/suppression'
+    path: '/lovable/email/suppression'
+    fullPath: '/lovable/email/suppression'
+    preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/lovable/email/queue/process': {
+    id: '/lovable/email/queue/process'
+    path: '/lovable/email/queue/process'
+    fullPath: '/lovable/email/queue/process'
+    preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/lovable/email/transactional/preview': {
+    id: '/lovable/email/transactional/preview'
+    path: '/lovable/email/transactional/preview'
+    fullPath: '/lovable/email/transactional/preview'
+    preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/lovable/email/transactional/send': {
+    id: '/lovable/email/transactional/send'
+    path: '/lovable/email/transactional/send'
+    fullPath: '/lovable/email/transactional/send'
+    preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
+    parentRoute: typeof rootRouteImport
+  }
 }
 
-const AdsRouteChildren: AdsRouteChildren = {
-  AdsAdIdRoute: AdsAdIdRoute,
+declare module '@tanstack/react-router' {
+  interface Register {
+    routeTree: typeof routeTree
+  }
 }
 
-const AdsRouteWithChildren = AdsRoute._addFileChildren(AdsRouteChildren)
-
-interface VipRouteChildren {
-  VipIndexRoute: typeof VipIndexRoute
-}
-
-const VipRouteChildren: VipRouteChildren = {
-  VipIndexRoute: VipIndexRoute,
-}
-
-const VipRouteWithChildren = VipRoute._addFileChildren(VipRouteChildren)
-
-const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AdsRoute: AdsRouteWithChildren,
-  AuthRoute: AuthRoute,
-  ClientLoginRoute: ClientLoginRoute,
-  ClientLogoutRoute: ClientLogoutRoute,
-  ClientPortalRoute: ClientPortalRoute,
-  ContactRoute: ContactRoute,
-  ForgotPasswordRoute: ForgotPasswordRoute,
-  MaintenanceRoute: MaintenanceRoute,
-  MyRequestsRoute: MyRequestsRoute,
-  ProjectsRoute: ProjectsRoute,
-  ResetPasswordRoute: ResetPasswordRoute,
-  SubscribeSuccessRoute: SubscribeSuccessRoute,
-  ThankYouRoute: ThankYouRoute,
-  UnsubscribeRoute: UnsubscribeRoute,
-  VipRoute: VipRouteWithChildren,
-  EmailUnsubscribeRoute: EmailUnsubscribeRoute,
-  ProjectIdRoute: ProjectIdRoute,
-  ApiAdminR2Route: ApiAdminR2Route,
-  ApiCronCheckSubscriptionsRoute: ApiCronCheckSubscriptionsRoute,
-  ApiCronVipExpiryRoute: ApiCronVipExpiryRoute,
-  ApiNotificationsSendRoute: ApiNotificationsSendRoute,
-  ApiNotificationsSubscribeRoute: ApiNotificationsSubscribeRoute,
-  ApiPublicUploadRoute: ApiPublicUploadRoute,
-  ApiPushSendRoute: ApiPushSendRoute,
-  LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
-  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
-  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
-  LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
-}
-export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true

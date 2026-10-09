@@ -37,7 +37,6 @@ export function getBucket(): string {
   return b;
 }
 
-
 export function getEndpoint(): string {
   const e =
     process.env.R2_ENDPOINT ||
@@ -95,6 +94,7 @@ export async function signGetUrl(key: string, expiresIn = 60 * 60): Promise<stri
   return signed.url;
 }
 
+/** Delete a file from R2. Ignores 404 (already deleted). */
 export async function deleteFromR2(key: string): Promise<void> {
   const res = await getClient().fetch(objectUrl(key), { method: "DELETE" });
   if (!res.ok && res.status !== 404) {
