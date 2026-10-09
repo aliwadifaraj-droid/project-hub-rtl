@@ -627,8 +627,11 @@ export function ClientPortalShell() {
             <div className="my-4 border-t border-dashed border-gray-200" />
 
             <div className="flex flex-row items-center justify-center gap-4 px-2">
-              <div className="order-2 flex-shrink-0">
+              <div className="order-2 flex flex-shrink-0 flex-col items-center">
                 <img src="/seal.svg" alt="ختم" className="h-[38px] w-[38px] opacity-80 sm:h-[70px] sm:w-[70px]" />
+                <span className="text-[7px] text-gray-500">
+                  {new Date().toLocaleDateString('ar-EG', {day:'2-digit', month:'2-digit'})}
+                </span>
               </div>
               <div className="order-1 flex-shrink-0">
                 <QRCodeSVG
