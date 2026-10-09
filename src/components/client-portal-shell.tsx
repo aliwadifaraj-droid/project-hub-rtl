@@ -605,6 +605,14 @@ export function ClientPortalShell() {
       {showReceiptModal && receiptModalData && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 print:bg-none print:p-0" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
           <div className="receipt-card relative w-[90vw] max-w-sm rounded-2xl border border-border bg-white p-4 shadow-2xl print:shadow-none sm:p-6">
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(false)}
+              aria-label="إغلاق الإيصال"
+              className="absolute left-3 top-3 rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 print:hidden"
+            >
+              <X className="h-5 w-5" />
+            </button>
             <h2 id="receipt-modal-title" className="mb-6 text-center text-xl font-bold text-emerald-600">
               إيصال معتمد ✓
             </h2>
@@ -641,6 +649,14 @@ export function ClientPortalShell() {
                 />
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(false)}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 font-bold text-gray-700 transition hover:bg-gray-50 print:hidden"
+            >
+              العودة للمنصة
+            </button>
 
             <p className="mt-4 text-center text-xs text-gray-400">
               وثيقة صادرة إلكترونياً ويمكن التحقق عبر QR
