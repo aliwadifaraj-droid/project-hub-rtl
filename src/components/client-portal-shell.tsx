@@ -635,7 +635,7 @@ export function ClientPortalShell() {
                 />
               </div>
               <div className="flex-shrink-0">
-                <img src="/seal.png" alt="ختم" width={70} height={70} />
+                <img src="/seal.svg" alt="ختم" width={70} height={70} />
               </div>
             </div>
 
