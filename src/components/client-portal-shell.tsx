@@ -468,7 +468,7 @@ export function ClientPortalShell() {
 
       {showTameed && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby="tameed-title">
-          <div className="relative w-full max-w-md rounded-3xl border border-blue-200 bg-card p-6 shadow-2xl sm:p-8">
+          <div className="absolute left-1/2 top-1/2 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-blue-200 bg-card p-6 shadow-2xl sm:relative sm:left-auto sm:top-auto sm:w-full sm:translate-x-0 sm:translate-y-0 sm:p-8">
             <button type="button" onClick={closeTameed} aria-label="إغلاق" className="absolute left-4 top-4 rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground">
               <X className="h-5 w-5" />
             </button>
