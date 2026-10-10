@@ -22,6 +22,7 @@ function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
+    // getMe تعيد null للعملاء، فتبقى الصفحة متاحة لتسجيل دخول الادمن
     doGetMe()
       .then((me) => {
         if (me) navigate({ to: "/admin", replace: true });

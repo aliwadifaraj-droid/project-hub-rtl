@@ -78,6 +78,8 @@ export const signInClient = createServerFn({ method: "POST" })
 export const getClientSession = createServerFn({ method: "GET" }).handler(async () => {
   const claims = await getSessionClaims();
   if (!claims) return null;
+  // منع الادمن/الموظفين من دخول لوحة العملاء
+  if (!claims.roles?.includes("client")) return null;
   // Try by client id first, then fall back to email lookup (for migrated clients
   // whose client_profiles.user_id still points to old users.id)
   let profile = await clientRepo.getClientProfile(claims.sub);
