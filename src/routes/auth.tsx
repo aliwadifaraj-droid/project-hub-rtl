@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { signIn, signUp, getMe, getSessionClaimsPublic } from "@/lib/auth.functions";
+import { signIn, signUp, getMe } from "@/lib/auth.functions";
 import { SiteHeader } from "@/components/site-header";
 import { Loader2, Lock, UserPlus } from "lucide-react";
 
@@ -14,7 +14,6 @@ function AuthPage() {
   const doSignIn = useServerFn(signIn);
   const doSignUp = useServerFn(signUp);
   const doGetMe = useServerFn(getMe);
-  const doGetClaims = useServerFn(getSessionClaimsPublic);
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,19 +22,13 @@ function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    // إذا كان العميل مسجل دخول، حوله إلى لوحة العملاء بدلاً من لوحة التحكم
-    doGetClaims()
-      .then((claims) => {
-        if (claims?.roles?.includes("client")) {
-          navigate({ to: "/client-portal", replace: true });
-          return;
-        }
-        return doGetMe().then((me) => {
-          if (me) navigate({ to: "/admin", replace: true });
-        });
+    // getMe تعيد null للعملاء، فتبقى الصفحة متاحة لتسجيل دخول الادمن
+    doGetMe()
+      .then((me) => {
+        if (me) navigate({ to: "/admin", replace: true });
       })
       .catch(() => undefined);
-  }, [doGetClaims, doGetMe, navigate]);
+  }, [doGetMe, navigate]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
