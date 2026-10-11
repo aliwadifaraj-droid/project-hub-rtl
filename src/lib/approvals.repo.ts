@@ -226,7 +226,7 @@ function decodeToken(r: any): ApprovalTokenRow {
     id: String(r.id ?? ""),
     token_code: String(r.token_code || r.code || r.token || ""),
     client_id: String(r.client_id || r.user_id || ""),
-    client_name: String(r.client_name ?? ""),
+    client_name: String(r.display_client_name ?? r.client_name ?? ""),
     project_id: String(r.project_id ?? ""),
     project_name: String(r.project_name ?? ""),
     total_commission: String(r.total_commission || r.amount || "0"),
@@ -247,7 +247,7 @@ function decodeReceipt(r: any): ApprovalReceiptRow {
     token_id: String(r.token_id ?? ""),
     token_code: String(r.token_code || r.code || r.token || ""),
     client_id: String(r.client_id || r.user_id || ""),
-    client_name: String(r.client_name ?? ""),
+    client_name: String(r.display_client_name ?? r.client_name ?? ""),
     amount: String(r.amount ?? "0"),
     ocr_result: r.ocr_result ?? null,
     ocr_amount: r.ocr_amount ?? null,
@@ -420,7 +420,18 @@ export async function findTokenByCode(code: string): Promise<ApprovalTokenRow | 
 
 export async function listAllApprovalTokens(): Promise<ApprovalTokenRow[]> {
   await ensureApprovalTables();
-  const r = await db.execute("SELECT * FROM approval_tokens ORDER BY created_at DESC");
+  const r = await db.execute(
+    `SELECT t.*,
+            COALESCE(
+              (SELECT NULLIF(trim(cp.company_name), '')
+               FROM client_profiles cp
+               WHERE cp.user_id = t.client_id OR cp.user_id = t.user_id
+               LIMIT 1),
+              t.client_name
+            ) AS display_client_name
+     FROM approval_tokens t
+     ORDER BY t.created_at DESC`,
+  );
   return Promise.all(rowsToObjects(r).map(async (row) => {
     const token = decodeToken(row);
     token.installments = await listApprovalInstallments(token.id);
@@ -512,7 +523,18 @@ export async function createApprovalReceipt(data: {
 
 export async function listAllApprovalReceipts(): Promise<ApprovalReceiptRow[]> {
   await ensureApprovalTables();
-  const r = await db.execute("SELECT * FROM approval_receipts ORDER BY created_at DESC");
+  const r = await db.execute(
+    `SELECT r.*,
+            COALESCE(
+              (SELECT NULLIF(trim(cp.company_name), '')
+               FROM client_profiles cp
+               WHERE cp.user_id = r.user_id
+               LIMIT 1),
+              r.client_name
+            ) AS display_client_name
+     FROM approval_receipts r
+     ORDER BY r.created_at DESC`,
+  );
   return rowsToObjects(r).map(decodeReceipt);
 }
 
