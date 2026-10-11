@@ -369,6 +369,10 @@ CREATE INDEX IF NOT EXISTS idx_approval_tokens_user ON approval_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_approval_tokens_token ON approval_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_approval_tokens_status ON approval_tokens(status);
 
+-- ============ approval_tokens new columns ============
+ALTER TABLE approval_tokens ADD COLUMN project_id TEXT;
+ALTER TABLE approval_tokens ADD COLUMN signature_image TEXT;
+
 -- ============ approval_receipts ============
 CREATE TABLE IF NOT EXISTS approval_receipts (
   id           TEXT PRIMARY KEY,
