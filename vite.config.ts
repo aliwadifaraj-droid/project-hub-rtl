@@ -10,7 +10,13 @@ const nitroConfig = nitroPreset
       preset: nitroPreset,
       ...(isVercel ? { vercel: { entryFormat: "node" } } : {}),
     }
-  : undefined;
+  : {
+      output: {
+        dir: "dist",
+        serverDir: "dist/server",
+        publicDir: "dist/client",
+      },
+    };
 
 // Load all env vars (no prefix filter) so server routes can read
 // SUPABASE_SERVICE_ROLE_KEY etc. via process.env in dev.
