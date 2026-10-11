@@ -9,7 +9,7 @@ import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
-import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest } from "@/lib/tameed.functions";
+import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest, clientListMyTameedCodes } from "@/lib/tameed.functions";
 import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
@@ -28,12 +28,14 @@ export function ClientPortalShell() {
   const verifyReceipt = useServerFn(validateReceiptOcr);
   const submitReceipt = useServerFn(submitApprovalReceipt);
   const fetchMyProjects = useServerFn(clientListMyProjects);
+  const fetchTameedCodes = useServerFn(clientListMyTameedCodes);
   const createTameed = useServerFn(clientCreateTameedRequest);
   const queryClient = useQueryClient();
   const [showVipIntro, setShowVipIntro] = useState(false);
   const [showTameed, setShowTameed] = useState(false);
   const [tameedCode, setTameedCode] = useState("");
-  const [tameedStep, setTameedStep] = useState<"input" | "payment">("input");
+  const [tameedStep, setTameedStep] = useState<"list" | "input" | "payment">("list");
+  const [showNewTameedForm, setShowNewTameedForm] = useState(false);
   const [tameedLoading, setTameedLoading] = useState(false);
   const [tameedError, setTameedError] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -85,6 +87,12 @@ export function ClientPortalShell() {
     queryKey: ["client-my-projects-tameed"],
     queryFn: () => fetchMyProjects(),
     enabled: showContractModal,
+  });
+  const { data: myTameedCodes = [], refetch: refetchTameedCodes } = useQuery({
+    queryKey: ["client-tameed-codes"],
+    queryFn: () => fetchTameedCodes(),
+    enabled: showTameed,
+    refetchOnMount: "always",
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
 
@@ -152,7 +160,8 @@ export function ClientPortalShell() {
 
   function openTameed(): void {
     setShowTameed(true);
-    setTameedStep("input");
+    setTameedStep("list");
+    setShowNewTameedForm(false);
     setTameedCode("");
     setTameedError("");
     setReceiptFile(null);
@@ -161,11 +170,13 @@ export function ClientPortalShell() {
     setReceiptError("");
     setReceiptSent(false);
     setTameedResult(null);
+    void refetchTameedCodes();
   }
 
   function closeTameed(): void {
     setShowTameed(false);
-    setTameedStep("input");
+    setTameedStep("list");
+    setShowNewTameedForm(false);
     setTameedCode("");
     setTameedError("");
     setReceiptFile(null);
@@ -203,6 +214,8 @@ export function ClientPortalShell() {
       const result = await createTameed({ data: { project_id: selectedProjectId, signature_image: signatureDataUrl } });
       setTameedToken(result.token);
       toast.success(`تم إنشاء طلب التعميد بنجاح: ${result.token}`);
+      void queryClient.invalidateQueries({ queryKey: ["client-tameed-codes"] });
+      void refetchTameedCodes();
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "تعذر إنشاء طلب التعميد";
       toast.error(detail);
@@ -527,8 +540,118 @@ export function ClientPortalShell() {
             </div>
             <h2 id="tameed-title" className="mt-5 text-center text-2xl font-extrabold">تعميد العميل</h2>
 
+            {tameedStep === "list" && (
+              <div className="mt-6 max-h-[60vh] space-y-3 overflow-y-auto">
+                {myTameedCodes.length > 0 ? (
+                  <>
+                    {myTameedCodes.map((tc) => (
+                      <div key={tc.id} className="rounded-xl border border-border bg-secondary/30 p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <BadgeCheck className="h-4 w-4 text-blue-600" />
+                            <span className="text-lg font-extrabold tracking-wider text-foreground" dir="ltr">{tc.code}</span>
+                          </div>
+                          <button type="button" onClick={(e) => void copyToClipboard(e, tc.code)} className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-medium transition hover:bg-secondary">
+                            <Copy className="h-3 w-3" />
+                            نسخ
+                          </button>
+                        </div>
+                        <div className="mt-2 text-xs text-muted-foreground">{tc.project_name || "—"}</div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                          <span className="text-muted-foreground">الإجمالي: <span className="font-bold text-foreground">{tc.total.toLocaleString("en-US")} ر.س</span></span>
+                          <span className="text-muted-foreground">المدفوع: <span className="font-bold text-emerald-700">{tc.paid.toLocaleString("en-US")} ر.س</span></span>
+                          <span className="text-muted-foreground">المتبقي: <span className="font-bold text-foreground">{tc.remaining.toLocaleString("en-US")} ر.س</span></span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold ${
+                            tc.status === "بانتظار التسعير"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : tc.status === "نشط"
+                              ? "bg-blue-100 text-blue-800"
+                              : tc.status === "approved" || tc.status === "approved"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-gray-100 text-gray-700"
+                          }`}>
+                            {tc.status === "بانتظار التسعير" ? "بانتظار التسعير" : tc.status === "نشط" ? "نشط" : tc.status}
+                          </span>
+                        </div>
+
+                        {tc.status === "بانتظار التسعير" && (
+                          <div className="mt-3 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-sm font-semibold text-yellow-800">
+                            طلبك قيد التسعير من الإدارة
+                          </div>
+                        )}
+
+                        {tc.status === "نشط" && tc.due_amount > 0 && (
+                          <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-800">
+                            يوجد دفعة مستحقة {tc.due_amount.toLocaleString("en-US")} ر.س - سدد الآن
+                            <button
+                              type="button"
+                              onClick={() => { setTameedCode(tc.code); setTameedStep("input"); void handleValidateToken(); }}
+                              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+                            >
+                              سداد الآن
+                            </button>
+                          </div>
+                        )}
+
+                        {tc.status === "نشط" && tc.due_amount <= 0 && tc.remaining > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => { setTameedCode(tc.code); setTameedStep("input"); void handleValidateToken(); }}
+                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+                          >
+                            متابعة التعميد
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setTameedStep("input")}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-5 py-3 font-semibold text-blue-800 transition hover:bg-blue-100"
+                    >
+                      <BadgeCheck className="h-4 w-4" />
+                      تعميد جديد
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">لا يوجد لديك طلبات تعميد حالياً</p>
+                    <button
+                      type="button"
+                      onClick={() => setTameedStep("input")}
+                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700"
+                    >
+                      <BadgeCheck className="h-4 w-4" />
+                      إنشاء تعميد جديد
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={closeTameed}
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary"
+                >
+                  العودة للمنصة
+                </button>
+              </div>
+            )}
+
             {tameedStep === "input" && (
               <div className="mt-6">
+                {!showNewTameedForm && myTameedCodes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTameedStep("list")}
+                    className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 transition hover:text-blue-800"
+                  >
+                    <ChevronLeft className="h-4 w-4 rotate-180" />
+                    العودة لقائمة التعميدات
+                  </button>
+                )}
+
                 <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
                   <p className="mb-2 font-bold">لإنشاء طلب تعميد جديد لمشروع:</p>
                   <button type="button" onClick={openContractModal} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-white transition hover:bg-blue-700">
@@ -675,7 +798,7 @@ export function ClientPortalShell() {
                   </button>
                 </div>
                 <p className="mt-4 text-center text-sm text-muted-foreground">سيقوم المسؤول بتحديد المبلغ وتفعيل الرمز قريباً.</p>
-                <button type="button" onClick={closeContractModal} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700">
+                <button type="button" onClick={() => { closeContractModal(); setTameedStep("list"); void refetchTameedCodes(); }} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700">
                   <CheckCircle2 className="h-4 w-4" />
                   تم
                 </button>
