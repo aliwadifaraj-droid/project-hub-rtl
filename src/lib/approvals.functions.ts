@@ -141,12 +141,13 @@ export const adminRejectReceipt = createServerFn({ method: "POST" })
 const setTokenAmountSchema = z.object({
   token_id: z.string().min(1),
   total_amount: z.string().min(1),
+  first_due_amount: z.string().min(1),
 });
 
 export const adminSetTokenAmount = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) => setTokenAmountSchema.parse(d))
   .handler(async ({ data }) => {
-    await setTokenAmount(data.token_id, data.total_amount);
+    await setTokenAmount(data.token_id, data.total_amount, data.first_due_amount);
     return { ok: true };
   });

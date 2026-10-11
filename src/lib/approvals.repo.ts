@@ -331,24 +331,27 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
   return (await findTokenById(id))!;
 }
 
-export async function setTokenAmount(tokenId: string, totalAmount: string): Promise<void> {
+export async function setTokenAmount(tokenId: string, totalAmount: string, firstDueAmount: string): Promise<void> {
   await ensureApprovalTables();
   const now = new Date().toISOString();
   const token = await findTokenById(tokenId);
   if (!token) throw new Error("رمز التعميد غير موجود");
   if (token.status !== "بانتظار التسعير") throw new Error("هذا الرمز ليس بحالة بانتظار التسعير");
-  const amount = Number(totalAmount);
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("المبلغ غير صحيح");
+  const total = Number(totalAmount);
+  const firstDue = Number(firstDueAmount);
+  if (!Number.isFinite(total) || total <= 0) throw new Error("المبلغ الإجمالي غير صحيح");
+  if (!Number.isFinite(firstDue) || firstDue <= 0) throw new Error("مبلغ الدفعة الأولى غير صحيح");
+  if (firstDue > total + 0.01) throw new Error("الدفعة الأولى لا يمكن أن تتجاوز الإجمالي");
 
   await db.execute(
     "UPDATE approval_tokens SET total_commission = ?, allowed_amount = ?, allowed_payment_now = ?, amount = ?, status = 'نشط', updated_at = ? WHERE id = ?",
-    [totalAmount, totalAmount, totalAmount, totalAmount, now, tokenId],
+    [totalAmount, firstDueAmount, firstDueAmount, totalAmount, now, tokenId],
   );
 
   await db.execute(
     `INSERT INTO approval_installments (id, token_id, installment_number, amount, paid_amount, status, created_at)
      VALUES (?, ?, 1, ?, '0', 'pending', ?)`,
-    [crypto.randomUUID(), tokenId, totalAmount, now],
+    [crypto.randomUUID(), tokenId, firstDueAmount, now],
   );
 }
 
