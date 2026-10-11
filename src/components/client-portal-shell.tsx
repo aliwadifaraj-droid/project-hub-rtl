@@ -21,6 +21,21 @@ type ApprovedReceiptInfo = {
   approved_at: string;
 };
 
+type ClientInstallment = {
+  id?: string | number;
+  number: number;
+  amount: number;
+  paid_amount: number;
+  status: string;
+};
+
+function getInstallmentState(status: string): "due" | "paid" | "disabled" {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "paid" || normalized === "مدفوع") return "paid";
+  if (normalized === "disabled" || normalized === "inactive" || normalized === "معطل") return "disabled";
+  return "due";
+}
+
 export function ClientPortalShell() {
   const listTickets = useServerFn(listMyClientTickets);
   const getVipStatus = useServerFn(getClientVipStatus);
@@ -67,6 +82,7 @@ export function ClientPortalShell() {
   const [contractAgreed, setContractAgreed] = useState(false);
   const [tameedSubmitting, setTameedSubmitting] = useState(false);
   const [tameedToken, setTameedToken] = useState("");
+  const [installmentsByCode, setInstallmentsByCode] = useState<Record<string, ClientInstallment[]>>({});
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
 
   const { data: tickets = [] } = useQuery({
@@ -94,6 +110,38 @@ export function ClientPortalShell() {
     refetchOnMount: "always",
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
+
+  useEffect(() => {
+    if (!showTameed || myTameedCodes.length === 0) return;
+    let cancelled = false;
+
+    async function loadInstallments(): Promise<void> {
+      const entries = await Promise.all(myTameedCodes.map(async (tameedCode) => {
+        const response = await fetch("/api/approvals/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: tameedCode.code }),
+        });
+        if (!response.ok) return [tameedCode.code, []] as const;
+        const payload: { installments?: Array<Partial<ClientInstallment>> } = await response.json();
+        const installments = (payload.installments ?? []).map((installment, index) => ({
+          id: installment.id ?? installment.number ?? index + 1,
+          number: Number(installment.number ?? index + 1),
+          amount: Number(installment.amount ?? 0),
+          paid_amount: Number(installment.paid_amount ?? 0),
+          status: String(installment.status ?? "disabled"),
+        }));
+        return [tameedCode.code, installments] as const;
+      }));
+
+      if (!cancelled) setInstallmentsByCode(Object.fromEntries(entries));
+    }
+
+    void loadInstallments();
+    return () => {
+      cancelled = true;
+    };
+  }, [myTameedCodes, showTameed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -225,8 +273,9 @@ export function ClientPortalShell() {
     }
   }
 
-  async function handleValidateToken(): Promise<void> {
-    if (!tameedCode.trim()) {
+  async function handleValidateToken(codeOverride?: string): Promise<void> {
+    const codeToValidate = (codeOverride ?? tameedCode).trim();
+    if (!codeToValidate) {
       toast.error("أدخل رمز التعميد");
       return;
     }
@@ -235,7 +284,7 @@ export function ClientPortalShell() {
       const res = await fetch("/api/approvals/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: tameedCode.trim() }),
+        body: JSON.stringify({ code: codeToValidate }),
       });
       const result = { data: await res.json() };
 
@@ -246,7 +295,7 @@ export function ClientPortalShell() {
         return;
       }
 
-      localStorage.setItem('approval_token', tameedCode.trim());
+      localStorage.setItem('approval_token', codeToValidate);
       localStorage.setItem('approval_data', JSON.stringify(result.data));
       const bankAccount = result.data.bankAccount ?? {};
       const iban = String(bankAccount.iban ?? result.data.iban ?? "");
@@ -545,7 +594,11 @@ export function ClientPortalShell() {
               <div className="mt-6 max-h-[60vh] space-y-3 overflow-y-auto">
                 {myTameedCodes.length > 0 ? (
                   <>
-                    {myTameedCodes.map((tc) => (
+                    {myTameedCodes.map((tc) => {
+                      const installments = installmentsByCode[tc.code] ?? [];
+                      const dueInstallments = installments.filter((installment) => getInstallmentState(installment.status) === "due");
+
+                      return (
                       <div key={tc.id} className="rounded-xl border border-border bg-secondary/30 p-4">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
@@ -583,30 +636,53 @@ export function ClientPortalShell() {
                           </div>
                         )}
 
-                        {tc.status === "نشط" && tc.due_amount > 0 && (
+                        {dueInstallments.length > 0 && (
                           <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-800">
-                            يوجد دفعة مستحقة {tc.due_amount.toLocaleString("en-US")} ر.س - سدد الآن
-                            <button
-                              type="button"
-                              onClick={() => { setTameedCode(tc.code); setTameedStep("input"); void handleValidateToken(); }}
-                              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
-                            >
-                              سداد الآن
-                            </button>
+                            يوجد دفعة مستحقة
                           </div>
                         )}
 
-                        {tc.status === "نشط" && tc.due_amount <= 0 && tc.remaining > 0 && (
+                        {installments.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {installments.map((installment) => {
+                              const state = getInstallmentState(installment.status);
+                              return (
+                                <div key={`${tc.id}-${installment.number}`} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
+                                  <div className="text-sm">
+                                    <span className="font-bold">الدفعة {installment.number}</span>
+                                    <span className="ms-2 text-muted-foreground">{installment.amount.toLocaleString("en-US")} ر.س</span>
+                                  </div>
+                                  {state === "paid" ? (
+                                    <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">مدفوع</span>
+                                  ) : state === "disabled" ? (
+                                    <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">معطل</span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setTameedCode(tc.code); setTameedStep("input"); void handleValidateToken(tc.code); }}
+                                      className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                                    >
+                                      سداد الآن
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {installments.length === 0 && tc.remaining > 0 && (
                           <button
                             type="button"
-                            onClick={() => { setTameedCode(tc.code); setTameedStep("input"); void handleValidateToken(); }}
+                            onClick={() => { setTameedCode(tc.code); setTameedStep("input"); void handleValidateToken(tc.code); }}
                             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
                           >
                             متابعة التعميد
                           </button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
 
                     <button
                       type="button"
