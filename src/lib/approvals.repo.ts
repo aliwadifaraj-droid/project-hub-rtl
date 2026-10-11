@@ -226,7 +226,7 @@ function decodeToken(r: any): ApprovalTokenRow {
     id: String(r.id ?? ""),
     token_code: String(r.token_code || r.code || r.token || ""),
     client_id: String(r.client_id || r.user_id || ""),
-    client_name: String(r.display_client_name ?? r.client_name ?? ""),
+    client_name: String(r.display_client_name ?? "اسم الشركة غير مسجل"),
     project_id: String(r.project_id ?? ""),
     project_name: String(r.project_name ?? ""),
     total_commission: String(r.total_commission || r.amount || "0"),
@@ -247,7 +247,7 @@ function decodeReceipt(r: any): ApprovalReceiptRow {
     token_id: String(r.token_id ?? ""),
     token_code: String(r.token_code || r.code || r.token || ""),
     client_id: String(r.client_id || r.user_id || ""),
-    client_name: String(r.display_client_name ?? r.client_name ?? ""),
+    client_name: String(r.display_client_name ?? "اسم الشركة غير مسجل"),
     amount: String(r.amount ?? "0"),
     ocr_result: r.ocr_result ?? null,
     ocr_amount: r.ocr_amount ?? null,
@@ -427,7 +427,7 @@ export async function listAllApprovalTokens(): Promise<ApprovalTokenRow[]> {
                FROM client_profiles cp
                WHERE cp.user_id = t.client_id OR cp.user_id = t.user_id
                LIMIT 1),
-              t.client_name
+              CASE WHEN instr(t.client_name, '@') > 0 THEN 'اسم الشركة غير مسجل' ELSE t.client_name END
             ) AS display_client_name
      FROM approval_tokens t
      ORDER BY t.created_at DESC`,
@@ -530,7 +530,7 @@ export async function listAllApprovalReceipts(): Promise<ApprovalReceiptRow[]> {
                FROM client_profiles cp
                WHERE cp.user_id = r.user_id
                LIMIT 1),
-              r.client_name
+              CASE WHEN instr(r.client_name, '@') > 0 THEN 'اسم الشركة غير مسجل' ELSE r.client_name END
             ) AS display_client_name
      FROM approval_receipts r
      ORDER BY r.created_at DESC`,
