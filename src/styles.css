@@ -96,4 +96,18 @@
   .inp:focus {
     box-shadow: 0 0 0 2px var(--color-ring);
   }
+
+  [aria-labelledby="tameed-title"] {
+    overflow-y: auto;
+  }
+
+  [aria-labelledby="tameed-title"] > div {
+    box-sizing: border-box;
+    width: min(calc(100vw - 2rem), 28rem);
+    max-height: calc(100dvh - 2rem);
+    min-width: 0;
+    margin-inline: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
 }
