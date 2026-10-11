@@ -290,6 +290,7 @@ export const clientListMyTameedCodes = createServerFn({ method: "GET" })
     }>(result).map((row) => ({
       id: String(row.id ?? ""),
       code: String(row.token ?? row.code ?? ""),
+      projectId: String(row.project_id ?? ""),
       project_name: String(row.project_name ?? ""),
       total: Number(row.total_commission ?? row.allowed_amount ?? 0),
       allowed_payment_now: Number(row.allowed_payment_now ?? row.allowed_amount ?? 0),
@@ -326,13 +327,17 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
     const claims = await getSessionClaims();
     if (!claims) throw new Error("يجب تسجيل الدخول");
 
-    // Prevent duplicate tameed request per project
     const existing = await db.execute(
-      "SELECT id FROM approval_tokens WHERE project_id = ? AND (user_id = ? OR client_id = ?) AND status = 'بانتظار التسعير' LIMIT 1",
+      `SELECT id
+       FROM approval_tokens
+       WHERE project_id = ?
+         AND (user_id = ? OR client_id = ?)
+         AND lower(trim(status)) IN ('pending', 'active', 'awaiting_pricing', 'بانتظار التسعير')
+       LIMIT 1`,
       [data.project_id, claims.sub, claims.sub],
     );
     if (rowsToObjects(existing).length > 0) {
-      throw new Error("لقد قمت بتقديم طلب تعميد لهذا المشروع مسبقاً");
+      throw new Error("DUPLICATE_TAMEED: لديك تعميد فعال");
     }
 
     // Get project name
