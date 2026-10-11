@@ -51,7 +51,25 @@ export const adminCreateApprovalToken = createServerFn({ method: "POST" })
 
 export const adminListApprovalTokens = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async () => listAllApprovalTokens());
+  .handler(async () => {
+    const [tokens, profiles] = await Promise.all([
+      listAllApprovalTokens(),
+      listAllClientProfiles(),
+    ]);
+
+    return tokens.map((token) => {
+      const profile = profiles.find((p) =>
+        p.user_id === token.client_id ||
+        p.id === token.client_id ||
+        p.email.toLowerCase() === token.client_name.toLowerCase(),
+      );
+
+      return {
+        ...token,
+        client_name: profile?.company_name || "",
+      };
+    });
+  });
 
 const addInstallmentSchema = z.object({ token_id: z.string().min(1), amount: z.string().min(1) });
 
