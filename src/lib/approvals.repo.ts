@@ -25,6 +25,7 @@ export type ApprovalTokenRow = {
   allowed_amount: string;
   paid_amount: string;
   status: string;
+  signature_image: string | null;
   created_at: string;
   updated_at: string;
   approved_at: string | null;
@@ -62,6 +63,7 @@ type ApprovalTokenInput = {
   installments?: string[];
   token?: string;
   code?: string;
+  signature_image?: string;
 };
 
 let approvalTablesReady: Promise<void> | null = null;
@@ -141,6 +143,7 @@ function ensureApprovalTables(): Promise<void> {
       allowed_amount: "TEXT",
       updated_at: "TEXT",
       approved_at: "TEXT",
+      signature_image: "TEXT",
     };
     const missingReceiptColumns: Record<string, string> = {
       approved_at: "TEXT",
@@ -230,6 +233,7 @@ function decodeToken(r: any): ApprovalTokenRow {
     allowed_amount: String(r.allowed_amount || r.allowed_payment_now || "0"),
     paid_amount: String(r.paid_amount ?? "0"),
     status: String(r.status ?? "active"),
+    signature_image: r.signature_image ?? null,
     created_at: String(r.created_at ?? ""),
     updated_at: String(r.updated_at ?? ""),
     approved_at: r.approved_at ?? null,
@@ -302,12 +306,13 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
     status: "active",
     created_at: now,
     updated_at: now,
+    signature_image: data.signature_image ?? "",
   };
 
   const preferredColumns = [
     "id", "token", "code", "user_id", "client_name", "project_id", "project_name",
     "amount", "total_commission", "allowed_payment_now", "paid_amount", "status", "created_at", "updated_at",
-    "token_code", "client_id", "allowed_amount",
+    "token_code", "client_id", "allowed_amount", "signature_image",
   ];
   const insertColumns = preferredColumns.filter((column) => columns.has(column));
   const insertValues = insertColumns.map((column) => values[column]);
@@ -324,6 +329,27 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
   })));
 
   return (await findTokenById(id))!;
+}
+
+export async function setTokenAmount(tokenId: string, totalAmount: string): Promise<void> {
+  await ensureApprovalTables();
+  const now = new Date().toISOString();
+  const token = await findTokenById(tokenId);
+  if (!token) throw new Error("رمز التعميد غير موجود");
+  if (token.status !== "بانتظار التسعير") throw new Error("هذا الرمز ليس بحالة بانتظار التسعير");
+  const amount = Number(totalAmount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("المبلغ غير صحيح");
+
+  await db.execute(
+    "UPDATE approval_tokens SET total_commission = ?, allowed_amount = ?, allowed_payment_now = ?, amount = ?, status = 'نشط', updated_at = ? WHERE id = ?",
+    [totalAmount, totalAmount, totalAmount, totalAmount, now, tokenId],
+  );
+
+  await db.execute(
+    `INSERT INTO approval_installments (id, token_id, installment_number, amount, paid_amount, status, created_at)
+     VALUES (?, ?, 1, ?, '0', 'pending', ?)`,
+    [crypto.randomUUID(), tokenId, totalAmount, now],
+  );
 }
 
 export async function addApprovalInstallment(tokenId: string, amount: string): Promise<ApprovalInstallmentRow> {
