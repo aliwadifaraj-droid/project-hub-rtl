@@ -2,13 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Printer } from "lucide-react";
+import SignatureCanvas from "react-signature-canvas";
+import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Printer, FolderKanban, PenTool } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ClientPortal } from "@/components/client-portal";
 import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
-import { submitApprovalReceipt } from "@/lib/tameed.functions";
+import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest } from "@/lib/tameed.functions";
 import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
@@ -26,6 +27,8 @@ export function ClientPortalShell() {
   const uploadReceipt = useServerFn(uploadFile);
   const verifyReceipt = useServerFn(validateReceiptOcr);
   const submitReceipt = useServerFn(submitApprovalReceipt);
+  const fetchMyProjects = useServerFn(clientListMyProjects);
+  const createTameed = useServerFn(clientCreateTameedRequest);
   const queryClient = useQueryClient();
   const [showVipIntro, setShowVipIntro] = useState(false);
   const [showTameed, setShowTameed] = useState(false);
@@ -57,6 +60,12 @@ export function ClientPortalShell() {
     account_number: string;
   } | null>(null);
 
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [contractAgreed, setContractAgreed] = useState(false);
+  const [tameedSubmitting, setTameedSubmitting] = useState(false);
+  const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+
   const { data: tickets = [] } = useQuery({
     queryKey: ["client-support-tickets"],
     queryFn: () => listTickets(),
@@ -70,6 +79,11 @@ export function ClientPortalShell() {
     refetchInterval: 10000,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
+  });
+  const { data: myProjects } = useQuery({
+    queryKey: ["client-my-projects-tameed"],
+    queryFn: () => fetchMyProjects(),
+    enabled: showContractModal,
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
 
@@ -159,6 +173,40 @@ export function ClientPortalShell() {
     setReceiptError("");
     setReceiptSent(false);
     setTameedResult(null);
+  }
+
+  function openContractModal(): void {
+    setShowContractModal(true);
+    setSelectedProjectId("");
+    setContractAgreed(false);
+    if (sigCanvasRef.current) sigCanvasRef.current.clear();
+  }
+
+  function closeContractModal(): void {
+    setShowContractModal(false);
+    setSelectedProjectId("");
+    setContractAgreed(false);
+    if (sigCanvasRef.current) sigCanvasRef.current.clear();
+  }
+
+  async function handleCreateTameed(): Promise<void> {
+    if (!selectedProjectId) { toast.error("يرجى اختيار مشروع"); return; }
+    if (!contractAgreed) { toast.error("يرجى الموافقة على الالتزام"); return; }
+    if (!sigCanvasRef.current || sigCanvasRef.current.isEmpty()) { toast.error("يرجى التوقيع على العقد"); return; }
+
+    const signatureDataUrl = sigCanvasRef.current.toDataURL("image/png");
+    setTameedSubmitting(true);
+    try {
+      const result = await createTameed({ data: { project_id: selectedProjectId, signature_image: signatureDataUrl } });
+      toast.success(`تم إنشاء طلب التعميد بنجاح: ${result.token}`);
+      closeContractModal();
+      setShowTameed(false);
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : "تعذر إنشاء طلب التعميد";
+      toast.error(detail);
+    } finally {
+      setTameedSubmitting(false);
+    }
   }
 
   async function handleValidateToken(): Promise<void> {
@@ -479,6 +527,18 @@ export function ClientPortalShell() {
 
             {tameedStep === "input" && (
               <div className="mt-6">
+                <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+                  <p className="mb-2 font-bold">لإنشاء طلب تعميد جديد لمشروع:</p>
+                  <button type="button" onClick={openContractModal} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-white transition hover:bg-blue-700">
+                    <FolderKanban className="h-4 w-4" />
+                    إنشاء طلب تعميد بمشروع
+                  </button>
+                </div>
+                <div className="my-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-border"></div>
+                  <span className="text-xs text-muted-foreground">أو أدخل رمز تعميد موجود</span>
+                  <div className="h-px flex-1 bg-border"></div>
+                </div>
                 <label htmlFor="tameed-token" className="mb-2 block text-sm font-semibold text-foreground">
                   أدخل رمز التعميد
                 </label>
@@ -588,6 +648,88 @@ export function ClientPortalShell() {
                 </div>
               )
             )}
+          </div>
+        </div>
+      )}
+
+      {showContractModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="contract-modal-title">
+          <div className="relative max-h-[calc(100vh-32px)] w-full max-w-lg overflow-y-auto rounded-3xl border border-blue-200 bg-card p-6 shadow-2xl sm:p-8">
+            <button type="button" onClick={closeContractModal} aria-label="إغلاق" className="absolute left-4 top-4 rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground">
+              <X className="h-5 w-5" />
+            </button>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-100 text-blue-700">
+              <PenTool className="h-7 w-7" />
+            </div>
+            <h2 id="contract-modal-title" className="mt-5 text-center text-2xl font-extrabold">عقد التزام بدفع عمولة 2.5% لمنصة العمران</h2>
+
+            <div className="mt-6 space-y-4">
+              <label className="block text-sm font-semibold text-foreground">اختر المشروع
+                <div className="relative mt-1">
+                  <FolderKanban className="absolute end-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <select
+                    required
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-background px-4 py-3 ps-10 text-base"
+                  >
+                    <option value="" disabled>اختر المشروع</option>
+                    {(myProjects ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+
+              <div className="rounded-xl border border-border bg-secondary/30 p-4 text-sm leading-7 text-foreground">
+                <p className="mb-3 font-bold">نص العقد:</p>
+                <p>أتعهد وألتزم بأن أدفع لمنصة العمران عمولة بنسبة 2.5% من إجمالي قيمة المشروع المحدد، وذلك مقابل خدمات المنصة في ربط العملاء بالمشاريع وإدارتها.</p>
+                <p className="mt-2">أقر بأنني اطلعت على شروط المنصة وأوافق عليها، وأن توقيعي أدناه يمثل موافقتي على هذا الالتزام.</p>
+              </div>
+
+              <label className="flex items-start gap-3 text-sm font-semibold text-foreground">
+                <input
+                  type="checkbox"
+                  checked={contractAgreed}
+                  onChange={(e) => setContractAgreed(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-border"
+                />
+                <span>أوافق على عقد الالتزام بدفع عمولة 2.5% لمنصة العمران</span>
+              </label>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-foreground">التوقيع</label>
+                <div className="rounded-xl border-2 border-border bg-white">
+                  <SignatureCanvas
+                    ref={sigCanvasRef}
+                    canvasProps={{
+                      width: 400,
+                      height: 150,
+                      className: "w-full rounded-xl",
+                      style: { touchAction: "none" },
+                    }}
+                  />
+                </div>
+                {sigCanvasRef.current && (
+                  <button type="button" onClick={() => sigCanvasRef.current?.clear()} className="mt-2 text-xs font-semibold text-muted-foreground hover:text-foreground">
+                    مسح التوقيع
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleCreateTameed()}
+                disabled={tameedSubmitting || !selectedProjectId || !contractAgreed}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {tameedSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+                إنشاء طلب التعميد
+              </button>
+              <button type="button" onClick={closeContractModal} className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
+                إلغاء
+              </button>
+            </div>
           </div>
         </div>
       )}
