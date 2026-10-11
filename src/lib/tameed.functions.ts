@@ -262,6 +262,45 @@ function generateAomToken(): string {
 
 // ============ Client functions: list projects + create tameed request ============
 
+export const clientListMyTameedCodes = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const claims = await getSessionClaims();
+    if (!claims) throw new Error("يجب تسجيل الدخول");
+
+    const result = await db.execute(
+      `SELECT id, token, code, project_id, project_name, total_commission, allowed_amount, allowed_payment_now, paid_amount, status, created_at
+       FROM approval_tokens
+       WHERE client_id = ? OR user_id = ?
+       ORDER BY created_at DESC`,
+      [claims.sub, claims.sub],
+    );
+
+    return rowsToObjects<{
+      id: string;
+      token: string | null;
+      code: string | null;
+      project_id: string | null;
+      project_name: string | null;
+      total_commission: string | null;
+      allowed_amount: string | null;
+      allowed_payment_now: string | null;
+      paid_amount: string | null;
+      status: string | null;
+      created_at: string | null;
+    }>(result).map((row) => ({
+      id: String(row.id ?? ""),
+      code: String(row.token ?? row.code ?? ""),
+      project_name: String(row.project_name ?? ""),
+      total: Number(row.total_commission ?? row.allowed_amount ?? 0),
+      allowed_payment_now: Number(row.allowed_payment_now ?? row.allowed_amount ?? 0),
+      paid: Number(row.paid_amount ?? 0),
+      remaining: Math.max(0, Number(row.total_commission ?? row.allowed_amount ?? 0) - Number(row.paid_amount ?? 0)),
+      due_amount: Math.max(0, Number(row.allowed_payment_now ?? row.allowed_amount ?? 0) - Number(row.paid_amount ?? 0)),
+      status: String(row.status ?? "active"),
+      created_at: String(row.created_at ?? ""),
+    }));
+  });
+
 export const clientListMyProjects = createServerFn({ method: "GET" })
   .handler(async () => {
     const claims = await getSessionClaims();
