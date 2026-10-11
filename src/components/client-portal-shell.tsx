@@ -64,6 +64,7 @@ export function ClientPortalShell() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [contractAgreed, setContractAgreed] = useState(false);
   const [tameedSubmitting, setTameedSubmitting] = useState(false);
+  const [tameedToken, setTameedToken] = useState("");
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
 
   const { data: tickets = [] } = useQuery({
@@ -179,6 +180,7 @@ export function ClientPortalShell() {
     setShowContractModal(true);
     setSelectedProjectId("");
     setContractAgreed(false);
+    setTameedToken("");
     if (sigCanvasRef.current) sigCanvasRef.current.clear();
   }
 
@@ -186,6 +188,7 @@ export function ClientPortalShell() {
     setShowContractModal(false);
     setSelectedProjectId("");
     setContractAgreed(false);
+    setTameedToken("");
     if (sigCanvasRef.current) sigCanvasRef.current.clear();
   }
 
@@ -198,9 +201,8 @@ export function ClientPortalShell() {
     setTameedSubmitting(true);
     try {
       const result = await createTameed({ data: { project_id: selectedProjectId, signature_image: signatureDataUrl } });
+      setTameedToken(result.token);
       toast.success(`تم إنشاء طلب التعميد بنجاح: ${result.token}`);
-      closeContractModal();
-      setShowTameed(false);
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "تعذر إنشاء طلب التعميد";
       toast.error(detail);
@@ -423,7 +425,7 @@ export function ClientPortalShell() {
         </Link>
         <button
           type="button"
-          onClick={openTameed}
+          onClick={openContractModal}
           disabled={approvalButtonState === "pending"}
           className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
             approvalButtonState === "pending"
@@ -658,10 +660,32 @@ export function ClientPortalShell() {
             <button type="button" onClick={closeContractModal} aria-label="إغلاق" className="absolute left-4 top-4 rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground">
               <X className="h-5 w-5" />
             </button>
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-100 text-blue-700">
-              <PenTool className="h-7 w-7" />
-            </div>
-            <h2 id="contract-modal-title" className="mt-5 text-center text-2xl font-extrabold">عقد التزام بدفع عمولة 2.5% لمنصة العمران</h2>
+            {tameedToken ? (
+              <>
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
+                  <CheckCircle2 className="h-7 w-7" />
+                </div>
+                <h2 id="contract-modal-title" className="mt-5 text-center text-2xl font-extrabold text-emerald-800">تم إنشاء طلب التعميد</h2>
+                <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+                  <p className="text-sm font-semibold text-emerald-800">رمز التعميد الخاص بك</p>
+                  <p className="mt-3 text-3xl font-extrabold tracking-wider text-emerald-900" dir="ltr">{tameedToken}</p>
+                  <button type="button" onClick={(e) => void copyToClipboard(e, tameedToken)} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50">
+                    <Copy className="h-4 w-4" />
+                    نسخ الرمز
+                  </button>
+                </div>
+                <p className="mt-4 text-center text-sm text-muted-foreground">سيقوم المسؤول بتحديد المبلغ وتفعيل الرمز قريباً.</p>
+                <button type="button" onClick={closeContractModal} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  تم
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-100 text-blue-700">
+                  <PenTool className="h-7 w-7" />
+                </div>
+                <h2 id="contract-modal-title" className="mt-5 text-center text-2xl font-extrabold">عقد التزام بدفع عمولة 2.5% لمنصة العمران</h2>
 
             <div className="mt-6 space-y-4">
               <label className="block text-sm font-semibold text-foreground">اختر المشروع
@@ -730,9 +754,11 @@ export function ClientPortalShell() {
                 إلغاء
               </button>
             </div>
+              </>
+            )}
           </div>
         </div>
-      )}
+      )
 
       {showReceiptModal && receiptModalData && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 print:bg-none print:p-0" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">

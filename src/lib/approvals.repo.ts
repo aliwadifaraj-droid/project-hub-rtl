@@ -344,8 +344,8 @@ export async function setTokenAmount(tokenId: string, totalAmount: string, first
   if (firstDue > total + 0.01) throw new Error("الدفعة الأولى لا يمكن أن تتجاوز الإجمالي");
 
   await db.execute(
-    "UPDATE approval_tokens SET total_commission = ?, allowed_amount = ?, allowed_payment_now = ?, amount = ?, status = 'نشط', updated_at = ? WHERE id = ?",
-    [totalAmount, firstDueAmount, firstDueAmount, totalAmount, now, tokenId],
+    "UPDATE approval_tokens SET total_commission = ?, allowed_amount = ?, allowed_payment_now = ?, amount = ?, paid_amount = '0', status = 'نشط', updated_at = ? WHERE id = ?",
+    [totalAmount, totalAmount, firstDueAmount, totalAmount, now, tokenId],
   );
 
   await db.execute(
