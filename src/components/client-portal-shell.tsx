@@ -10,7 +10,7 @@ import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
 import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest } from "@/lib/tameed.functions";
-import { uploadFile } from "@/lib/files.functions";
+import { uploadFile } from "@/lib/files.function";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
 
@@ -758,7 +758,7 @@ export function ClientPortalShell() {
             )}
           </div>
         </div>
-      )
+      )}
 
       {showReceiptModal && receiptModalData && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 print:bg-none print:p-0" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
