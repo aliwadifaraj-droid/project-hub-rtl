@@ -10,7 +10,7 @@ import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
 import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest } from "@/lib/tameed.functions";
-import { uploadFile } from "@/lib/files.function";
+import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
 
