@@ -91,7 +91,6 @@ export function ClientPortalShell() {
   const { data: myTameedCodes = [], refetch: refetchTameedCodes } = useQuery({
     queryKey: ["client-tameed-codes"],
     queryFn: () => fetchTameedCodes(),
-    enabled: showTameed,
     refetchOnMount: "always",
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
@@ -197,6 +196,7 @@ export function ClientPortalShell() {
 
   function closeContractModal(): void {
     setShowContractModal(false);
+    setShowNewTameedForm(false);
     setSelectedProjectId("");
     setContractAgreed(false);
     setTameedToken("");
@@ -213,6 +213,7 @@ export function ClientPortalShell() {
     try {
       const result = await createTameed({ data: { project_id: selectedProjectId, signature_image: signatureDataUrl } });
       setTameedToken(result.token);
+      setShowNewTameedForm(false);
       toast.success(`تم إنشاء طلب التعميد بنجاح: ${result.token}`);
       void queryClient.invalidateQueries({ queryKey: ["client-tameed-codes"] });
       void refetchTameedCodes();
@@ -438,7 +439,7 @@ export function ClientPortalShell() {
         </Link>
         <button
           type="button"
-          onClick={openContractModal}
+          onClick={openTameed}
           disabled={approvalButtonState === "pending"}
           className={`pointer-events-auto absolute -top-24 left-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg transition ${
             approvalButtonState === "pending"
@@ -609,7 +610,7 @@ export function ClientPortalShell() {
 
                     <button
                       type="button"
-                      onClick={() => setTameedStep("input")}
+                      onClick={() => { setShowNewTameedForm(true); openContractModal(); }}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-5 py-3 font-semibold text-blue-800 transition hover:bg-blue-100"
                     >
                       <BadgeCheck className="h-4 w-4" />
@@ -621,7 +622,7 @@ export function ClientPortalShell() {
                     <p className="text-sm text-muted-foreground">لا يوجد لديك طلبات تعميد حالياً</p>
                     <button
                       type="button"
-                      onClick={() => setTameedStep("input")}
+                      onClick={() => openContractModal()}
                       className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700"
                     >
                       <BadgeCheck className="h-4 w-4" />
