@@ -106,7 +106,7 @@ export const adminGetApprovalClients = createServerFn({ method: "GET" })
     const profiles = await listAllClientProfiles();
     return Promise.all(profiles.map(async (p) => {
       const client = await findClientByEmail(p.email);
-      return { id: p.id, client_id: client?.id ?? p.user_id, name: p.company_name || p.email, email: p.email };
+      return { id: p.id, client_id: client?.id ?? p.user_id, name: p.company_name, email: p.email };
     }));
   });
 
