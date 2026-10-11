@@ -15,7 +15,7 @@ import {
 } from "./approvals.repo";
 import { deleteApprovalToken, deleteApprovalReceipt } from "./approvals.delete";
 import { listAllClientProfiles } from "./client.repo";
-import { findClientByEmail } from "./clients.repo";
+import { findClientByEmail, findClientById } from "./clients.repo";
 import { listAllProjects } from "./projects.repo";
 
 const createTokenSchema = z.object({
@@ -56,11 +56,14 @@ export const adminListApprovalTokens = createServerFn({ method: "GET" })
       listAllApprovalTokens(),
       listAllClientProfiles(),
     ]);
+    const clients = await Promise.all(tokens.map((token) => findClientById(token.client_id)));
 
-    return tokens.map((token) => {
+    return tokens.map((token, index) => {
+      const client = clients[index];
       const profile = profiles.find((p) =>
         p.user_id === token.client_id ||
         p.id === token.client_id ||
+        p.email.toLowerCase() === client?.email.toLowerCase() ||
         p.email.toLowerCase() === token.client_name.toLowerCase(),
       );
 
