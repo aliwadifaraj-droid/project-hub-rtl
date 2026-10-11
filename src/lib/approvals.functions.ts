@@ -101,7 +101,28 @@ export const adminDeleteApprovalReceipt = createServerFn({ method: "POST" })
 
 export const adminListApprovalReceipts = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async () => listAllApprovalReceipts());
+  .handler(async () => {
+    const [receipts, profiles] = await Promise.all([
+      listAllApprovalReceipts(),
+      listAllClientProfiles(),
+    ]);
+    const clients = await Promise.all(receipts.map((receipt) => findClientById(receipt.client_id)));
+
+    return receipts.map((receipt, index) => {
+      const client = clients[index];
+      const profile = profiles.find((p) =>
+        p.user_id === receipt.client_id ||
+        p.id === receipt.client_id ||
+        p.email.toLowerCase() === client?.email.toLowerCase() ||
+        p.email.toLowerCase() === receipt.client_name.toLowerCase(),
+      );
+
+      return {
+        ...receipt,
+        client_name: profile?.company_name || "",
+      };
+    });
+  });
 
 export const adminGetApprovalClients = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
