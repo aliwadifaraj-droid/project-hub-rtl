@@ -36,6 +36,10 @@ function getInstallmentState(status: string): "due" | "paid" | "disabled" {
   return "due";
 }
 
+function isActiveTameedStatus(status: string): boolean {
+  return !["مكتمل", "ملغي", "cancelled", "completed", "complete", "used"].includes(status.trim().toLowerCase());
+}
+
 export function ClientPortalShell() {
   const listTickets = useServerFn(listMyClientTickets);
   const getVipStatus = useServerFn(getClientVipStatus);
@@ -102,7 +106,7 @@ export function ClientPortalShell() {
   const { data: myProjects } = useQuery({
     queryKey: ["client-my-projects-tameed"],
     queryFn: () => fetchMyProjects(),
-    enabled: showContractModal,
+    enabled: showContractModal || showTameed,
   });
   const { data: myTameedCodes = [], refetch: refetchTameedCodes } = useQuery({
     queryKey: ["client-tameed-codes"],
@@ -110,6 +114,7 @@ export function ClientPortalShell() {
     refetchOnMount: "always",
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
+  const allProjectsHaveActiveTameed = Boolean(myProjects && myProjects.length > 0 && myProjects.every((project) => myTameedCodes.some((code) => code.projectId === project.id && isActiveTameedStatus(code.status))));
 
   useEffect(() => {
     if (!showTameed || myTameedCodes.length === 0) return;
@@ -253,6 +258,10 @@ export function ClientPortalShell() {
 
   async function handleCreateTameed(): Promise<void> {
     if (!selectedProjectId) { toast.error("يرجى اختيار مشروع"); return; }
+    if (myTameedCodes.some((code) => code.projectId === selectedProjectId && isActiveTameedStatus(code.status))) {
+      toast.error("لديك تعميد فعال لهذا المشروع - لا يمكن إنشاء تعميد مكرر");
+      return;
+    }
     if (!contractAgreed) { toast.error("يرجى الموافقة على الالتزام"); return; }
     if (!sigCanvasRef.current || sigCanvasRef.current.isEmpty()) { toast.error("يرجى التوقيع على العقد"); return; }
 
@@ -266,8 +275,8 @@ export function ClientPortalShell() {
       void queryClient.invalidateQueries({ queryKey: ["client-tameed-codes"] });
       void refetchTameedCodes();
     } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : "تعذر إنشاء طلب التعميد";
-      toast.error(detail);
+      const detail = error instanceof Error ? error.message : "";
+      toast.error(detail.startsWith("DUPLICATE_TAMEED:") ? "لديك تعميد فعال لهذا المشروع - لا يمكن إنشاء تعميد مكرر" : "تعذر إنشاء طلب التعميد");
     } finally {
       setTameedSubmitting(false);
     }
@@ -687,10 +696,11 @@ export function ClientPortalShell() {
                     <button
                       type="button"
                       onClick={() => { setShowNewTameedForm(true); openContractModal(); }}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-5 py-3 font-semibold text-blue-800 transition hover:bg-blue-100"
+                      disabled={allProjectsHaveActiveTameed}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-5 py-3 font-semibold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-border disabled:bg-secondary disabled:text-muted-foreground"
                     >
                       <BadgeCheck className="h-4 w-4" />
-                      تعميد جديد
+                      {allProjectsHaveActiveTameed ? "لا توجد مشاريع متاحة لتعميد جديد" : "تعميد جديد"}
                     </button>
                   </>
                 ) : (
@@ -699,10 +709,11 @@ export function ClientPortalShell() {
                     <button
                       type="button"
                       onClick={() => openContractModal()}
-                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700"
+                      disabled={allProjectsHaveActiveTameed}
+                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
                     >
                       <BadgeCheck className="h-4 w-4" />
-                      إنشاء تعميد جديد
+                      {allProjectsHaveActiveTameed ? "لا توجد مشاريع متاحة لتعميد جديد" : "إنشاء تعميد جديد"}
                     </button>
                   </div>
                 )}
@@ -731,7 +742,7 @@ export function ClientPortalShell() {
 
                 <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
                   <p className="mb-2 font-bold">لإنشاء طلب تعميد جديد لمشروع:</p>
-                  <button type="button" onClick={openContractModal} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-white transition hover:bg-blue-700">
+                  <button type="button" onClick={openContractModal} disabled={allProjectsHaveActiveTameed} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground">
                     <FolderKanban className="h-4 w-4" />
                     إنشاء طلب تعميد بمشروع
                   </button>
@@ -888,22 +899,33 @@ export function ClientPortalShell() {
                 <h2 id="contract-modal-title" className="mt-5 text-center text-2xl font-extrabold">عقد التزام بدفع عمولة 2.5% لمنصة العمران</h2>
 
             <div className="mt-6 space-y-4">
-              <label className="block text-sm font-semibold text-foreground">اختر المشروع
-                <div className="relative mt-1">
-                  <FolderKanban className="absolute end-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <select
-                    required
-                    value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-background px-4 py-3 ps-10 text-base"
-                  >
-                    <option value="" disabled>اختر المشروع</option>
-                    {(myProjects ?? []).map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+              <div>
+                <p className="mb-2 text-sm font-semibold text-foreground">اختر المشروع</p>
+                <div className="space-y-2">
+                  {(myProjects ?? []).map((project) => {
+                    const activeTameed = myTameedCodes.find((code) => code.projectId === project.id && isActiveTameedStatus(code.status));
+                    return (
+                      <div key={project.id} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${selectedProjectId === project.id ? "border-blue-500 bg-blue-50" : "border-border bg-background"}`}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate text-sm font-semibold text-foreground">{project.name}</span>
+                        </div>
+                        {activeTameed ? (
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">لديك تعميد فعال</span>
+                            <button type="button" onClick={() => { closeContractModal(); setShowTameed(true); setTameedStep("input"); setTameedCode(activeTameed.code); void handleValidateToken(activeTameed.code); }} className="text-xs font-bold text-blue-700 underline underline-offset-2">{activeTameed.code}</button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setSelectedProjectId(project.id)} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700">
+                            <BadgeCheck className="h-3.5 w-3.5" />
+                            تعميد
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </label>
+              </div>
 
               <div className="rounded-xl border border-border bg-secondary/30 p-4 text-sm leading-7 text-foreground">
                 <p className="mb-3 font-bold">نص العقد:</p>
