@@ -11,6 +11,7 @@ import {
   approveTokenWithPaidAmount,
   addApprovalInstallment,
   getVipBankInfo,
+  setTokenAmount,
 } from "./approvals.repo";
 import { deleteApprovalToken, deleteApprovalReceipt } from "./approvals.delete";
 import { listAllClientProfiles } from "./client.repo";
@@ -134,5 +135,18 @@ export const adminRejectReceipt = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => approveReceiptSchema.parse(d))
   .handler(async ({ data }) => {
     await updateReceiptStatus(data.receipt_id, "rejected");
+    return { ok: true };
+  });
+
+const setTokenAmountSchema = z.object({
+  token_id: z.string().min(1),
+  total_amount: z.string().min(1),
+});
+
+export const adminSetTokenAmount = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => setTokenAmountSchema.parse(d))
+  .handler(async ({ data }) => {
+    await setTokenAmount(data.token_id, data.total_amount);
     return { ok: true };
   });

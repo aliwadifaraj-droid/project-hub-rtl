@@ -259,3 +259,68 @@ function generateAomToken(): string {
   }
   return `AOM-${code}`;
 }
+
+// ============ Client functions: list projects + create tameed request ============
+
+export const clientListMyProjects = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const claims = await getSessionClaims();
+    if (!claims) throw new Error("يجب تسجيل الدخول");
+
+    const result = await db.execute(
+      "SELECT id, name FROM projects WHERE status = 'active' AND admin_approval = 'approved' ORDER BY created_at DESC",
+    );
+    return rowsToObjects<{ id: string; name: string }>(result).map((row) => ({
+      id: String(row.id),
+      name: String(row.name ?? ""),
+    }));
+  });
+
+const createTameedRequestSchema = z.object({
+  project_id: z.string().min(1),
+  signature_image: z.string().min(1),
+});
+
+export const clientCreateTameedRequest = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => createTameedRequestSchema.parse(data))
+  .handler(async ({ data }) => {
+    const claims = await getSessionClaims();
+    if (!claims) throw new Error("يجب تسجيل الدخول");
+
+    // Prevent duplicate tameed request per project
+    const existing = await db.execute(
+      "SELECT id FROM approval_tokens WHERE project_id = ? AND (user_id = ? OR client_id = ?) AND status = 'بانتظار التسعير' LIMIT 1",
+      [data.project_id, claims.sub, claims.sub],
+    );
+    if (rowsToObjects(existing).length > 0) {
+      throw new Error("لقد قمت بتقديم طلب تعميد لهذا المشروع مسبقاً");
+    }
+
+    // Get project name
+    const projectResult = await db.execute(
+      "SELECT name FROM projects WHERE id = ? LIMIT 1",
+      [data.project_id],
+    );
+    const projectRow = rowsToObjects<{ name: string }>(projectResult)[0];
+    if (!projectRow) throw new Error("المشروع غير موجود");
+
+    // Get client name from client_profiles
+    const profileResult = await db.execute(
+      "SELECT company_name, email FROM client_profiles WHERE user_id = ? LIMIT 1",
+      [claims.sub],
+    );
+    const profileRow = rowsToObjects<{ company_name: string; email: string }>(profileResult)[0];
+    const clientName = profileRow?.company_name || profileRow?.email || claims.email;
+
+    const token = generateAomToken();
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    await db.execute(
+      `INSERT INTO approval_tokens (id, token, code, user_id, client_id, client_name, project_id, project_name, signature_image, total_commission, allowed_amount, paid_amount, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '0', 'بانتظار التسعير', ?, ?)`,
+      [id, token, token, claims.sub, claims.sub, clientName, data.project_id, projectRow.name, data.signature_image, now, now],
+    );
+
+    return { id, token, project_name: projectRow.name };
+  });
