@@ -10,7 +10,7 @@ import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
 import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest, clientListMyTameedCodes } from "@/lib/tameed.functions";
-import { getClientSession } from "@/lib/client.functions";
+import { getClientSession, updateMyClientProfile } from "@/lib/client.functions";
 import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
@@ -90,6 +90,11 @@ export function ClientPortalShell() {
   const [tameedToken, setTameedToken] = useState("");
   const [installmentsByCode, setInstallmentsByCode] = useState<Record<string, ClientInstallment[]>>({});
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const updateProfileFn = useServerFn(updateMyClientProfile);
+  const [showCrUpdateModal, setShowCrUpdateModal] = useState(false);
+  const [crUpdateValue, setCrUpdateValue] = useState("");
+  const [crUpdateSaving, setCrUpdateSaving] = useState(false);
+  const [pendingTameedRetry, setPendingTameedRetry] = useState<(() => Promise<void>) | null>(null);
 
   const { data: tickets = [] } = useQuery({
     queryKey: ["client-support-tickets"],
@@ -282,11 +287,18 @@ export function ClientPortalShell() {
       void refetchTameedCodes();
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "";
-      const message = detail.startsWith("DUPLICATE_TAMEED:")
-        ? "لديك تعميد فعال لهذا المشروع - لا يمكن إنشاء تعميد مكرر"
-        : detail || "تعذر إنشاء طلب التعميد";
-      setTameedError(message);
-      toast.error(message);
+      if (detail.includes("رقم السجل التجاري")) {
+        toast.error("لا يمكن إنشاء التعميد بدون رقم السجل التجاري - الرجاء تحديث بيانات المنشأة");
+        setCrUpdateValue(clientSession?.profile?.cr_number || "");
+        setPendingTameedRetry(() => () => handleCreateTameed());
+        setShowCrUpdateModal(true);
+      } else {
+        const message = detail.startsWith("DUPLICATE_TAMEED:")
+          ? "لديك تعميد فعال لهذا المشروع - لا يمكن إنشاء تعميد مكرر"
+          : detail || "تعذر إنشاء طلب التعميد";
+        setTameedError(message);
+        toast.error(message);
+      }
     } finally {
       setTameedSubmitting(false);
     }
@@ -875,6 +887,62 @@ export function ClientPortalShell() {
         </div>
       )}
 
+      {showCrUpdateModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="cr-update-title">
+          <div className="relative w-full max-w-md rounded-3xl border border-blue-200 bg-card p-6 shadow-2xl sm:p-8">
+            <button type="button" onClick={() => setShowCrUpdateModal(false)} aria-label="إغلاق" className="absolute left-4 top-4 rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground">
+              <X className="h-5 w-5" />
+            </button>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-100 text-blue-700">
+              <BadgeCheck className="h-7 w-7" />
+            </div>
+            <h2 id="cr-update-title" className="mt-5 text-center text-2xl font-extrabold">تحديث رقم السجل التجاري</h2>
+            <p className="mt-3 text-center text-sm text-muted-foreground">لا يمكن إنشاء التعميد بدون رقم السجل التجاري - الرجاء تحديث بيانات المنشأة</p>
+            <div className="mt-6">
+              <label htmlFor="cr-number-input" className="mb-2 block text-sm font-semibold text-foreground">رقم السجل التجاري</label>
+              <input
+                id="cr-number-input"
+                type="text"
+                value={crUpdateValue}
+                onChange={(e) => setCrUpdateValue(e.target.value)}
+                placeholder="1010000000"
+                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-semibold outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                dir="ltr"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                disabled={crUpdateSaving || !crUpdateValue.trim()}
+                onClick={() => void (async () => {
+                  setCrUpdateSaving(true);
+                  try {
+                    await updateProfileFn({ data: { cr_number: crUpdateValue.trim() } });
+                    toast.success("تم تحديث رقم السجل التجاري بنجاح");
+                    setShowCrUpdateModal(false);
+                    void queryClient.invalidateQueries({ queryKey: ["client-session-shell"] });
+                    const retry = pendingTameedRetry;
+                    setPendingTameedRetry(null);
+                    if (retry) await retry();
+                  } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : "تعذر تحديث البيانات";
+                    toast.error(msg);
+                  } finally {
+                    setCrUpdateSaving(false);
+                  }
+                })()}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {crUpdateSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                حفظ ومتابعة التعميد
+              </button>
+              <button type="button" onClick={() => setShowCrUpdateModal(false)} className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showContractModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="contract-modal-title">
           <div className="relative max-h-[calc(100vh-32px)] w-full max-w-lg overflow-y-auto rounded-3xl border border-blue-200 bg-card p-6 shadow-2xl sm:p-8">
@@ -991,18 +1059,3 @@ export function ClientPortalShell() {
             </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
