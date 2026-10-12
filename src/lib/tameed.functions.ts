@@ -260,7 +260,7 @@ function generateAomToken(): string {
   return `AOM-${code}`;
 }
 
-// ============ Client functions: list projects + create tameed request ============
+// ============ Client functions: list projects + create tameed request ==========
 
 export const clientListMyTameedCodes = createServerFn({ method: "GET" })
   .handler(async () => {
@@ -340,7 +340,6 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
       throw new Error("DUPLICATE_TAMEED: لديك تعميد فعال");
     }
 
-    // Get project name
     const projectResult = await db.execute(
       "SELECT name FROM projects WHERE id = ? LIMIT 1",
       [data.project_id],
@@ -348,13 +347,23 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
     const projectRow = rowsToObjects<{ name: string }>(projectResult)[0];
     if (!projectRow) throw new Error("المشروع غير موجود");
 
-    // Get client name from client_profiles
-    const profileResult = await db.execute(
-      "SELECT company_name, email FROM client_profiles WHERE user_id = ? LIMIT 1",
+    const clientResult = await db.execute(
+      `SELECT company_name, cr_number, phone
+       FROM clients
+       WHERE id = ?
+       LIMIT 1`,
       [claims.sub],
     );
-    const profileRow = rowsToObjects<{ company_name: string; email: string }>(profileResult)[0];
-    const clientName = profileRow?.company_name || profileRow?.email || claims.email;
+    const clientRow = rowsToObjects<{
+      company_name: string | null;
+      cr_number: string | null;
+      phone: string | null;
+    }>(clientResult)[0];
+    const clientName = [
+      clientRow?.company_name ? `اسم الشركة/المؤسسة: ${clientRow.company_name}` : "",
+      clientRow?.cr_number ? `رقم السجل: ${clientRow.cr_number}` : "",
+      clientRow?.phone ? `رقم الهاتف: ${clientRow.phone}` : "",
+    ].filter(Boolean).join(" | ");
 
     const token = generateAomToken();
     const id = crypto.randomUUID();
