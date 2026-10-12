@@ -933,19 +933,11 @@ export function ClientPortalShell() {
                 </div>
               </div>
 
-              {clientSession?.profile && (
-                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-sm leading-7 text-foreground">
-                  <p className="mb-3 font-bold">بيانات العميل:</p>
-                  <div className="space-y-1.5">
-                    <p><span className="font-semibold text-muted-foreground">اسم الشركة / المؤسسة: </span><span className="font-bold">{clientSession.profile.company_name || "—"}</span></p>
-                    <p><span className="font-semibold text-muted-foreground">رقم السجل: </span><span className="font-bold" dir="ltr">{clientSession.profile.cr_number || "—"}</span></p>
-                    <p><span className="font-semibold text-muted-foreground">رقم الهاتف: </span><span className="font-bold" dir="ltr">{clientSession.profile.phone || "—"}</span></p>
-                  </div>
-                </div>
-              )}
-
               <div className="rounded-xl border border-border bg-secondary/30 p-4 text-sm leading-7 text-foreground">
                 <p className="mb-3 font-bold">نص العقد:</p>
+                <p>أنا الممثل عن: {clientSession?.profile?.company_name || "—"}</p>
+                <p>سجل: <span dir="ltr">{clientSession?.profile?.cr_number || "—"}</span></p>
+                <p>جوال: <span dir="ltr">{clientSession?.profile?.phone || "—"}</span></p>
                 <p>أتعهد وألتزم بأن أدفع لمنصة العمران عمولة بنسبة 2.5% من إجمالي قيمة المشروع المحدد، وذلك مقابل خدمات المنصة في ربط العملاء بالمشاريع وإدارتها.</p>
                 <p className="mt-2">أقر بأنني اطلعت على شروط المنصة وأوافق عليها، وأن توقيعي أدناه يمثل موافقتي على هذا الالتزام.</p>
               </div>
