@@ -282,7 +282,11 @@ export function ClientPortalShell() {
       void refetchTameedCodes();
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : "";
-      toast.error(detail.startsWith("DUPLICATE_TAMEED:") ? "لديك تعميد فعال لهذا المشروع - لا يمكن إنشاء تعميد مكرر" : "تعذر إنشاء طلب التعميد");
+      const message = detail.startsWith("DUPLICATE_TAMEED:")
+        ? "لديك تعميد فعال لهذا المشروع - لا يمكن إنشاء تعميد مكرر"
+        : detail || "تعذر إنشاء طلب التعميد";
+      setTameedError(message);
+      toast.error(message);
     } finally {
       setTameedSubmitting(false);
     }
@@ -974,10 +978,7 @@ export function ClientPortalShell() {
 
               <button
                 type="button"
-                onPointerUp={(event) => {
-                  event.preventDefault();
-                  void handleCreateTameed();
-                }}
+                onClick={() => void handleCreateTameed()}
                 disabled={tameedSubmitting || !selectedProjectId || !contractAgreed}
                 className="inline-flex w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
