@@ -583,6 +583,57 @@ export function ClientPortalShell() {
         </div>
       )}
 
+      {showReceiptModal && receiptModalData && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+          <div className="relative w-full max-w-md rounded-[2rem] border border-emerald-200 bg-white p-6 shadow-2xl sm:p-8" dir="rtl">
+            <button
+              type="button"
+              onClick={() => setShowReceiptModal(false)}
+              aria-label="إغلاق"
+              className="absolute left-4 top-4 rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="text-center">
+              <div className="mx-auto inline-flex items-center gap-2 text-3xl font-extrabold text-emerald-600">
+                <CheckCircle2 className="h-8 w-8" />
+                <h2 id="receipt-modal-title">إيصال معتمد</h2>
+              </div>
+              <p className="mt-6 text-2xl font-extrabold text-slate-800">منصة العمران</p>
+              <p className="mt-2 text-base text-slate-500">تم استلام إيصال السداد بنجاح</p>
+            </div>
+
+            <div className="mt-6 space-y-3 border-y border-dashed border-slate-200 py-5 text-lg">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-slate-500">رقم العملية</span>
+                <span className="font-bold text-slate-800" dir="ltr">{receiptModalData.code}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-slate-500">المبلغ</span>
+                <span className="font-extrabold text-slate-800">{receiptModalData.amount.toLocaleString("en-US")} ر.س</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-slate-500">التاريخ</span>
+                <span className="font-semibold text-slate-800" dir="ltr">{new Date().toLocaleString("ar-SA")}</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-center">
+              <QRCodeSVG value={receiptModalData.code} size={156} level="M" includeMargin />
+            </div>
+            <p className="mt-4 text-center text-sm text-slate-400">يمكن التحقق من الإيصال عبر رمز QR</p>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-4 text-lg font-extrabold text-white transition hover:bg-emerald-700"
+            >
+              <Printer className="h-5 w-5" />
+              طباعة
+            </button>
+          </div>
+        </div>
+      )}
+
       {showVipIntro && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby="vip-intro-title">
           <div className="relative w-full max-w-lg rounded-3xl border border-amber-200 bg-card p-6 shadow-2xl sm:p-8">
