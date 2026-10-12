@@ -10,6 +10,7 @@ import { listMyClientTickets } from "@/lib/client-tickets.functions";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { getClientVipStatus } from "@/lib/client-vip.functions";
 import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest, clientListMyTameedCodes } from "@/lib/tameed.functions";
+import { getClientSession } from "@/lib/client.functions";
 import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ export function ClientPortalShell() {
   const fetchMyProjects = useServerFn(clientListMyProjects);
   const fetchTameedCodes = useServerFn(clientListMyTameedCodes);
   const createTameed = useServerFn(clientCreateTameedRequest);
+  const fetchClientSession = useServerFn(getClientSession);
   const queryClient = useQueryClient();
   const [showVipIntro, setShowVipIntro] = useState(false);
   const [showTameed, setShowTameed] = useState(false);
@@ -112,6 +114,10 @@ export function ClientPortalShell() {
     queryKey: ["client-tameed-codes"],
     queryFn: () => fetchTameedCodes(),
     refetchOnMount: "always",
+  });
+  const { data: clientSession } = useQuery({
+    queryKey: ["client-session-shell"],
+    queryFn: () => fetchClientSession(),
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
   const allProjectsHaveActiveTameed = Boolean(myProjects && myProjects.length > 0 && myProjects.every((project) => myTameedCodes.some((code) => code.projectId === project.id && isActiveTameedStatus(code.status))));
@@ -927,6 +933,17 @@ export function ClientPortalShell() {
                 </div>
               </div>
 
+              {clientSession?.profile && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-sm leading-7 text-foreground">
+                  <p className="mb-3 font-bold">بيانات العميل:</p>
+                  <div className="space-y-1.5">
+                    <p><span className="font-semibold text-muted-foreground">اسم الشركة / المؤسسة: </span><span className="font-bold">{clientSession.profile.company_name || "—"}</span></p>
+                    <p><span className="font-semibold text-muted-foreground">رقم السجل: </span><span className="font-bold" dir="ltr">{clientSession.profile.cr_number || "—"}</span></p>
+                    <p><span className="font-semibold text-muted-foreground">رقم الهاتف: </span><span className="font-bold" dir="ltr">{clientSession.profile.phone || "—"}</span></p>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-xl border border-border bg-secondary/30 p-4 text-sm leading-7 text-foreground">
                 <p className="mb-3 font-bold">نص العقد:</p>
                 <p>أتعهد وألتزم بأن أدفع لمنصة العمران عمولة بنسبة 2.5% من إجمالي قيمة المشروع المحدد، وذلك مقابل خدمات المنصة في ربط العملاء بالمشاريع وإدارتها.</p>
@@ -978,90 +995,3 @@ export function ClientPortalShell() {
             </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-
-      {showReceiptModal && receiptModalData && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 print:bg-none print:p-0" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
-          <div className="receipt-card relative w-[90vw] max-w-sm rounded-2xl border border-border bg-white p-4 shadow-2xl print:shadow-none sm:p-6">
-            <button
-              type="button"
-              onClick={() => setShowReceiptModal(false)}
-              aria-label="إغلاق الإيصال"
-              className="absolute left-3 top-3 rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 print:hidden"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <h2 id="receipt-modal-title" className="mb-6 text-center text-xl font-bold text-emerald-600">
-              إيصال معتمد ✓
-            </h2>
-
-            <div className="space-y-2 text-center">
-              <p className="text-lg font-bold text-gray-800">منصة العمران</p>
-              <p className="text-sm text-gray-500" dir="ltr">ali-alhaddad.com</p>
-              <div className="my-3 border-t border-dashed border-gray-200" />
-              <p className="text-sm text-gray-600">
-                رقم العملية: <span className="font-bold text-gray-800" dir="ltr">{receiptModalData.code}</span>
-              </p>
-              <p className="text-sm text-gray-600">
-                المبلغ: <span className="font-bold text-gray-800">{receiptModalData.amount.toLocaleString("en-US")} ر.س</span>
-              </p>
-              <p className="text-sm text-gray-600">
-                التاريخ: <span className="font-bold text-gray-800">{new Date().toLocaleString("ar-SA")}</span>
-              </p>
-            </div>
-
-            <div className="my-4 border-t border-dashed border-gray-200" />
-
-            <div className="flex flex-row items-center justify-center gap-4 px-2">
-              <div className="order-2 flex flex-shrink-0 flex-col items-center">
-                <img src="/seal.svg" alt="ختم" className="h-[38px] w-[38px] opacity-80 sm:h-[70px] sm:w-[70px]" />
-                <span className="text-[7px] text-gray-500">
-                  {new Date().toLocaleDateString('ar-EG', {day:'2-digit', month:'2-digit'})}
-                </span>
-              </div>
-              <div className="order-1 flex-shrink-0">
-                <QRCodeSVG
-                  value={`https://ali-alhaddad.com/verify/${receiptModalData.code}`}
-                  size={90}
-                  level="M"
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowReceiptModal(false)}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-5 py-3 font-bold text-gray-700 transition hover:bg-gray-50 print:hidden"
-            >
-              العودة للمنصة
-            </button>
-
-            <p className="mt-4 text-center text-xs text-gray-400">
-              وثيقة صادرة إلكترونياً ويمكن التحقق عبر QR
-            </p>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700 print:hidden"
-            >
-              <Printer className="h-4 w-4" />
-              طباعة
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
