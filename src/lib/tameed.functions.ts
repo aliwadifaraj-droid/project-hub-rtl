@@ -349,10 +349,10 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
 
     const clientResult = await db.execute(
       `SELECT company_name, cr_number, phone
-       FROM clients
-       WHERE id = ?
+       FROM client_profiles
+       WHERE user_id = ? OR lower(trim(email)) = lower(trim(?))
        LIMIT 1`,
-      [claims.sub],
+      [claims.sub, claims.email],
     );
     const clientRow = rowsToObjects<{
       company_name: string | null;
