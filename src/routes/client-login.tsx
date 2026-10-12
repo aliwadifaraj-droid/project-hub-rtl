@@ -45,6 +45,7 @@ function ClientLoginPage() {
         if (!companyName.trim()) throw new Error("اسم الشركة مطلوب");
         if (!phone.trim()) throw new Error("رقم الجوال مطلوب");
         if (!city.trim()) throw new Error("المدينة مطلوبة");
+        if (!crNumber.trim() || crNumber.trim() === "—") throw new Error("رقم السجل التجاري مطلوب");
         await doSignUp({
           data: { email, password, company_name: companyName, phone, city, cr_number: crNumber, bio },
         });
@@ -108,9 +109,9 @@ function ClientLoginPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold">رقم السجل التجاري (اختياري)</label>
+                  <label className="mb-1.5 block text-sm font-semibold">رقم السجل التجاري *</label>
                   <input
-                    type="text" value={crNumber} onChange={(e) => setCrNumber(e.target.value)}
+                    type="text" required value={crNumber} onChange={(e) => setCrNumber(e.target.value)}
                     className="inp" placeholder="1010xxxxxx"
                   />
                 </div>
