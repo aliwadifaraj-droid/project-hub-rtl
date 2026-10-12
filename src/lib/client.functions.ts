@@ -38,7 +38,7 @@ const signUpClientSchema = clientCredsSchema.extend({
   company_name: z.string().trim().min(2).max(200),
   phone: z.string().trim().min(4).max(40),
   city: z.string().trim().min(1).max(100),
-  cr_number: z.string().trim().max(50).optional().default(""),
+  cr_number: z.string().trim().min(1, "رقم السجل التجاري مطلوب").max(50),
   bio: z.string().trim().max(2000).optional().default(""),
 });
 
@@ -104,6 +104,23 @@ export const getMyClientProfile = createServerFn({ method: "GET" })
       profile = await clientRepo.getClientProfileByEmail(context.email);
     }
     return profile;
+  });
+
+const updateClientProfileSchema = z.object({
+  cr_number: z.string().trim().min(1, "رقم السجل التجاري مطلوب").max(50),
+});
+
+export const updateMyClientProfile = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) => updateClientProfileSchema.parse(d))
+  .handler(async ({ context, data }) => {
+    let profile = await clientRepo.getClientProfile(context.userId);
+    if (!profile) {
+      profile = await clientRepo.getClientProfileByEmail(context.email);
+    }
+    if (!profile) throw new Error("الملف غير موجود");
+    await clientRepo.updateClientProfile(profile.user_id, { cr_number: data.cr_number });
+    return { ok: true };
   });
 
 // ---------- Track my offers ----------
