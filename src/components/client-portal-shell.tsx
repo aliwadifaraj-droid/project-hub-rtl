@@ -974,9 +974,12 @@ export function ClientPortalShell() {
 
               <button
                 type="button"
-                onClick={() => void handleCreateTameed()}
+                onPointerUp={(event) => {
+                  event.preventDefault();
+                  void handleCreateTameed();
+                }}
                 disabled={tameedSubmitting || !selectedProjectId || !contractAgreed}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {tameedSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
                 إنشاء طلب التعميد
