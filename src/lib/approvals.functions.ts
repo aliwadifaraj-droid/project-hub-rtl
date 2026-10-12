@@ -11,10 +11,11 @@ import {
   approveTokenWithPaidAmount,
   addApprovalInstallment,
   getVipBankInfo,
+  setTokenAmount,
 } from "./approvals.repo";
 import { deleteApprovalToken, deleteApprovalReceipt } from "./approvals.delete";
 import { listAllClientProfiles } from "./client.repo";
-import { findClientByEmail } from "./clients.repo";
+import { findClientByEmail, findClientById } from "./clients.repo";
 import { listAllProjects } from "./projects.repo";
 
 const createTokenSchema = z.object({
@@ -50,7 +51,28 @@ export const adminCreateApprovalToken = createServerFn({ method: "POST" })
 
 export const adminListApprovalTokens = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async () => listAllApprovalTokens());
+  .handler(async () => {
+    const [tokens, profiles] = await Promise.all([
+      listAllApprovalTokens(),
+      listAllClientProfiles(),
+    ]);
+    const clients = await Promise.all(tokens.map((token) => findClientById(token.client_id)));
+
+    return tokens.map((token, index) => {
+      const client = clients[index];
+      const profile = profiles.find((p) =>
+        p.user_id === token.client_id ||
+        p.id === token.client_id ||
+        p.email.toLowerCase() === client?.email.toLowerCase() ||
+        p.email.toLowerCase() === token.client_name.toLowerCase(),
+      );
+
+      return {
+        ...token,
+        client_name: profile?.company_name || "",
+      };
+    });
+  });
 
 const addInstallmentSchema = z.object({ token_id: z.string().min(1), amount: z.string().min(1) });
 
@@ -79,7 +101,28 @@ export const adminDeleteApprovalReceipt = createServerFn({ method: "POST" })
 
 export const adminListApprovalReceipts = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async () => listAllApprovalReceipts());
+  .handler(async () => {
+    const [receipts, profiles] = await Promise.all([
+      listAllApprovalReceipts(),
+      listAllClientProfiles(),
+    ]);
+    const clients = await Promise.all(receipts.map((receipt) => findClientById(receipt.client_id)));
+
+    return receipts.map((receipt, index) => {
+      const client = clients[index];
+      const profile = profiles.find((p) =>
+        p.user_id === receipt.client_id ||
+        p.id === receipt.client_id ||
+        p.email.toLowerCase() === client?.email.toLowerCase() ||
+        p.email.toLowerCase() === receipt.client_name.toLowerCase(),
+      );
+
+      return {
+        ...receipt,
+        client_name: profile?.company_name || "",
+      };
+    });
+  });
 
 export const adminGetApprovalClients = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
@@ -87,7 +130,7 @@ export const adminGetApprovalClients = createServerFn({ method: "GET" })
     const profiles = await listAllClientProfiles();
     return Promise.all(profiles.map(async (p) => {
       const client = await findClientByEmail(p.email);
-      return { id: p.id, client_id: client?.id ?? p.user_id, name: p.company_name || p.email, email: p.email };
+      return { id: p.id, client_id: client?.id ?? p.user_id, name: p.company_name, email: p.email };
     }));
   });
 
@@ -134,5 +177,19 @@ export const adminRejectReceipt = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => approveReceiptSchema.parse(d))
   .handler(async ({ data }) => {
     await updateReceiptStatus(data.receipt_id, "rejected");
+    return { ok: true };
+  });
+
+const setTokenAmountSchema = z.object({
+  token_id: z.string().min(1),
+  total_amount: z.string().min(1),
+  first_due_amount: z.string().min(1),
+});
+
+export const adminSetTokenAmount = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => setTokenAmountSchema.parse(d))
+  .handler(async ({ data }) => {
+    await setTokenAmount(data.token_id, data.total_amount, data.first_due_amount);
     return { ok: true };
   });

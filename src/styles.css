@@ -96,4 +96,37 @@
   .inp:focus {
     box-shadow: 0 0 0 2px var(--color-ring);
   }
+
+  [aria-labelledby="tameed-title"] {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100 !important;
+    display: flex !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    padding: 1rem !important;
+  }
+
+  [aria-labelledby="tameed-title"] > div {
+    position: relative !important;
+    inset: auto !important;
+    box-sizing: border-box;
+    width: min(90vw, 38rem) !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 2rem);
+    min-width: 0;
+    margin: 0 !important;
+    overflow-x: hidden;
+    overflow-y: auto;
+    transform: none !important;
+  }
+
+  @media (max-width: 640px) {
+    [aria-labelledby="tameed-title"] > div {
+      transform: translateX(1.5rem) !important;
+    }
+  }
 }

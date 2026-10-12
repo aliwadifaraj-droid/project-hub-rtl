@@ -25,6 +25,7 @@ export type ApprovalTokenRow = {
   allowed_amount: string;
   paid_amount: string;
   status: string;
+  signature_image: string | null;
   created_at: string;
   updated_at: string;
   approved_at: string | null;
@@ -62,6 +63,7 @@ type ApprovalTokenInput = {
   installments?: string[];
   token?: string;
   code?: string;
+  signature_image?: string;
 };
 
 let approvalTablesReady: Promise<void> | null = null;
@@ -141,6 +143,7 @@ function ensureApprovalTables(): Promise<void> {
       allowed_amount: "TEXT",
       updated_at: "TEXT",
       approved_at: "TEXT",
+      signature_image: "TEXT",
     };
     const missingReceiptColumns: Record<string, string> = {
       approved_at: "TEXT",
@@ -223,13 +226,14 @@ function decodeToken(r: any): ApprovalTokenRow {
     id: String(r.id ?? ""),
     token_code: String(r.token_code || r.code || r.token || ""),
     client_id: String(r.client_id || r.user_id || ""),
-    client_name: String(r.client_name ?? ""),
+    client_name: String(r.display_client_name ?? "اسم الشركة غير مسجل"),
     project_id: String(r.project_id ?? ""),
     project_name: String(r.project_name ?? ""),
     total_commission: String(r.total_commission || r.amount || "0"),
     allowed_amount: String(r.allowed_amount || r.allowed_payment_now || "0"),
     paid_amount: String(r.paid_amount ?? "0"),
     status: String(r.status ?? "active"),
+    signature_image: r.signature_image ?? null,
     created_at: String(r.created_at ?? ""),
     updated_at: String(r.updated_at ?? ""),
     approved_at: r.approved_at ?? null,
@@ -243,7 +247,7 @@ function decodeReceipt(r: any): ApprovalReceiptRow {
     token_id: String(r.token_id ?? ""),
     token_code: String(r.token_code || r.code || r.token || ""),
     client_id: String(r.client_id || r.user_id || ""),
-    client_name: String(r.client_name ?? ""),
+    client_name: String(r.display_client_name ?? "اسم الشركة غير مسجل"),
     amount: String(r.amount ?? "0"),
     ocr_result: r.ocr_result ?? null,
     ocr_amount: r.ocr_amount ?? null,
@@ -302,12 +306,13 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
     status: "active",
     created_at: now,
     updated_at: now,
+    signature_image: data.signature_image ?? "",
   };
 
   const preferredColumns = [
     "id", "token", "code", "user_id", "client_name", "project_id", "project_name",
     "amount", "total_commission", "allowed_payment_now", "paid_amount", "status", "created_at", "updated_at",
-    "token_code", "client_id", "allowed_amount",
+    "token_code", "client_id", "allowed_amount", "signature_image",
   ];
   const insertColumns = preferredColumns.filter((column) => columns.has(column));
   const insertValues = insertColumns.map((column) => values[column]);
@@ -324,6 +329,30 @@ export async function createApprovalToken(data: ApprovalTokenInput = {}): Promis
   })));
 
   return (await findTokenById(id))!;
+}
+
+export async function setTokenAmount(tokenId: string, totalAmount: string, firstDueAmount: string): Promise<void> {
+  await ensureApprovalTables();
+  const now = new Date().toISOString();
+  const token = await findTokenById(tokenId);
+  if (!token) throw new Error("رمز التعميد غير موجود");
+  if (token.status !== "بانتظار التسعير") throw new Error("هذا الرمز ليس بحالة بانتظار التسعير");
+  const total = Number(totalAmount);
+  const firstDue = Number(firstDueAmount);
+  if (!Number.isFinite(total) || total <= 0) throw new Error("المبلغ الإجمالي غير صحيح");
+  if (!Number.isFinite(firstDue) || firstDue <= 0) throw new Error("مبلغ الدفعة الأولى غير صحيح");
+  if (firstDue > total + 0.01) throw new Error("الدفعة الأولى لا يمكن أن تتجاوز الإجمالي");
+
+  await db.execute(
+    "UPDATE approval_tokens SET total_commission = ?, allowed_amount = ?, allowed_payment_now = ?, amount = ?, paid_amount = '0', status = 'نشط', updated_at = ? WHERE id = ?",
+    [totalAmount, totalAmount, firstDueAmount, totalAmount, now, tokenId],
+  );
+
+  await db.execute(
+    `INSERT INTO approval_installments (id, token_id, installment_number, amount, paid_amount, status, created_at)
+     VALUES (?, ?, 1, ?, '0', 'pending', ?)`,
+    [crypto.randomUUID(), tokenId, firstDueAmount, now],
+  );
 }
 
 export async function addApprovalInstallment(tokenId: string, amount: string): Promise<ApprovalInstallmentRow> {
@@ -391,7 +420,18 @@ export async function findTokenByCode(code: string): Promise<ApprovalTokenRow | 
 
 export async function listAllApprovalTokens(): Promise<ApprovalTokenRow[]> {
   await ensureApprovalTables();
-  const r = await db.execute("SELECT * FROM approval_tokens ORDER BY created_at DESC");
+  const r = await db.execute(
+    `SELECT t.*,
+            COALESCE(
+              (SELECT NULLIF(trim(cp.company_name), '')
+               FROM client_profiles cp
+               WHERE cp.user_id = t.client_id OR cp.user_id = t.user_id
+               LIMIT 1),
+              CASE WHEN instr(t.client_name, '@') > 0 THEN 'اسم الشركة غير مسجل' ELSE t.client_name END
+            ) AS display_client_name
+     FROM approval_tokens t
+     ORDER BY t.created_at DESC`,
+  );
   return Promise.all(rowsToObjects(r).map(async (row) => {
     const token = decodeToken(row);
     token.installments = await listApprovalInstallments(token.id);
@@ -483,7 +523,18 @@ export async function createApprovalReceipt(data: {
 
 export async function listAllApprovalReceipts(): Promise<ApprovalReceiptRow[]> {
   await ensureApprovalTables();
-  const r = await db.execute("SELECT * FROM approval_receipts ORDER BY created_at DESC");
+  const r = await db.execute(
+    `SELECT r.*,
+            COALESCE(
+              (SELECT NULLIF(trim(cp.company_name), '')
+               FROM client_profiles cp
+               WHERE cp.user_id = r.user_id
+               LIMIT 1),
+              CASE WHEN instr(r.client_name, '@') > 0 THEN 'اسم الشركة غير مسجل' ELSE r.client_name END
+            ) AS display_client_name
+     FROM approval_receipts r
+     ORDER BY r.created_at DESC`,
+  );
   return rowsToObjects(r).map(decodeReceipt);
 }
 

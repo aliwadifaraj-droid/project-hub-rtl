@@ -259,3 +259,125 @@ function generateAomToken(): string {
   }
   return `AOM-${code}`;
 }
+
+// ============ Client functions: list projects + create tameed request ==========
+
+export const clientListMyTameedCodes = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const claims = await getSessionClaims();
+    if (!claims) throw new Error("يجب تسجيل الدخول");
+
+    const result = await db.execute(
+      `SELECT id, token, code, project_id, project_name, total_commission, allowed_amount, allowed_payment_now, paid_amount, status, created_at
+       FROM approval_tokens
+       WHERE client_id = ? OR user_id = ?
+       ORDER BY created_at DESC`,
+      [claims.sub, claims.sub],
+    );
+
+    return rowsToObjects<{
+      id: string;
+      token: string | null;
+      code: string | null;
+      project_id: string | null;
+      project_name: string | null;
+      total_commission: string | null;
+      allowed_amount: string | null;
+      allowed_payment_now: string | null;
+      paid_amount: string | null;
+      status: string | null;
+      created_at: string | null;
+    }>(result).map((row) => ({
+      id: String(row.id ?? ""),
+      code: String(row.token ?? row.code ?? ""),
+      projectId: String(row.project_id ?? ""),
+      project_name: String(row.project_name ?? ""),
+      total: Number(row.total_commission ?? row.allowed_amount ?? 0),
+      allowed_payment_now: Number(row.allowed_payment_now ?? row.allowed_amount ?? 0),
+      paid: Number(row.paid_amount ?? 0),
+      remaining: Math.max(0, Number(row.total_commission ?? row.allowed_amount ?? 0) - Number(row.paid_amount ?? 0)),
+      due_amount: Math.max(0, Number(row.allowed_payment_now ?? row.allowed_amount ?? 0) - Number(row.paid_amount ?? 0)),
+      status: String(row.status ?? "active"),
+      created_at: String(row.created_at ?? ""),
+    }));
+  });
+
+export const clientListMyProjects = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const claims = await getSessionClaims();
+    if (!claims) throw new Error("يجب تسجيل الدخول");
+
+    const result = await db.execute(
+      "SELECT id, name FROM projects WHERE status = 'active' AND admin_approval = 'approved' ORDER BY created_at DESC",
+    );
+    return rowsToObjects<{ id: string; name: string }>(result).map((row) => ({
+      id: String(row.id),
+      name: String(row.name ?? ""),
+    }));
+  });
+
+const createTameedRequestSchema = z.object({
+  project_id: z.string().min(1),
+  signature_image: z.string().min(1),
+});
+
+export const clientCreateTameedRequest = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => createTameedRequestSchema.parse(data))
+  .handler(async ({ data }) => {
+    const claims = await getSessionClaims();
+    if (!claims) throw new Error("يجب تسجيل الدخول");
+
+    const existing = await db.execute(
+      `SELECT id
+       FROM approval_tokens
+       WHERE project_id = ?
+         AND (user_id = ? OR client_id = ?)
+         AND lower(trim(status)) IN ('pending', 'active', 'awaiting_pricing', 'بانتظار التسعير')
+       LIMIT 1`,
+      [data.project_id, claims.sub, claims.sub],
+    );
+    if (rowsToObjects(existing).length > 0) {
+      throw new Error("DUPLICATE_TAMEED: لديك تعميد فعال");
+    }
+
+    const projectResult = await db.execute(
+      "SELECT name FROM projects WHERE id = ? LIMIT 1",
+      [data.project_id],
+    );
+    const projectRow = rowsToObjects<{ name: string }>(projectResult)[0];
+    if (!projectRow) throw new Error("المشروع غير موجود");
+
+    const clientResult = await db.execute(
+      `SELECT company_name, cr_number, phone
+       FROM client_profiles
+       WHERE user_id = ? OR lower(trim(email)) = lower(trim(?))
+       LIMIT 1`,
+      [claims.sub, claims.email],
+    );
+    const clientRow = rowsToObjects<{
+      company_name: string | null;
+      cr_number: string | null;
+      phone: string | null;
+    }>(clientResult)[0];
+    if (!clientRow?.cr_number?.trim() || clientRow.cr_number.trim() === "—") {
+      throw new Error("رقم السجل التجاري مطلوب");
+    }
+
+    const clientName = [
+      clientRow.company_name ? `اسم الشركة/المؤسسة: ${clientRow.company_name}` : "",
+      `رقم السجل: ${clientRow.cr_number}`,
+      clientRow.phone ? `رقم الهاتف: ${clientRow.phone}` : "",
+    ].filter(Boolean).join(" | ");
+
+    const token = generateAomToken();
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    await db.execute(
+      `INSERT INTO approval_tokens (id, token, code, user_id, client_id, client_name, project_id, project_name, signature_image, total_commission, allowed_amount, paid_amount, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '0', 'بانتظار التسعير', ?, ?)`,
+      [id, token, token, claims.sub, claims.sub, clientName, data.project_id, projectRow.name, data.signature_image, now, now],
+    );
+
+    return { id, token, project_name: projectRow.name };
+  });
