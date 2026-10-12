@@ -359,10 +359,14 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
       cr_number: string | null;
       phone: string | null;
     }>(clientResult)[0];
+    if (!clientRow?.cr_number?.trim() || clientRow.cr_number.trim() === "—") {
+      throw new Error("رقم السجل التجاري مطلوب");
+    }
+
     const clientName = [
-      clientRow?.company_name ? `اسم الشركة/المؤسسة: ${clientRow.company_name}` : "",
-      clientRow?.cr_number ? `رقم السجل: ${clientRow.cr_number}` : "",
-      clientRow?.phone ? `رقم الهاتف: ${clientRow.phone}` : "",
+      clientRow.company_name ? `اسم الشركة/المؤسسة: ${clientRow.company_name}` : "",
+      `رقم السجل: ${clientRow.cr_number}`,
+      clientRow.phone ? `رقم الهاتف: ${clientRow.phone}` : "",
     ].filter(Boolean).join(" | ");
 
     const token = generateAomToken();
