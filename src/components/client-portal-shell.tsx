@@ -630,6 +630,13 @@ export function ClientPortalShell() {
               <Printer className="h-5 w-5" />
               طباعة
             </button>
+            <button
+              type="button"
+              onClick={() => { setShowReceiptModal(false); closeTameed(); }}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-white px-5 py-4 text-lg font-extrabold text-emerald-700 transition hover:bg-emerald-50"
+            >
+              العودة إلى المنصة
+            </button>
           </div>
         </div>
       )}
