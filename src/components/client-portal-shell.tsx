@@ -584,8 +584,9 @@ export function ClientPortalShell() {
       )}
 
       {showReceiptModal && receiptModalData && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
-          <div className="relative w-full max-w-sm rounded-3xl bg-white px-6 py-7 shadow-2xl" dir="rtl">
+        <div className="flex justify-center items-start min-h-screen p-4 bg-gray-100" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+          <div className="w-full">
+            <div className="w-full max-w-[380px] mx-auto bg-white rounded-2xl shadow-lg p-6" dir="rtl">
             <div className="text-center">
               <h2 id="receipt-modal-title" className="text-2xl font-extrabold text-emerald-600 underline underline-offset-4 decoration-2">
                 إيصال معتمد ✓
@@ -622,25 +623,26 @@ export function ClientPortalShell() {
             </div>
 
             <p className="mt-4 text-center text-sm text-slate-400">وثيقة صادرة إلكترونياً ويمكن التحقق عبر QR</p>
-
-            <div className="print:hidden">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-5 py-4 text-lg font-extrabold text-white transition hover:bg-emerald-700"
-              >
-                <Printer className="h-5 w-5" />
-                طباعة
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowReceiptModal(false); closeTameed(); }}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-4 text-lg font-extrabold text-slate-700 transition hover:bg-slate-50"
-              >
-                العودة للمنصة
-              </button>
-            </div>
           </div>
+
+          <div className="flex flex-row gap-3 w-full max-w-[380px] mx-auto mt-4 print:hidden" dir="rtl">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex-1 h-12 inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 text-lg font-extrabold text-white transition hover:bg-emerald-700"
+            >
+              <Printer className="h-5 w-5" />
+              طباعة
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowReceiptModal(false); closeTameed(); }}
+              className="flex-1 h-12 inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-extrabold text-slate-700 transition hover:bg-slate-50"
+            >
+              العودة للمنصة
+            </button>
+          </div>
+        </div>
         </div>
       )}
 
