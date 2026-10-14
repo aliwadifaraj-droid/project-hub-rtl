@@ -1125,7 +1125,6 @@ export function ClientPortalShell() {
               </button>
             </div>
               </>
-            )}
   </div>
 </div>
 );
