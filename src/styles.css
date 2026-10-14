@@ -28,8 +28,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --font-display: var(--font-display);
-  --font-sans: var(--font-sans);
+  --font-display: "Cairo", "Tajawal", system-ui, sans-serif;
+  --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
+  --gradient-hero: linear-gradient(135deg, oklch(0.25 0.03 50) 0%, oklch(0.32 0.04 50) 60%, oklch(0.45 0.08 55) 100%);
+  --gradient-accent: linear-gradient(135deg, oklch(0.72 0.14 65), oklch(0.78 0.13 75));
+  --shadow-card: 0 8px 24px -12px oklch(0.18 0.02 50 / 0.18);
+  --shadow-elegant: 0 20px 60px -20px oklch(0.32 0.04 50 / 0.35);
 }
 
 :root {
@@ -53,14 +57,6 @@
   --border: oklch(0.9 0.015 70);
   --input: oklch(0.92 0.012 70);
   --ring: oklch(0.72 0.14 65);
-
-  --font-display: "Cairo", "Tajawal", system-ui, sans-serif;
-  --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
-
-  --gradient-hero: linear-gradient(135deg, oklch(0.25 0.03 50) 0%, oklch(0.32 0.04 50) 60%, oklch(0.45 0.08 55) 100%);
-  --gradient-accent: linear-gradient(135deg, oklch(0.72 0.14 65), oklch(0.78 0.13 75));
-  --shadow-card: 0 8px 24px -12px oklch(0.18 0.02 50 / 0.18);
-  --shadow-elegant: 0 20px 60px -20px oklch(0.32 0.04 50 / 0.35);
 }
 
 @layer base {
@@ -143,12 +139,12 @@
     }
 
     [aria-labelledby="receipt-modal-title"] > * {
-      transform: translateX(1rem) !important;
+      transform: translateX(3rem) !important;
     }
 
     [aria-labelledby="receipt-modal-title"] > div {
-      width: calc(100vw - 2rem) !important;
-      max-width: calc(100vw - 2rem) !important;
+      width: calc(100vw - 4rem) !important;
+      max-width: calc(100vw - 4rem) !important;
       max-height: calc(100dvh - 1rem);
     }
   }
@@ -158,5 +154,4 @@
       display: none !important;
     }
   }
-
 }
