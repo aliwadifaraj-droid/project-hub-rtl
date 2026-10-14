@@ -6,6 +6,23 @@ import { requireAuth } from "./auth-middleware.server";
 import { uploadToR2, signGetUrl, deleteFromR2, makeKey } from "./r2";
 import { insertFile, getFileById, deleteFileRow, getFileByKey } from "./files.repo";
 
+if (typeof globalThis !== "undefined") {
+  (globalThis as typeof globalThis & { fileToBase64?: (file: File) => Promise<string> }).fileToBase64 = (file: File) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("تعذر قراءة ملف الإيصال"));
+        return;
+      }
+      const commaIndex = result.indexOf(",");
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("تعذر قراءة ملف الإيصال"));
+    reader.readAsDataURL(file);
+  });
+}
+
 const uploadSchema = z.object({
   filename: z.string().min(1).max(200),
   mime: z.string().max(200).optional(),
@@ -157,4 +174,3 @@ export const registerPublicUploadedFile = createServerFn({ method: "POST" })
     });
     return { id, key: data.key, publicUrl: data.publicUrl ?? "" };
   });
-
