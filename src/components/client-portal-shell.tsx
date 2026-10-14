@@ -584,7 +584,7 @@ export function ClientPortalShell() {
       )}
 
       {showReceiptModal && receiptModalData && (
-        <div className="flex justify-center items-start min-h-screen p-4 bg-gray-100" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
           <div className="w-full">
             <div className="w-full max-w-[380px] mx-auto bg-white rounded-2xl shadow-lg p-6" dir="rtl">
             <div className="text-center">
@@ -1122,18 +1122,3 @@ export function ClientPortalShell() {
             </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
