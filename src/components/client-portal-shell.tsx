@@ -586,7 +586,7 @@ export function ClientPortalShell() {
       {showReceiptModal && receiptModalData && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
           <div className="w-full">
-            <div className="w-full max-w-[380px] mx-auto bg-white rounded-2xl shadow-lg p-6" dir="rtl">
+            <div className="w-[96vw] max-w-[440px] mx-auto bg-white rounded-2xl shadow-lg p-6" dir="rtl">
             <div className="text-center">
               <h2 id="receipt-modal-title" className="text-2xl font-extrabold text-emerald-600 underline underline-offset-4 decoration-2">
                 إيصال معتمد ✓
@@ -625,7 +625,14 @@ export function ClientPortalShell() {
             <p className="mt-4 text-center text-sm text-slate-400">وثيقة صادرة إلكترونياً ويمكن التحقق عبر QR</p>
           </div>
 
-          <div className="flex flex-row gap-3 w-full max-w-[380px] mx-auto mt-4 print:hidden" dir="rtl">
+          <div className="flex flex-row gap-3 w-[96vw] max-w-[440px] mx-auto mt-4 print:hidden" dir="rtl">
+            <button
+              type="button"
+              onClick={() => { setShowReceiptModal(false); closeTameed(); }}
+              className="flex-1 h-12 inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-extrabold text-slate-700 transition hover:bg-slate-50"
+            >
+              العودة للمنصة
+            </button>
             <button
               type="button"
               onClick={() => window.print()}
@@ -633,13 +640,6 @@ export function ClientPortalShell() {
             >
               <Printer className="h-5 w-5" />
               طباعة
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowReceiptModal(false); closeTameed(); }}
-              className="flex-1 h-12 inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-extrabold text-slate-700 transition hover:bg-slate-50"
-            >
-              العودة للمنصة
             </button>
           </div>
         </div>
