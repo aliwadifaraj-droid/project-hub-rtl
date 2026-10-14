@@ -96,7 +96,7 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     let tokenResult;
     try {
       tokenResult = await db.execute(
-        `SELECT id, token, code, client_id, client_name, total_commission, allowed_payment_now, status
+        `SELECT id, token, code, client_id, client_name, total_commission, allowed_payment_now, paid_amount, status
          FROM approval_tokens
          WHERE id = ? AND client_id = ?
          LIMIT 1`,
@@ -113,6 +113,7 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
       client_name: string | null;
       total_commission: string | number;
       allowed_payment_now: string | number | null;
+      paid_amount: string | number | null;
       status: string;
     }>(tokenResult)[0];
 
@@ -121,8 +122,21 @@ export const submitApprovalReceipt = createServerFn({ method: "POST" })
     if (token.status === "used" || token.status === "completed" || token.status === "complete") {
       throw new Error("تم استخدام هذا الرمز مسبقاً");
     }
-    const requiredAmount = Number(token.allowed_payment_now ?? token.total_commission);
-    if (!Number.isFinite(requiredAmount) || Math.abs(requiredAmount - data.amount) > 2) {
+    const installmentResult = await db.execute(
+      `SELECT amount
+       FROM approval_installments
+       WHERE token_id = ? AND lower(trim(status)) <> 'paid'
+       ORDER BY installment_number ASC
+       LIMIT 1`,
+      [token.id],
+    );
+    const nextInstallment = rowsToObjects<{ amount: string | number }>(installmentResult)[0];
+    const totalCommission = Number(token.total_commission);
+    const paidAmount = Number(token.paid_amount ?? 0);
+    const remainingAmount = Math.max(0, totalCommission - paidAmount);
+    const nextPaymentAmount = Number(nextInstallment?.amount ?? token.allowed_payment_now ?? token.total_commission);
+    const requiredAmount = Math.min(nextPaymentAmount, remainingAmount);
+    if (!Number.isFinite(requiredAmount) || requiredAmount <= 0 || Math.abs(requiredAmount - data.amount) > 2) {
       throw new Error("المبلغ غير مطابق");
     }
 
