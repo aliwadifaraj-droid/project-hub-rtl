@@ -130,4 +130,10 @@
     }
   }
 
+  @media print {
+    .print\:hidden {
+      display: none !important;
+    }
+  }
+
 }
