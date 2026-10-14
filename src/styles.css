@@ -142,11 +142,14 @@
       padding: 0.5rem !important;
     }
 
+    [aria-labelledby="receipt-modal-title"] > * {
+      transform: translateX(1rem) !important;
+    }
+
     [aria-labelledby="receipt-modal-title"] > div {
-      width: calc(100vw - 1rem) !important;
-      max-width: calc(100vw - 1rem) !important;
+      width: calc(100vw - 2rem) !important;
+      max-width: calc(100vw - 2rem) !important;
       max-height: calc(100dvh - 1rem);
-      transform: none !important;
     }
   }
 
