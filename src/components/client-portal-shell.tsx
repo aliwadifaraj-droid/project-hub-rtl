@@ -940,6 +940,10 @@ export function ClientPortalShell() {
                       </button>
                     </>
                   )}
+                  <button type="button" onClick={() => { setTameedStep("input"); setReceiptFile(null); setReceiptApproved(false); setReceiptAmount(null); setReceiptError(""); setReceiptSent(false); setTameedResult(null); }} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
+                    <ChevronLeft className="h-4 w-4 rotate-180" />
+                    العودة لإدخال الرمز
+                  </button>
                   <button type="button" onClick={closeTameed} className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-background px-5 py-3 font-semibold text-foreground transition hover:bg-secondary">
                     العودة للمنصة
                   </button>
@@ -1122,18 +1126,3 @@ export function ClientPortalShell() {
             </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
