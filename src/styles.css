@@ -129,4 +129,22 @@
       transform: translateX(1.5rem) !important;
     }
   }
+
+  [aria-labelledby="receipt-modal-title"] .mt-6.flex.justify-center::after {
+    display: flex;
+    width: 6rem;
+    height: 7.25rem;
+    align-items: flex-end;
+    justify-content: center;
+    background-image: url("/seal.svg");
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: 6rem 6rem;
+    color: #64748b;
+    content: "13/10/2026";
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    direction: ltr;
+  }
 }
