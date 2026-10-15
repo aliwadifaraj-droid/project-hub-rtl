@@ -585,52 +585,64 @@ export function ClientPortalShell() {
 
       {showReceiptModal && receiptModalData && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
-          <div className="relative w-full max-w-md rounded-[2rem] border border-emerald-200 bg-white p-6 shadow-2xl sm:p-8" dir="rtl">
+          <div className="w-full">
+            <div className="w-[96vw] max-w-[440px] mx-auto bg-white rounded-2xl shadow-lg p-6" dir="rtl">
+            <div className="text-center">
+              <h2 id="receipt-modal-title" className="text-2xl font-extrabold text-emerald-600 underline underline-offset-4 decoration-2">
+                إيصال معتمد ✓
+              </h2>
+              <p className="mt-3 text-2xl font-extrabold text-slate-900">منصة العمران</p>
+              <p className="mt-1 text-sm text-slate-400">ali-alhaddad.com</p>
+            </div>
+
+            <hr className="my-4 border-dashed border-slate-300" />
+
+            <div className="space-y-2 text-center text-base">
+              <p>
+                <span className="font-semibold text-slate-500">رقم العملية: </span>
+                <span className="font-extrabold text-slate-900" dir="ltr">{receiptModalData.code}</span>
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">المبلغ: </span>
+                <span className="font-extrabold text-slate-900">{receiptModalData.amount.toLocaleString("en-US")} ر.س</span>
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">التاريخ: </span>
+                <span className="font-extrabold text-slate-900">{new Date().toLocaleString("ar-SA")}</span>
+              </p>
+            </div>
+
+            <hr className="my-4 border-dashed border-slate-300" />
+
+            <div className="flex items-center justify-center gap-4">
+              <QRCodeSVG value={receiptModalData.code} size={160} level="M" includeMargin />
+              <div className="flex flex-col items-center gap-1.5">
+                <img src="/seal.svg" alt="ختم اعتماد منصة العمران" className="h-28 w-28" />
+                <span className="text-xs font-semibold text-slate-500" dir="ltr">13/10/2026</span>
+              </div>
+            </div>
+
+            <p className="mt-4 text-center text-sm text-slate-400">وثيقة صادرة إلكترونياً ويمكن التحقق عبر QR</p>
+          </div>
+
+          <div className="flex flex-row gap-3 w-[96vw] max-w-[440px] mx-auto mt-4 print:hidden" dir="rtl">
             <button
               type="button"
-              onClick={() => setShowReceiptModal(false)}
-              aria-label="إغلاق"
-              className="absolute left-4 top-4 rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+              onClick={() => { setShowReceiptModal(false); closeTameed(); }}
+              className="flex-1 h-12 inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-extrabold text-slate-700 transition hover:bg-slate-50"
             >
-              <X className="h-5 w-5" />
+              العودة للمنصة
             </button>
-            <div className="text-center">
-              <div className="mx-auto inline-flex items-center gap-2 text-3xl font-extrabold text-emerald-600">
-                <CheckCircle2 className="h-8 w-8" />
-                <h2 id="receipt-modal-title">إيصال معتمد</h2>
-              </div>
-              <p className="mt-6 text-2xl font-extrabold text-slate-800">منصة العمران</p>
-              <p className="mt-2 text-base text-slate-500">تم استلام إيصال السداد بنجاح</p>
-            </div>
-
-            <div className="mt-6 space-y-3 border-y border-dashed border-slate-200 py-5 text-lg">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-500">رقم العملية</span>
-                <span className="font-bold text-slate-800" dir="ltr">{receiptModalData.code}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-500">المبلغ</span>
-                <span className="font-extrabold text-slate-800">{receiptModalData.amount.toLocaleString("en-US")} ر.س</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-500">التاريخ</span>
-                <span className="font-semibold text-slate-800" dir="ltr">{new Date().toLocaleString("ar-SA")}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-center">
-              <QRCodeSVG value={receiptModalData.code} size={156} level="M" includeMargin />
-            </div>
-            <p className="mt-4 text-center text-sm text-slate-400">يمكن التحقق من الإيصال عبر رمز QR</p>
             <button
               type="button"
               onClick={() => window.print()}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-4 text-lg font-extrabold text-white transition hover:bg-emerald-700"
+              className="flex-1 h-12 inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 text-lg font-extrabold text-white transition hover:bg-emerald-700"
             >
               <Printer className="h-5 w-5" />
               طباعة
             </button>
           </div>
+        </div>
         </div>
       )}
 
@@ -1115,13 +1127,4 @@ export function ClientPortalShell() {
       )}
     </div>
   );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }

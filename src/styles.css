@@ -53,10 +53,8 @@
   --border: oklch(0.9 0.015 70);
   --input: oklch(0.92 0.012 70);
   --ring: oklch(0.72 0.14 65);
-
   --font-display: "Cairo", "Tajawal", system-ui, sans-serif;
   --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
-
   --gradient-hero: linear-gradient(135deg, oklch(0.25 0.03 50) 0%, oklch(0.32 0.04 50) 60%, oklch(0.45 0.08 55) 100%);
   --gradient-accent: linear-gradient(135deg, oklch(0.72 0.14 65), oklch(0.78 0.13 75));
   --shadow-card: 0 8px 24px -12px oklch(0.18 0.02 50 / 0.18);
@@ -124,9 +122,46 @@
     transform: none !important;
   }
 
+  [aria-labelledby="receipt-modal-title"] > div {
+    box-sizing: border-box;
+    max-width: min(28rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    margin-inline: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
   @media (max-width: 640px) {
     [aria-labelledby="tameed-title"] > div {
       transform: translateX(1.5rem) !important;
     }
+
+    [aria-labelledby="receipt-modal-title"] {
+      padding: 0.5rem !important;
+    }
+
+    [aria-labelledby="receipt-modal-title"] > * {
+      transform: translateX(3rem) !important;
+    }
+
+    [aria-labelledby="receipt-modal-title"] > div {
+      width: calc(100vw - 1rem) !important;
+      max-width: calc(100vw - 1rem) !important;
+      max-height: calc(100dvh - 1rem);
+      align-items: center;
+    }
+
+    [aria-labelledby="receipt-modal-title"] > div > div {
+      width: calc(100vw - 1rem) !important;
+      max-width: calc(100vw - 1rem) !important;
+      margin-inline: auto;
+    }
   }
+
+  @media print {
+    .print\:hidden {
+      display: none !important;
+    }
+  }
+
 }

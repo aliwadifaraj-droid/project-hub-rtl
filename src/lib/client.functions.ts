@@ -38,7 +38,7 @@ const signUpClientSchema = clientCredsSchema.extend({
   company_name: z.string().trim().min(2).max(200),
   phone: z.string().trim().min(4).max(40),
   city: z.string().trim().min(1).max(100),
-  cr_number: z.string().trim().min(1, "رقم السجل التجاري مطلوب").max(50),
+  cr_number: z.string().trim().max(50).optional().default(""),
   bio: z.string().trim().max(2000).optional().default(""),
 });
 
