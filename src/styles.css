@@ -143,13 +143,20 @@
     }
 
     [aria-labelledby="receipt-modal-title"] > * {
-      transform: translateX(3rem) !important;
+      transform: none !important;
     }
 
     [aria-labelledby="receipt-modal-title"] > div {
-      width: calc(100vw - 4rem) !important;
-      max-width: calc(100vw - 4rem) !important;
+      width: calc(100vw - 1rem) !important;
+      max-width: calc(100vw - 1rem) !important;
       max-height: calc(100dvh - 1rem);
+      align-items: center;
+    }
+
+    [aria-labelledby="receipt-modal-title"] > div > div {
+      width: calc(100vw - 1rem) !important;
+      max-width: calc(100vw - 1rem) !important;
+      margin-inline: auto;
     }
   }
 
