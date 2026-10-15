@@ -51,12 +51,10 @@
   --destructive: oklch(0.55 0.22 27);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.9 0.015 70);
-  --input: oklch(0.92 0.012 70);
+  --input: oklch(0.92 0.012 80);
   --ring: oklch(0.72 0.14 65);
-
   --font-display: "Cairo", "Tajawal", system-ui, sans-serif;
   --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
-
   --gradient-hero: linear-gradient(135deg, oklch(0.25 0.03 50) 0%, oklch(0.32 0.04 50) 60%, oklch(0.45 0.08 55) 100%);
   --gradient-accent: linear-gradient(135deg, oklch(0.72 0.14 65), oklch(0.78 0.13 75));
   --shadow-card: 0 8px 24px -12px oklch(0.18 0.02 50 / 0.18);
@@ -143,7 +141,7 @@
     }
 
     [aria-labelledby="receipt-modal-title"] > * {
-      transform: none !important;
+      transform: translateX(3rem) !important;
     }
 
     [aria-labelledby="receipt-modal-title"] > div {
