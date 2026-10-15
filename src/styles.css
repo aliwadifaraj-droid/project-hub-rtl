@@ -44,14 +44,14 @@
   --primary-foreground: oklch(0.985 0.01 80);
   --secondary: oklch(0.95 0.015 80);
   --secondary-foreground: oklch(0.25 0.03 50);
-  --muted: oklch(0.95 0.012 80);
+  --muted: oklch(0.95 0.012 60);
   --muted-foreground: oklch(0.5 0.02 60);
   --accent: oklch(0.72 0.14 65);
   --accent-foreground: oklch(0.18 0.02 50);
   --destructive: oklch(0.55 0.22 27);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.9 0.015 70);
-  --input: oklch(0.92 0.012 80);
+  --input: oklch(0.92 0.012 70);
   --ring: oklch(0.72 0.14 65);
   --font-display: "Cairo", "Tajawal", system-ui, sans-serif;
   --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
