@@ -1141,6 +1141,9 @@ export function ClientPortalShell() {
                 <p>جوال: <span dir="ltr">{clientSession?.profile?.phone || "—"}</span></p>
                 <p>أتعهد وألتزم بأن أدفع لمنصة العمران عمولة بنسبة 2.5% من إجمالي قيمة المشروع المحدد، وذلك مقابل خدمات المنصة في ربط العملاء بالمشاريع وإدارتها.</p>
                 <p className="mt-2">أقر بأنني اطلعت على شروط المنصة وأوافق عليها، وأن توقيعي أدناه يمثل موافقتي على هذا الالتزام.</p>
+                <div className="mt-3 flex items-center justify-center gap-4">
+                  <img src="/seal.svg" alt="ختم منصة العمران" className="h-24 w-24" />
+                </div>
               </div>
 
               <label className="flex items-start gap-3 text-sm font-semibold text-foreground">
