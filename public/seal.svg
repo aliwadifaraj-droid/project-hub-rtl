@@ -2,13 +2,13 @@
   <title id="title">ختم اعتماد منصة العمران</title>
   <desc id="desc">ختم دائري أخضر يتضمن تاجاً وإكليل زيتون وعلامة صح</desc>
   <defs>
-    <path id="sealTextPath" d="M 19,70 A 51,51 0 1,1 121,70" />
+    <path id="sealTextPath" d="M 70,19 A 51,51 0 1,1 69.99,19" />
   </defs>
   <circle cx="70" cy="70" r="65" fill="#075c45" />
   <circle cx="70" cy="70" r="60" fill="none" stroke="#f7f3df" stroke-width="2" />
   <circle cx="70" cy="70" r="47" fill="#fffdf5" stroke="#075c45" stroke-width="2" />
-  <text fill="#fffdf5" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" direction="rtl">
-    <textPath href="#sealTextPath" startOffset="50%" text-anchor="middle">منصة العمران • منصة العمران</textPath>
+  <text fill="#fffdf5" font-family="Arial, sans-serif" font-size="7.5" font-weight="700" letter-spacing="0.5" direction="rtl">
+    <textPath href="#sealTextPath" startOffset="0%">وسيط معتمد لعرض المشاريع • منصة العمران • وسيط معتمد لعرض المشاريع • منصة العمران • وسيط معتمد لعرض المشاريع • منصة العمران •</textPath>
   </text>
   <g fill="none" stroke="#9b9b45" stroke-width="2" stroke-linecap="round">
     <path d="M45 90 C35 78 36 61 50 48" />
@@ -19,4 +19,5 @@
   <path d="M61 33 L65 28 L70 31 L75 28 L79 33 L77 39 L63 39 Z" fill="#b0a951" />
   <circle cx="70" cy="69" r="18" fill="#fffdf5" stroke="#075c45" stroke-width="3" />
   <path d="M61 69 L67 75 L80 61" fill="none" stroke="#075c45" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="70" y="112" text-anchor="middle" fill="#075c45" font-family="Arial, sans-serif" font-size="7" font-weight="700">ختم رسمي معتمد</text>
 </svg>
