@@ -1,23 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" role="img" aria-labelledby="title desc">
-  <title id="title">ختم اعتماد منصة العمران</title>
-  <desc id="desc">ختم دائري أخضر يتضمن تاجاً وإكليل زيتون وعلامة صح</desc>
-  <defs>
-    <path id="sealTextPath" d="M 70,19 A 51,51 0 1,1 70,121 A 51,51 0 1,1 70,19" />
-  </defs>
-  <circle cx="70" cy="70" r="65" fill="#075c45" />
-  <circle cx="70" cy="70" r="60" fill="none" stroke="#f7f3df" stroke-width="2" />
-  <circle cx="70" cy="70" r="47" fill="#fffdf5" stroke="#075c45" stroke-width="2" />
-  <text fill="#fffdf5" font-family="Arial, sans-serif" font-size="7.5" font-weight="700" letter-spacing="0.5" direction="rtl">
-    <textPath href="#sealTextPath" startOffset="0%">وسيط معتمد لعرض المشاريع • منصة العمران • وسيط معتمد لعرض المشاريع • منصة العمران • وسيط معتمد لعرض المشاريع • منصة العمران •</textPath>
-  </text>
-  <g fill="none" stroke="#9b9b45" stroke-width="2" stroke-linecap="round">
-    <path d="M45 90 C35 78 36 61 50 48" />
-    <path d="M95 90 C105 78 104 61 90 48" />
-    <path d="M45 84 L39 82 M43 76 L37 73 M43 68 L38 64 M46 60 L42 55 M50 53 L47 48" />
-    <path d="M95 84 L101 82 M97 76 L103 73 M97 68 L102 64 M94 60 L98 55 M90 53 L93 48" />
-  </g>
-  <path d="M61 33 L65 28 L70 31 L75 28 L79 33 L77 39 L63 39 Z" fill="#b0a951" />
-  <circle cx="70" cy="69" r="18" fill="#fffdf5" stroke="#075c45" stroke-width="3" />
-  <path d="M61 69 L67 75 L80 61" fill="none" stroke="#075c45" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-  <text x="70" y="112" text-anchor="middle" fill="#075c45" font-family="Arial, sans-serif" font-size="7" font-weight="700">ختم رسمي معتمد</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+<defs><path id="a" d="M300 300 m-190 0 a190 190 0 111 0"/></defs>
+<circle cx="300" cy="300" r="220" fill="#0e5a32"/>
+<circle cx="300" cy="300" r="165" fill="#efe4c8"/>
+<text fill="white" font-size="32" font-weight="700"><textPath href="#a"> وسيط معتمد لعرض المشاريع • منصة العمران • وسيط معتمد لعرض المشاريع • منصة العمران • </textPath></text>
+<circle cx="300" cy="300" r="62" fill="#0e5a32"/><path d="M278 304L294 324L324 286" stroke="white" stroke-width="11" fill="none" stroke-linecap="round"/>
+<text x="300" y="465" text-anchor="middle" font-size="24" font-weight="700" fill="#0e5a32">ختم رسمي معتمد</text>
 </svg>
