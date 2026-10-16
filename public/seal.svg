@@ -1,22 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" role="img" aria-labelledby="title desc">
-  <title id="title">ختم اعتماد منصة العمران</title>
-  <desc id="desc">ختم دائري أخضر يتضمن تاجاً وإكليل زيتون وعلامة صح</desc>
-  <defs>
-    <path id="sealTextPath" d="M 19,70 A 51,51 0 1,1 121,70" />
-  </defs>
-  <circle cx="70" cy="70" r="65" fill="#075c45" />
-  <circle cx="70" cy="70" r="60" fill="none" stroke="#f7f3df" stroke-width="2" />
-  <circle cx="70" cy="70" r="47" fill="#fffdf5" stroke="#075c45" stroke-width="2" />
-  <text fill="#fffdf5" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1" direction="rtl">
-    <textPath href="#sealTextPath" startOffset="50%" text-anchor="middle">منصة العمران • منصة العمران</textPath>
-  </text>
-  <g fill="none" stroke="#9b9b45" stroke-width="2" stroke-linecap="round">
-    <path d="M45 90 C35 78 36 61 50 48" />
-    <path d="M95 90 C105 78 104 61 90 48" />
-    <path d="M45 84 L39 82 M43 76 L37 73 M43 68 L38 64 M46 60 L42 55 M50 53 L47 48" />
-    <path d="M95 84 L101 82 M97 76 L103 73 M97 68 L102 64 M94 60 L98 55 M90 53 L93 48" />
-  </g>
-  <path d="M61 33 L65 28 L70 31 L75 28 L79 33 L77 39 L63 39 Z" fill="#b0a951" />
-  <circle cx="70" cy="69" r="18" fill="#fffdf5" stroke="#075c45" stroke-width="3" />
-  <path d="M61 69 L67 75 L80 61" fill="none" stroke="#075c45" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1600" role="img" aria-labelledby="title desc">
+  <title id="title">ختم رسمي معتمد</title>
+  <desc id="desc">الختم الرسمي المرفق للاعتماد</desc>
+  <image href="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABIMDRANCxIQDhAUExIVGywdGxgYGzYnKSAsQDlEQz85Pj1HUGZXR0thTT0+WXlaYWltcnNyRVV9hnxvhWZwcm7/2wBDARMUFBsXGzQdHTRuST5Jbm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm7/wAARCABgAGADASIAAhEBAxEB/8QAGgAAAgMBAQAAAAAAAAAAAAAABAUAAgMBBv/EADsQAAIBAgUCBAIHBwMFAAAAAAECAwQRAAUSIUETMSJRYXFCkQYUMoGhscEVI1JicoKSQ9HhJGOisrP/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABURAQEAAAAAAAAAAAAAAAAAAAAB/9oADAMBAAIRAxEAPwD3GJiYmAmJissqQxtJK6oii7MxsAMLzV1dapNFH0ILX68qks39KfqfkcAyJAFzgZ8yooyQ9ZTqRwZVH64AFNQvRJW1BqK5GAYGQF9j/INh8sXNdl9PNHDDFGiyKpEqqoRSwOm/Y72OCDEzKhkNkrKdj5CVT+uCQQRcdsIY81o5lp0qIEqDPuCsa2+1pta5JPnbg3wRT0uXzyyrlsz08sZ8XQJUcj7J8JFweOMA2xMK4cwngiEs+mqpT2qYFNwPNk8vUfLDKKVJo1kidXRhcMpuCMFWxMTEwExSaWOCF5ZWCIguzHgYvhdL/wBfmXQO9PSkNIOHk7qPYDf3IwGQKVUoqczdYols8NPIQAovYO9/i8hx74HzGrrKqtWloC8cqHxIfCLX8LlrEFSL7d7+2LZ+5eWIRTQloXCtC66mBfwhgPiIBO3+2MdCioSny3qHTGIQ+s3ZVO9j8K37t3J2HbaIIQQ01JLSVMzSuZDI0dLqXpgm+m4OwvfuR3xhFJQqLU2WUhH+Z/8AFW/PDKmymCJF6wWUjcKVsin0Xt95ufXGlTmNNS6lLapFUnpoLnYX47YBVLNRkWqctpQDa5+wfmyr+eNYoaU08tPQSvRTzqFUSAmyi+yXNrbn7J2vhhS5lTVWlQ2iR1B6cgsdxfnvjOpyiCVG6IWItuVC3Rj6r2+8WPrgF1FWSZXUmkqlKx3VUHUMirZeym17k2sp4ucGvH9TJrMutJA/imgQ3DD+NP5vTn3wKkgVpKLM4g8bgITIdRUX8N2+JSezdwdjvvjuWQVdBKWnjmELuI1iU9Q3NvGx4Asd+b9ha2AcwzRzwpLEweNxdWHIxfC6Ifs/MuiNqeqJaMcJJ3YexG/uDhjiqpPKsEEkr/ZjUsfYC+EbU1RHlkEupFZrzSHrGJw7b7HcHbaxFtsMM9ucpmQf6mmP/JgP1wu+kjwVNMqx3d0Yxqy6SoJspBB77HuASMRKtLOHyunnmOqeVSUmaILJHHa5O197bbckYOpIkyzLpJ5lCvo1uF+EAbIPQDYf84GqYw+awU630RiNADvt4nP/AM1xTP5BLUw067so1NG3aRWuu3qDY+nfjAGUWYvW1zIqKkKRhvEfE5Nuw8h2vycAfSChHWE4ro6VHHjEkugMbWv2322PsMbZW0dHk09eViJIaRukNiFvtc7nt3xrllFEAtRWaJq+VQ7s1iVB4UcKO2AE+j9CBMZjXR1SIBoWOXWFNrX7bWGw9zg+szCSjrlRkR4XjLeE2dCL9x5Htfg4XzlMwqJ6jKoQklKDpq12Ejj4LfEvBPyxvmbx1uSwVwWIWCSr1RsA3FxuO/fAE1UaZnl0c8KguU1oG5BG6H0I2P8AxgATyz0UWmUMtOw1LLIU6qsPASRzfa3JBxfIJBFVTU7bM41LEvaNV8O/G5J9+/OL00SLm00DqrRvrUqRcEeFx/7tgKNJUV2WzHRGJID1VYSam6gOoDSCbDi1+e2HMEqzwRyp9mRQw9iL4TfR6Tpyz0hkJEZZUj07KFcg2PsV23tt54OyO4yqFD/plo/8WI/TAiZ4bZXI38DI59g4P6YXZ1om8MMEytHKGZjEqRsdQuS7W4HcHDqrgFTSTQN2kQofvFsK3b63lNNUyLRiWIaXkqluI2Hha3rqHmMB2SRP21FKjqyOUIZTcEFZF/O3zwP9IIZ2roJDGZKZVOoxr4l8782tzxgZJA9JTOuiJ31sugWRfEDe/pIB9xJw0raePNsvSoSJzPHugR9Do3Zlv7j8MBjlJWtyuoy+bwvoIKgbIjg6QPYWwFU06ZlHFBNUCgzanXpsxNuonYkfxAjf0OAnNVCzdINA+pb9RgXuoJUbcd+P98P6OaPNXmgr6aGURkPGxUMrKexF+cBWeogo6JcsyvTJUFOnHGhvo41NbsB39cUzUihyqny+HxSdMBVPZ1QDUD7i+NayaPKWhgoaaGISEs7BQqqo7k25wgQ1U7Dqgzyamt02Ae7Aahvx24/3wDX6PwzLXzyLGUpmUaTIvibytza3PO2Cac9TPpCOwZz8ljX87/LFqGnjynL5KiSJxPJu4d9bu3ZVv7/nganeSkoKirW0lRJ+6ht8bkm5HoXY/cBgNKWiqafMGkiUCN5SXZWQkgsTY+EHntfBmSG+WRt/Gzv9xcn9cK6OI0OTNVU80mmRfBGyAMXI0re2xuTe+HtJAKaligXcRoFv7C2BGuFNTTpHVyU8pK09cQyODbpzDfb3sCPUHzw2xlV00dXTvDMCVbkGxB4IPBBxVAUuX0FNVGlEbvMYCWZwSpVjZv5QSe9sYKZsoq7HVLFIQB/3PL+8Da3xADkbmUdXJFMKOuIE4H7uS1lnHmPJvMff2xqqMKBlzNoZdm1kJZSL7bH0wQPJQ0mYoJ6RkhlDE9aJAHBPcb9j+OMlyYxSoInZbDU9SXJlY37DgD3v7c4j5cVk6lFUAsdgGch7eWoXuPRg2OibNIhZo2f1Mat+KuPyxBx8m6srrK7NcakqQ5Eqm/Y8EfL9caRUNJlyNPWOk0pYfvpUGokdh6n8cUM+aSiyxsnqI1X8Wc/liooNMglzCpCG3Dktb+s2sN/hC4CjdbN6qw1RxRmx84/P+8ja3wg3O+2MZHGZVaR0yt9To1uqo7IzdxrS3e1iB53OHFngWnjo4YjBezWbSFW3cDnfAcojjqpafK4o0q5bGaUDaEeZ9fIc9zgJBHHUVkNPAmmkoALjzktsv9oNz6kYa4ypKaOjp1hhB0ryTck8knkk41xVTExMTAZVVLDVwmKdAynfyIPBB4PrgF1q6RDHNH+0KXzsOqB6g7N+B9DhniYBJHT5dUsVo6qSmlvcxhirA/0tuO2DdNdTRpHGy1LOxvJJtp35A4tf8MEz0sFSumohjlHk6g4GGTUS/Yjkj9I5nUfgcEU+rZmY7GtjJANrR2ud7XPHy4xhULQxVUrVlUZXdvDAjk7WtbQNzgo5NRN9tJJPSSZ2HyJwTBSwUy6aeGOIeSKBgAx9crVCRoaGnta5t1SPQdl++59BgylpYaSERQJpW9zySeSTyfXGuJgqYmJiYD//2Q==" x="0" y="0" width="1600" height="1600" preserveAspectRatio="xMidYMid meet" />
 </svg>
