@@ -1199,3 +1199,9 @@ export function ClientPortalShell() {
             </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
