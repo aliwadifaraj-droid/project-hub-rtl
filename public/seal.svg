@@ -1,8 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
-<defs><path id="a" d="M300 300 m-190 0 a190 190 0 111 0"/></defs>
-<circle cx="300" cy="300" r="220" fill="#0e5a32"/>
-<circle cx="300" cy="300" r="165" fill="#efe4c8"/>
-<text fill="white" font-size="32" font-weight="700"><textPath href="#a"> وسيط معتمد لعرض المشاريع • منصة العمران • وسيط معتمد لعرض المشاريع • منصة العمران • </textPath></text>
-<circle cx="300" cy="300" r="62" fill="#0e5a32"/><path d="M278 304L294 324L324 286" stroke="white" stroke-width="11" fill="none" stroke-linecap="round"/>
-<text x="300" y="465" text-anchor="middle" font-size="24" font-weight="700" fill="#0e5a32">ختم رسمي معتمد</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1600" role="img" aria-labelledby="title desc">
+  <title id="title">ختم رسمي معتمد</title>
+  <desc id="desc">الختم الرسمي المرفق للاعتماد</desc>
+  <image href="/assets/images/IMG-20261016-WA8397.jpg" x="0" y="0" width="1600" height="1600" preserveAspectRatio="xMidYMid meet" />
 </svg>
