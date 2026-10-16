@@ -2,7 +2,7 @@
   <title id="title">ختم اعتماد منصة العمران</title>
   <desc id="desc">ختم دائري أخضر يتضمن تاجاً وإكليل زيتون وعلامة صح</desc>
   <defs>
-    <path id="sealTextPath" d="M 70,19 A 51,51 0 1,1 69.99,19" />
+    <path id="sealTextPath" d="M 70,19 A 51,51 0 1,1 70,121 A 51,51 0 1,1 70,19" />
   </defs>
   <circle cx="70" cy="70" r="65" fill="#075c45" />
   <circle cx="70" cy="70" r="60" fill="none" stroke="#f7f3df" stroke-width="2" />
