@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { CheckCircle2 as CheckCircle2Icon } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Printer, FolderKanban, PenTool } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -95,6 +96,9 @@ export function ClientPortalShell() {
   const [crUpdateValue, setCrUpdateValue] = useState("");
   const [crUpdateSaving, setCrUpdateSaving] = useState(false);
   const [pendingTameedRetry, setPendingTameedRetry] = useState<(() => Promise<void>) | null>(null);
+  const [showTameedApprovalNotice, setShowTameedApprovalNotice] = useState(false);
+  const prevTameedStatusesRef = useRef<Record<string, string>>({});
+  const tameedNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: tickets = [] } = useQuery({
     queryKey: ["client-support-tickets"],
@@ -119,6 +123,8 @@ export function ClientPortalShell() {
     queryKey: ["client-tameed-codes"],
     queryFn: () => fetchTameedCodes(),
     refetchOnMount: "always",
+    refetchInterval: 5000,
+    refetchOnWindowFocus: "always",
   });
   const { data: clientSession } = useQuery({
     queryKey: ["client-session-shell"],
@@ -126,6 +132,46 @@ export function ClientPortalShell() {
   });
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
   const allProjectsHaveActiveTameed = Boolean(myProjects && myProjects.length > 0 && myProjects.every((project) => myTameedCodes.some((code) => code.projectId === project.id && isActiveTameedStatus(code.status))));
+
+  useEffect(() => {
+    if (myTameedCodes.length === 0) {
+      prevTameedStatusesRef.current = {};
+      return;
+    }
+
+    const prevStatuses = prevTameedStatusesRef.current;
+    const currentStatuses: Record<string, string> = {};
+    let detectedApproval = false;
+
+    for (const tc of myTameedCodes) {
+      currentStatuses[tc.id] = tc.status;
+      const prev = prevStatuses[tc.id];
+      if (prev === "بانتظار التسعير" && tc.status === "نشط") {
+        const seenKey = `tameed_approval_seen_${tc.id}`;
+        if (!localStorage.getItem(seenKey)) {
+          localStorage.setItem(seenKey, "1");
+          detectedApproval = true;
+        }
+      }
+    }
+
+    prevTameedStatusesRef.current = currentStatuses;
+
+    if (detectedApproval && !showTameedApprovalNotice) {
+      setShowTameedApprovalNotice(true);
+      if (tameedNoticeTimerRef.current) clearTimeout(tameedNoticeTimerRef.current);
+      tameedNoticeTimerRef.current = setTimeout(() => {
+        setShowTameedApprovalNotice(false);
+        tameedNoticeTimerRef.current = null;
+      }, 6000);
+    }
+  }, [myTameedCodes, showTameedApprovalNotice]);
+
+  useEffect(() => {
+    return () => {
+      if (tameedNoticeTimerRef.current) clearTimeout(tameedNoticeTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!showTameed || myTameedCodes.length === 0) return;
@@ -530,6 +576,15 @@ export function ClientPortalShell() {
           <BadgeCheck className="h-4 w-4" />
           {approvalButtonState === "pending" ? "قيد المراجعة" : "تعميد"}
         </button>
+        {showTameedApprovalNotice && (
+          <div
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition"
+            role="status"
+          >
+            <CheckCircle2Icon className="h-4 w-4 shrink-0" />
+            تمت الموافقة من الإدارة
+          </div>
+        )}
         {vipStatus?.isPremium ? (
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
             <Crown className="h-4 w-4" />
