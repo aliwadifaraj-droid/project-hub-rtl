@@ -673,16 +673,16 @@ export function ClientPortalShell() {
                 <span className="font-extrabold text-slate-900">{receiptModalData.amount.toLocaleString("en-US")} ر.س</span>
               </p>
               <p>
-                <span className="font-semibold text-slate-500">التاريخ: </span>
-                <span className="font-extrabold text-slate-900">{new Date().toLocaleString("ar-SA")}</span>
-              </p>
-              <p>
                 <span className="font-semibold text-slate-500">طريقة الدفع: </span>
                 <span className="font-extrabold text-slate-900">تحويل بنكي</span>
               </p>
               <p>
                 <span className="font-semibold text-slate-500">حالة الدفع: </span>
                 <span className="font-extrabold text-emerald-600">تم الدفع بنجاح</span>
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">التاريخ: </span>
+                <span className="font-extrabold text-slate-900">{new Date().toLocaleString("ar-SA")}</span>
               </p>
             </div>
 
