@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { CheckCircle2 as CheckCircle2Icon } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import { Crown, Ticket, X, BadgeCheck, Copy, Loader2, ChevronLeft, CheckCircle2, Printer, FolderKanban, PenTool } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -14,6 +13,7 @@ import { submitApprovalReceipt, clientListMyProjects, clientCreateTameedRequest,
 import { getClientSession, updateMyClientProfile } from "@/lib/client.functions";
 import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
+import { listMyNotifications, markNotificationRead } from "@/lib/notifications.functions";
 import { toast } from "sonner";
 
 type ApprovedReceiptInfo = {
@@ -42,6 +42,11 @@ function isActiveTameedStatus(status: string): boolean {
   return !["مكتمل", "ملغي", "cancelled", "completed", "complete", "used"].includes(status.trim().toLowerCase());
 }
 
+function isPricedTameedStatus(status: string): boolean {
+  const normalized = status.trim().toLowerCase();
+  return ["نشط", "active", "approved", "مقبول", "تم الاعتماد", "approved_by_admin"].includes(normalized);
+}
+
 export function ClientPortalShell() {
   const listTickets = useServerFn(listMyClientTickets);
   const getVipStatus = useServerFn(getClientVipStatus);
@@ -52,6 +57,8 @@ export function ClientPortalShell() {
   const fetchTameedCodes = useServerFn(clientListMyTameedCodes);
   const createTameed = useServerFn(clientCreateTameedRequest);
   const fetchClientSession = useServerFn(getClientSession);
+  const fetchNotifications = useServerFn(listMyNotifications);
+  const markNotification = useServerFn(markNotificationRead);
   const queryClient = useQueryClient();
   const [showVipIntro, setShowVipIntro] = useState(false);
   const [showTameed, setShowTameed] = useState(false);
@@ -96,9 +103,9 @@ export function ClientPortalShell() {
   const [crUpdateValue, setCrUpdateValue] = useState("");
   const [crUpdateSaving, setCrUpdateSaving] = useState(false);
   const [pendingTameedRetry, setPendingTameedRetry] = useState<(() => Promise<void>) | null>(null);
+  const [tameedUnreadCount, setTameedUnreadCount] = useState(0);
   const [showTameedApprovalNotice, setShowTameedApprovalNotice] = useState(false);
-  const prevTameedStatusesRef = useRef<Record<string, string>>({});
-  const tameedNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [tameedApprovalNotice, setTameedApprovalNotice] = useState<{ projectName: string; total: number } | null>(null);
 
   const { data: tickets = [] } = useQuery({
     queryKey: ["client-support-tickets"],
@@ -130,48 +137,36 @@ export function ClientPortalShell() {
     queryKey: ["client-session-shell"],
     queryFn: () => fetchClientSession(),
   });
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["client-notifications-tameed"],
+    queryFn: () => fetchNotifications(),
+    refetchInterval: 5000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+  });
+  const approvalNotificationCount = notifications.filter((notification) => !notification.read && notification.link === "/client-portal").length;
   const unreadCount = tickets.reduce((total, ticket) => total + getTicketUnreadCount(ticket), 0);
   const allProjectsHaveActiveTameed = Boolean(myProjects && myProjects.length > 0 && myProjects.every((project) => myTameedCodes.some((code) => code.projectId === project.id && isActiveTameedStatus(code.status))));
 
   useEffect(() => {
-    if (myTameedCodes.length === 0) {
-      prevTameedStatusesRef.current = {};
-      return;
-    }
-
-    const prevStatuses = prevTameedStatusesRef.current;
-    const currentStatuses: Record<string, string> = {};
-    let detectedApproval = false;
-
-    for (const tc of myTameedCodes) {
-      currentStatuses[tc.id] = tc.status;
-      const prev = prevStatuses[tc.id];
-      if (prev === "بانتظار التسعير" && tc.status === "نشط") {
-        const seenKey = `tameed_approval_seen_${tc.id}`;
-        if (!localStorage.getItem(seenKey)) {
-          localStorage.setItem(seenKey, "1");
-          detectedApproval = true;
-        }
-      }
-    }
-
-    prevTameedStatusesRef.current = currentStatuses;
-
-    if (detectedApproval && !showTameedApprovalNotice) {
-      setShowTameedApprovalNotice(true);
-      if (tameedNoticeTimerRef.current) clearTimeout(tameedNoticeTimerRef.current);
-      tameedNoticeTimerRef.current = setTimeout(() => {
-        setShowTameedApprovalNotice(false);
-        tameedNoticeTimerRef.current = null;
-      }, 6000);
-    }
-  }, [myTameedCodes, showTameedApprovalNotice]);
+    const readKeys = new Set<string>(JSON.parse(localStorage.getItem("tameed_approval_read_keys") || "[]") as string[]);
+    const unreadKeys = myTameedCodes
+      .filter((tameedCode) => tameedCode.status.trim() === "نشط")
+      .map((tameedCode) => `${tameedCode.id}:${tameedCode.status}:${tameedCode.total}:${tameedCode.allowed_payment_now}`)
+      .filter((key) => !readKeys.has(key));
+    setTameedUnreadCount(unreadKeys.length);
+  }, [myTameedCodes]);
 
   useEffect(() => {
-    return () => {
-      if (tameedNoticeTimerRef.current) clearTimeout(tameedNoticeTimerRef.current);
-    };
-  }, []);
+    const approvedTameed = myTameedCodes.find((tc) => tc.status.trim() === "نشط" && !localStorage.getItem(`tameed_approval_seen_${tc.id}`));
+    if (!approvedTameed) return;
+
+    localStorage.setItem(`tameed_approval_seen_${approvedTameed.id}`, "1");
+    setTameedApprovalNotice({ projectName: approvedTameed.project_name || "مشروعك", total: approvedTameed.total });
+    setShowTameedApprovalNotice(true);
+    const timeout = window.setTimeout(() => setShowTameedApprovalNotice(false), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [myTameedCodes]);
 
   useEffect(() => {
     if (!showTameed || myTameedCodes.length === 0) return;
@@ -268,6 +263,20 @@ export function ClientPortalShell() {
   }
 
   function openTameed(): void {
+    const readKeys = new Set<string>(JSON.parse(localStorage.getItem("tameed_approval_read_keys") || "[]") as string[]);
+    for (const tameedCode of myTameedCodes) {
+      if (isPricedTameedStatus(tameedCode.status) || (tameedCode.total > 0 && !["بانتظار التسعير", "pending", "awaiting_pricing"].includes(tameedCode.status.trim().toLowerCase()))) {
+        readKeys.add(`${tameedCode.id}:${tameedCode.status}:${tameedCode.total}:${tameedCode.allowed_payment_now}`);
+      }
+    }
+    localStorage.setItem("tameed_approval_read_keys", JSON.stringify([...readKeys]));
+    setTameedUnreadCount(0);
+    for (const notification of notifications) {
+      if (!notification.read && notification.link === "/client-portal") {
+        void markNotification({ data: { id: notification.id } });
+      }
+    }
+    void queryClient.invalidateQueries({ queryKey: ["client-notifications-tameed"] });
     setShowTameed(true);
     setTameedStep("list");
     setShowNewTameedForm(false);
@@ -557,6 +566,12 @@ export function ClientPortalShell() {
   return (
     <div className="relative">
       <ClientPortal />
+      {showTameedApprovalNotice && tameedApprovalNotice && (
+        <div className="fixed left-4 right-4 top-4 z-[150] mx-auto max-w-md rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-4 text-emerald-900 shadow-2xl" role="status">
+          <div className="font-extrabold">تم اعتماد التعميد</div>
+          <div className="mt-1 text-sm">تم اعتماد {tameedApprovalNotice.projectName} بمبلغ {tameedApprovalNotice.total.toLocaleString("en-US")} ريال.</div>
+        </div>
+      )}
       <div className="pointer-events-none absolute left-2 top-[184px] z-50 flex flex-col gap-2 sm:left-4 sm:top-[200px]">
         <Link to="/client-support/tickets" className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg transition hover:bg-emerald-100">
           <Ticket className="h-4 w-4" />
@@ -575,16 +590,12 @@ export function ClientPortalShell() {
         >
           <BadgeCheck className="h-4 w-4" />
           {approvalButtonState === "pending" ? "قيد المراجعة" : "تعميد"}
+          {Math.max(tameedUnreadCount, approvalNotificationCount) > 0 && (
+            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-xs font-extrabold leading-none text-white">
+              {Math.max(tameedUnreadCount, approvalNotificationCount) > 99 ? "99+" : Math.max(tameedUnreadCount, approvalNotificationCount)}
+            </span>
+          )}
         </button>
-        {showTameedApprovalNotice && (
-          <div
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition"
-            role="status"
-          >
-            <CheckCircle2Icon className="h-4 w-4 shrink-0" />
-            تمت الموافقة من الإدارة
-          </div>
-        )}
         {vipStatus?.isPremium ? (
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
             <Crown className="h-4 w-4" />
