@@ -676,6 +676,14 @@ export function ClientPortalShell() {
                 <span className="font-semibold text-slate-500">التاريخ: </span>
                 <span className="font-extrabold text-slate-900">{new Date().toLocaleString("ar-SA")}</span>
               </p>
+              <p>
+                <span className="font-semibold text-slate-500">طريقة الدفع: </span>
+                <span className="font-extrabold text-slate-900">تحويل بنكي</span>
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">حالة الدفع: </span>
+                <span className="font-extrabold text-emerald-600">تم الدفع بنجاح</span>
+              </p>
             </div>
 
             <hr className="my-4 border-dashed border-slate-300" />
@@ -1191,9 +1199,3 @@ export function ClientPortalShell() {
             </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
