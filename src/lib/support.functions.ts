@@ -221,34 +221,28 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       .join("\n\n");
   }
 
-  // --- FIX: البحث في جدول الإشعارات اللي كان ناقص ---
+  // --- FIX: البحث في الإشعارات - الاسم الصحيح ---
   try {
-    const notifRepo: any = await import("./notifications.repo");
+    const notifRepo = await import("./notifications.repo");
     let notifs: any[] = [];
-    if (emailMatch && typeof notifRepo.searchNotificationsByEmail === 'function') {
-      notifs = await notifRepo.searchNotificationsByEmail(emailMatch[0]);
-    } else if (typeof notifRepo.searchNotificationsByCompany === 'function') {
-      notifs = await notifRepo.searchNotificationsByCompany(name);
-    } else if (typeof notifRepo.searchByCompany === 'function') {
-      notifs = await notifRepo.searchByCompany(name);
-    } else if (typeof notifRepo.listNotifications === 'function') {
-      const all = await notifRepo.listNotifications();
-      const q = (emailMatch ? emailMatch[0] : name).toLowerCase();
-      notifs = all.filter((n: any) => (n.company_name || n.title || "").toLowerCase().includes(q) || (n.email || "").toLowerCase().includes(q));
+    if (emailMatch) {
+      notifs = await notifRepo.searchOfferNotificationsByEmail(emailMatch[0]);
+    } else {
+      notifs = await notifRepo.searchOfferNotificationsByCompany(name);
     }
     if (notifs.length) {
       return notifs.slice(0, 5).map((n: any) => {
-        const lines = [
+        const label = `<span style="background:#17a2b8;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block">📥 جديد - في الإشعارات</span>`;
+        return [
           `📄 ${n.company_name ?? n.title ?? "طلب"}`,
           `المشروع: ${n.project_name ?? n.project_id ?? "—"}`,
-          `حالة الطلب: <span style="background:#17a2b8;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block">📥 جديد - في الإشعارات</span>`,
+          `حالة الطلب: ${label}`,
           REQUEST_STATUS_REPLY.new
-        ];
-        return lines.join("\n");
+        ].join("\n");
       }).join("\n\n");
     }
   } catch (e) {
-    console.error("[notifications] search failed, ignored:", e);
+    console.error("[notifications] search failed:", e);
   }
 
   try {
