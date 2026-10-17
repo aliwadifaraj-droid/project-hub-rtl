@@ -135,12 +135,6 @@ const REQUEST_STATUS_REPLY: Record<string, string> = {
   accepted: "🟠 تم قبول طلبكم 🎉",
   rejected: "❌ نأسف تم رفض طلبكم. يمكنكم مراسلتنا عبر بوابة تواصل بنا لمعرفة التفاصيل 🙏",
 };
-const REQUEST_STATUS_LABEL: Record<string, string> = {
-  new: "جديد",
-  reviewing: "قيد المراجعة",
-  accepted: "مقبول",
-  rejected: "مرفوض",
-};
 const REQUEST_KEYWORDS = ["طلبي", "طلبنا", "حالة طلب", "حالة الطلب", "استعلام عن طلب", "وين طلبي", "وش صار على طلبي", "متابعة طلب", "request status", "my request"];
 function asksAboutRequest(text: string): boolean {
   const t = normalizeAr(text);
@@ -148,60 +142,50 @@ function asksAboutRequest(text: string): boolean {
 }
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/;
 
-// --- الدالة المصلحة كاملة ---
 async function answerRequestStatus(query: string): Promise<string | null> {
   const raw = (query ?? "").trim();
   if (!raw) return null;
-  try {
-    const repo = await import("./project-requests.repo");
-    const emailMatch = raw.match(EMAIL_RE);
-    const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
-    let rows: any[] = [];
-    try {
-      rows = emailMatch ? await repo.searchRequestsByEmail(emailMatch[0]) : [];
-      if (!rows.length && !emailMatch) rows = await repo.searchRequestsByCompany(name);
-    } catch (e) {
-      console.error("[request-status] search failed", e);
-      rows = [];
-    }
-    if (rows.length) {
-      const rowsToShow = rows.slice(0, 5);
-      const projectNames = new Map<string, string>();
-      try {
-        await Promise.all(
-          rowsToShow.filter((r) => r.project_id).map(async (r) => {
-            if (!projectNames.has(r.project_id!)) {
-              try {
-                const p = await projectsRepo.getById(r.project_id!).catch(() => null);
-                projectNames.set(r.project_id!, p?.name ?? "—");
-              } catch {
-                projectNames.set(r.project_id!, "—");
-              }
-            }
-          }),
-        );
-      } catch {}
-      return rowsToShow.map((r) => {
-        const label = r.status==='new' ? `<span style="background:#17a2b8;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">📥 جديد</span>` : r.status==='reviewing' ? `<span style="background:#fd7e14;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">⏳ قيد المراجعة</span>` : r.status==='accepted' ? `<span style="background:#28a745;color:white;font-weight:bold;padding:8px 16px;border-radius:50px;display:inline-block;font-size:14px">● ✅ مقبول</span>` : r.status==='rejected' ? `<span style="background:#dc3545;color:white;font-weight:bold;padding:12px 24px;border-radius:8px;display:inline-block;font-size:16px">❌ مرفوض</span>` : r.status;
-        const projName = r.project_id ? projectNames.get(r.project_id) ?? "—" : "—";
-        const lines = [`📄 ${r.company_name ?? "طلب"}`, `المشروع: ${projName}`, `حالة الطلب: ${label}`];
-        if (r.note && r.note.trim()) lines.push(`الملاحظة: ${r.note.trim()}`);
-        else lines.push(REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new);
-        return lines.join("\n");
-      }).join("\n\n");
-    }
-    try {
-      let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
-      if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
-      if (offers.length) return OFFER_PENDING_REPLY;
-    } catch (e) {
-      console.error("[request-status] offers search failed", e);
-    }
-    return REQUEST_NOT_FOUND;
-  } catch (e) {
-    console.error("[request-status] fatal", e);
-    return REQUEST_NOT_FOUND;
+  const repo = await import("./project-requests.repo");
+  const emailMatch = raw.match(EMAIL_RE);
+  const name = raw.replace(/(حالة|طلب|طلبي|الطلب|شركة|شركه)/g, " ").replace(/\s+/g, " ").trim() || raw;
+
+  let rows: any[] = emailMatch ? await repo.searchRequestsByEmail(emailMatch[0]) : [];
+  if (!rows.length && !emailMatch) rows = await repo.searchRequestsByCompany(name);
+
+  if (rows.length) {
+    const rowsToShow = rows.slice(0, 5);
+    const projectNames = new Map<string, string>();
+    await Promise.all(
+      rowsToShow.filter((r) => r.project_id).map(async (r) => {
+        try {
+          if (!projectNames.has(r.project_id!)) {
+            const p = await projectsRepo.getById(r.project_id!).catch(() => null);
+            projectNames.set(r.project_id!, p?.name ?? "—");
+          }
+        } catch {
+          projectNames.set(r.project_id!, "—");
+        }
+      }),
+    );
+    return rowsToShow.map((r) => {
+      const label = r.status==='new' ? `<span style="background:#17a2b8;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">📥 جديد</span>` : r.status==='reviewing' ? `<span style="background:#fd7e14;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block;font-size:14px">⏳ قيد المراجعة</span>` : r.status==='accepted' ? `<span style="background:#28a745;color:white;font-weight:bold;padding:8px 16px;border-radius:50px;display:inline-block;font-size:14px">● ✅ مقبول</span>` : r.status==='rejected' ? `<span style="background:#dc3545;color:white;font-weight:bold;padding:12px 24px;border-radius:8px;display:inline-block;font-size:16px">❌ مرفوض</span>` : r.status;
+      const projName = r.project_id ? projectNames.get(r.project_id) ?? "—" : "—";
+      const lines = [`📄 ${r.company_name ?? "طلب"}`, `المشروع: ${projName}`, `حالة الطلب: ${label}`];
+      if (r.note && r.note.trim()) lines.push(`الملاحظة: ${r.note.trim()}`);
+      else lines.push(REQUEST_STATUS_REPLY[r.status] ?? REQUEST_STATUS_REPLY.new);
+      return lines.join("\n");
+    }).join("\n\n");
   }
+
+  try {
+    let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
+    if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
+    if (offers.length) return OFFER_PENDING_REPLY;
+  } catch (e) {
+    console.error("[offers] search failed but ignored", e);
+  }
+
+  return REQUEST_NOT_FOUND;
 }
 
 export const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
@@ -214,21 +198,16 @@ const VIP_PLANS_TEXT = ["باقات اشتراك VIP المتاحة:", "", "با
 function asksAboutVip(text: string): boolean { const t = normalizeAr(text); return VIP_KEYWORDS.some((k) => t.includes(normalizeAr(k))); }
 async function askGroq(userText: string, opts: { systemInstruction?: string | null; dialect?: string | null; botName?: string | null; scope?: string | null; blockedReplies?: string[] | null; }): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) { console.error("[askGroq] GROQ_API_KEY غير موجودة في متغيرات البيئة"); return null; }
+  if (!apiKey) { console.error("[askGroq] GROQ_API_KEY غير موجودة"); return null; }
   const model = process.env.GROQ_MODEL || "qwen/qwen3-32b";
-  const ENFORCE_AR = ["### تعليمات حديدية لا يجوز مخالفتها أبداً ###", "1. ردك يجب أن يكون باللغة العربية ONLY. ممنوع تماماً استخدام أي كلمة إنجليزية ما لم يكن مصطلحاً تقنياً لا يترجم.", "2. اللهجة: سعودية ودودة 100%. ممنوع الفصحى المعقدة وممنوع الإنجليزية نهائياً.", "3. اختصار: ردك 3 أسطر بالكثير. لا تبدأ بـ \"كمساعد ذكي\" ولا تعتذر.", "4. لا تكتب think ولا --- ولا تشرح لنفسك. رد النتيجة فقط.", "5. إذا كان السؤال خارج نطاق المنصة قل: \"انا مساعد العمران بس 😊 اقدر اخدمك في شي يخص المنصة؟\"", "6. الدفع والعقود والحسابات: ردك ثابت: \"لمساعدتك بشكل دقيق يرجى التواصل مع الدعم الفني\".", "7. لا تأليف أبداً. إذا ما تدري قول: \"للتفاصيل الدقيقة راجع قسم المشاريع او كلم الدعم الفني\".", "8. نحن منصة إلكترونية 100%. كل الخدمات أونلاين. ما عندنا مقر."].join("\n");
-  const sysParts = [ENFORCE_AR, opts.systemInstruction?.trim(), opts.botName ? `اسمك: ${opts.botName}.` : null, opts.dialect ? `اللهجة المطلوبة: ${opts.dialect}.` : null, opts.scope ? `نطاق عملك: ${opts.scope}` : null, "### تذكير أخير: رد بالعربية السعودية فقط. أي رد بغير العربية مرفوض. ###"].filter(Boolean);
+  const ENFORCE_AR = ["### تعليمات حديدية ###", "1. ردك عربي ONLY.", "2. لهجة سعودية ودودة.", "3. اختصار 3 أسطر.", "4. لا تكتب think.", "5. خارج المنصة قل: انا مساعد العمران بس", "6. الدفع والعقود: يرجى التواصل مع الدعم الفني", "7. لا تأليف"].join("\n");
+  const sysParts = [ENFORCE_AR, opts.systemInstruction?.trim(), opts.botName ? `اسمك: ${opts.botName}.` : null, opts.dialect ? `اللهجة: ${opts.dialect}.` : null, opts.scope ? `نطاقك: ${opts.scope}` : null].filter(Boolean);
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 400, messages: [...(sysParts.length ? [{ role: "system", content: sysParts.join("\n") }] : []), { role: "user", content: userText }] }) });
-    if (!res.ok) { const errBody = await res.text().catch(() => ""); console.error(`[askGroq] Groq API خطأ ${res.status}: ${errBody.slice(0, 300)}`); return null; }
+    if (!res.ok) return null;
     const j: any = await res.json();
-    const text: string | undefined = j?.choices?.[0]?.message?.content?.trim();
-    if (!text) { console.error("[askGroq] الرد من Groq فارغ"); return null; }
-    for (const bad of opts.blockedReplies ?? []) { if (bad && text.toLowerCase().includes(bad.toLowerCase())) { console.error(`[askGroq] الرد محظور يحتوي: ${bad}`); return null; } }
-    const englishRatio = (text.match(/[a-zA-Z]{2,}/g) ?? []).length / Math.max(text.split(/\s+/).length, 1);
-    if (englishRatio > 0.4) { console.error(`[askGroq] الرد مرفوض لنسبة إنجليزي عالية: ${(englishRatio * 100).toFixed(0)}%`); return null; }
-    return text;
-  } catch (e) { console.error("[askGroq] استثناء أثناء استدعاء Groq:", e); return null; }
+    return j?.choices?.[0]?.message?.content?.trim() ?? null;
+  } catch { return null; }
 }
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 function isInWorkHours(settings: { work_days: Record<string, boolean> | null; work_start: string | null; work_end: string | null }): boolean {
@@ -241,9 +220,7 @@ function isInWorkHours(settings: { work_days: Record<string, boolean> | null; wo
   if (!settings.work_days[dayKey]) return false;
   const [sh, sm] = settings.work_start.split(":").map(Number);
   const [eh, em] = settings.work_end.split(":").map(Number);
-  const start = sh * 60 + sm;
-  const end = eh * 60 + em;
-  return localMinutes >= start && localMinutes <= end;
+  return localMinutes >= sh * 60 + sm && localMinutes <= eh * 60 + em;
 }
 async function getOrCreateVisitorChat(visitorToken: string, visitorName?: string | null) {
   const existing = await supportRepo.getChatByVisitorToken(visitorToken);
@@ -272,17 +249,14 @@ export const listBotQuestions = createServerFn({ method: "GET" }).handler(async 
 });
 export const startVisitorChat = createServerFn({ method: "POST" }).inputValidator((d: { visitorToken: string; visitorName?: string | null }) => z.object({ visitorToken: uuid, visitorName: z.string().trim().max(80).nullable().optional() }).parse(d)).handler(async ({ data }) => getOrCreateVisitorChat(data.visitorToken, data.visitorName));
 export const visitorGetMessages = createServerFn({ method: "POST" }).inputValidator((d: { visitorToken: string; sinceIso?: string | null }) => z.object({ visitorToken: uuid, sinceIso: z.string().nullable().optional() }).parse(d)).handler(async ({ data }) => {
-  const load = async () => {
-    const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
-    if (!chat) return { chat: null, messages: [] };
-    if (chat.status === "escalated") {
-      await checkEscalationTimers(chat.id).catch((e) => console.error("[escalation] timer check failed", e));
-      await invalidateChat(data.visitorToken);
-      return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
-    }
+  const chat = await supportRepo.getChatByVisitorToken(data.visitorToken);
+  if (!chat) return { chat: null, messages: [] };
+  if (chat.status === "escalated") {
+    await checkEscalationTimers(chat.id).catch(() => {});
+    await invalidateChat(data.visitorToken);
     return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
-  };
-  return load();
+  }
+  return { chat, messages: await supportRepo.listMessages(chat.id, data.sinceIso) };
 });
 export const visitorSendMessage = createServerFn({ method: "POST" }).inputValidator((d: { visitorToken: string; body: string; qaId?: string | number | null }) => z.object({ visitorToken: uuid, body: z.string().trim().min(1).max(2000), qaId: z.preprocess((v) => (v == null || v === "" ? null : String(v)), z.string().nullable()).optional() }).parse(d)).handler(async ({ data }) => {
   await invalidateChat(data.visitorToken);
