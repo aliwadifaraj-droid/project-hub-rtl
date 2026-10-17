@@ -24,7 +24,7 @@ const VIP_PLANS = [
 ] as const;
 
 const VALID_PLAN_AMOUNTS = [100, 200, 300];
-const VIP_IBAN = "SA35 1000 0065 5000 4711 0807";
+const VIP_IBAN = "SA8530100991109655808477";
 
 function normalizeArabicDigits(text: string): string {
   return text.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
@@ -626,7 +626,7 @@ export function SupportChatWidget() {
                     <div key={p.value} className="font-semibold text-foreground">{p.label}</div>
                   ))}
                   <div className="pt-1">تستقبل مشاريع خاصة عبر الإيميل بلا منافس + دعم فني VIP</div>
-                  <div className="pt-1">IBAN: SA35 1000 0065 5000 4711 0807</div>
+                  <div className="pt-1">البنك العربي — IBAN: {VIP_IBAN}</div>
                 </div>
                 <button
                   onClick={() => setVipStep("form")}
