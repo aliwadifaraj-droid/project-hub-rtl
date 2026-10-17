@@ -67,26 +67,12 @@ export function ensureProjectTypeColumn(): Promise<void> {
   return _projectTypeColReady;
 }
 
-let _projectNameColReady: Promise<void> | null = null;
-export function ensureProjectNameColumn(): Promise<void> {
-  if (!_projectNameColReady) {
-    _projectNameColReady = db.execute(`ALTER TABLE project_requests ADD COLUMN project_name TEXT`).then(() => undefined).catch(() => undefined);
-  }
-  return _projectNameColReady;
-}
-
 export async function listAllRequests(): Promise<ProjectRequestRow[]> {
-  await ensureProjectNameColumn();
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
   const r = await db.execute(`SELECT ${COLS} FROM project_requests ORDER BY created_at DESC`);
   return rowsToObjects(r).map(decode);
 }
 
 export async function listRequestsBySource(source: "visitor" | "user"): Promise<ProjectRequestRow[]> {
-  await ensureProjectNameColumn();
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM project_requests WHERE submitter_type = ? ORDER BY created_at DESC`,
     [source],
@@ -95,9 +81,6 @@ export async function listRequestsBySource(source: "visitor" | "user"): Promise<
 }
 
 export async function listPlatformRequests(): Promise<ProjectRequestRow[]> {
-  await ensureProjectNameColumn();
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM project_requests WHERE project_type = 'platform' OR project_type IS NULL ORDER BY created_at DESC`,
   );
@@ -105,9 +88,6 @@ export async function listPlatformRequests(): Promise<ProjectRequestRow[]> {
 }
 
 export async function searchRequestsByCompany(q: string): Promise<ProjectRequestRow[]> {
-  await ensureProjectNameColumn();
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM project_requests WHERE company_name LIKE ? ORDER BY created_at DESC LIMIT 50`,
     [`%${q}%`],
@@ -116,9 +96,6 @@ export async function searchRequestsByCompany(q: string): Promise<ProjectRequest
 }
 
 export async function searchRequestsByEmail(email: string): Promise<ProjectRequestRow[]> {
-  await ensureProjectNameColumn();
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
   const r = await db.execute(
     `SELECT ${COLS} FROM project_requests WHERE lower(email) = lower(?) ORDER BY created_at DESC LIMIT 10`,
     [email.trim()],
@@ -127,18 +104,12 @@ export async function searchRequestsByEmail(email: string): Promise<ProjectReque
 }
 
 export async function getRequestById(id: string): Promise<ProjectRequestRow | null> {
-  await ensureProjectNameColumn();
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
   const r = await db.execute(`SELECT ${COLS} FROM project_requests WHERE id = ? LIMIT 1`, [id]);
   const rows = rowsToObjects(r);
   return rows[0] ? decode(rows[0]) : null;
 }
 
 export async function getRequestByPdfPath(path: string): Promise<ProjectRequestRow | null> {
-  await ensureProjectNameColumn();
-  await ensureNoteColumn();
-  await ensureProjectTypeColumn();
   const r = await db.execute(`SELECT ${COLS} FROM project_requests WHERE pdf_url = ? LIMIT 1`, [path]);
   const rows = rowsToObjects(r);
   return rows[0] ? decode(rows[0]) : null;
@@ -176,7 +147,6 @@ export async function existsDuplicateRequestByCompanyOrEmail(
   email: string,
   companyName: string,
 ): Promise<boolean> {
-  await ensureProjectTypeColumn();
   const e = (email ?? "").trim().toLowerCase();
   const c = (companyName ?? "").trim().toLowerCase();
   const r = await db.execute(
@@ -194,7 +164,6 @@ export async function existsDuplicateRequestForProject(
   email: string,
   companyName: string,
 ): Promise<boolean> {
-  await ensureProjectTypeColumn();
   const e = (email ?? "").trim().toLowerCase();
   const c = (companyName ?? "").trim().toLowerCase();
   const r = await db.execute(
@@ -226,4 +195,12 @@ export async function updateRequestStatus(id: string, status: string, note?: str
     new Date().toISOString(),
     id,
   ]);
+}
+
+let _projectNameColReady: Promise<void> | null = null;
+export function ensureProjectNameColumn(): Promise<void> {
+  if (!_projectNameColReady) {
+    _projectNameColReady = db.execute(`ALTER TABLE project_requests ADD COLUMN project_name TEXT`).then(() => undefined).catch(() => undefined);
+  }
+  return _projectNameColReady;
 }
