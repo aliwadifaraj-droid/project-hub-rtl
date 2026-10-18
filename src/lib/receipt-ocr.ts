@@ -107,16 +107,28 @@ async function prepareImageForOcr(file: File): Promise<File> {
   return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.jpg`, { type: "image/jpeg", lastModified: file.lastModified });
 }
 
-export async function runOcrOnImage(file: File): Promise<string> {
-  const preparedFile = await prepareImageForOcr(file);
+async function recognizeImage(file: File): Promise<string> {
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("ara+eng");
   try {
-    const { data: { text } } = await worker.recognize(preparedFile);
+    const { data: { text } } = await worker.recognize(file);
     return text;
   } finally {
     await worker.terminate();
   }
+}
+
+export async function runOcrOnImage(file: File): Promise<string> {
+  let preparedFile = file;
+  try {
+    preparedFile = await prepareImageForOcr(file);
+  } catch (e) {
+    console.warn("[receipt-ocr] image preparation failed, using original", e);
+  }
+  const preparedText = await recognizeImage(preparedFile);
+  if (preparedFile === file || parseOcrText(preparedText).amount !== null) return preparedText;
+  const originalText = await recognizeImage(file);
+  return parseOcrText(originalText).amount !== null ? originalText : preparedText;
 }
 
 export async function scanReceiptFile(file: File): Promise<OcrResult> {
