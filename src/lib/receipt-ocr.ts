@@ -79,11 +79,40 @@ export function parseOcrText(text: string): OcrResult {
   return { bank: null, iban, amount, date, time: null };
 }
 
+async function prepareImageForOcr(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("تعذر قراءة الصورة"));
+    reader.readAsDataURL(file);
+  });
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error("تعذر تجهيز صورة الإيصال"));
+    element.src = dataUrl;
+  });
+  const maxDimension = 1800;
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("تعذر تجهيز صورة الإيصال");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("تعذر تحويل صورة الإيصال")), "image/jpeg", 0.9);
+  });
+  return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.jpg`, { type: "image/jpeg", lastModified: file.lastModified });
+}
+
 export async function runOcrOnImage(file: File): Promise<string> {
+  const preparedFile = await prepareImageForOcr(file);
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("ara+eng");
   try {
-    const { data: { text } } = await worker.recognize(file);
+    const { data: { text } } = await worker.recognize(preparedFile);
     return text;
   } finally {
     await worker.terminate();
