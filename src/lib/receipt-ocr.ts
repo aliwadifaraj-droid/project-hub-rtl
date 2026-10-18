@@ -38,14 +38,14 @@ export function extractAmountFromOcr(text: string, expectedAmount?: number): num
     if (matchingAmount !== undefined) return matchingAmount;
     const mergedDigitAmount = amounts.find((amount) => {
       const digits = String(Math.trunc(amount));
-      return digits.length === 4 && Math.abs(Number(digits.slice(0, 3)) - expected) <= 2;
+      return digits.length >= 4 && Math.abs(Number(digits.slice(0, 3)) - expected) <= 2;
     });
     if (mergedDigitAmount !== undefined) return Number(String(Math.trunc(mergedDigitAmount)).slice(0, 3));
   }
   const mergedDigitAmount = amounts.find((amount) => {
     const digits = String(Math.trunc(amount));
     const leadingAmount = Number(digits.slice(0, 3));
-    return digits.length === 4 && leadingAmount >= 100 && leadingAmount <= 999 && leadingAmount % 50 === 0;
+    return digits.length >= 4 && digits.endsWith("0") === false && leadingAmount >= 100 && leadingAmount <= 999 && leadingAmount % 50 === 0;
   });
   if (mergedDigitAmount !== undefined) return Number(String(Math.trunc(mergedDigitAmount)).slice(0, 3));
   return amounts[0] ?? null;
