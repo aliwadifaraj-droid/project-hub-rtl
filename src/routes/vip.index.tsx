@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } from "lucide-react";
 import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
+import { runOcrOnImage } from "@/lib/receipt-ocr";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
@@ -88,14 +89,6 @@ function isWithinLast7Days(dateStr: string): boolean {
   const now = Date.now();
   const diff = now - d.getTime();
   return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
-}
-
-async function runOcrOnImage(file: File): Promise<string> {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("ara+eng");
-  const { data: { text } } = await worker.recognize(file);
-  await worker.terminate();
-  return text;
 }
 
 export const Route = createFileRoute("/vip/")({

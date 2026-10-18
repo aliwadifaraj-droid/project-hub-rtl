@@ -9,6 +9,7 @@ import {
 import { getBotSettings } from "@/lib/bot-settings.functions";
 import { submitOffer } from "@/lib/offers.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
+import { runOcrOnImage } from "@/lib/receipt-ocr";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 
@@ -86,14 +87,6 @@ function isWithinLast7Days(dateStr: string): boolean {
   const now = Date.now();
   const diff = now - d.getTime();
   return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
-}
-
-async function runOcrOnImage(file: File): Promise<string> {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("ara+eng");
-  const { data: { text } } = await worker.recognize(file);
-  await worker.terminate();
-  return text;
 }
 
 
