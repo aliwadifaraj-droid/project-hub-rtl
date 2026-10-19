@@ -143,8 +143,8 @@ export function ClientPortal() {
   return (
     <div className="min-h-screen flex flex-col bg-[#fffbeb]">
       <SiteHeader />
-      <div className="flex-1 container mx-auto px-4 py-8">
-        <div className="mb-6 rounded-2xl border-border bg-card p-6 shadow-[var(--shadow-card)]">
+      <div className="flex-1 w-full px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 rounded-2xl border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="grid h-12 w-12 place-items-center rounded-xl bg-[image:var(--gradient-accent)] text-accent-foreground">
@@ -164,7 +164,7 @@ export function ClientPortal() {
                 className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
                   notifEnabled
                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                    : "border-border bg-background hover:bg-secondary"
+                    : "border-border bg-[#fffbeb] hover:bg-[#fef3c7]"
                 }`}
               >
                 {notifStatus === "subscribing"? (
@@ -176,7 +176,7 @@ export function ClientPortal() {
               </button>
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold transition hover:bg-secondary"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#fffbeb] px-4 py-2 text-sm font-semibold transition hover:bg-[#fef3c7]"
               >
                 <LogOut className="h-4 w-4" /> تسجيل الخروج
               </button>
@@ -221,7 +221,7 @@ function TabButton({ active, onClick, icon, children }: {
       className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
         active
          ? "bg-foreground text-background"
-          : "border border-border bg-background text-muted-foreground hover:bg-secondary"
+          : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"
       }`}
     >
       {icon} {children}
@@ -262,7 +262,7 @@ function ProjectsTab() {
 
   if (!projects || projects.length === 0) {
     return (
-      <div className="rounded-2xl border-border bg-card p-12 text-center shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border-border bg-[#fef3c7] p-12 text-center shadow-[var(--shadow-card)]">
         <Images className="mx-auto h-12 w-12 text-muted-foreground/50" />
         <h3 className="mt-4 text-lg font-bold">لا توجد مشاريع حالياً</h3>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -277,7 +277,7 @@ function ProjectsTab() {
       <div className="flex items-center gap-2">
         <FolderKanban className="h-5 w-5 text-accent" />
         <h2 className="text-lg font-bold">جميع المشاريع</h2>
-        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+        <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
           {projects.length}
         </span>
       </div>
@@ -288,9 +288,9 @@ function ProjectsTab() {
             <article
               key={p.id}
               onClick={() => setSelected(p)}
-              className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
+              className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
             >
-              <div className="relative aspect-[16/10] overflow-hidden bg-secondary">
+              <div className="relative aspect-[16/10] overflow-hidden bg-[#fef3c7]">
                 {p.cover_url? (
                   <img
                     src={p.cover_url}
@@ -364,7 +364,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
@@ -389,7 +389,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
           <button
             onClick={onClose}
             aria-label="إغلاق"
-            className="shrink-0 rounded-lg border border-border bg-background p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+            className="shrink-0 rounded-lg border border-border bg-[#fffbeb] p-2 text-muted-foreground transition hover:bg-[#fef3c7] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -413,13 +413,13 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
 
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {project.location && (
-              <div className="rounded-lg border-border bg-background px-4 py-3">
+              <div className="rounded-lg border-border bg-[#fffbeb] px-4 py-3">
                 <p className="text-xs font-semibold text-muted-foreground">الموقع</p>
                 <p className="mt-0.5 text-sm font-medium">{project.location}</p>
               </div>
             )}
             {project.duration && (
-              <div className="rounded-lg border-border bg-background px-4 py-3">
+              <div className="rounded-lg border-border bg-[#fffbeb] px-4 py-3">
                 <p className="text-xs font-semibold text-muted-foreground">المدة</p>
                 <p className="mt-0.5 text-sm font-medium">{project.duration}</p>
               </div>
@@ -449,7 +449,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border-border bg-secondary/40 px-4 py-6 text-center">
+            <div className="rounded-xl border-border bg-[#fef3c7]/60 px-4 py-6 text-center">
               <FileText className="mx-auto h-8 w-8 text-muted-foreground/50" />
               <p className="mt-2 text-sm text-muted-foreground">لا يوجد ملف PDF لهذا المشروع</p>
             </div>
@@ -486,18 +486,18 @@ function ProfileTab() {
 
   return (
     <div className="max-w-2xl space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
         <div className="mb-5 flex items-center gap-2">
           <User className="h-5 w-5 text-accent" />
           <h2 className="text-lg font-bold">بيانات التسجيل</h2>
-          <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
             <Lock className="h-3 w-3" /> للعرض فقط
           </span>
         </div>
 
         <div className="space-y-3">
           {fields.map((f, i) => (
-            <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-background px-4 py-3">
+            <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-[#fffbeb] px-4 py-3">
               <span className="mt-0.5 shrink-0">{f.icon}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-muted-foreground">{f.label}</p>
@@ -513,7 +513,7 @@ function ProfileTab() {
         </div>
 
         {profile?.bio && (
-          <div className="mt-3 rounded-lg border-border bg-background px-4 py-3">
+          <div className="mt-3 rounded-lg border-border bg-[#fffbeb] px-4 py-3">
             <p className="text-xs font-semibold text-muted-foreground">نبذة عن الشركة</p>
             <p className="mt-1 text-sm leading-relaxed text-foreground">{profile.bio}</p>
           </div>
@@ -553,7 +553,7 @@ function OffersTab() {
 
   if (!offers || offers.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-12 text-center shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-border bg-[#fef3c7] p-12 text-center shadow-[var(--shadow-card)]">
         <Briefcase className="mx-auto h-12 w-12 text-muted-foreground/50" />
         <h3 className="mt-4 text-lg font-bold">لا توجد عروض بعد</h3>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -576,7 +576,7 @@ function OffersTab() {
       <div className="mb-4 flex items-center gap-2">
         <TrendingUp className="h-5 w-5 text-accent" />
         <h2 className="text-lg font-bold">عروضي المقدمة</h2>
-        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+        <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
           {offers.length}
         </span>
       </div>
@@ -584,7 +584,7 @@ function OffersTab() {
       {offers.map((offer: any) => {
         const s = statusMap[offer.status]?? statusMap.new;
         return (
-          <div key={offer.id} className="rounded-xl border border-border bg-card p-4 shadow-sm transition hover:shadow-md">
+          <div key={offer.id} className="rounded-xl border border-border bg-[#fef3c7] p-4 shadow-sm transition hover:shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
@@ -754,7 +754,7 @@ function SubmitOfferTab() {
       </div>
 
       {session && (
-        <div className="rounded-xl border-border bg-secondary/40 px-4 py-3">
+        <div className="rounded-xl border-border bg-[#fef3c7]/60 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span className="inline-flex items-center gap-1 font-semibold">
               <Building2 className="h-4 w-4 text-accent" /> {session.company_name}
@@ -768,7 +768,7 @@ function SubmitOfferTab() {
       )}
 
       {!selectedProject? (
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
+        <div className="rounded-2xl border border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
           <h3 className="mb-4 text-sm font-bold">ابحث عن المشروع</h3>
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative flex-1">
@@ -802,7 +802,7 @@ function SubmitOfferTab() {
                 <button
                   key={p.id}
                   onClick={() => selectProject(p)}
-                  className="block w-full rounded-lg border border-border bg-background p-4 text-right transition hover:border-accent hover:bg-secondary/50"
+                  className="block w-full rounded-lg border border-border bg-[#fffbeb] p-4 text-right transition hover:border-accent hover:bg-[#fef3c7]/70"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -827,8 +827,8 @@ function SubmitOfferTab() {
           )}
         </div>
       ) : (
-        <div className="rounded-2xl border-border bg-card p-6 shadow-[var(--shadow-card)]">
-          <div className="mb-5 rounded-lg border border-border bg-secondary/40 p-4">
+        <div className="rounded-2xl border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
+          <div className="mb-5 rounded-lg border border-border bg-[#fef3c7]/60 p-4">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold">{selectedProject.name}</h3>
