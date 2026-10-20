@@ -131,22 +131,18 @@ export function ClientPortal() {
   async function handleToggleNotifications() {
     if (typeof window === "undefined") return;
 
-    // آيفون غير مثبّت كتطبيق → أظهر تعليمات التثبيت
     if (isIOS() && !isStandalonePWA()) {
       setShowIOSHelp(true);
       return;
     }
 
-    // إلغاء الاشتراك
     if (notifEnabled) { await unsubscribeFromPush(); return; }
 
-    // PushManager غير متاح (متصفح غير مدعوم)
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setNotifStatus("error");
       return;
     }
 
-    // أندرويد أو آيفون مثبّت كـ PWA → اشتراك مباشر
     await subscribeToPush();
   }
 
@@ -274,7 +270,7 @@ function IOSInstallHelp({ onClose }: { onClose: () => void }) {
             <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3">
               <p className="text-sm font-bold text-red-700">يجب فتح الموقع في Safari أولاً</p>
               <p className="mt-1 text-xs leading-relaxed text-red-600">
-                أنت الآن في متصفح داخل تطبيق آخر (واتساب، إنستقرام، كروم...). انسخ الرابط وافتحه في تطبيق Safari الأزرق.
+                أنت الآن في متصفح داخل تطبيق آخر. انسخ الرابط وافتحه في تطبيق Safari الأزرق.
               </p>
             </div>
           )}
@@ -284,20 +280,18 @@ function IOSInstallHelp({ onClose }: { onClose: () => void }) {
           </p>
 
           <ol className="space-y-2">
-            <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+            <li className="flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">1</span>
               <div>
-                <p className="text-sm font-bold text-gray-900">اضغط زر المشاركة في Safari</p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  الأيقونة أسفل الشاشة — مربع وسهم يشير للأعلى <span className="font-mono text-base">⬆</span>
-                </p>
+                <p className="text-sm font-bold text-gray-900">اغلق هذه اللوحة أولاً</p>
+                <p className="mt-0.5 text-xs text-gray-600">اضغط «فهمت» أدناه، ثم اضغط زر السهم ⬆ في شريط Safari في أسفل الشاشة</p>
               </div>
             </li>
             <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">2</span>
               <div>
-                <p className="text-sm font-bold text-gray-900">اختر «إضافة إلى الشاشة الرئيسية»</p>
-                <p className="mt-0.5 text-xs text-gray-500">مرّر القائمة للأسفل حتى تجدها</p>
+                <p className="text-sm font-bold text-gray-900">في قائمة المشاركة — مرّر الأزرار للأسفل</p>
+                <p className="mt-0.5 text-xs text-gray-500">ابحث عن «إضافة إلى الشاشة الرئيسية» في قائمة الأزرار (ليس صف الأيقونات)</p>
               </div>
             </li>
             <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
@@ -313,7 +307,7 @@ function IOSInstallHelp({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600"
           >
-            فهمت
+            فهمت — سأضغط زر السهم ⬆ في Safari
           </button>
         </div>
       </div>
