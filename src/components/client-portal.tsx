@@ -51,16 +51,13 @@ export function ClientPortal() {
   });
 
   async function checkNotifPermission() {
-    if (typeof window === "undefined" ||!("serviceWorker" in navigator) ||!("PushManager" in window)) {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       setNotifEnabled(false);
       return;
     }
     try {
       const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) {
-        setNotifEnabled(false);
-        return;
-      }
+      if (!reg) { setNotifEnabled(false); return; }
       const sub = await reg.pushManager.getSubscription();
       setNotifEnabled(!!sub);
     } catch {
@@ -73,104 +70,57 @@ export function ClientPortal() {
     const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
     const rawData = atob(base64);
     const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
     return outputArray;
   }
 
   async function handleToggleNotifications() {
-    if (typeof window === "undefined") {
-      setNotifStatus("error");
-      return;
-    }
+    if (typeof window === "undefined") { setNotifStatus("error"); return; }
     const supportsSW = "serviceWorker" in navigator;
     const supportsPush = "PushManager" in window;
     if (!supportsSW || !supportsPush) {
-      if (isIOS() && !isStandalonePWA()) {
-        setShowIOSHelp(true);
-        setNotifStatus("idle");
-        return;
-      }
+      if (isIOS() && !isStandalonePWA()) { setShowIOSHelp(true); setNotifStatus("idle"); return; }
       setNotifStatus("error");
       return;
     }
-    if (isIOS() && !isStandalonePWA()) {
-      setShowIOSHelp(true);
-      setNotifStatus("idle");
-      return;
-    }
+    if (isIOS() && !isStandalonePWA()) { setShowIOSHelp(true); setNotifStatus("idle"); return; }
     setShowIOSHelp(false);
     if (notifEnabled) {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
         if (reg) {
           const sub = await reg.pushManager.getSubscription();
-          if (sub) {
-            await sub.unsubscribe();
-            await doRemoveSub({ data: { endpoint: sub.endpoint } });
-          }
+          if (sub) { await sub.unsubscribe(); await doRemoveSub({ data: { endpoint: sub.endpoint } }); }
         }
         setNotifEnabled(false);
-      } catch {
-        setNotifStatus("error");
-      }
+      } catch { setNotifStatus("error"); }
       return;
     }
-
     setNotifStatus("subscribing");
     try {
       const permission = await Notification.requestPermission();
-      if (permission!== "granted") {
-        setNotifStatus("error");
-        return;
-      }
-
+      if (permission !== "granted") { setNotifStatus("error"); return; }
       await navigator.serviceWorker.register("/sw.js");
       const registration = await navigator.serviceWorker.ready;
-
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-      if (!vapidKey) {
-        setNotifStatus("error");
-        return;
-      }
-
+      if (!vapidKey) { setNotifStatus("error"); return; }
       const existing = await registration.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
-
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
-
       const json = sub.toJSON();
-      if (!json.endpoint ||!json.keys?.p256dh ||!json.keys?.auth) {
-        setNotifStatus("error");
-        return;
-      }
-
-      await doSaveSub({
-        data: {
-          endpoint: json.endpoint,
-          p256dh: json.keys.p256dh,
-          auth: json.keys.auth,
-        },
-      });
-
+      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) { setNotifStatus("error"); return; }
+      await doSaveSub({ data: { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth } });
       setNotifEnabled(true);
       setNotifStatus("idle");
-    } catch {
-      setNotifStatus("error");
-    }
+    } catch { setNotifStatus("error"); }
   }
 
-  function handleLogout() {
-    window.location.href = "/client-logout";
-  }
+  function handleLogout() { window.location.href = "/client-logout"; }
 
-  useEffect(() => {
-    checkNotifPermission();
-  }, []);
+  useEffect(() => { checkNotifPermission(); }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fffbeb]">
@@ -195,16 +145,16 @@ export function ClientPortal() {
                 disabled={notifStatus === "subscribing"}
                 className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
                   notifEnabled
-                   ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                     : "border-border bg-[#fffbeb] hover:bg-[#fef3c7]"
                 }`}
               >
-                {notifStatus === "subscribing"? (
+                {notifStatus === "subscribing" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Bell className="h-4 w-4" />
                 )}
-                {notifEnabled? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
+                {notifEnabled ? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
               </button>
               <button
                 onClick={handleLogout}
@@ -231,10 +181,6 @@ export function ClientPortal() {
           </div>
         )}
 
-        {showIOSHelp && isIOS() && !isStandalonePWA() && (
-          <IOSInstallHelp onClose={() => setShowIOSHelp(false)} />
-        )}
-
         <div className="mb-6 flex-wrap gap-2">
           <TabButton active={tab === "projects"} onClick={() => setTab("projects")} icon={<FolderKanban className="h-4 w-4" />}>
             المشاريع
@@ -256,61 +202,78 @@ export function ClientPortal() {
         {tab === "submit" && <SubmitOfferTab />}
       </div>
       <SiteFooter />
+      {showIOSHelp && isIOS() && !isStandalonePWA() && (
+        <IOSInstallHelp onClose={() => setShowIOSHelp(false)} />
+      )}
     </div>
   );
 }
 
 function IOSInstallHelp({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   return (
-    <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-6 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Smartphone className="h-5 w-5 text-amber-700" />
-          <h3 className="text-base font-bold text-amber-900">تفعيل الإشعارات على آيفون</h3>
+    <div
+      className="fixed inset-0 z-[200] flex items-end justify-center p-4 sm:items-center"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative z-10 w-full max-w-md rounded-2xl border border-amber-300 bg-amber-50 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-amber-700" />
+            <h3 className="text-base font-bold text-amber-900">تفعيل الإشعارات على آيفون</h3>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="إغلاق"
+            className="shrink-0 rounded-lg border border-amber-300 bg-white p-1.5 text-amber-700 transition hover:bg-amber-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          aria-label="إغلاق"
-          className="shrink-0 rounded-lg border border-amber-300 bg-white p-1.5 text-amber-700 transition hover:bg-amber-100"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <p className="mt-3 text-sm leading-relaxed text-amber-800">
-        لإستلام الإشعارات على آيفون، يجب إضافة الموقع إلى الشاشة الرئيسية كتطبيق. على أجهزة iOS لا يدعم المتصفح الإشعارات إلا داخل التطبيق المثبّت.
-      </p>
-      <ol className="mt-4 space-y-3">
-        <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">1</span>
-          <div className="flex-1">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
-              <Share className="h-4 w-4" /> اضغط زر المشاركة
-            </p>
-            <p className="mt-0.5 text-xs text-amber-700">اضغط على أيقونة المشاركة في شريط سفلي بالسفاري.</p>
-          </div>
-        </li>
-        <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">2</span>
-          <div className="flex-1">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
-              <PlusCircle className="h-4 w-4" /> اختر «إلى الشاشة الرئيسية»
-            </p>
-            <p className="mt-0.5 text-xs text-amber-700">مرّر للأسفل واضغط «Add to Home Screen».</p>
-          </div>
-        </li>
-        <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">3</span>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-900">افتح التطبيق من الشاشة الرئيسية</p>
-            <p className="mt-0.5 text-xs text-amber-700">افتح «العمران» من الأيقونة الجديدة ثم اضغط «تفعيل الإشعارات».</p>
-          </div>
-        </li>
-      </ol>
-      <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-100/70 px-4 py-3">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-        <p className="text-xs leading-relaxed text-amber-800">
-          بعد إضافة التطبيق، سيعمل زر «تفعيل الإشعارات» بشكل طبيعي تماماً كما في أندرويد.
+        <p className="mt-3 text-sm leading-relaxed text-amber-800">
+          على آيفون، الإشعارات تعمل فقط عند تثبيت الموقع كتطبيق على الشاشة الرئيسية.
         </p>
+        <ol className="mt-4 space-y-3">
+          <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">1</span>
+            <div className="flex-1">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+                <Share className="h-4 w-4" /> اضغط زر المشاركة
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700">أيقونة المربع مع السهم في أسفل Safari.</p>
+            </div>
+          </li>
+          <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">2</span>
+            <div className="flex-1">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+                <PlusCircle className="h-4 w-4" /> اختر «إلى الشاشة الرئيسية»
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700">مرّر للأسفل واضغط «Add to Home Screen».</p>
+            </div>
+          </li>
+          <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">3</span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-900">افتح التطبيق وفعّل الإشعارات</p>
+              <p className="mt-0.5 text-xs text-amber-700">افتح «العمران» من الأيقونة ثم اضغط «تفعيل الإشعارات».</p>
+            </div>
+          </li>
+        </ol>
+        <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-100/70 px-4 py-3">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+          <p className="text-xs leading-relaxed text-amber-800">
+            بعد التثبيت، سيعمل الزر بشكل طبيعي تماماً كما في أندرويد.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -327,7 +290,7 @@ function TabButton({ active, onClick, icon, children }: {
       onClick={onClick}
       className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
         active
-         ? "bg-foreground text-background"
+          ? "bg-foreground text-background"
           : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"
       }`}
     >
@@ -372,9 +335,7 @@ function ProjectsTab() {
       <div className="rounded-2xl border-border bg-[#fef3c7] p-12 text-center shadow-[var(--shadow-card)]">
         <Images className="mx-auto h-12 w-12 text-muted-foreground/50" />
         <h3 className="mt-4 text-lg font-bold">لا توجد مشاريع حالياً</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          لم يتم نشر أي مشاريع بعد. يرجى العودة لاحقاً.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">لم يتم نشر أي مشاريع بعد. يرجى العودة لاحقاً.</p>
       </div>
     );
   }
@@ -390,72 +351,61 @@ function ProjectsTab() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {projects.map((p: ClientProject) => {
-          return (
-            <article
-              key={p.id}
-              onClick={() => setSelected(p)}
-              className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
-            >
-              <div className="relative aspect-[16/10] overflow-hidden bg-[#fef3c7]">
-                {p.cover_url? (
-                  <img
-                    src={p.cover_url}
-                    alt={p.name}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-muted-foreground/40">
-                    <Images className="h-10 w-10" />
-                  </div>
+        {projects.map((p: ClientProject) => (
+          <article
+            key={p.id}
+            onClick={() => setSelected(p)}
+            className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
+          >
+            <div className="relative aspect-[16/10] overflow-hidden bg-[#fef3c7]">
+              {p.cover_url ? (
+                <img
+                  src={p.cover_url}
+                  alt={p.name}
+                  loading="lazy"
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                />
+              ) : (
+                <div className="grid h-full w-full place-items-center text-muted-foreground/40">
+                  <Images className="h-10 w-10" />
+                </div>
+              )}
+              {p.is_exclusive && (
+                <span className="absolute top-3 end-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100/90 px-2.5 py-1 text-[11px] font-bold text-amber-700 backdrop-blur-sm">
+                  <Crown className="h-3 w-3" /> حصري VIP
+                </span>
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-3 p-5">
+              <h3 className="text-base font-bold leading-snug">{p.name}</h3>
+              {p.description && (
+                <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{p.description}</p>
+              )}
+              <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+                {p.location && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" /> {p.location}
+                  </span>
                 )}
-                {p.is_exclusive && (
-                  <span className="absolute top-3 end-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100/90 px-2.5 py-1 text-[11px] font-bold text-amber-700 backdrop-blur-sm">
-                    <Crown className="h-3 w-3" /> حصري VIP
+                {p.duration && (
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" /> {p.duration}
                   </span>
                 )}
               </div>
-
-              <div className="flex flex-1 flex-col gap-3 p-5">
-                <h3 className="text-base font-bold leading-snug">{p.name}</h3>
-
-                {p.description && (
-                  <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                    {p.description}
-                  </p>
-                )}
-
-                <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                  {p.location && (
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5" /> {p.location}
-                    </span>
-                  )}
-                  {p.duration && (
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" /> {p.duration}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </article>
-          );
-        })}
+            </div>
+          </article>
+        ))}
       </div>
 
-      {selected && (
-        <ProjectDetailModal project={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected && <ProjectDetailModal project={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
 
 function ProjectDetailModal({ project, onClose }: { project: ClientProject; onClose: () => void }) {
   useEffect(() => {
-    function handleEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
+    function handleEsc(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
     document.addEventListener("keydown", handleEsc);
     document.body.style.overflow = "hidden";
     return () => {
@@ -465,10 +415,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
   }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-2xl"
@@ -501,23 +448,18 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
             <X className="h-5 w-5" />
           </button>
         </div>
-
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {project.cover_url && (
             <div className="mb-5 overflow-hidden rounded-xl border-border">
               <img src={project.cover_url} alt={project.name} className="h-64 w-full object-cover" />
             </div>
           )}
-
           {project.description && (
             <div className="mb-5">
               <h3 className="mb-2 text-sm font-bold">تفاصيل المشروع</h3>
-              <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                {project.description}
-              </p>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{project.description}</p>
             </div>
           )}
-
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {project.location && (
               <div className="rounded-lg border-border bg-[#fffbeb] px-4 py-3">
@@ -532,8 +474,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
               </div>
             )}
           </div>
-
-          {project.pdf_url? (
+          {project.pdf_url ? (
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-sm font-bold">ملف المشروع (PDF)</h3>
@@ -547,12 +488,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
                 </a>
               </div>
               <div className="overflow-hidden rounded-xl border border-border">
-                <iframe
-                  src={project.pdf_url}
-                  title={project.name}
-                  className="h-[60vh] w-full"
-                  style={{ border: "none" }}
-                />
+                <iframe src={project.pdf_url} title={project.name} className="h-[60vh] w-full" style={{ border: "none" }} />
               </div>
             </div>
           ) : (
@@ -569,7 +505,6 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
 
 function ProfileTab() {
   const fetchProfile = useServerFn(getMyClientProfile);
-
   const { data: profile, isLoading } = useQuery({
     queryKey: ["client-profile"],
     queryFn: () => fetchProfile(),
@@ -601,7 +536,6 @@ function ProfileTab() {
             <Lock className="h-3 w-3" /> للعرض فقط
           </span>
         </div>
-
         <div className="space-y-3">
           {fields.map((f, i) => (
             <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-[#fffbeb] px-4 py-3">
@@ -618,7 +552,6 @@ function ProfileTab() {
             </div>
           ))}
         </div>
-
         {profile?.bio && (
           <div className="mt-3 rounded-lg border-border bg-[#fffbeb] px-4 py-3">
             <p className="text-xs font-semibold text-muted-foreground">نبذة عن الشركة</p>
@@ -626,7 +559,6 @@ function ProfileTab() {
           </div>
         )}
       </div>
-
       <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
         <div className="flex items-start gap-2.5">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
@@ -644,7 +576,6 @@ function ProfileTab() {
 
 function OffersTab() {
   const fetchOffers = useServerFn(getMyOffers);
-
   const { data: offers, isLoading } = useQuery({
     queryKey: ["my-offers"],
     queryFn: () => fetchOffers(),
@@ -687,9 +618,8 @@ function OffersTab() {
           {offers.length}
         </span>
       </div>
-
       {offers.map((offer: any) => {
-        const s = statusMap[offer.status]?? statusMap.new;
+        const s = statusMap[offer.status] ?? statusMap.new;
         return (
           <div key={offer.id} className="rounded-xl border border-border bg-[#fef3c7] p-4 shadow-sm transition hover:shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -708,9 +638,7 @@ function OffersTab() {
               </div>
               <div className="flex items-center gap-2">
                 {offer.is_accepted && (
-                  <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-600">
-                    عرض مقبول
-                  </span>
+                  <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-600">عرض مقبول</span>
                 )}
                 {offer.pdf_filename && (
                   <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -783,14 +711,13 @@ function SubmitOfferTab() {
     setResult(null);
   }
 
-  // التعديل الوحيد كان هنا
   async function handlePdfUpload(file: File) {
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
       setResult({ ok: false, message: "حجم الملف يجب أن يكون أقل من 20 ميغابايت" });
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".pdf") && file.type!== "application/pdf") {
+    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
       setResult({ ok: false, message: "يجب أن يكون الملف بصيغة PDF" });
       return;
     }
@@ -802,16 +729,14 @@ function SubmitOfferTab() {
       formData.append("purpose", "bid-pdf");
       const res = await fetch("/api/public/upload", { method: "POST", body: formData });
       const json = await res.json();
-      if (!res.ok ||!json?.key) {
-        throw new Error(json?.error || "فشل رفع الملف");
-      }
+      if (!res.ok || !json?.key) throw new Error(json?.error || "فشل رفع الملف");
       setPdfKey(json.key);
       setPdfFilename(file.name);
       setPdfFile(file);
       setResult({ ok: true, message: "تم رفع الملف بنجاح" });
     } catch (err) {
       setPdfKey("");
-      setResult({ ok: false, message: err instanceof Error? err.message : "فشل رفع الملف" });
+      setResult({ ok: false, message: err instanceof Error ? err.message : "فشل رفع الملف" });
     } finally {
       setUploading(false);
     }
@@ -821,14 +746,8 @@ function SubmitOfferTab() {
     e.preventDefault();
     if (submitting) return;
     if (!selectedProject) return;
-    if (!(amount?.trim() || "")) {
-      setResult({ ok: false, message: "السعر مطلوب" });
-      return;
-    }
-    if (!pdfKey) {
-      setResult({ ok: false, message: "يجب رفع ملف PDF" });
-      return;
-    }
+    if (!(amount?.trim() || "")) { setResult({ ok: false, message: "السعر مطلوب" }); return; }
+    if (!pdfKey) { setResult({ ok: false, message: "يجب رفع ملف PDF" }); return; }
     setSubmitting(true);
     setResult(null);
     try {
@@ -842,12 +761,9 @@ function SubmitOfferTab() {
         },
       });
       setResult({ ok: res.ok, message: res.message });
-      if (res.ok) {
-        qc.invalidateQueries({ queryKey: ["my-offers"] });
-        clearSelection();
-      }
+      if (res.ok) { qc.invalidateQueries({ queryKey: ["my-offers"] }); clearSelection(); }
     } catch (err) {
-      setResult({ ok: false, message: err instanceof Error? err.message : "حدث خطأ" });
+      setResult({ ok: false, message: err instanceof Error ? err.message : "حدث خطأ" });
     } finally {
       setSubmitting(false);
     }
@@ -874,7 +790,7 @@ function SubmitOfferTab() {
         </div>
       )}
 
-      {!selectedProject? (
+      {!selectedProject ? (
         <div className="rounded-2xl border border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
           <h3 className="mb-4 text-sm font-bold">ابحث عن المشروع</h3>
           <form onSubmit={handleSearch} className="flex gap-2">
@@ -891,18 +807,16 @@ function SubmitOfferTab() {
             </div>
             <button
               type="submit"
-              disabled={searching ||!searchQuery.trim()}
+              disabled={searching || !searchQuery.trim()}
               className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
             >
-              {searching? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               بحث
             </button>
           </form>
-
-          {searched &&!searching && searchResults.length === 0 && (
+          {searched && !searching && searchResults.length === 0 && (
             <p className="mt-4 text-center text-sm text-muted-foreground">لا توجد نتائج مطابقة</p>
           )}
-
           {searchResults.length > 0 && (
             <div className="mt-4 space-y-2">
               {searchResults.map((p) => (
@@ -945,16 +859,11 @@ function SubmitOfferTab() {
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={clearSelection}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
+              <button type="button" onClick={clearSelection} className="text-xs text-muted-foreground hover:text-foreground">
                 تغيير
               </button>
             </div>
           </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold mb-1">السعر المقدم</label>
@@ -967,7 +876,6 @@ function SubmitOfferTab() {
                 required
               />
             </div>
-
             <div>
               <label className="block text-sm font-semibold mb-1">ملف العرض PDF</label>
               <input
@@ -980,19 +888,17 @@ function SubmitOfferTab() {
               {uploading && <p className="text-xs mt-1">جاري الرفع...</p>}
               {pdfFilename && <p className="text-xs mt-1 text-emerald-600">✓ {pdfFilename}</p>}
             </div>
-
             {result && (
-              <div className={`rounded-lg px-4 py-3 text-sm ${result.ok? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-destructive/5 text-destructive border-destructive/20'}`}>
+              <div className={`rounded-lg px-4 py-3 text-sm ${result.ok ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-destructive/5 text-destructive border-destructive/20"}`}>
                 {result.message}
               </div>
             )}
-
             <button
               type="submit"
-              disabled={submitting || uploading ||!pdfKey}
+              disabled={submitting || uploading || !pdfKey}
               className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
             >
-              {submitting? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               ارسال العرض
             </button>
           </form>
