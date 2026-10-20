@@ -18,7 +18,7 @@ import {
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
   TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
   FolderKanban, Calendar, Crown, Images, Bell, X, ExternalLink,
-  Smartphone, Share, PlusCircle, Info,
+  Smartphone,
 } from "lucide-react";
 
 function isIOS() {
@@ -31,6 +31,16 @@ function isStandalonePWA() {
   return (
     window.matchMedia?.("(display-mode: standalone)")?.matches ||
     (window.navigator as any).standalone === true
+  );
+}
+
+function isIOSSafari() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /iphone|ipad|ipod/i.test(ua) &&
+    /safari/i.test(ua) &&
+    !/crios|fxios|opios|chrome|instagram|fbav|fban/i.test(ua)
   );
 }
 
@@ -74,48 +84,70 @@ export function ClientPortal() {
     return outputArray;
   }
 
-  async function handleToggleNotifications() {
-    if (typeof window === "undefined") { setNotifStatus("error"); return; }
-    const supportsSW = "serviceWorker" in navigator;
-    const supportsPush = "PushManager" in window;
-    if (!supportsSW || !supportsPush) {
-      if (isIOS() && !isStandalonePWA()) { setShowIOSHelp(true); setNotifStatus("idle"); return; }
-      setNotifStatus("error");
-      return;
-    }
-    if (isIOS() && !isStandalonePWA()) { setShowIOSHelp(true); setNotifStatus("idle"); return; }
-    setShowIOSHelp(false);
-    if (notifEnabled) {
-      try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          const sub = await reg.pushManager.getSubscription();
-          if (sub) { await sub.unsubscribe(); await doRemoveSub({ data: { endpoint: sub.endpoint } }); }
-        }
-        setNotifEnabled(false);
-      } catch { setNotifStatus("error"); }
-      return;
-    }
+  async function subscribeToPush() {
     setNotifStatus("subscribing");
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") { setNotifStatus("error"); return; }
+
       await navigator.serviceWorker.register("/sw.js");
       const registration = await navigator.serviceWorker.ready;
+
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
       if (!vapidKey) { setNotifStatus("error"); return; }
+
       const existing = await registration.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
+
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
+
       const json = sub.toJSON();
       if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) { setNotifStatus("error"); return; }
+
       await doSaveSub({ data: { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth } });
       setNotifEnabled(true);
       setNotifStatus("idle");
-    } catch { setNotifStatus("error"); }
+    } catch {
+      setNotifStatus("error");
+    }
+  }
+
+  async function unsubscribeFromPush() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) { await sub.unsubscribe(); await doRemoveSub({ data: { endpoint: sub.endpoint } }); }
+      }
+      setNotifEnabled(false);
+    } catch {
+      setNotifStatus("error");
+    }
+  }
+
+  async function handleToggleNotifications() {
+    if (typeof window === "undefined") return;
+
+    // آيفون غير مثبّت كتطبيق → أظهر تعليمات التثبيت
+    if (isIOS() && !isStandalonePWA()) {
+      setShowIOSHelp(true);
+      return;
+    }
+
+    // إلغاء الاشتراك
+    if (notifEnabled) { await unsubscribeFromPush(); return; }
+
+    // PushManager غير متاح (متصفح غير مدعوم)
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setNotifStatus("error");
+      return;
+    }
+
+    // أندرويد أو آيفون مثبّت كـ PWA → اشتراك مباشر
+    await subscribeToPush();
   }
 
   function handleLogout() { window.location.href = "/client-logout"; }
@@ -210,6 +242,8 @@ export function ClientPortal() {
 }
 
 function IOSInstallHelp({ onClose }: { onClose: () => void }) {
+  const inSafari = isIOSSafari();
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
@@ -220,59 +254,67 @@ function IOSInstallHelp({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-[200] flex items-end justify-center p-4 sm:items-center"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative z-10 w-full max-w-md rounded-2xl border border-amber-300 bg-amber-50 p-6 shadow-2xl"
+        className="relative z-10 w-full max-w-sm rounded-2xl border border-amber-300 bg-white shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center justify-between gap-2 bg-amber-500 px-5 py-4">
           <div className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-amber-700" />
-            <h3 className="text-base font-bold text-amber-900">تفعيل الإشعارات على آيفون</h3>
+            <Smartphone className="h-5 w-5 text-white" />
+            <h3 className="text-base font-bold text-white">تفعيل الإشعارات على آيفون</h3>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="إغلاق"
-            className="shrink-0 rounded-lg border border-amber-300 bg-white p-1.5 text-amber-700 transition hover:bg-amber-100"
-          >
+          <button onClick={onClose} aria-label="إغلاق" className="rounded-lg bg-white/20 p-1.5 text-white transition hover:bg-white/30">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-3 text-sm leading-relaxed text-amber-800">
-          على آيفون، الإشعارات تعمل فقط عند تثبيت الموقع كتطبيق على الشاشة الرئيسية.
-        </p>
-        <ol className="mt-4 space-y-3">
-          <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">1</span>
-            <div className="flex-1">
-              <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
-                <Share className="h-4 w-4" /> اضغط زر المشاركة
+
+        <div className="p-5 space-y-4">
+          {!inSafari && (
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3">
+              <p className="text-sm font-bold text-red-700">يجب فتح الموقع في Safari أولاً</p>
+              <p className="mt-1 text-xs leading-relaxed text-red-600">
+                أنت الآن في متصفح داخل تطبيق آخر (واتساب، إنستقرام، كروم...). انسخ الرابط وافتحه في تطبيق Safari الأزرق.
               </p>
-              <p className="mt-0.5 text-xs text-amber-700">أيقونة المربع مع السهم في أسفل Safari.</p>
             </div>
-          </li>
-          <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">2</span>
-            <div className="flex-1">
-              <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
-                <PlusCircle className="h-4 w-4" /> اختر «إلى الشاشة الرئيسية»
-              </p>
-              <p className="mt-0.5 text-xs text-amber-700">مرّر للأسفل واضغط «Add to Home Screen».</p>
-            </div>
-          </li>
-          <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">3</span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-900">افتح التطبيق وفعّل الإشعارات</p>
-              <p className="mt-0.5 text-xs text-amber-700">افتح «العمران» من الأيقونة ثم اضغط «تفعيل الإشعارات».</p>
-            </div>
-          </li>
-        </ol>
-        <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-100/70 px-4 py-3">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-          <p className="text-xs leading-relaxed text-amber-800">
-            بعد التثبيت، سيعمل الزر بشكل طبيعي تماماً كما في أندرويد.
+          )}
+
+          <p className="text-sm leading-relaxed text-gray-700">
+            الإشعارات على آيفون تتطلب تثبيت الموقع كتطبيق أولاً. بعد التثبيت يعمل كل شيء تلقائياً.
           </p>
+
+          <ol className="space-y-2">
+            <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">1</span>
+              <div>
+                <p className="text-sm font-bold text-gray-900">اضغط زر المشاركة في Safari</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  الأيقونة أسفل الشاشة — مربع وسهم يشير للأعلى <span className="font-mono text-base">⬆</span>
+                </p>
+              </div>
+            </li>
+            <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">2</span>
+              <div>
+                <p className="text-sm font-bold text-gray-900">اختر «إضافة إلى الشاشة الرئيسية»</p>
+                <p className="mt-0.5 text-xs text-gray-500">مرّر القائمة للأسفل حتى تجدها</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">3</span>
+              <div>
+                <p className="text-sm font-bold text-gray-900">افتح «العمران» من الشاشة الرئيسية</p>
+                <p className="mt-0.5 text-xs text-gray-500">ثم اضغط «تفعيل الإشعارات» وسيعمل مباشرة</p>
+              </div>
+            </li>
+          </ol>
+
+          <button
+            onClick={onClose}
+            className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600"
+          >
+            فهمت
+          </button>
         </div>
       </div>
     </div>
@@ -359,12 +401,7 @@ function ProjectsTab() {
           >
             <div className="relative aspect-[16/10] overflow-hidden bg-[#fef3c7]">
               {p.cover_url ? (
-                <img
-                  src={p.cover_url}
-                  alt={p.name}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                />
+                <img src={p.cover_url} alt={p.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               ) : (
                 <div className="grid h-full w-full place-items-center text-muted-foreground/40">
                   <Images className="h-10 w-10" />
@@ -383,14 +420,10 @@ function ProjectsTab() {
               )}
               <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
                 {p.location && (
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {p.location}
-                  </span>
+                  <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {p.location}</span>
                 )}
                 {p.duration && (
-                  <span className="inline-flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" /> {p.duration}
-                  </span>
+                  <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {p.duration}</span>
                 )}
               </div>
             </div>
@@ -426,25 +459,17 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
             <h2 className="text-lg font-bold">{project.name}</h2>
             <div className="mt-1.5 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               {project.location && (
-                <span className="inline-flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5" /> {project.location}
-                </span>
+                <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {project.location}</span>
               )}
               {project.duration && (
-                <span className="inline-flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5" /> {project.duration}
-                </span>
+                <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {project.duration}</span>
               )}
               <span className="inline-flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" /> {new Date(project.created_at).toLocaleDateString("ar")}
               </span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="إغلاق"
-            className="shrink-0 rounded-lg border border-border bg-[#fffbeb] p-2 text-muted-foreground transition hover:bg-[#fef3c7] hover:text-foreground"
-          >
+          <button onClick={onClose} aria-label="إغلاق" className="shrink-0 rounded-lg border border-border bg-[#fffbeb] p-2 text-muted-foreground transition hover:bg-[#fef3c7] hover:text-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -478,12 +503,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-sm font-bold">ملف المشروع (PDF)</h3>
-                <a
-                  href={project.pdf_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                >
+                <a href={project.pdf_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
                   <ExternalLink className="h-3.5 w-3.5" /> فتح في نافذة جديدة
                 </a>
               </div>
@@ -594,9 +614,7 @@ function OffersTab() {
       <div className="rounded-2xl border border-border bg-[#fef3c7] p-12 text-center shadow-[var(--shadow-card)]">
         <Briefcase className="mx-auto h-12 w-12 text-muted-foreground/50" />
         <h3 className="mt-4 text-lg font-bold">لا توجد عروض بعد</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          لم تقم بتقديم أي عرض سعر حتى الآن. استخدم تبويب "تقديم عرض سعر" للبدء.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">لم تقم بتقديم أي عرض سعر حتى الآن. استخدم تبويب "تقديم عرض سعر" للبدء.</p>
       </div>
     );
   }
@@ -614,9 +632,7 @@ function OffersTab() {
       <div className="mb-4 flex items-center gap-2">
         <TrendingUp className="h-5 w-5 text-accent" />
         <h2 className="text-lg font-bold">عروضي المقدمة</h2>
-        <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-          {offers.length}
-        </span>
+        <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{offers.length}</span>
       </div>
       {offers.map((offer: any) => {
         const s = statusMap[offer.status] ?? statusMap.new;
@@ -713,14 +729,8 @@ function SubmitOfferTab() {
 
   async function handlePdfUpload(file: File) {
     if (!file) return;
-    if (file.size > 20 * 1024 * 1024) {
-      setResult({ ok: false, message: "حجم الملف يجب أن يكون أقل من 20 ميغابايت" });
-      return;
-    }
-    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
-      setResult({ ok: false, message: "يجب أن يكون الملف بصيغة PDF" });
-      return;
-    }
+    if (file.size > 20 * 1024 * 1024) { setResult({ ok: false, message: "حجم الملف يجب أن يكون أقل من 20 ميغابايت" }); return; }
+    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") { setResult({ ok: false, message: "يجب أن يكون الملف بصيغة PDF" }); return; }
     setUploading(true);
     setResult(null);
     try {
@@ -784,9 +794,7 @@ function SubmitOfferTab() {
             </span>
             <span className="text-muted-foreground">{session.email}</span>
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            سيتم تقديم العرض باسم الشركة والبريد المسجل أعلاه (لا يمكن تغييرهما)
-          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">سيتم تقديم العرض باسم الشركة والبريد المسجل أعلاه (لا يمكن تغييرهما)</p>
         </div>
       )}
 
@@ -796,22 +804,10 @@ function SubmitOfferTab() {
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute top-1/2 end-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="اكتب اسم المشروع..."
-                className="inp ps-4 pe-10"
-                autoFocus
-              />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="اكتب اسم المشروع..." className="inp ps-4 pe-10" autoFocus />
             </div>
-            <button
-              type="submit"
-              disabled={searching || !searchQuery.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
-            >
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              بحث
+            <button type="submit" disabled={searching || !searchQuery.trim()} className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60">
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} بحث
             </button>
           </form>
           {searched && !searching && searchResults.length === 0 && (
@@ -820,27 +816,17 @@ function SubmitOfferTab() {
           {searchResults.length > 0 && (
             <div className="mt-4 space-y-2">
               {searchResults.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => selectProject(p)}
-                  className="block w-full rounded-lg border border-border bg-[#fffbeb] p-4 text-right transition hover:border-accent hover:bg-[#fef3c7]/70"
-                >
+                <button key={p.id} onClick={() => selectProject(p)} className="block w-full rounded-lg border border-border bg-[#fffbeb] p-4 text-right transition hover:border-accent hover:bg-[#fef3c7]/70">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-bold text-sm">{p.name}</h4>
                       {p.location && (
-                        <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1">
-                          <MapPin className="h-3 w-3" /> {p.location}
-                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.location}</p>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      {p.is_exclusive && (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border-amber-200">
-                          حصري VIP
-                        </span>
-                      )}
-                    </div>
+                    {p.is_exclusive && (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border-amber-200">حصري VIP</span>
+                    )}
                   </div>
                 </button>
               ))}
@@ -854,37 +840,20 @@ function SubmitOfferTab() {
               <div>
                 <h3 className="font-bold">{selectedProject.name}</h3>
                 {selectedProject.location && (
-                  <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1">
-                    <MapPin className="h-3 w-3" /> {selectedProject.location}
-                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {selectedProject.location}</p>
                 )}
               </div>
-              <button type="button" onClick={clearSelection} className="text-xs text-muted-foreground hover:text-foreground">
-                تغيير
-              </button>
+              <button type="button" onClick={clearSelection} className="text-xs text-muted-foreground hover:text-foreground">تغيير</button>
             </div>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold mb-1">السعر المقدم</label>
-              <input
-                type="text"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="مثال: 50000"
-                className="inp"
-                required
-              />
+              <input type="text" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="مثال: 50000" className="inp" required />
             </div>
             <div>
               <label className="block text-sm font-semibold mb-1">ملف العرض PDF</label>
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                onChange={(e) => e.target.files?.[0] && handlePdfUpload(e.target.files[0])}
-                className="inp"
-                required
-              />
+              <input type="file" accept=".pdf,application/pdf" onChange={(e) => e.target.files?.[0] && handlePdfUpload(e.target.files[0])} className="inp" required />
               {uploading && <p className="text-xs mt-1">جاري الرفع...</p>}
               {pdfFilename && <p className="text-xs mt-1 text-emerald-600">✓ {pdfFilename}</p>}
             </div>
@@ -893,13 +862,8 @@ function SubmitOfferTab() {
                 {result.message}
               </div>
             )}
-            <button
-              type="submit"
-              disabled={submitting || uploading || !pdfKey}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60"
-            >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              ارسال العرض
+            <button type="submit" disabled={submitting || uploading || !pdfKey} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} ارسال العرض
             </button>
           </form>
         </div>
