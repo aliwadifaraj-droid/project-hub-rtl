@@ -18,7 +18,21 @@ import {
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
   TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
   FolderKanban, Calendar, Crown, Images, Bell, X, ExternalLink,
+  Smartphone, Share, PlusCircle, Info,
 } from "lucide-react";
+
+function isIOS() {
+  if (typeof navigator === "undefined") return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isStandalonePWA() {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia?.("(display-mode: standalone)")?.matches ||
+    (window.navigator as any).standalone === true
+  );
+}
 
 type Tab = "projects" | "profile" | "offers" | "submit";
 
@@ -26,6 +40,7 @@ export function ClientPortal() {
   const [tab, setTab] = useState<Tab>("projects");
   const [notifStatus, setNotifStatus] = useState<"idle" | "subscribing" | "error">("idle");
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [showIOSHelp, setShowIOSHelp] = useState(false);
   const fetchSession = useServerFn(getClientSession);
   const doSaveSub = useServerFn(saveClientPushSubscription);
   const doRemoveSub = useServerFn(removeClientPushSubscription);
@@ -65,10 +80,27 @@ export function ClientPortal() {
   }
 
   async function handleToggleNotifications() {
-    if (typeof window === "undefined" ||!("serviceWorker" in navigator) ||!("PushManager" in window)) {
+    if (typeof window === "undefined") {
       setNotifStatus("error");
       return;
     }
+    const supportsSW = "serviceWorker" in navigator;
+    const supportsPush = "PushManager" in window;
+    if (!supportsSW || !supportsPush) {
+      if (isIOS() && !isStandalonePWA()) {
+        setShowIOSHelp(true);
+        setNotifStatus("idle");
+        return;
+      }
+      setNotifStatus("error");
+      return;
+    }
+    if (isIOS() && !isStandalonePWA()) {
+      setShowIOSHelp(true);
+      setNotifStatus("idle");
+      return;
+    }
+    setShowIOSHelp(false);
     if (notifEnabled) {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
@@ -184,6 +216,25 @@ export function ClientPortal() {
           </div>
         </div>
 
+        {notifStatus === "error" && (
+          <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-4">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+              <div>
+                <p className="text-sm font-bold text-destructive">تعذّر تفعيل الإشعارات</p>
+                <p className="mt-1 text-sm text-destructive/80">
+                  يرجى التأكد من السماح بالإشعارات في المتصفح ثم المحاولة مرة أخرى.
+                  {isIOS() && " على أجهزة الآيفون يجب إضافة الموقع للشاشة الرئيسية أولاً."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showIOSHelp && isIOS() && !isStandalonePWA() && (
+          <IOSInstallHelp onClose={() => setShowIOSHelp(false)} />
+        )}
+
         <div className="mb-6 flex-wrap gap-2">
           <TabButton active={tab === "projects"} onClick={() => setTab("projects")} icon={<FolderKanban className="h-4 w-4" />}>
             المشاريع
@@ -205,6 +256,62 @@ export function ClientPortal() {
         {tab === "submit" && <SubmitOfferTab />}
       </div>
       <SiteFooter />
+    </div>
+  );
+}
+
+function IOSInstallHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Smartphone className="h-5 w-5 text-amber-700" />
+          <h3 className="text-base font-bold text-amber-900">تفعيل الإشعارات على آيفون</h3>
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="إغلاق"
+          className="shrink-0 rounded-lg border border-amber-300 bg-white p-1.5 text-amber-700 transition hover:bg-amber-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <p className="mt-3 text-sm leading-relaxed text-amber-800">
+        لإستلام الإشعارات على آيفون، يجب إضافة الموقع إلى الشاشة الرئيسية كتطبيق. على أجهزة iOS لا يدعم المتصفح الإشعارات إلا داخل التطبيق المثبّت.
+      </p>
+      <ol className="mt-4 space-y-3">
+        <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">1</span>
+          <div className="flex-1">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+              <Share className="h-4 w-4" /> اضغط زر المشاركة
+            </p>
+            <p className="mt-0.5 text-xs text-amber-700">اضغط على أيقونة المشاركة في شريط سفلي بالسفاري.</p>
+          </div>
+        </li>
+        <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">2</span>
+          <div className="flex-1">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+              <PlusCircle className="h-4 w-4" /> اختر «إلى الشاشة الرئيسية»
+            </p>
+            <p className="mt-0.5 text-xs text-amber-700">مرّر للأسفل واضغط «Add to Home Screen».</p>
+          </div>
+        </li>
+        <li className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">3</span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-900">افتح التطبيق من الشاشة الرئيسية</p>
+            <p className="mt-0.5 text-xs text-amber-700">افتح «العمران» من الأيقونة الجديدة ثم اضغط «تفعيل الإشعارات».</p>
+          </div>
+        </li>
+      </ol>
+      <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-100/70 px-4 py-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+        <p className="text-xs leading-relaxed text-amber-800">
+          بعد إضافة التطبيق، سيعمل زر «تفعيل الإشعارات» بشكل طبيعي تماماً كما في أندرويد.
+        </p>
+      </div>
     </div>
   );
 }
