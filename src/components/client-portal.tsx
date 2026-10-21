@@ -44,6 +44,11 @@ function isIOSSafari() {
   );
 }
 
+function isIOSInAppBrowser() {
+  if (typeof navigator === "undefined") return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !isIOSSafari();
+}
+
 type Tab = "projects" | "profile" | "offers" | "submit";
 
 export function ClientPortal() {
@@ -89,24 +94,18 @@ export function ClientPortal() {
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") { setNotifStatus("error"); return; }
-
       await navigator.serviceWorker.register("/sw.js");
       const registration = await navigator.serviceWorker.ready;
-
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
       if (!vapidKey) { setNotifStatus("error"); return; }
-
       const existing = await registration.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
-
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
-
       const json = sub.toJSON();
       if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) { setNotifStatus("error"); return; }
-
       await doSaveSub({ data: { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth } });
       setNotifEnabled(true);
       setNotifStatus("idle");
@@ -130,19 +129,9 @@ export function ClientPortal() {
 
   async function handleToggleNotifications() {
     if (typeof window === "undefined") return;
-
-    if (isIOS() && !isStandalonePWA()) {
-      setShowIOSHelp(true);
-      return;
-    }
-
+    if (isIOS() && !isStandalonePWA()) { setShowIOSHelp(true); return; }
     if (notifEnabled) { await unsubscribeFromPush(); return; }
-
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setNotifStatus("error");
-      return;
-    }
-
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setNotifStatus("error"); return; }
     await subscribeToPush();
   }
 
@@ -162,9 +151,7 @@ export function ClientPortal() {
               </span>
               <div>
                 <h1 className="text-xl font-bold">لوحة العملاء</h1>
-                <p className="text-sm text-muted-foreground">
-                  {session?.company_name || session?.email || ""}
-                </p>
+                <p className="text-sm text-muted-foreground">{session?.company_name || session?.email || ""}</p>
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -177,17 +164,10 @@ export function ClientPortal() {
                     : "border-border bg-[#fffbeb] hover:bg-[#fef3c7]"
                 }`}
               >
-                {notifStatus === "subscribing" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Bell className="h-4 w-4" />
-                )}
+                {notifStatus === "subscribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                 {notifEnabled ? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
               </button>
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#fffbeb] px-4 py-2 text-sm font-semibold transition hover:bg-[#fef3c7]"
-              >
+              <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#fffbeb] px-4 py-2 text-sm font-semibold transition hover:bg-[#fef3c7]">
                 <LogOut className="h-4 w-4" /> تسجيل الخروج
               </button>
             </div>
@@ -210,18 +190,10 @@ export function ClientPortal() {
         )}
 
         <div className="mb-6 flex-wrap gap-2">
-          <TabButton active={tab === "projects"} onClick={() => setTab("projects")} icon={<FolderKanban className="h-4 w-4" />}>
-            المشاريع
-          </TabButton>
-          <TabButton active={tab === "profile"} onClick={() => setTab("profile")} icon={<User className="h-4 w-4" />}>
-            بياناتي
-          </TabButton>
-          <TabButton active={tab === "offers"} onClick={() => setTab("offers")} icon={<TrendingUp className="h-4 w-4" />}>
-            تتبع عروضي
-          </TabButton>
-          <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<FileText className="h-4 w-4" />}>
-            تقديم عرض سعر
-          </TabButton>
+          <TabButton active={tab === "projects"} onClick={() => setTab("projects")} icon={<FolderKanban className="h-4 w-4" />}>المشاريع</TabButton>
+          <TabButton active={tab === "profile"} onClick={() => setTab("profile")} icon={<User className="h-4 w-4" />}>بياناتي</TabButton>
+          <TabButton active={tab === "offers"} onClick={() => setTab("offers")} icon={<TrendingUp className="h-4 w-4" />}>تتبع عروضي</TabButton>
+          <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<FileText className="h-4 w-4" />}>تقديم عرض سعر</TabButton>
         </div>
 
         {tab === "projects" && <ProjectsTab />}
@@ -238,7 +210,7 @@ export function ClientPortal() {
 }
 
 function IOSInstallHelp({ onClose }: { onClose: () => void }) {
-  const inSafari = isIOSSafari();
+  const inAppBrowser = isIOSInAppBrowser();
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -246,10 +218,7 @@ function IOSInstallHelp({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-end justify-center p-4 sm:items-center"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[200] flex items-end justify-center p-4 sm:items-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative z-10 w-full max-w-sm rounded-2xl border border-amber-300 bg-white shadow-2xl overflow-hidden"
@@ -266,49 +235,91 @@ function IOSInstallHelp({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-5 space-y-4">
-          {!inSafari && (
-            <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3">
-              <p className="text-sm font-bold text-red-700">يجب فتح الموقع في Safari أولاً</p>
-              <p className="mt-1 text-xs leading-relaxed text-red-600">
-                أنت الآن في متصفح داخل تطبيق آخر. انسخ الرابط وافتحه في تطبيق Safari الأزرق.
+          {inAppBrowser ? (
+            <>
+              <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-4">
+                <p className="text-sm font-bold text-red-700">الموقع مفتوح داخل متصفح آخر، وليس Safari</p>
+                <p className="mt-2 text-sm leading-relaxed text-red-700">
+                  لن يظهر خيار «إضافة إلى الشاشة الرئيسية» هنا. يجب نقل الصفحة إلى Safari أولاً.
+                </p>
+              </div>
+              <ol className="space-y-2">
+                <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">1</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">افتح قائمة المتصفح في أعلى الشاشة</p>
+                    <p className="mt-0.5 text-xs text-gray-600">اضغط زر الخيارات أو زر المشاركة، ثم اختر «فتح في Safari»</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">2</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">في Safari اضغط «AA» أو زر المشاركة ↑</p>
+                    <p className="mt-0.5 text-xs text-gray-500">ثم اختر «إضافة إلى الشاشة الرئيسية»</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">3</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">افتح «العمران» من الشاشة الرئيسية</p>
+                    <p className="mt-0.5 text-xs text-gray-500">ثم اضغط «تفعيل الإشعارات» وسيعمل مباشرة</p>
+                  </div>
+                </li>
+              </ol>
+              <button onClick={onClose} className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600">
+                فهمت — سأفتح الصفحة في Safari أولاً
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm leading-relaxed text-gray-700">
+                الإشعارات على آيفون تتطلب تثبيت الموقع كتطبيق أولاً. بعد التثبيت يعمل كل شيء تلقائياً.
               </p>
-            </div>
+
+              {/* الطريقة الأسهل: iOS 17+ */}
+              <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-4 space-y-3">
+                <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">الطريقة الأسهل — iOS 17 فما فوق</p>
+                <ol className="space-y-2">
+                  <li className="flex items-start gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">1</span>
+                    <p className="text-sm text-gray-800">اضغط «فهمت» أدناه لإغلاق هذه اللوحة</p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">2</span>
+                    <div>
+                      <p className="text-sm text-gray-800">اضغط على <strong>«AA»</strong> في يسار شريط العنوان بأعلى Safari</p>
+                      <p className="mt-0.5 text-xs text-gray-500">الشريط الذي يعرض عنوان الموقع</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">3</span>
+                    <p className="text-sm text-gray-800">اختر <strong>«إضافة إلى الشاشة الرئيسية»</strong> من القائمة</p>
+                  </li>
+                </ol>
+              </div>
+
+              {/* الطريقة القديمة: iOS 16 وما دون */}
+              <details className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <summary className="cursor-pointer text-xs font-semibold text-gray-600 select-none">
+                  لم تجد «AA»؟ جرّب طريقة زر المشاركة (iOS 16 وما دون)
+                </summary>
+                <ol className="mt-3 space-y-2">
+                  <li className="flex items-start gap-2 text-sm text-gray-700">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gray-400 text-[10px] font-bold text-white">1</span>
+                    اضغط زر السهم <strong>↑</strong> في شريط Safari أسفل الشاشة
+                  </li>
+                  <li className="flex items-start gap-2 text-sm text-gray-700">
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gray-400 text-[10px] font-bold text-white">2</span>
+                    مرّر القائمة للأسفل واختر «إضافة إلى الشاشة الرئيسية»
+                  </li>
+                </ol>
+              </details>
+
+              <button onClick={onClose} className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600">
+                فهمت — سأضغط «AA» في Safari
+              </button>
+            </>
           )}
-
-          <p className="text-sm leading-relaxed text-gray-700">
-            الإشعارات على آيفون تتطلب تثبيت الموقع كتطبيق أولاً. بعد التثبيت يعمل كل شيء تلقائياً.
-          </p>
-
-          <ol className="space-y-2">
-            <li className="flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">1</span>
-              <div>
-                <p className="text-sm font-bold text-gray-900">اغلق هذه اللوحة أولاً</p>
-                <p className="mt-0.5 text-xs text-gray-600">اضغط «فهمت» أدناه، ثم اضغط زر السهم ⬆ في شريط Safari في أسفل الشاشة</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">2</span>
-              <div>
-                <p className="text-sm font-bold text-gray-900">في قائمة المشاركة — مرّر الأزرار للأسفل</p>
-                <p className="mt-0.5 text-xs text-gray-500">ابحث عن «إضافة إلى الشاشة الرئيسية» في قائمة الأزرار (ليس صف الأيقونات)</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-500 text-xs font-bold text-white">3</span>
-              <div>
-                <p className="text-sm font-bold text-gray-900">افتح «العمران» من الشاشة الرئيسية</p>
-                <p className="mt-0.5 text-xs text-gray-500">ثم اضغط «تفعيل الإشعارات» وسيعمل مباشرة</p>
-              </div>
-            </li>
-          </ol>
-
-          <button
-            onClick={onClose}
-            className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white transition hover:bg-amber-600"
-          >
-            فهمت — سأضغط زر السهم ⬆ في Safari
-          </button>
         </div>
       </div>
     </div>
@@ -316,55 +327,27 @@ function IOSInstallHelp({ onClose }: { onClose: () => void }) {
 }
 
 function TabButton({ active, onClick, icon, children }: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
-        active
-          ? "bg-foreground text-background"
-          : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"
-      }`}
-    >
+    <button onClick={onClick} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${active ? "bg-foreground text-background" : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"}`}>
       {icon} {children}
     </button>
   );
 }
 
 type ClientProject = {
-  id: string;
-  name: string;
-  description: string | null;
-  location: string | null;
-  duration: string | null;
-  cover_url: string;
-  pdf_url: string;
-  status: string;
-  is_exclusive: boolean;
-  vip_end_at: string | null;
-  created_at: string;
+  id: string; name: string; description: string | null; location: string | null;
+  duration: string | null; cover_url: string; pdf_url: string; status: string;
+  is_exclusive: boolean; vip_end_at: string | null; created_at: string;
 };
 
 function ProjectsTab() {
   const fetchProjects = useServerFn(getAllProjectsForClient);
   const [selected, setSelected] = useState<ClientProject | null>(null);
+  const { data: projects, isLoading } = useQuery({ queryKey: ["client-all-projects"], queryFn: () => fetchProjects() });
 
-  const { data: projects, isLoading } = useQuery({
-    queryKey: ["client-all-projects"],
-    queryFn: () => fetchProjects(),
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
 
   if (!projects || projects.length === 0) {
     return (
@@ -381,25 +364,16 @@ function ProjectsTab() {
       <div className="flex items-center gap-2">
         <FolderKanban className="h-5 w-5 text-accent" />
         <h2 className="text-lg font-bold">جميع المشاريع</h2>
-        <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-          {projects.length}
-        </span>
+        <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{projects.length}</span>
       </div>
-
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((p: ClientProject) => (
-          <article
-            key={p.id}
-            onClick={() => setSelected(p)}
-            className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
-          >
+          <article key={p.id} onClick={() => setSelected(p)} className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]">
             <div className="relative aspect-[16/10] overflow-hidden bg-[#fef3c7]">
               {p.cover_url ? (
                 <img src={p.cover_url} alt={p.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               ) : (
-                <div className="grid h-full w-full place-items-center text-muted-foreground/40">
-                  <Images className="h-10 w-10" />
-                </div>
+                <div className="grid h-full w-full place-items-center text-muted-foreground/40"><Images className="h-10 w-10" /></div>
               )}
               {p.is_exclusive && (
                 <span className="absolute top-3 end-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100/90 px-2.5 py-1 text-[11px] font-bold text-amber-700 backdrop-blur-sm">
@@ -409,22 +383,15 @@ function ProjectsTab() {
             </div>
             <div className="flex flex-1 flex-col gap-3 p-5">
               <h3 className="text-base font-bold leading-snug">{p.name}</h3>
-              {p.description && (
-                <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{p.description}</p>
-              )}
+              {p.description && <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{p.description}</p>}
               <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                {p.location && (
-                  <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {p.location}</span>
-                )}
-                {p.duration && (
-                  <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {p.duration}</span>
-                )}
+                {p.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {p.location}</span>}
+                {p.duration && <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {p.duration}</span>}
               </div>
             </div>
           </article>
         ))}
       </div>
-
       {selected && <ProjectDetailModal project={selected} onClose={() => setSelected(null)} />}
     </div>
   );
@@ -435,32 +402,20 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
     function handleEsc(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
     document.addEventListener("keydown", handleEsc);
     document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleEsc);
-      document.body.style.overflow = "";
-    };
+    return () => { document.removeEventListener("keydown", handleEsc); document.body.style.overflow = ""; };
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-[#fef3c7] shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
           <div className="flex-1">
             <h2 className="text-lg font-bold">{project.name}</h2>
             <div className="mt-1.5 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              {project.location && (
-                <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {project.location}</span>
-              )}
-              {project.duration && (
-                <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {project.duration}</span>
-              )}
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" /> {new Date(project.created_at).toLocaleDateString("ar")}
-              </span>
+              {project.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {project.location}</span>}
+              {project.duration && <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {project.duration}</span>}
+              <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {new Date(project.created_at).toLocaleDateString("ar")}</span>
             </div>
           </div>
           <button onClick={onClose} aria-label="إغلاق" className="shrink-0 rounded-lg border border-border bg-[#fffbeb] p-2 text-muted-foreground transition hover:bg-[#fef3c7] hover:text-foreground">
@@ -468,11 +423,7 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {project.cover_url && (
-            <div className="mb-5 overflow-hidden rounded-xl border-border">
-              <img src={project.cover_url} alt={project.name} className="h-64 w-full object-cover" />
-            </div>
-          )}
+          {project.cover_url && <div className="mb-5 overflow-hidden rounded-xl border-border"><img src={project.cover_url} alt={project.name} className="h-64 w-full object-cover" /></div>}
           {project.description && (
             <div className="mb-5">
               <h3 className="mb-2 text-sm font-bold">تفاصيل المشروع</h3>
@@ -480,18 +431,8 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
             </div>
           )}
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {project.location && (
-              <div className="rounded-lg border-border bg-[#fffbeb] px-4 py-3">
-                <p className="text-xs font-semibold text-muted-foreground">الموقع</p>
-                <p className="mt-0.5 text-sm font-medium">{project.location}</p>
-              </div>
-            )}
-            {project.duration && (
-              <div className="rounded-lg border-border bg-[#fffbeb] px-4 py-3">
-                <p className="text-xs font-semibold text-muted-foreground">المدة</p>
-                <p className="mt-0.5 text-sm font-medium">{project.duration}</p>
-              </div>
-            )}
+            {project.location && <div className="rounded-lg border-border bg-[#fffbeb] px-4 py-3"><p className="text-xs font-semibold text-muted-foreground">الموقع</p><p className="mt-0.5 text-sm font-medium">{project.location}</p></div>}
+            {project.duration && <div className="rounded-lg border-border bg-[#fffbeb] px-4 py-3"><p className="text-xs font-semibold text-muted-foreground">المدة</p><p className="mt-0.5 text-sm font-medium">{project.duration}</p></div>}
           </div>
           {project.pdf_url ? (
             <div>
@@ -519,18 +460,9 @@ function ProjectDetailModal({ project, onClose }: { project: ClientProject; onCl
 
 function ProfileTab() {
   const fetchProfile = useServerFn(getMyClientProfile);
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ["client-profile"],
-    queryFn: () => fetchProfile(),
-  });
+  const { data: profile, isLoading } = useQuery({ queryKey: ["client-profile"], queryFn: () => fetchProfile() });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
 
   const fields = [
     { icon: <Building2 className="h-4 w-4 text-muted-foreground" />, label: "اسم الشركة / المنشأة", value: profile?.company_name || "—" },
@@ -578,9 +510,7 @@ function ProfileTab() {
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
           <div>
             <p className="text-sm font-bold text-blue-900">لتعديل بياناتك</p>
-            <p className="mt-1 text-sm text-blue-700">
-              لا يمكن تعديل البيانات ذاتياً بعد التسجيل. لطلب أي تعديل يرجى التواصل مع الإدارة عبر صفحة "تواصل بنا".
-            </p>
+            <p className="mt-1 text-sm text-blue-700">لا يمكن تعديل البيانات ذاتياً بعد التسجيل. لطلب أي تعديل يرجى التواصل مع الإدارة عبر صفحة "تواصل بنا".</p>
           </div>
         </div>
       </div>
@@ -590,18 +520,9 @@ function ProfileTab() {
 
 function OffersTab() {
   const fetchOffers = useServerFn(getMyOffers);
-  const { data: offers, isLoading } = useQuery({
-    queryKey: ["my-offers"],
-    queryFn: () => fetchOffers(),
-  });
+  const { data: offers, isLoading } = useQuery({ queryKey: ["my-offers"], queryFn: () => fetchOffers() });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
 
   if (!offers || offers.length === 0) {
     return (
@@ -636,9 +557,7 @@ function OffersTab() {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-sm">{offer.project_name || "—"}</h3>
-                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${s.color}`}>
-                    {s.icon} {s.label}
-                  </span>
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${s.color}`}>{s.icon} {s.label}</span>
                 </div>
                 <div className="mt-2 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" /> {offer.company_name}</span>
@@ -647,14 +566,8 @@ function OffersTab() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {offer.is_accepted && (
-                  <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-600">عرض مقبول</span>
-                )}
-                {offer.pdf_filename && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <FileText className="h-3 w-3" /> {offer.pdf_filename}
-                  </span>
-                )}
+                {offer.is_accepted && <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-600">عرض مقبول</span>}
+                {offer.pdf_filename && <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><FileText className="h-3 w-3" /> {offer.pdf_filename}</span>}
               </div>
             </div>
           </div>
@@ -669,11 +582,7 @@ function SubmitOfferTab() {
   const doSearch = useServerFn(searchProjectsForClient);
   const doSubmit = useServerFn(submitClientOffer);
   const qc = useQueryClient();
-
-  const { data: session } = useQuery({
-    queryKey: ["client-session"],
-    queryFn: () => fetchSession(),
-  });
+  const { data: session } = useQuery({ queryKey: ["client-session"], queryFn: () => fetchSession() });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -691,42 +600,20 @@ function SubmitOfferTab() {
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    setSearching(true);
-    setSearched(true);
-    setResult(null);
-    try {
-      const results = await doSearch({ data: { q: searchQuery.trim() } });
-      setSearchResults(results);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearching(false);
-    }
+    setSearching(true); setSearched(true); setResult(null);
+    try { setSearchResults(await doSearch({ data: { q: searchQuery.trim() } })); }
+    catch { setSearchResults([]); }
+    finally { setSearching(false); }
   }
 
-  function selectProject(project: any) {
-    setSelectedProject(project);
-    setResult(null);
-    setSearchQuery("");
-    setSearchResults([]);
-    setSearched(false);
-  }
-
-  function clearSelection() {
-    setSelectedProject(null);
-    setAmount("");
-    setPdfFile(null);
-    setPdfKey("");
-    setPdfFilename("");
-    setResult(null);
-  }
+  function selectProject(project: any) { setSelectedProject(project); setResult(null); setSearchQuery(""); setSearchResults([]); setSearched(false); }
+  function clearSelection() { setSelectedProject(null); setAmount(""); setPdfFile(null); setPdfKey(""); setPdfFilename(""); setResult(null); }
 
   async function handlePdfUpload(file: File) {
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) { setResult({ ok: false, message: "حجم الملف يجب أن يكون أقل من 20 ميغابايت" }); return; }
     if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") { setResult({ ok: false, message: "يجب أن يكون الملف بصيغة PDF" }); return; }
-    setUploading(true);
-    setResult(null);
+    setUploading(true); setResult(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -734,43 +621,27 @@ function SubmitOfferTab() {
       const res = await fetch("/api/public/upload", { method: "POST", body: formData });
       const json = await res.json();
       if (!res.ok || !json?.key) throw new Error(json?.error || "فشل رفع الملف");
-      setPdfKey(json.key);
-      setPdfFilename(file.name);
-      setPdfFile(file);
+      setPdfKey(json.key); setPdfFilename(file.name); setPdfFile(file);
       setResult({ ok: true, message: "تم رفع الملف بنجاح" });
     } catch (err) {
       setPdfKey("");
       setResult({ ok: false, message: err instanceof Error ? err.message : "فشل رفع الملف" });
-    } finally {
-      setUploading(false);
-    }
+    } finally { setUploading(false); }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submitting) return;
-    if (!selectedProject) return;
-    if (!(amount?.trim() || "")) { setResult({ ok: false, message: "السعر مطلوب" }); return; }
+    if (submitting || !selectedProject) return;
+    if (!amount?.trim()) { setResult({ ok: false, message: "السعر مطلوب" }); return; }
     if (!pdfKey) { setResult({ ok: false, message: "يجب رفع ملف PDF" }); return; }
-    setSubmitting(true);
-    setResult(null);
+    setSubmitting(true); setResult(null);
     try {
-      const res = await doSubmit({
-        data: {
-          projectId: selectedProject?.id || "",
-          projectName: selectedProject?.name?.trim() || "",
-          amount: amount?.trim() || "",
-          pdfKey,
-          pdfFilename: pdfFilename?.trim() || "offer.pdf",
-        },
-      });
+      const res = await doSubmit({ data: { projectId: selectedProject?.id || "", projectName: selectedProject?.name?.trim() || "", amount: amount?.trim() || "", pdfKey, pdfFilename: pdfFilename?.trim() || "offer.pdf" } });
       setResult({ ok: res.ok, message: res.message });
       if (res.ok) { qc.invalidateQueries({ queryKey: ["my-offers"] }); clearSelection(); }
     } catch (err) {
       setResult({ ok: false, message: err instanceof Error ? err.message : "حدث خطأ" });
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   }
 
   return (
@@ -779,19 +650,15 @@ function SubmitOfferTab() {
         <FileText className="h-5 w-5 text-accent" />
         <h2 className="text-lg font-bold">تقديم عرض سعر</h2>
       </div>
-
       {session && (
         <div className="rounded-xl border-border bg-[#fef3c7]/60 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            <span className="inline-flex items-center gap-1 font-semibold">
-              <Building2 className="h-4 w-4 text-accent" /> {session.company_name}
-            </span>
+            <span className="inline-flex items-center gap-1 font-semibold"><Building2 className="h-4 w-4 text-accent" /> {session.company_name}</span>
             <span className="text-muted-foreground">{session.email}</span>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">سيتم تقديم العرض باسم الشركة والبريد المسجل أعلاه (لا يمكن تغييرهما)</p>
         </div>
       )}
-
       {!selectedProject ? (
         <div className="rounded-2xl border border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
           <h3 className="mb-4 text-sm font-bold">ابحث عن المشروع</h3>
@@ -804,9 +671,7 @@ function SubmitOfferTab() {
               {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} بحث
             </button>
           </form>
-          {searched && !searching && searchResults.length === 0 && (
-            <p className="mt-4 text-center text-sm text-muted-foreground">لا توجد نتائج مطابقة</p>
-          )}
+          {searched && !searching && searchResults.length === 0 && <p className="mt-4 text-center text-sm text-muted-foreground">لا توجد نتائج مطابقة</p>}
           {searchResults.length > 0 && (
             <div className="mt-4 space-y-2">
               {searchResults.map((p) => (
@@ -814,13 +679,9 @@ function SubmitOfferTab() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-bold text-sm">{p.name}</h4>
-                      {p.location && (
-                        <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.location}</p>
-                      )}
+                      {p.location && <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {p.location}</p>}
                     </div>
-                    {p.is_exclusive && (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border-amber-200">حصري VIP</span>
-                    )}
+                    {p.is_exclusive && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600 border-amber-200">حصري VIP</span>}
                   </div>
                 </button>
               ))}
@@ -833,9 +694,7 @@ function SubmitOfferTab() {
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold">{selectedProject.name}</h3>
-                {selectedProject.location && (
-                  <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {selectedProject.location}</p>
-                )}
+                {selectedProject.location && <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {selectedProject.location}</p>}
               </div>
               <button type="button" onClick={clearSelection} className="text-xs text-muted-foreground hover:text-foreground">تغيير</button>
             </div>
