@@ -264,13 +264,13 @@ const OFFER_KEYWORDS = [
 ];
 
 const OFFER_TERMS = [
-  "لتقديم عرض سعر، وافق على الشروط أولاً:",
+  "لتقديم عرض سعر على المشروع، اتبع الخطوات التالية:",
   "",
-  "1) العرض يجب أن يكون بصيغة PDF واضحة ومختومة.",
-  "2) السعر المقدم نهائي وساري لمدة 30 يوماً على الأقل.",
-  "3) الالتزام بمدة تنفيذ المشروع المعلنة في تفاصيل المشروع.",
-  "4) صحة البيانات (اسم الشركة والبريد الإلكتروني) مسؤولية مقدّم العرض.",
-  "5) تقديم العرض لا يعني قبوله، وسيتم إشعاركم بأي تحديث.",
+  "1) سجّل دخولك إلى لوحة العملاء أو أنشئ حساباً جديداً من صفحة تسجيل الدخول.",
+  "2) اختر المشروع الذي ترغب بالتقديم عليه من قائمة المشاريع.",
+  "3) اضغط على زر «تقديم عرض سعر» واملأ بيانات العرض.",
+  "",
+  "يمكنك الوصول إلى لوحة العملاء من رابط تسجيل الدخول الخاص بالعملاء.",
 ].join("\n");
 
 function asksAboutOffer(text: string): boolean {
@@ -493,7 +493,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           return { ok: true };
         }
       }
-      await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+      await supportRepo.addSupportMessage(chat.id, "bot", OFFER_TERMS);
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
