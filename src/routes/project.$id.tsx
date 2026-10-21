@@ -50,7 +50,6 @@ function ProjectDetail() {
   const { data: project } = useSuspenseQuery(projectQuery(id));
   const getRoles = useServerFn(getMyRoles);
   const getVipStatus = useServerFn(getMyVipStatus);
-  const navigate = Route.useNavigate();
   const { data: roles } = useQuery({
     queryKey: ["my-roles"],
     queryFn: () => getRoles(),
@@ -89,7 +88,7 @@ function ProjectDetail() {
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, [projectExclusiveUntil);
+  }, [projectExclusiveUntil]);
   const hoursLeft = Math.floor(remainingMs / 3600_000);
   const minutesLeft = Math.floor((remainingMs % 3600_000) / 60_000);
   const secondsLeft = Math.floor((remainingMs % 60_000) / 1000);
