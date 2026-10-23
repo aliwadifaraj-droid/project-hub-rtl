@@ -9,6 +9,7 @@ import {
 import { getBotSettings } from "@/lib/bot-settings.functions";
 import { submitOffer } from "@/lib/offers.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
+import { runOcrOnImage } from "@/lib/receipt-ocr";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
 
 
@@ -24,7 +25,7 @@ const VIP_PLANS = [
 ] as const;
 
 const VALID_PLAN_AMOUNTS = [100, 200, 300];
-const VIP_IBAN = "SA35 1000 0065 5000 4711 0807";
+const VIP_IBAN = "SA8530100991109655808477";
 
 function normalizeArabicDigits(text: string): string {
   return text.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
@@ -86,14 +87,6 @@ function isWithinLast7Days(dateStr: string): boolean {
   const now = Date.now();
   const diff = now - d.getTime();
   return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
-}
-
-async function runOcrOnImage(file: File): Promise<string> {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("ara+eng");
-  const { data: { text } } = await worker.recognize(file);
-  await worker.terminate();
-  return text;
 }
 
 
@@ -626,7 +619,7 @@ export function SupportChatWidget() {
                     <div key={p.value} className="font-semibold text-foreground">{p.label}</div>
                   ))}
                   <div className="pt-1">تستقبل مشاريع خاصة عبر الإيميل بلا منافس + دعم فني VIP</div>
-                  <div className="pt-1">IBAN: SA35 1000 0065 5000 4711 0807</div>
+                  <div className="pt-1">البنك العربي — IBAN: {VIP_IBAN}</div>
                 </div>
                 <button
                   onClick={() => setVipStep("form")}

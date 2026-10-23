@@ -3,8 +3,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Settings2, Save, MessageCircleOff, Database, HardDrive, AlertTriangle, Star, Ban, Trash2, Loader2, Building2, RefreshCw, Bell } from "lucide-react";
-import { PushNotificationSettings } from "@/components/push-notification-settings";
+import { Settings2, Save, MessageCircleOff, Database, HardDrive, AlertTriangle, Star, Ban, Trash2, Loader2, Building2, RefreshCw } from "lucide-react";
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
 import { getHideSupportChat, setHideSupportChat, getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
@@ -255,15 +254,6 @@ function AdminSettings() {
           <Save className="h-4 w-4" />
           {saving ? "جارٍ الحفظ..." : "حفظ التغييرات"}
         </button>
-      </div>
-
-      <div className="mt-6 rounded-lg border border-border bg-card p-6 space-y-6">
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5" />
-          <h2 className="text-base font-semibold">إشعارات المتصفح (Web Push)</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">فعّل الإشعارات لتصلك تنبيهات فورية على جهازك عن العروض والطلبات الجديدة، حتى دون فتح الموقع.</p>
-        <PushNotificationSettings />
       </div>
 
       <div className="mt-6 rounded-lg border border-border bg-card p-6 space-y-6">

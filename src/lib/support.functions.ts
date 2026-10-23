@@ -15,7 +15,6 @@ import {
   checkEscalationTimers,
 } from "./escalation-jobs";
 
-
 const uuid = z.string().uuid();
 const CLARIFY_PROMPT = "ممكن توضح مشكلتك أحاول أساعدك؟";
 const STAFF_KEYWORDS = ["موظف", "موظفة", "خدمة العملاء", "الدعم", "كلم موظف", "أريد موظف", "اريد موظف", "human", "agent", "support"];
@@ -161,7 +160,6 @@ const ASK_REQUEST_PROMPT = "للاستعلام عن حالة طلبكم، أرس
 const REQUEST_NOT_FOUND = "لم يتم العثور على طلب";
 const OFFER_PENDING_REPLY = "تم ارسال طلبكم وبانتظار موافقة الادارة";
 
-
 const REQUEST_STATUS_REPLY: Record<string, string> = {
   new: "🆕 تم استلام طلبكم وشكرا لثقتكم بنا ✅",
   reviewing: "🆕 طلبكم قيد المراجعة حالياً",
@@ -201,9 +199,13 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       rowsToShow
         .filter((r) => r.project_id)
         .map(async (r) => {
-          if (!projectNames.has(r.project_id!)) {
-            const p = await projectsRepo.getById(r.project_id!).catch(() => null);
-            projectNames.set(r.project_id!, p?.name ?? "—");
+          try {
+            if (!projectNames.has(r.project_id!)) {
+              const p = await projectsRepo.getById(r.project_id!).catch(() => null);
+              projectNames.set(r.project_id!, p?.name ?? "—");
+            }
+          } catch {
+            projectNames.set(r.project_id!, "—");
           }
         }),
     );
@@ -219,13 +221,40 @@ async function answerRequestStatus(query: string): Promise<string | null> {
       .join("\n\n");
   }
 
-  let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
-  if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
-  if (offers.length) return OFFER_PENDING_REPLY;
+  // --- FIX: البحث في الإشعارات - الاسم الصحيح ---
+  try {
+    const notifRepo = await import("./notifications.repo");
+    let notifs: any[] = [];
+    if (emailMatch) {
+      notifs = await notifRepo.searchOfferNotificationsByEmail(emailMatch[0]);
+    } else {
+      notifs = await notifRepo.searchOfferNotificationsByCompany(name);
+    }
+    if (notifs.length) {
+      return notifs.slice(0, 5).map((n: any) => {
+        const label = `<span style="background:#17a2b8;color:white;font-weight:bold;padding:8px 16px;border-radius:20px;display:inline-block">📥 جديد - في الإشعارات</span>`;
+        return [
+          `📄 ${n.company_name ?? n.title ?? "طلب"}`,
+          `المشروع: ${n.project_name ?? n.project_id ?? "—"}`,
+          `حالة الطلب: ${label}`,
+          REQUEST_STATUS_REPLY.new
+        ].join("\n");
+      }).join("\n\n");
+    }
+  } catch (e) {
+    console.error("[notifications] search failed:", e);
+  }
+
+  try {
+    let offers = emailMatch ? await offersRepo.searchOffersByEmail(emailMatch[0]) : [];
+    if (!offers.length && !emailMatch) offers = await offersRepo.searchOffersByCompany(name);
+    if (offers.length) return OFFER_PENDING_REPLY;
+  } catch (e) {
+    console.error("[answerRequestStatus] offers search failed, ignored:", e);
+  }
 
   return REQUEST_NOT_FOUND;
 }
-
 
 export const OFFER_FLOW_MARKER = "__OFFER_FLOW__";
 
@@ -235,20 +264,19 @@ const OFFER_KEYWORDS = [
 ];
 
 const OFFER_TERMS = [
-  "لتقديم عرض سعر، وافق على الشروط أولاً:",
+  "لتقديم عرض سعر على المشروع، اتبع الخطوات التالية:",
   "",
-  "1) العرض يجب أن يكون بصيغة PDF واضحة ومختومة.",
-  "2) السعر المقدم نهائي وساري لمدة 30 يوماً على الأقل.",
-  "3) الالتزام بمدة تنفيذ المشروع المعلنة في تفاصيل المشروع.",
-  "4) صحة البيانات (اسم الشركة والبريد الإلكتروني) مسؤولية مقدّم العرض.",
-  "5) تقديم العرض لا يعني قبوله، وسيتم إشعاركم بأي تحديث.",
+  "1) سجّل دخولك إلى لوحة العملاء أو أنشئ حساباً جديداً من صفحة تسجيل الدخول.",
+  "2) اختر المشروع الذي ترغب بالتقديم عليه من قائمة المشاريع.",
+  "3) اضغط على زر «تقديم عرض سعر» واملأ بيانات العرض.",
+  "",
+  "يمكنك الوصول إلى لوحة العملاء من رابط تسجيل الدخول الخاص بالعملاء.",
 ].join("\n");
 
 function asksAboutOffer(text: string): boolean {
   const t = normalizeAr(text);
   return OFFER_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
 }
-
 
 export const VIP_FLOW_MARKER = "__VIP_FLOW__";
 
@@ -271,7 +299,7 @@ const VIP_PLANS_TEXT = [
   "تستقبل مشاريع خاصة عبر الإيميل بلا منافس + دعم فني VIP",
   "",
   "بيانات التحويل البنكي:",
-  "البنك العربي — IBAN: SASA8530100991109655808477",
+  "البنك العربي — IBAN: SA8530100991109655808477",
   "",
   "اختر الباقة التي تناسبك، ثم عبّئ بياناتك وارفع صورة الإيصال.",
 ].join("\n");
@@ -280,9 +308,6 @@ function asksAboutVip(text: string): boolean {
   const t = normalizeAr(text);
   return VIP_KEYWORDS.some((k) => t.includes(normalizeAr(k)));
 }
-
-
-
 
 async function askGroq(userText: string, opts: {
   systemInstruction?: string | null;
@@ -349,7 +374,6 @@ async function askGroq(userText: string, opts: {
     return null;
   }
 }
-
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
@@ -469,7 +493,7 @@ export const visitorSendMessage = createServerFn({ method: "POST" })
           return { ok: true };
         }
       }
-      await supportRepo.addSupportMessage(chat.id, "bot", `${OFFER_TERMS}\n${OFFER_FLOW_MARKER}`);
+      await supportRepo.addSupportMessage(chat.id, "bot", OFFER_TERMS);
       await invalidateChat(data.visitorToken);
       return { ok: true };
     }
@@ -533,7 +557,6 @@ export const visitorEndSession = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-
 export const adminListChats = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertStaff(context.roles);
   return supportRepo.listSupportChats();
@@ -577,7 +600,6 @@ export const adminDeleteAllSupport = createServerFn({ method: "POST" }).middlewa
   await invalidate(...chats.map((c) => (c.visitor_token ? cacheKeys.chat(c.visitor_token) : null)));
   return { ok: true };
 });
-
 
 export const adminListBotQa = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
   assertAdmin(context.roles);
