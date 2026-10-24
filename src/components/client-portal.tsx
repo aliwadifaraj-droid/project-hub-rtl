@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -18,7 +19,7 @@ import {
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
   TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
   FolderKanban, Calendar, Crown, Images, Bell, X, ExternalLink,
-  Smartphone,
+  Smartphone, PlusCircle,
 } from "lucide-react";
 
 function isIOS() {
@@ -351,20 +352,44 @@ function ProjectsTab() {
 
   if (!projects || projects.length === 0) {
     return (
-      <div className="rounded-2xl border-border bg-[#fef3c7] p-12 text-center shadow-[var(--shadow-card)]">
-        <Images className="mx-auto h-12 w-12 text-muted-foreground/50" />
-        <h3 className="mt-4 text-lg font-bold">لا توجد مشاريع حالياً</h3>
-        <p className="mt-2 text-sm text-muted-foreground">لم يتم نشر أي مشاريع بعد. يرجى العودة لاحقاً.</p>
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <FolderKanban className="h-5 w-5 text-accent" />
+            <h2 className="text-lg font-bold">جميع المشاريع</h2>
+          </div>
+          <Link
+            to="/add-project"
+            className="inline-flex items-center gap-2 rounded-lg bg-[image:var(--gradient-accent)] px-5 py-2.5 text-sm font-bold text-accent-foreground transition hover:opacity-90"
+          >
+            <PlusCircle className="h-4 w-4" />
+            أضف مشروعك
+          </Link>
+        </div>
+        <div className="rounded-2xl border-border bg-[#fef3c7] p-12 text-center shadow-[var(--shadow-card)]">
+          <Images className="mx-auto h-12 w-12 text-muted-foreground/50" />
+          <h3 className="mt-4 text-lg font-bold">لا توجد مشاريع حالياً</h3>
+          <p className="mt-2 text-sm text-muted-foreground">لم يتم نشر أي مشاريع بعد. يرجى العودة لاحقاً.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <FolderKanban className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-bold">جميع المشاريع</h2>
-        <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{projects.length}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <FolderKanban className="h-5 w-5 text-accent" />
+          <h2 className="text-lg font-bold">جميع المشاريع</h2>
+          <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{projects.length}</span>
+        </div>
+        <Link
+          to="/add-project"
+          className="inline-flex items-center gap-2 rounded-lg bg-[image:var(--gradient-accent)] px-5 py-2.5 text-sm font-bold text-accent-foreground transition hover:opacity-90"
+        >
+          <PlusCircle className="h-4 w-4" />
+          أضف مشروعك
+        </Link>
       </div>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((p: ClientProject) => (
