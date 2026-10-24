@@ -4,9 +4,9 @@ import { submitAddProjectOffer } from "@/lib/offers.functions";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Upload, X, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { SiteHeader } from "@components/site-header";
-import { SiteFooter } from "@components/site-footer";
-import { Toaster } from "@components/ui/sonner";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
+import { Toaster } from "@/components/ui/sonner";
 
 export function BidFormAddProject() {
   const submit = useServerFn(submitAddProjectOffer);
