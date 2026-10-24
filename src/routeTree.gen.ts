@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AddProjectRouteImport } from './routes/add-project'
 import { Route as AdsRouteImport } from './routes/ads'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ClientLoginRouteImport } from './routes/client-login'
@@ -85,6 +86,11 @@ const AdsRoute = AdsRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddProjectRoute = AddProjectRouteImport.update({
+  id: '/add-project',
+  path: '/add-project',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientLoginRoute = ClientLoginRouteImport.update({
@@ -386,6 +392,7 @@ export interface FileRoutesByFullPath {
   '/client-login': typeof ClientLoginRoute
   '/client-logout': typeof ClientLogoutRoute
   '/client-portal': typeof ClientPortalRoute
+  '/add-project': typeof AddProjectRoute
   '/contact': typeof ContactRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
@@ -444,6 +451,7 @@ export interface FileRoutesByTo {
   '/client-login': typeof ClientLoginRoute
   '/client-logout': typeof ClientLogoutRoute
   '/client-portal': typeof ClientPortalRoute
+  '/add-project': typeof AddProjectRoute
   '/contact': typeof ContactRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
@@ -502,6 +510,7 @@ export interface FileRoutesById {
   '/client-login': typeof ClientLoginRoute
   '/client-logout': typeof ClientLogoutRoute
   '/client-portal': typeof ClientPortalRoute
+  '/add-project': typeof AddProjectRoute
   '/contact': typeof ContactRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/maintenance': typeof MaintenanceRoute
@@ -563,6 +572,7 @@ export interface FileRouteTypes {
     | '/client-login'
     | '/client-logout'
     | '/client-portal'
+    | '/add-project'
     | '/contact'
     | '/forgot-password'
     | '/maintenance'
@@ -622,6 +632,7 @@ export interface FileRouteTypes {
     | '/client-login'
     | '/client-logout'
     | '/client-portal'
+    | '/add-project'
     | '/contact'
     | '/forgot-password'
     | '/maintenance'
@@ -679,6 +690,7 @@ export interface FileRouteTypes {
     | '/client-login'
     | '/client-logout'
     | '/client-portal'
+    | '/add-project'
     | '/contact'
     | '/forgot-password'
     | '/maintenance'
@@ -747,6 +759,7 @@ export interface RootRouteChildren {
   ClientLoginRoute: typeof ClientLoginRoute
   ClientLogoutRoute: typeof ClientLogoutRoute
   ClientPortalRoute: typeof ClientPortalRoute
+  AddProjectRoute: typeof AddProjectRoute
   ContactRoute: typeof ContactRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   MaintenanceRoute: typeof MaintenanceRoute
@@ -779,6 +792,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientLoginRoute: ClientLoginRoute,
   ClientLogoutRoute: ClientLogoutRoute,
   ClientPortalRoute: ClientPortalRoute,
+  AddProjectRoute: AddProjectRoute,
   ContactRoute: ContactRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   MaintenanceRoute: MaintenanceRoute,
@@ -935,6 +949,13 @@ type FileMirrors = {
     path: '/client-portal'
     fullPath: '/client-portal'
     preLoaderRoute: typeof ClientPortalRouteImport
+    parentRoute: typeof rootRouteImport
+  }
+  '/add-project': {
+    id: '/add-project'
+    path: '/add-project'
+    fullPath: '/add-project'
+    preLoaderRoute: typeof AddProjectRouteImport
     parentRoute: typeof rootRouteImport
   }
   '/contact': {
