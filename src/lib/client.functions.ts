@@ -293,12 +293,22 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       return { ok: false as const, message: "⚠️ تنبيه: هذا المشروع تم تسليمه ولا يمكن التقديم عليه" };
     }
 
-    // Check exclusive window
+    // Check exclusive window — VIP clients in the project's city are allowed
+    // to submit during the exclusive period (same rule as the old email link
+    // and the project detail page).
     const exclusive = await projectsRepo.getProjectExclusive(project.id).catch(() => null);
     if (exclusive && Date.now() < new Date(exclusive.vip_end_at).getTime()) {
-      const city = detectCity(project.location ?? "");
-      const cityLabel = city ? ` في ${city}` : "";
-      return { ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` };
+      const projectCity = detectCity(project.location ?? "");
+      const { getActiveVipByEmail } = await import("./vip.repo");
+      const vipRow = await getActiveVipByEmail(email).catch(() => null);
+      const isVipActive = !!vipRow && (!vipRow.expires_at || new Date(vipRow.expires_at).getTime() > Date.now());
+      const vipCityMatches = isVipActive && !!projectCity
+        && vipRow!.city
+        && vipRow!.city.trim().toLowerCase() === projectCity.trim().toLowerCase();
+      if (!vipCityMatches) {
+        const cityLabel = projectCity ? ` في ${projectCity}` : "";
+        return { ok: false as const, message: `هذا المشروع حصري خاص بعملاء VIP${cityLabel}` };
+      }
     }
 
     // Check duplicate offer
