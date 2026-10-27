@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { getMaintenance } from "@/lib/maintenance.functions";
 import { getMe } from "@/lib/auth.functions";
+import { getClientSession } from "@/lib/client.functions";
 import { hasAdminRole } from "@/lib/role-label";
 
 const ALLOW_PREFIXES = [
@@ -21,6 +22,7 @@ export function MaintenanceGate() {
   const navigate = useNavigate();
   const fetchMaintenance = useServerFn(getMaintenance);
   const fetchMe = useServerFn(getMe);
+  const fetchClientSession = useServerFn(getClientSession);
 
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -29,12 +31,15 @@ export function MaintenanceGate() {
 
   useEffect(() => {
     let mounted = true;
-    fetchMe()
-      .then((me) => {
+    Promise.all([
+      fetchMe().catch(() => null),
+      fetchClientSession().catch(() => null),
+    ])
+      .then(([me, clientSession]) => {
         if (!mounted) return;
-        setSignedIn(!!me);
+        setSignedIn(!!me || !!clientSession);
         setRoles(me?.roles ?? []);
-        setEmail(me?.email ?? null);
+        setEmail(me?.email ?? clientSession?.email ?? null);
       })
       .catch(() => {
         if (!mounted) return;
@@ -48,7 +53,7 @@ export function MaintenanceGate() {
     return () => {
       mounted = false;
     };
-  }, [fetchMe, path]);
+  }, [fetchClientSession, fetchMe, path]);
 
   const { data: m } = useQuery({
     queryKey: ["maintenance-public"],
