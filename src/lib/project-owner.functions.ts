@@ -19,7 +19,7 @@ const ownerProfileSchema = z.object({
 async function ensureOwnerTables(): Promise<void> {
   await db.batch([
     { sql: `CREATE TABLE IF NOT EXISTS project_owners (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))` , args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS project_owner_profiles (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL UNIQUE, company_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '', cr_number TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')))` , args: [] },
+    { sql: `CREATE TABLE IF NOT EXISTS project_owner_profiles (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL UNIQUE, company_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')))` , args: [] },
     { sql: `CREATE TABLE IF NOT EXISTS project_owner_sessions (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL DEFAULT (datetime('now')), last_login_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_at TEXT)` , args: [] },
   ]);
 }
@@ -62,8 +62,8 @@ export const signUpProjectOwner = createServerFn({ method: "POST" })
     const ownerId = crypto.randomUUID();
     await db.execute("INSERT INTO project_owners (id,email,password_hash,created_at) VALUES (?,?,?,?)", [ownerId, data.email, await hashPassword(data.password), new Date().toISOString()]);
     await db.execute(
-      `INSERT INTO project_owner_profiles (id,owner_id,company_name,phone,city,cr_number,bio,created_at) VALUES (?,?,?,?,?,?,?,?)`,
-      [crypto.randomUUID(), ownerId, data.company_name, data.phone, data.city, data.cr_number, data.bio, new Date().toISOString()],
+      `INSERT INTO project_owner_profiles (id,owner_id,company_name,phone,city,bio,created_at) VALUES (?,?,?,?,?,?,?)`,
+      [crypto.randomUUID(), ownerId, data.company_name, data.phone, data.city, data.bio, new Date().toISOString()],
     );
     await signOwnerSession({ id: ownerId, email: data.email, password_hash: "" });
     return { id: ownerId, email: data.email, roles: ["project_owner"] };
@@ -95,9 +95,9 @@ export const getProjectOwnerSession = createServerFn({ method: "GET" }).handler(
   if (!claims?.roles.includes("project_owner") || !(await hasActiveOwnerSession(claims.sub))) return null;
   const owner = await findOwnerById(claims.sub);
   if (!owner) return null;
-  const profileResult = await db.execute("SELECT company_name,phone,city,cr_number,bio FROM project_owner_profiles WHERE owner_id = ? LIMIT 1", [owner.id]);
+  const profileResult = await db.execute("SELECT company_name,phone,city,bio FROM project_owner_profiles WHERE owner_id = ? LIMIT 1", [owner.id]);
   const profile = rowsToObjects<Record<string, unknown>>(profileResult)[0];
-  return { id: owner.id, email: owner.email, company_name: String(profile?.company_name ?? ""), phone: String(profile?.phone ?? ""), city: String(profile?.city ?? ""), cr_number: String(profile?.cr_number ?? ""), bio: String(profile?.bio ?? "") };
+  return { id: owner.id, email: owner.email, company_name: String(profile?.company_name ?? ""), phone: String(profile?.phone ?? ""), city: String(profile?.city ?? ""), cr_number: "", bio: String(profile?.bio ?? "") };
 });
 
 const projectSchema = z.object({
