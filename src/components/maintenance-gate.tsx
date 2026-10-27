@@ -9,6 +9,8 @@ import { hasAdminRole } from "@/lib/role-label";
 const ALLOW_PREFIXES = [
   "/maintenance",
   "/auth",
+  "/login",
+  "/client-login",
   "/reset-password",
   "/lovable/",
   "/api/",
