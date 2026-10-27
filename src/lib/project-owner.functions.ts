@@ -101,7 +101,7 @@ export const getProjectOwnerSession = createServerFn({ method: "GET" }).handler(
 });
 
 const projectSchema = z.object({
-  name: z.string().trim().min(2).max(200), description: z.string().trim().min(2).max(5000), location: z.string().trim().min(1).max(200), duration: z.string().trim().min(1).max(100), cover_image: z.string().trim().max(500).optional().default(""), pdf_file: z.string().trim().max(500).optional().default(""),
+  name: z.string().trim().min(2).max(200), description: z.string().trim().min(2).max(5000), location: z.string().trim().min(1).max(200), duration: z.string().trim().min(1).max(100), cover_image: z.string().trim().max(500).min(1), images: z.array(z.string().trim().max(500)).max(20).optional().default([]), pdf_file: z.string().trim().max(500).optional().default(""),
 });
 
 async function requireActiveOwner(ownerId: string, roles: string[]): Promise<void> {
@@ -112,7 +112,7 @@ export const createOwnerProject = createServerFn({ method: "POST" }).middleware(
   await ensureOwnerTables();
   await requireActiveOwner(context.userId, context.roles);
   const id = crypto.randomUUID();
-  await db.execute(`INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,is_customer_request,created_at) VALUES (?,?,?,?,?,?,?,? ,?, 'pending', 'pending', 1, ?)`, [id, data.name, data.description, data.location, data.duration, data.cover_image, "[]", data.pdf_file, context.userId, new Date().toISOString()]);
+  await db.execute(`INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,is_customer_request,created_at) VALUES (?,?,?,?,?,?,?,? ,?, 'pending', 'pending', 1, ?)`, [id, data.name, data.description, data.location, data.duration, data.cover_image, JSON.stringify(data.images), data.pdf_file, context.userId, new Date().toISOString()]);
   return { id };
 });
 
