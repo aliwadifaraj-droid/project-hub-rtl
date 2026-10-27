@@ -3,6 +3,10 @@ import { z } from "zod";
 import { db, rowsToObjects } from "./db";
 import { clearSessionCookie, getSessionClaims, hashPassword, setSessionCookie, signSessionToken, verifyPassword } from "./auth.server";
 import { requireAuth } from "./auth-middleware.server";
+import * as projectsRepo from "./projects.repo";
+import { invalidateProjectsAll } from "./cache";
+import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
+import { listActiveByCity } from "./vip.repo";
 
 type OwnerRow = { id: string; email: string; password_hash: string };
 
@@ -111,9 +115,17 @@ async function requireActiveOwner(ownerId: string, roles: string[]): Promise<voi
 export const createOwnerProject = createServerFn({ method: "POST" }).middleware([requireAuth]).inputValidator((input: unknown) => projectSchema.parse(input)).handler(async ({ data, context }) => {
   await ensureOwnerTables();
   await requireActiveOwner(context.userId, context.roles);
-  const id = crypto.randomUUID();
-  await db.execute(`INSERT INTO projects (id,name,description,location,duration,cover_image,images,pdf_file,created_by,status,admin_approval,is_customer_request,created_at) VALUES (?,?,?,?,?,?,?,? ,?, 'pending', 'pending', 1, ?)`, [id, data.name, data.description, data.location, data.duration, data.cover_image, JSON.stringify(data.images), data.pdf_file, context.userId, new Date().toISOString()]);
-  return { id };
+  const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file || null, created_by: context.userId, admin_approval: "approved" });
+  const city = detectCity(data.location);
+  const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
+  if (hasVip) {
+    const now = new Date();
+    const vipEndAt = new Date(now.getTime() + 6 * 3600_000);
+    await projectsRepo.setProjectExclusive(id, now.toISOString(), vipEndAt.toISOString());
+  }
+  notifyVipSubscribersOfNewProject({ id, name: data.name, description: data.description, location: data.location, duration: data.duration }).catch((e) => console.error("[vip-notify]", e));
+  await invalidateProjectsAll();
+  return { id, admin_approval: "approved" };
 });
 
 export const listOwnerProjects = createServerFn({ method: "GET" }).middleware([requireAuth]).handler(async ({ context }) => {
