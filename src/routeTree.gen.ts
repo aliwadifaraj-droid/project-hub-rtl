@@ -54,6 +54,7 @@ import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin.support'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
+import { Route as AuthenticatedAdminProjectOwnersRouteImport } from './routes/_authenticated/admin.project-owners'
 import { Route as AuthenticatedAdminVipRouteImport } from './routes/_authenticated/admin.vip'
 import { Route as AuthenticatedAdminApprovalsRouteImport } from './routes/_authenticated/admin.approvals'
 import { Route as ApiAdminR2RouteImport } from './routes/api/admin/r2'
@@ -307,6 +308,11 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminProjectOwnersRoute = AuthenticatedAdminProjectOwnersRouteImport.update({
+  id: '/project-owners',
+  path: '/project-owners',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminVipRoute = AuthenticatedAdminVipRouteImport.update({
   id: '/vip',
   path: '/vip',
@@ -423,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/project-owners': typeof AuthenticatedAdminProjectOwnersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
@@ -479,6 +486,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/project-owners': typeof AuthenticatedAdminProjectOwnersRoute
   '/admin/vip': typeof AuthenticatedAdminVipRoute
   '/api/admin/r2': typeof ApiAdminR2Route
   '/api/cron/check-subscriptions': typeof ApiCronCheckSubscriptionsRoute
@@ -539,6 +547,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/admin/project-owners': typeof AuthenticatedAdminProjectOwnersRoute
   '/_authenticated/admin/vip': typeof AuthenticatedAdminVipRoute
   '/_authenticated/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/api/admin/r2': typeof ApiAdminR2Route
@@ -600,6 +609,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/support'
     | '/admin/users'
+    | '/admin/project-owners'
     | '/admin/vip'
     | '/admin/approvals'
     | '/api/admin/r2'
@@ -657,6 +667,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/support'
     | '/admin/users'
+    | '/admin/project-owners'
     | '/admin/vip'
     | '/api/admin/r2'
     | '/api/cron/check-subscriptions'
@@ -716,6 +727,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/users'
+    | '/_authenticated/admin/project-owners'
     | '/_authenticated/admin/vip'
     | '/_authenticated/admin/approvals'
     | '/api/admin/r2'
@@ -854,6 +866,7 @@ export interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedAdminProjectOwnersRoute: typeof AuthenticatedAdminProjectOwnersRoute
   AuthenticatedAdminVipRoute: typeof AuthenticatedAdminVipRoute
   AuthenticatedAdminApprovalsRoute: typeof AuthenticatedAdminApprovalsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -879,6 +892,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedAdminProjectOwnersRoute: AuthenticatedAdminProjectOwnersRoute,
   AuthenticatedAdminVipRoute: AuthenticatedAdminVipRoute,
   AuthenticatedAdminApprovalsRoute: AuthenticatedAdminApprovalsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
@@ -1208,6 +1222,13 @@ type FileMirrors = {
     path: '/users'
     fullPath: '/admin/users'
     preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+    parentRoute: typeof AuthenticatedAdminRoute
+  }
+  '/_authenticated/admin/project-owners': {
+    id: '/_authenticated/admin/project-owners'
+    path: '/project-owners'
+    fullPath: '/admin/project-owners'
+    preLoaderRoute: typeof AuthenticatedAdminProjectOwnersRouteImport
     parentRoute: typeof AuthenticatedAdminRoute
   }
   '/_authenticated/admin/vip': {

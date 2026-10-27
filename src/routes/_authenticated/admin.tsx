@@ -12,7 +12,7 @@ import { adminCountOpenSupportChats } from "@/lib/support.functions";
 import { adminCountOpenTickets } from "@/lib/tickets.functions";
 import { testPush } from "@/lib/push-test.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, Ticket, BadgeCheck } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, Ticket, BadgeCheck, UserCog } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { SupportWidget } from "@/components/support-widget";
 import { toast } from "sonner";
@@ -148,6 +148,7 @@ function AdminLayout() {
     { to: "/admin/bot-test", label: "تجربة البوت", icon: Bot, show: isAdmin },
     { to: "/admin/pending-projects", label: "موافقات المشاريع", icon: ClipboardCheck, show: isAdmin },
     { to: "/admin/users", label: "المستخدمون", icon: UserCircle, show: isAdmin },
+    { to: "/admin/project-owners", label: "أصحاب المشاريع", icon: UserCog, show: isAdmin },
     { to: "/admin/employees", label: "المستخدمون", icon: Users, show: isAdmin },
     { to: "/admin/clients", label: "متابعة العملاء", icon: Eye, show: isAdmin },
     { to: "/admin/exclusivity", label: "الحصرية", icon: Lock, show: isAdmin },

@@ -112,9 +112,16 @@ async function requireActiveOwner(ownerId: string, roles: string[]): Promise<voi
   if (!roles.includes("project_owner") || !(await hasActiveOwnerSession(ownerId))) throw new Error("غير مصرح");
 }
 
+async function isOwnerBanned(ownerId: string): Promise<boolean> {
+  const result = await db.execute("SELECT banned FROM project_owners WHERE id = ? LIMIT 1", [ownerId]);
+  const row = rowsToObjects<{ banned: number }>(result)[0];
+  return Number(row?.banned ?? 0) === 1;
+}
+
 export const createOwnerProject = createServerFn({ method: "POST" }).middleware([requireAuth]).inputValidator((input: unknown) => projectSchema.parse(input)).handler(async ({ data, context }) => {
   await ensureOwnerTables();
   await requireActiveOwner(context.userId, context.roles);
+  if (await isOwnerBanned(context.userId)) throw new Error("تم حظرك مؤقتاً من نشر المشاريع الجديدة");
   const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file || null, created_by: context.userId, admin_approval: "approved" });
   const city = detectCity(data.location);
   const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
