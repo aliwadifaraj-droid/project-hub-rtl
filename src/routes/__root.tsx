@@ -19,6 +19,7 @@ import { getHideSupportChat } from "@/lib/site-settings.functions";
 import { getMaintenance } from "@/lib/maintenance.functions";
 import { getMe } from "@/lib/auth.functions";
 import { getClientSession } from "@/lib/client.functions";
+import { getProjectOwnerSession } from "@/lib/project-owner.functions";
 import { hasAdminRole } from "@/lib/role-label";
 
 function NotFoundComponent() {
@@ -124,13 +125,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const allowed = ALLOW_PREFIXES.some((pre) => p === pre || p.startsWith(pre));
     if (allowed) return;
 
-    const [m, me, clientSession] = await Promise.all([
+    const [m, me, clientSession, ownerSession] = await Promise.all([
       getMaintenance(),
       getMe().catch(() => null),
       getClientSession().catch(() => null),
+      getProjectOwnerSession().catch(() => null),
     ]);
 
-    const signedInEmail = me?.email ?? clientSession?.email;
+    const signedInEmail = me?.email ?? clientSession?.email ?? ownerSession?.email;
     const isExempt = !!(signedInEmail && m.exemptEmails.includes(signedInEmail.toLowerCase()));
     if (m.enabled && !(me && hasAdminRole(me.roles)) && !isExempt) {
       throw redirect({ to: "/maintenance", replace: true });
