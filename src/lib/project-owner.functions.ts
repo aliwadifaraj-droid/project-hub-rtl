@@ -20,7 +20,7 @@ async function ensureOwnerTables(): Promise<void> {
   await db.batch([
     { sql: `CREATE TABLE IF NOT EXISTS project_owners (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))` , args: [] },
     { sql: `CREATE TABLE IF NOT EXISTS project_owner_profiles (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL UNIQUE, company_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '', cr_number TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')))` , args: [] },
-    { sql: `CREATE TABLE IF NOT EXISTS project_owner_sessions (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL UNIQUE, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), last_login_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_at TEXT)` , args: [] },
+    { sql: `CREATE TABLE IF NOT EXISTS project_owner_sessions (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL DEFAULT (datetime('now')), last_login_at TEXT NOT NULL DEFAULT (datetime('now')), revoked_at TEXT)` , args: [] },
   ]);
 }
 
@@ -38,14 +38,14 @@ async function findOwnerById(id: string): Promise<OwnerRow | null> {
 
 async function activateOwnerSession(ownerId: string): Promise<void> {
   await db.execute(
-    `INSERT INTO project_owner_sessions (id,owner_id,active,last_login_at,revoked_at) VALUES (?,?,1,?,NULL)
-     ON CONFLICT(owner_id) DO UPDATE SET active = 1, last_login_at = excluded.last_login_at, revoked_at = NULL`,
+    `INSERT INTO project_owner_sessions (id,owner_id,last_login_at,revoked_at) VALUES (?,?,?,NULL)
+     ON CONFLICT(owner_id) DO UPDATE SET last_login_at = excluded.last_login_at, revoked_at = NULL`,
     [crypto.randomUUID(), ownerId, new Date().toISOString()],
   );
 }
 
 async function hasActiveOwnerSession(ownerId: string): Promise<boolean> {
-  const result = await db.execute("SELECT 1 FROM project_owner_sessions WHERE owner_id = ? AND active = 1 LIMIT 1", [ownerId]);
+  const result = await db.execute("SELECT 1 FROM project_owner_sessions WHERE owner_id = ? AND revoked_at IS NULL LIMIT 1", [ownerId]);
   return rowsToObjects(result).length > 0;
 }
 
@@ -83,7 +83,7 @@ export const signOutProjectOwner = createServerFn({ method: "POST" }).handler(as
   await ensureOwnerTables();
   const claims = await getSessionClaims();
   if (claims?.roles.includes("project_owner")) {
-    await db.execute("UPDATE project_owner_sessions SET active = 0, revoked_at = ? WHERE owner_id = ?", [new Date().toISOString(), claims.sub]);
+    await db.execute("UPDATE project_owner_sessions SET revoked_at = ? WHERE owner_id = ?", [new Date().toISOString(), claims.sub]);
   }
   clearSessionCookie();
   return { ok: true };
