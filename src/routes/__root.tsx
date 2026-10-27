@@ -128,7 +128,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       getMe().catch(() => null),
     ]);
 
-    if (m.enabled && !(me && hasAdminRole(me.roles))) {
+    const isExempt = !!(me && me.email && m.exemptEmails.includes(me.email.toLowerCase()));
+    if (m.enabled && !(me && hasAdminRole(me.roles)) && !isExempt) {
       throw redirect({ to: "/maintenance", replace: true });
     }
   },

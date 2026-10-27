@@ -72,6 +72,9 @@ function AdminSettings() {
 
   const [enabled, setEnabled] = useState(false);
   const [endAt, setEndAt] = useState("");
+  const [exempt1, setExempt1] = useState("");
+  const [exempt2, setExempt2] = useState("");
+  const [exempt3, setExempt3] = useState("");
   const [hideChat, setHideChat] = useState(false);
   const [vipMx, setVipMx] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,7 +103,16 @@ function AdminSettings() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  useEffect(() => { if (data) { setEnabled(!!data.enabled); setEndAt(toLocalInput(data.endAt)); } }, [data]);
+  useEffect(() => {
+    if (data) {
+      setEnabled(!!data.enabled);
+      setEndAt(toLocalInput(data.endAt));
+      const ex = data.exemptEmails ?? [];
+      setExempt1(ex[0] ?? "");
+      setExempt2(ex[1] ?? "");
+      setExempt3(ex[2] ?? "");
+    }
+  }, [data]);
   useEffect(() => { if (hideChatData) setHideChat(!!hideChatData.enabled); }, [hideChatData]);
   useEffect(() => { if (vipMxData) setVipMx(!!vipMxData.enabled); }, [vipMxData]);
 
@@ -111,7 +123,8 @@ function AdminSettings() {
     const tId = toast.loading("جارٍ الحفظ...");
     try {
       const iso = fromLocalInput(endAt);
-      await saveMaintenance({ data: { enabled, endAt: iso } });
+      const exemptEmails = [exempt1, exempt2, exempt3].map((e) => e.trim()).filter(Boolean);
+      await saveMaintenance({ data: { enabled, endAt: iso, exemptEmails } });
       await saveHideChat({ data: { enabled: hideChat } });
       await saveVipMx({ data: { enabled: vipMx } });
       await qc.invalidateQueries({ queryKey: ["maintenance-admin"] });
@@ -229,6 +242,26 @@ function AdminSettings() {
           <label className="block text-sm font-medium mb-2">وقت انتهاء الصيانة (MAINTENANCE_END)</label>
           <input type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" disabled={isLoading} />
           <p className="mt-1 text-xs text-muted-foreground">اتركه فارغًا لعرض صفحة الصيانة بدون عدّاد.</p>
+        </div>
+        <div className="border-t border-border pt-4">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold">الإيميلات المستثناة من الصيانة</h3>
+            <p className="mt-1 text-xs text-muted-foreground">أدخل حتى 3 إيميلات يمكنها الدخول للموقع أثناء فترة الصيانة.</p>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="exempt-1" className="mb-1.5 block text-xs text-muted-foreground">الإيميل المستثنى الأول</Label>
+              <Input id="exempt-1" type="email" placeholder="example1@email.com" value={exempt1} onChange={(e) => setExempt1(e.target.value)} disabled={isLoading} />
+            </div>
+            <div>
+              <Label htmlFor="exempt-2" className="mb-1.5 block text-xs text-muted-foreground">الإيميل المستثنى الثاني</Label>
+              <Input id="exempt-2" type="email" placeholder="example2@email.com" value={exempt2} onChange={(e) => setExempt2(e.target.value)} disabled={isLoading} />
+            </div>
+            <div>
+              <Label htmlFor="exempt-3" className="mb-1.5 block text-xs text-muted-foreground">الإيميل المستثنى الثالث</Label>
+              <Input id="exempt-3" type="email" placeholder="example3@email.com" value={exempt3} onChange={(e) => setExempt3(e.target.value)} disabled={isLoading} />
+            </div>
+          </div>
         </div>
         <div className="border-t border-border pt-4">
           <div className="mb-3">

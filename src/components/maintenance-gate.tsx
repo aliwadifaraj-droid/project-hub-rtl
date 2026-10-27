@@ -23,6 +23,7 @@ export function MaintenanceGate() {
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -31,11 +32,13 @@ export function MaintenanceGate() {
         if (!mounted) return;
         setSignedIn(!!me);
         setRoles(me?.roles ?? []);
+        setEmail(me?.email ?? null);
       })
       .catch(() => {
         if (!mounted) return;
         setSignedIn(false);
         setRoles([]);
+        setEmail(null);
       })
       .finally(() => {
         if (mounted) setAuthReady(true);
@@ -53,15 +56,17 @@ export function MaintenanceGate() {
   });
 
   const isAdmin = signedIn && hasAdminRole(roles);
+  const isExempt = !!(email && m?.exemptEmails?.includes(email.toLowerCase()));
   const allowed = ALLOW_PREFIXES.some((p) => path === p || path.startsWith(p));
 
   useEffect(() => {
     if (!m?.enabled) return;
     if (!authReady) return;
     if (isAdmin) return;
+    if (isExempt) return;
     if (allowed) return;
     navigate({ to: "/maintenance", replace: true });
-  }, [m?.enabled, authReady, isAdmin, allowed, path, navigate]);
+  }, [m?.enabled, authReady, isAdmin, isExempt, allowed, path, navigate]);
 
   return null;
 }
