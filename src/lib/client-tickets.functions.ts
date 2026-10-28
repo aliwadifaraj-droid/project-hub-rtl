@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSessionClaims } from "./auth.server";
 import * as clientRepo from "./client.repo";
 import * as ticketsRepo from "./tickets.repo";
+import { appendClientTicketReply } from "./client-ticket-replies.repo";
 
 async function getRequiredClientProfile(): Promise<clientRepo.ClientProfile> {
   const claims = await getSessionClaims();
@@ -79,10 +80,8 @@ export const replyToMyClientTicket = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => replySchema.parse(data))
   .handler(async ({ data }) => {
     const clientId = await requireClientId();
-    const ticket = await ticketsRepo.getTicketById(data.id);
-    if (!ticket || ticket.user_id !== clientId) throw new Error("التذكرة غير موجودة");
-    await ticketsRepo.addTicketMessage({ ticket_id: data.id, sender_type: "client", sender_id: clientId, message: data.message });
-    await ticketsRepo.updateTicketStatus(data.id, "open");
+    const appended = await appendClientTicketReply({ ticketId: data.id, clientId, message: data.message });
+    if (!appended) throw new Error("التذكرة غير موجودة أو لا تملك صلاحية الرد عليها");
     return { ok: true };
   });
 
