@@ -103,7 +103,7 @@ function ProjectOwnersPage() {
             <tbody>
               {rows.map((o: Owner) => (
                 <tr key={o.id} className="border-t border-slate-800 hover:bg-slate-800/50">
-                  <td className="p-3 font-medium">{o.company_name || "—"}</td>
+                  <td className="p-3 font-medium">{o.company_name || "لا يوجد اسم"}</td>
                   <td className="p-3">{o.email}</td>
                   <td className="p-3 text-slate-400">{o.phone || "—"}</td>
                   <td className="p-3 text-slate-400">{o.city || "—"}</td>
@@ -157,7 +157,7 @@ function ProjectOwnersPage() {
           {rows.map((o: Owner) => (
             <div key={o.id} className="p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <div className="font-bold">{o.company_name || "—"}</div>
+                <div className="font-bold">{o.company_name || "لا يوجد اسم"}</div>
                 {o.banned === 1 ? (
                   <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400">محظور</span>
                 ) : (
@@ -218,7 +218,7 @@ function ProjectOwnersPage() {
               هل أنت متأكد من حذف حساب صاحب المشروع التالي نهائياً؟
             </p>
             <div className="mb-4 rounded-lg bg-slate-800 p-3 text-sm">
-              <div className="font-semibold">{confirmDelete.company_name || "—"}</div>
+              <div className="font-semibold">{confirmDelete.company_name || "لا يوجد اسم"}</div>
               <div className="text-slate-400">{confirmDelete.email}</div>
             </div>
             <p className="mb-6 text-xs text-red-400">

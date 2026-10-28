@@ -64,11 +64,11 @@ export const signUpProjectOwner = createServerFn({ method: "POST" })
     await ensureOwnerTables();
     if (await findOwnerByEmail(data.email)) throw new Error("هذا البريد مسجل بالفعل");
     const ownerId = crypto.randomUUID();
-    await db.execute("INSERT INTO project_owners (id,email,password_hash,created_at) VALUES (?,?,?,?)", [ownerId, data.email, await hashPassword(data.password), new Date().toISOString()]);
-    await db.execute(
-      `INSERT INTO project_owner_profiles (id,owner_id,company_name,phone,city,bio,created_at) VALUES (?,?,?,?,?,?,?)`,
-      [crypto.randomUUID(), ownerId, data.company_name, data.phone, data.city, data.bio, new Date().toISOString()],
-    );
+    const hashedPassword = await hashPassword(data.password);
+    await db.batch([
+      { sql: "INSERT INTO project_owners (id,email,password_hash,created_at) VALUES (?,?,?,?)", args: [ownerId, data.email, hashedPassword, new Date().toISOString()] },
+      { sql: `INSERT INTO project_owner_profiles (id,owner_id,company_name,phone,city,bio,created_at) VALUES (?,?,?,?,?,?,?)`, args: [crypto.randomUUID(), ownerId, data.company_name, data.phone, data.city, data.bio, new Date().toISOString()] },
+    ]);
     await signOwnerSession({ id: ownerId, email: data.email, password_hash: "" });
     return { id: ownerId, email: data.email, roles: ["project_owner"] };
   });
