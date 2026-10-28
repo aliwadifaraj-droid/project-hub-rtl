@@ -13,6 +13,11 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as MyRequestsRouteImport } from './routes/my-requests'
 import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as ProjectOwnerLoginRouteImport } from './routes/project-owner-login'
+import { Route as ProjectOwnerRouteImport } from './routes/project-owner'
+import { Route as ProjectOwnerNewRouteImport } from './routes/project-owner.new'
+import { Route as ProjectOwnerTicketsRouteImport } from './routes/project-owner.tickets'
+import { Route as ProjectOwnerTicketsIdRouteImport } from './routes/project-owner.tickets.$id'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SubscribeSuccessRouteImport } from './routes/subscribe-success'
 import { Route as ThankYouRouteImport } from './routes/thank-you'
@@ -74,6 +79,11 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({ id: '/forgot-pass
 const MaintenanceRoute = MaintenanceRouteImport.update({ id: '/maintenance', path: '/maintenance', getParentRoute: () => rootRouteImport } as any)
 const MyRequestsRoute = MyRequestsRouteImport.update({ id: '/my-requests', path: '/my-requests', getParentRoute: () => rootRouteImport } as any)
 const ProjectsRoute = ProjectsRouteImport.update({ id: '/projects', path: '/projects', getParentRoute: () => rootRouteImport } as any)
+const ProjectOwnerLoginRoute = ProjectOwnerLoginRouteImport.update({ id: '/project-owner-login', path: '/project-owner-login', getParentRoute: () => rootRouteImport } as any)
+const ProjectOwnerRoute = ProjectOwnerRouteImport.update({ id: '/project-owner', path: '/project-owner', getParentRoute: () => rootRouteImport } as any)
+const ProjectOwnerNewRoute = ProjectOwnerNewRouteImport.update({ id: '/new', path: '/new', getParentRoute: () => ProjectOwnerRoute } as any)
+const ProjectOwnerTicketsRoute = ProjectOwnerTicketsRouteImport.update({ id: '/tickets', path: '/tickets', getParentRoute: () => ProjectOwnerRoute } as any)
+const ProjectOwnerTicketsIdRoute = ProjectOwnerTicketsIdRouteImport.update({ id: '/$id', path: '/$id', getParentRoute: () => ProjectOwnerTicketsRoute } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({ id: '/reset-password', path: '/reset-password', getParentRoute: () => rootRouteImport } as any)
 const SubscribeSuccessRoute = SubscribeSuccessRouteImport.update({ id: '/subscribe-success', path: '/subscribe-success', getParentRoute: () => rootRouteImport } as any)
 const ThankYouRoute = ThankYouRouteImport.update({ id: '/thank-you', path: '/thank-you', getParentRoute: () => rootRouteImport } as any)
@@ -125,9 +135,11 @@ const LovableEmailTransactionalSendRoute = LovableEmailTransactionalSendRouteImp
 const ClientSupportTicketsRouteChildren = { ClientSupportTicketsIdRoute }
 const AdsRouteChildren = { AdsAdIdRoute }
 const VipRouteChildren = { VipIndexRoute }
+const ProjectOwnerTicketsRouteChildren = { ProjectOwnerTicketsIdRoute }
+const ProjectOwnerRouteChildren = { ProjectOwnerNewRoute, ProjectOwnerTicketsRoute: ProjectOwnerTicketsRoute._addFileChildren(ProjectOwnerTicketsRouteChildren) }
 const AuthenticatedAdminRouteChildren = { AuthenticatedAdminIndexRoute, AuthenticatedAdminAdsRoute, AuthenticatedAdminBotSettingsRoute, AuthenticatedAdminBotTestRoute, AuthenticatedAdminBotTrainingRoute, AuthenticatedAdminChatRoute, AuthenticatedAdminClientsRoute, AuthenticatedAdminEmployeesRoute, AuthenticatedAdminExclusivityRoute, AuthenticatedAdminGroqSettingsRoute, AuthenticatedAdminMessagesRoute, AuthenticatedAdminMyProjectsRoute, AuthenticatedAdminOffersRoute, AuthenticatedAdminPendingProjectsRoute, AuthenticatedAdminProjectsRoute, AuthenticatedAdminRequestsRoute, AuthenticatedAdminSettingsRoute, AuthenticatedAdminSupportRoute, AuthenticatedAdminUsersRoute, AuthenticatedAdminProjectOwnersRoute, AuthenticatedAdminVipRoute, AuthenticatedAdminApprovalsRoute }
 const AuthenticatedRouteRouteChildren = { AuthenticatedAdminRoute: AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren), AuthenticatedChatRoute, AuthenticatedDashboardRoute, AuthenticatedEmployeesRoute, AuthenticatedUploadRoute }
-const rootRouteChildren = { IndexRoute, AuthenticatedRouteRoute: AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren), AdsRoute: AdsRoute._addFileChildren(AdsRouteChildren), AuthRoute, ClientLoginRoute, ClientLogoutRoute, ClientPortalRoute, ClientSupportTicketsRoute: ClientSupportTicketsRoute._addFileChildren(ClientSupportTicketsRouteChildren), ContactRoute, ForgotPasswordRoute, MaintenanceRoute, MyRequestsRoute, ProjectsRoute, ResetPasswordRoute, SubscribeSuccessRoute, ThankYouRoute, UnsubscribeRoute, VipRoute: VipRoute._addFileChildren(VipRouteChildren), AdsAdIdRoute, EmailUnsubscribeRoute, ProjectIdRoute, LovableEmailSuppressionRoute, LovableEmailQueueProcessRoute, LovableEmailTransactionalPreviewRoute, LovableEmailTransactionalSendRoute }
+const rootRouteChildren = { IndexRoute, AuthenticatedRouteRoute: AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren), AdsRoute: AdsRoute._addFileChildren(AdsRouteChildren), AuthRoute, ClientLoginRoute, ClientLogoutRoute, ClientPortalRoute, ClientSupportTicketsRoute: ClientSupportTicketsRoute._addFileChildren(ClientSupportTicketsRouteChildren), ContactRoute, ForgotPasswordRoute, MaintenanceRoute, MyRequestsRoute, ProjectsRoute, ProjectOwnerLoginRoute, ProjectOwnerRoute: ProjectOwnerRoute._addFileChildren(ProjectOwnerRouteChildren), ResetPasswordRoute, SubscribeSuccessRoute, ThankYouRoute, UnsubscribeRoute, VipRoute: VipRoute._addFileChildren(VipRouteChildren), AdsAdIdRoute, EmailUnsubscribeRoute, ProjectIdRoute, LovableEmailSuppressionRoute, LovableEmailQueueProcessRoute, LovableEmailTransactionalPreviewRoute, LovableEmailTransactionalSendRoute }
 const rootRoute = rootRouteImport._addFileChildren(rootRouteChildren)
 const routeTree = rootRoute
 export { routeTree }
