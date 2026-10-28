@@ -25,14 +25,21 @@ const createTicketSchema = z.object({
   subject: z.string().trim().min(3).max(200),
   category: z.enum(["order", "payment", "technical", "general"]),
   message: z.string().trim().min(3).max(5000),
+  order_id: z.string().trim().max(100).optional().nullable(),
 });
 
 export const createClientTicket = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createTicketSchema.parse(data))
   .handler(async ({ data }) => {
     const profile = await getRequiredClientProfile();
+    const orderId = data.order_id?.trim() || null;
+    if (orderId) {
+      const openCount = await ticketsRepo.countOpenTicketsByUserAndOrder(profile.user_id, orderId);
+      if (openCount > 0) throw new Error("يوجد تذكرة مفتوحة لهذا الطلب بالفعل. أغلقها أولاً قبل فتح تذكرة جديدة.");
+    }
     const id = await ticketsRepo.createTicket({
       user_id: profile.user_id,
+      order_id: orderId,
       subject: data.subject,
       category: data.category,
       priority: "medium",
@@ -74,7 +81,9 @@ export const replyToMyClientTicket = createServerFn({ method: "POST" })
     const clientId = await requireClientId();
     const ticket = await ticketsRepo.getTicketById(data.id);
     if (!ticket || ticket.user_id !== clientId) throw new Error("التذكرة غير موجودة");
-    await ticketsRepo.addTicketMessage({ ticket_id: data.id, sender_type: "user", sender_id: clientId, message: data.message });
+    if (ticket.status === "closed") throw new Error("التذكرة مغلقة ولا يمكن الرد عليها");
+    await ticketsRepo.addTicketMessage({ ticket_id: data.id, sender_type: "client", sender_id: clientId, message: data.message });
+    await ticketsRepo.updateTicketStatus(data.id, "open");
     return { ok: true };
   });
 
