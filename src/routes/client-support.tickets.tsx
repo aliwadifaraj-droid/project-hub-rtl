@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { createClientTicket, listMyClientTickets, markMyClientTicketRead } from "@/lib/client-tickets.functions";
+import { useState } from "react";
+import { createClientTicket, listMyClientTickets } from "@/lib/client-tickets.functions";
 import { MessageSquare, Plus, Loader2, ArrowRight, Ticket, X } from "lucide-react";
 import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 
@@ -21,7 +21,6 @@ const statusLabels: Record<string, string> = {
 export function ClientTicketsPage() {
   const listTickets = useServerFn(listMyClientTickets);
   const createTicket = useServerFn(createClientTicket);
-  const markRead = useServerFn(markMyClientTicketRead);
   const queryClient = useQueryClient();
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [subject, setSubject] = useState("");
@@ -35,23 +34,6 @@ export function ClientTicketsPage() {
     queryFn: () => listTickets(),
     refetchInterval: 5000,
   });
-
-  useEffect(() => {
-    const unreadTickets = tickets.filter((ticket) => getTicketUnreadCount(ticket) > 0);
-    if (unreadTickets.length === 0) return;
-
-    let cancelled = false;
-    void Promise.all(unreadTickets.map((ticket) => markRead({ data: { id: ticket.id } }))).then(() => {
-      if (cancelled) return;
-      queryClient.setQueryData(["client-support-tickets"], (current: typeof tickets | undefined) =>
-        current?.map((ticket) => ({ ...ticket, unread_admin_message_count: 0 })),
-      );
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [markRead, queryClient, tickets]);
 
   function openNewTicket(): void {
     setError("");
@@ -115,7 +97,7 @@ export function ClientTicketsPage() {
         ) : (
           <div className="grid gap-3">
             {tickets.map((ticket) => (
-              <Link key={ticket.id} to="/client-portal/support/tickets/$id" params={{ id: ticket.id }} className="relative z-10 block cursor-pointer rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md active:translate-y-0">
+              <Link key={ticket.id} to="/client-support/tickets/$id" params={{ id: ticket.id }} className="relative z-10 block cursor-pointer rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md active:translate-y-0">
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground"><MessageSquare className="h-4 w-4" /> {statusLabels[ticket.status] ?? ticket.status}</span>
                   <span className="text-xs text-muted-foreground">{new Date(ticket.created_at * 1000).toLocaleDateString("ar-SA")}</span>

@@ -63,7 +63,7 @@ export function ClientTicketDetailsPage() {
   async function handleClose(): Promise<void> {
     try {
       await close({ data: { id } });
-      await navigate({ to: "/client-portal/support/tickets" });
+      await navigate({ to: "/client-support/tickets" });
     } catch {
       setError("تعذر إغلاق التذكرة حالياً.");
     }
@@ -78,7 +78,7 @@ export function ClientTicketDetailsPage() {
     <div className="min-h-screen bg-background" dir="rtl">
       <div className="border-b border-border bg-secondary/30">
         <div className="container mx-auto px-4 py-4">
-          <Link to="/client-portal/support/tickets" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground">
+          <Link to="/client-support/tickets" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground">
             <ArrowRight className="h-4 w-4" /> العودة لتذاكري
           </Link>
         </div>
