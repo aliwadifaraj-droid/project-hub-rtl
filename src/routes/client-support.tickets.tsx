@@ -18,7 +18,7 @@ const statusLabels: Record<string, string> = {
   closed: "مغلقة",
 };
 
-function ClientTicketsPage() {
+export function ClientTicketsPage() {
   const listTickets = useServerFn(listMyClientTickets);
   const createTicket = useServerFn(createClientTicket);
   const markRead = useServerFn(markMyClientTicketRead);
@@ -115,7 +115,7 @@ function ClientTicketsPage() {
         ) : (
           <div className="grid gap-3">
             {tickets.map((ticket) => (
-              <Link key={ticket.id} to="/client-support/tickets/$id" params={{ id: ticket.id }} className="block rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 transition hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-sm">
+              <Link key={ticket.id} to="/client-portal/support/tickets/$id" params={{ id: ticket.id }} className="relative z-10 block cursor-pointer rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md active:translate-y-0">
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground"><MessageSquare className="h-4 w-4" /> {statusLabels[ticket.status] ?? ticket.status}</span>
                   <span className="text-xs text-muted-foreground">{new Date(ticket.created_at * 1000).toLocaleDateString("ar-SA")}</span>
