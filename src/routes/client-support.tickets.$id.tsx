@@ -53,6 +53,7 @@ export function ClientTicketDetailsPage() {
       await reply({ data: { id, message } });
       setMessage("");
       await queryClient.invalidateQueries({ queryKey: ["client-support-ticket", id] });
+      await queryClient.invalidateQueries({ queryKey: ["client-support-tickets"] });
     } catch (e) {
       setError(e instanceof Error ? e.message : "تعذر إرسال الرد حالياً.");
     } finally {
@@ -124,27 +125,22 @@ export function ClientTicketDetailsPage() {
             ))}
           </div>
 
-          {!isClosed ? (
-            <form onSubmit={handleReply} className="mt-6 flex gap-2">
-              <textarea
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                required
-                minLength={1}
-                maxLength={5000}
-                rows={3}
-                className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2.5"
-                placeholder="اكتب ردك هنا"
-              />
-              <button type="submit" disabled={sending || !message.trim()} className="inline-flex h-fit items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} إرسال
-              </button>
-            </form>
-          ) : (
-            <div className="mt-6 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-center text-sm text-muted-foreground">
-              هذه التذكرة مغلقة. يمكنك فتح تذكرة جديدة إذا لزم الأمر.
-            </div>
-          )}
+          <form onSubmit={handleReply} className="mt-6 flex gap-2">
+            <textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              required
+              minLength={1}
+              maxLength={5000}
+              rows={3}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2.5"
+              placeholder={isClosed ? "اكتب رداً لإعادة فتح التذكرة" : "اكتب ردك هنا"}
+            />
+            <button type="submit" disabled={sending || !message.trim()} className="inline-flex h-fit items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} إرسال
+            </button>
+          </form>
+          {isClosed && <p className="mt-2 text-xs text-muted-foreground">سيتم إعادة فتح التذكرة تلقائياً عند إرسال رد جديد.</p>}
           {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
         </div>
       </main>

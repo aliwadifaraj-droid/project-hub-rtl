@@ -81,7 +81,6 @@ export const replyToMyClientTicket = createServerFn({ method: "POST" })
     const clientId = await requireClientId();
     const ticket = await ticketsRepo.getTicketById(data.id);
     if (!ticket || ticket.user_id !== clientId) throw new Error("التذكرة غير موجودة");
-    if (ticket.status === "closed") throw new Error("التذكرة مغلقة ولا يمكن الرد عليها");
     await ticketsRepo.addTicketMessage({ ticket_id: data.id, sender_type: "client", sender_id: clientId, message: data.message });
     await ticketsRepo.updateTicketStatus(data.id, "open");
     return { ok: true };
