@@ -29,6 +29,12 @@ const PRIORITY_LABELS: Record<string, string> = {
 const PRIORITY_COLORS: Record<string, string> = {
   low: "bg-gray-100 text-gray-600", medium: "bg-blue-100 text-blue-800", high: "bg-red-100 text-red-800",
 };
+const ROLE_LABELS: Record<string, string> = {
+  client: "عميل", owner: "صاحب مشروع",
+};
+const ROLE_COLORS: Record<string, string> = {
+  client: "bg-emerald-100 text-emerald-800", owner: "bg-purple-100 text-purple-800",
+};
 
 function AdminTicketsPage() {
   const qc = useQueryClient();
@@ -117,9 +123,14 @@ function AdminTicketsPage() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_COLORS[t.status] ?? STATUS_COLORS.open}`}>
-                    {STATUS_LABELS[t.status] ?? t.status}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_COLORS[t.status] ?? STATUS_COLORS.open}`}>
+                      {STATUS_LABELS[t.status] ?? t.status}
+                    </span>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${ROLE_COLORS[t.user_role] ?? ROLE_COLORS.client}`}>
+                      {ROLE_LABELS[t.user_role] ?? "عميل"}
+                    </span>
+                  </div>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] ${PRIORITY_COLORS[t.priority] ?? PRIORITY_COLORS.medium}`}>
                     {PRIORITY_LABELS[t.priority] ?? t.priority}
                   </span>
@@ -147,6 +158,9 @@ function AdminTicketsPage() {
                   {detail.ticket.order_id && <span>رقم الطلب: {detail.ticket.order_id}</span>}
                   <span>صاحب التذكرة: {detail.ticket.requester_name}</span>
                   {detail.ticket.requester_email && <span>{detail.ticket.requester_email}</span>}
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${ROLE_COLORS[detail.ticket.user_role] ?? ROLE_COLORS.client}`}>
+                    {ROLE_LABELS[detail.ticket.user_role] ?? "عميل"}
+                  </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <select

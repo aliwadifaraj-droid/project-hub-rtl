@@ -64,11 +64,11 @@ export const signUpProjectOwner = createServerFn({ method: "POST" })
     await ensureOwnerTables();
     if (await findOwnerByEmail(data.email)) throw new Error("هذا البريد مسجل بالفعل");
     const ownerId = crypto.randomUUID();
-    await db.execute("INSERT INTO project_owners (id,email,password_hash,created_at) VALUES (?,?,?,?)", [ownerId, data.email, await hashPassword(data.password), new Date().toISOString()]);
-    await db.execute(
-      `INSERT INTO project_owner_profiles (id,owner_id,company_name,phone,city,bio,created_at) VALUES (?,?,?,?,?,?,?)`,
-      [crypto.randomUUID(), ownerId, data.company_name, data.phone, data.city, data.bio, new Date().toISOString()],
-    );
+    const hashedPassword = await hashPassword(data.password);
+    await db.batch([
+      { sql: "INSERT INTO project_owners (id,email,password_hash,created_at) VALUES (?,?,?,?)", args: [ownerId, data.email, hashedPassword, new Date().toISOString()] },
+      { sql: `INSERT INTO project_owner_profiles (id,owner_id,company_name,phone,city,bio,created_at) VALUES (?,?,?,?,?,?,?)`, args: [crypto.randomUUID(), ownerId, data.company_name, data.phone, data.city, data.bio, new Date().toISOString()] },
+    ]);
     await signOwnerSession({ id: ownerId, email: data.email, password_hash: "" });
     return { id: ownerId, email: data.email, roles: ["project_owner"] };
   });
@@ -112,9 +112,16 @@ async function requireActiveOwner(ownerId: string, roles: string[]): Promise<voi
   if (!roles.includes("project_owner") || !(await hasActiveOwnerSession(ownerId))) throw new Error("غير مصرح");
 }
 
+async function isOwnerBanned(ownerId: string): Promise<boolean> {
+  const result = await db.execute("SELECT banned FROM project_owners WHERE id = ? LIMIT 1", [ownerId]);
+  const row = rowsToObjects<{ banned: number }>(result)[0];
+  return Number(row?.banned ?? 0) === 1;
+}
+
 export const createOwnerProject = createServerFn({ method: "POST" }).middleware([requireAuth]).inputValidator((input: unknown) => projectSchema.parse(input)).handler(async ({ data, context }) => {
   await ensureOwnerTables();
   await requireActiveOwner(context.userId, context.roles);
+  if (await isOwnerBanned(context.userId)) throw new Error("تم حظرك مؤقتاً من نشر المشاريع الجديدة");
   const id = await projectsRepo.insertProject({ name: data.name, description: data.description, location: data.location, duration: data.duration, cover_image: data.cover_image, images: data.images, pdf_file: data.pdf_file || null, created_by: context.userId, admin_approval: "approved" });
   const city = detectCity(data.location);
   const hasVip = city ? (await listActiveByCity(city)).length > 0 : false;
