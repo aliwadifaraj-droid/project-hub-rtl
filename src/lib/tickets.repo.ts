@@ -4,6 +4,7 @@ const ticketsTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS tickets (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
+    user_role TEXT NOT NULL DEFAULT 'client',
     order_id TEXT,
     subject TEXT NOT NULL,
     category TEXT NOT NULL,
@@ -14,7 +15,7 @@ const ticketsTableReady = db.execute(`
     client_read_admin_count INTEGER NOT NULL DEFAULT 0,
     client_company_name TEXT
   )
-`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => undefined);
+`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN user_role TEXT NOT NULL DEFAULT 'client'`).catch(() => undefined)).then(() => undefined);
 
 const ticketMessagesTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -35,6 +36,7 @@ async function ensureTicketTables(): Promise<void> {
 export type TicketRow = {
   id: string;
   user_id: string;
+  user_role: string;
   order_id: string | null;
   subject: string;
   category: string;
@@ -63,6 +65,7 @@ function decodeTicket(row: any): TicketRow {
   return {
     id: String(row.id),
     user_id: String(row.user_id),
+    user_role: String(row.user_role ?? "client"),
     order_id: row.order_id ?? null,
     subject: String(row.subject ?? ""),
     category: String(row.category ?? ""),
@@ -92,6 +95,7 @@ function decodeMessage(row: any): TicketMessageRow {
 
 export async function createTicket(input: {
   user_id: string;
+  user_role?: string;
   order_id?: string | null;
   subject: string;
   category: string;
@@ -103,16 +107,17 @@ export async function createTicket(input: {
   await ensureTicketTables();
   const id = crypto.randomUUID();
   const msgId = crypto.randomUUID();
+  const senderType = input.user_role === "owner" ? "owner" : "user";
   await db.batch([
     {
-      sql: `INSERT INTO tickets (id, user_id, order_id, subject, category, status, priority, client_company_name, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'open', ?, ?, unixepoch(), unixepoch())`,
-      args: [id, input.user_id, input.order_id ?? null, input.subject, input.category, input.priority ?? "medium", input.client_company_name ?? null],
+      sql: `INSERT INTO tickets (id, user_id, user_role, order_id, subject, category, status, priority, client_company_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, unixepoch(), unixepoch())`,
+      args: [id, input.user_id, input.user_role ?? "client", input.order_id ?? null, input.subject, input.category, input.priority ?? "medium", input.client_company_name ?? null],
     },
     {
       sql: `INSERT INTO ticket_messages (id, ticket_id, sender_type, sender_id, message, attachment_url, created_at)
-            VALUES (?, ?, 'user', ?, ?, ?, unixepoch())`,
-      args: [msgId, id, input.user_id, input.message, input.attachment_url ?? null],
+            VALUES (?, ?, ?, ?, ?, ?, unixepoch())`,
+      args: [msgId, id, senderType, input.user_id, input.message, input.attachment_url ?? null],
     },
   ]);
   return id;
@@ -131,16 +136,30 @@ export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
   return rowsToObjects(r).map(decodeTicket);
 }
 
+export async function listTicketsByUserAndRole(userId: string, userRole: string): Promise<TicketRow[]> {
+  await ensureTicketTables();
+  const r = await db.execute(
+    `SELECT tickets.*,
+            (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
+            (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender,
+            MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
+     FROM tickets WHERE user_id = ? AND user_role = ? ORDER BY updated_at DESC`,
+    [userId, userRole],
+  );
+  return rowsToObjects(r).map(decodeTicket);
+}
+
 export async function listAllTickets(): Promise<TicketRow[]> {
   await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
-            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
      LEFT JOIN profiles p ON p.user_id = tickets.user_id
+     LEFT JOIN project_owner_profiles pop ON pop.owner_id = tickets.user_id
      LEFT JOIN clients c ON c.id = tickets.user_id
      LEFT JOIN users u ON u.id = tickets.user_id
      ORDER BY tickets.updated_at DESC LIMIT 500`,
@@ -152,12 +171,13 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
   await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
-            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
      LEFT JOIN profiles p ON p.user_id = tickets.user_id
+     LEFT JOIN project_owner_profiles pop ON pop.owner_id = tickets.user_id
      LEFT JOIN clients c ON c.id = tickets.user_id
      LEFT JOIN users u ON u.id = tickets.user_id
      WHERE tickets.id = ? LIMIT 1`,
@@ -175,6 +195,22 @@ export async function markTicketMessagesRead(ticketId: string, userId: string): 
      WHERE id = ? AND user_id = ?`,
     [ticketId, userId],
   );
+}
+
+export async function getTicketForOwner(ticketId: string, ownerId: string): Promise<TicketRow | null> {
+  await ensureTicketTables();
+  const r = await db.execute(
+    `SELECT tickets.*,
+            COALESCE(NULLIF(pop.company_name, ''), NULLIF(tickets.client_company_name, ''), tickets.user_id) AS requester_name,
+            '' AS requester_email,
+            MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
+     FROM tickets
+     LEFT JOIN project_owner_profiles pop ON pop.owner_id = tickets.user_id
+     WHERE tickets.id = ? AND tickets.user_id = ? AND tickets.user_role = 'owner' LIMIT 1`,
+    [ticketId, ownerId],
+  );
+  const row = rowsToObjects(r)[0];
+  return row ? decodeTicket(row) : null;
 }
 
 export async function listTicketMessages(ticketId: string): Promise<TicketMessageRow[]> {
@@ -226,6 +262,15 @@ export async function updateTicketPriority(id: string, priority: string): Promis
 export async function countOpenTickets(): Promise<number> {
   await ensureTicketTables();
   const r = await db.execute(`SELECT COUNT(*) AS c FROM tickets WHERE status = 'open'`);
+  return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
+}
+
+export async function countOpenTicketsByUserAndRole(userId: string, userRole: string): Promise<number> {
+  await ensureTicketTables();
+  const r = await db.execute(
+    `SELECT COUNT(*) AS c FROM tickets WHERE user_id = ? AND user_role = ? AND status = 'open'`,
+    [userId, userRole],
+  );
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
 

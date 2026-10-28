@@ -34,6 +34,7 @@ export const createClientTicket = createServerFn({ method: "POST" })
     const profile = await getRequiredClientProfile();
     const id = await ticketsRepo.createTicket({
       user_id: profile.user_id,
+      user_role: "client",
       subject: data.subject,
       category: data.category,
       priority: "medium",
