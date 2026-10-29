@@ -341,6 +341,20 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
     const claims = await getSessionClaims();
     if (!claims) throw new Error("يجب تسجيل الدخول");
 
+    const requestResult = await db.execute(
+      `SELECT TRIM(status) AS status
+       FROM project_requests
+       WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))`,
+      [claims.email],
+    );
+    const requestStatuses = rowsToObjects<{ status: string | null }>(requestResult).map((row) => String(row.status ?? "").trim());
+    if (requestStatuses.length === 0) {
+      throw new Error("عذراً، لم نجد طلب مشروع مسجلاً بالبريد الإلكتروني الخاص بحسابك. يرجى تقديم طلب المشروع أولاً، وبعد قبوله ستتمكن من إنشاء التعميد. شكراً لتفهمك.");
+    }
+    if (!requestStatuses.includes("مقبول")) {
+      throw new Error(`عذراً، لا يمكن إنشاء التعميد حالياً لأن حالة طلب مشروعك هي "${requestStatuses.join("، ")}". يمكنك إنشاء التعميد بعد قبول طلبك، وسنكون سعداء بخدمتك وإعلامك فور تحديث الحالة.`);
+    }
+
     const existing = await db.execute(
       `SELECT id
        FROM approval_tokens
