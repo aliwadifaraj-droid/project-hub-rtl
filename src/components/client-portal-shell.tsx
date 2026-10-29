@@ -310,6 +310,7 @@ export function ClientPortalShell() {
     setSelectedProjectId("");
     setContractAgreed(false);
     setTameedToken("");
+    setTameedError("");
     if (sigCanvasRef.current) sigCanvasRef.current.clear();
   }
 
@@ -319,6 +320,7 @@ export function ClientPortalShell() {
     setSelectedProjectId("");
     setContractAgreed(false);
     setTameedToken("");
+    setTameedError("");
     if (sigCanvasRef.current) sigCanvasRef.current.clear();
   }
 
@@ -1183,6 +1185,12 @@ export function ClientPortalShell() {
                   </button>
                 )}
               </div>
+
+              {tameedError && (
+                <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-semibold leading-relaxed text-destructive">
+                  {tameedError}
+                </div>
+              )}
 
               <button
                 type="button"
