@@ -303,3 +303,17 @@ export async function countOpenTicketsByUserAndOrder(userId: string, orderId: st
   );
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
+
+export async function deleteTicket(id: string): Promise<void> {
+  await ensureTicketTables();
+  await db.batch([
+    {
+      sql: `DELETE FROM ticket_messages WHERE ticket_id = ?`,
+      args: [id],
+    },
+    {
+      sql: `DELETE FROM tickets WHERE id = ?`,
+      args: [id],
+    },
+  ]);
+}

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { adminListTickets, adminGetTicket, adminUpdateTicketStatus, adminUpdateTicketPriority, replyToTicket } from "@/lib/tickets.functions";
-import { Loader2, Send, Inbox } from "lucide-react";
+import { adminListTickets, adminGetTicket, adminUpdateTicketStatus, adminUpdateTicketPriority, adminDeleteTicket, replyToTicket } from "@/lib/tickets.functions";
+import { Loader2, Send, Inbox, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 
@@ -43,8 +43,10 @@ function AdminTicketsPage() {
   const statusFn = useServerFn(adminUpdateTicketStatus);
   const priorityFn = useServerFn(adminUpdateTicketPriority);
   const replyFn = useServerFn(replyToTicket);
+  const deleteFn = useServerFn(adminDeleteTicket);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [body, setBody] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; subject: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: tickets = [], isLoading } = useQuery({
@@ -97,6 +99,17 @@ function AdminTicketsPage() {
     if (!body.trim()) return;
     replyMut.mutate();
   }
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-tickets"] });
+      setActiveId(null);
+      setDeleteTarget(null);
+      toast.success("تم حذف التذكرة بنجاح");
+    },
+    onError: (e: Error) => toast.error(e.message || "تعذر حذف التذكرة"),
+  });
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -162,7 +175,7 @@ function AdminTicketsPage() {
                     {ROLE_LABELS[detail.ticket.user_role] ?? "عميل"}
                   </span>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <select
                     value={detail.ticket.status}
                     onChange={(e) => statusMut.mutate({ id: activeId, status: e.target.value })}
@@ -184,6 +197,14 @@ function AdminTicketsPage() {
                     <option value="medium">متوسطة</option>
                     <option value="high">عالية</option>
                   </select>
+                  <button
+                    onClick={() => setDeleteTarget({ id: activeId, subject: detail.ticket.subject })}
+                    disabled={deleteMut.isPending}
+                    className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    حذف التذكرة
+                  </button>
                 </div>
               </div>
 
@@ -234,6 +255,45 @@ function AdminTicketsPage() {
               <p className="text-sm text-muted-foreground">اختر تذكرة لعرض التفاصيل</p>
             </div>
           )}
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !deleteMut.isPending && setDeleteTarget(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold">تأكيد حذف التذكرة</h3>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              هل أنت متأكد من حذف التذكرة «{deleteTarget.subject}»؟ سيتم حذفها نهائياً مع جميع رسائلها من قاعدة البيانات ولا يمكن التراجع عن هذا الإجراء.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteMut.isPending}
+                className="flex-1 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium transition hover:bg-muted disabled:opacity-60"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => deleteMut.mutate(deleteTarget.id)}
+                disabled={deleteMut.isPending}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleteMut.isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    جارٍ الحذف...
+                  </span>
+                ) : (
+                  "نعم، احذف"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
