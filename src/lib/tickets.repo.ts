@@ -51,6 +51,13 @@ export type TicketRow = {
   requester_email: string;
 };
 
+export type TicketListRow = {
+  id: string;
+  subject: string;
+  status: string;
+  created_at: number;
+};
+
 export type TicketMessageRow = {
   id: string;
   ticket_id: string;
@@ -136,17 +143,22 @@ export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
   return rowsToObjects(r).map(decodeTicket);
 }
 
-export async function listTicketsByUserAndRole(userId: string, userRole: string): Promise<TicketRow[]> {
+export async function listTicketsByUserAndRole(userId: string, userRole: string): Promise<TicketListRow[]> {
   await ensureTicketTables();
   const r = await db.execute(
-    `SELECT tickets.*,
-            (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
-            (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender,
-            MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
-     FROM tickets WHERE user_id = ? AND user_role = ? ORDER BY created_at DESC LIMIT 20`,
+    `SELECT id, subject, status, created_at
+     FROM tickets
+     WHERE user_id = ? AND user_role = ?
+     ORDER BY created_at DESC
+     LIMIT 20`,
     [userId, userRole],
   );
-  return rowsToObjects(r).map(decodeTicket);
+  return rowsToObjects(r).map((row) => ({
+    id: String(row.id),
+    subject: String(row.subject ?? ""),
+    status: String(row.status ?? "open"),
+    created_at: Number(row.created_at ?? 0),
+  }));
 }
 
 export async function listAllTickets(): Promise<TicketRow[]> {
