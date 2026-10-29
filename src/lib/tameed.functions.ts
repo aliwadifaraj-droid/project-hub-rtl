@@ -335,6 +335,14 @@ const createTameedRequestSchema = z.object({
   signature_image: z.string().min(1),
 });
 
+const REQUEST_STATUS_LABELS: Record<string, string> = {
+  pending: "قيد الانتظار",
+  new: "جديد",
+  reviewing: "قيد المراجعة",
+  accepted: "مقبول",
+  rejected: "مرفوض",
+};
+
 export const clientCreateTameedRequest = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createTameedRequestSchema.parse(data))
   .handler(async ({ data }) => {
@@ -351,8 +359,9 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
     if (requestStatuses.length === 0) {
       throw new Error("عذراً، لم نجد طلب مشروع مسجلاً بالبريد الإلكتروني الخاص بحسابك. يرجى تقديم طلب المشروع أولاً، وبعد قبوله ستتمكن من إنشاء التعميد. شكراً لتفهمك.");
     }
-    if (!requestStatuses.includes("مقبول")) {
-      throw new Error(`عذراً، لا يمكن إنشاء التعميد حالياً لأن حالة طلب مشروعك هي "${requestStatuses.join("، ")}". يمكنك إنشاء التعميد بعد قبول طلبك، وسنكون سعداء بخدمتك وإعلامك فور تحديث الحالة.`);
+    if (!requestStatuses.includes("accepted")) {
+      const statusLabels = requestStatuses.map((status) => REQUEST_STATUS_LABELS[status] ?? status).join("، ");
+      throw new Error(`عذراً، لا يمكن إنشاء التعميد حالياً لأن حالة طلب مشروعك هي "${statusLabels}". يمكنك إنشاء التعميد بعد قبول طلبك، وسنكون سعداء بخدمتك وإعلامك فور تحديث الحالة.`);
     }
 
     const existing = await db.execute(
