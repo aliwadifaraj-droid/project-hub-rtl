@@ -15,7 +15,7 @@ const ticketsTableReady = db.execute(`
     client_read_admin_count INTEGER NOT NULL DEFAULT 0,
     client_company_name TEXT
   )
-`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN user_role TEXT NOT NULL DEFAULT 'client'`).catch(() => undefined)).then(() => undefined);
+`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN user_role TEXT NOT NULL DEFAULT 'client'`).catch(() => undefined)).then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_tickets_owner_created_at ON tickets(user_id, user_role, created_at DESC)`).catch(() => undefined)).then(() => undefined);
 
 const ticketMessagesTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -143,7 +143,7 @@ export async function listTicketsByUserAndRole(userId: string, userRole: string)
             (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
             (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
-     FROM tickets WHERE user_id = ? AND user_role = ? ORDER BY updated_at DESC`,
+     FROM tickets WHERE user_id = ? AND user_role = ? ORDER BY created_at DESC LIMIT 20`,
     [userId, userRole],
   );
   return rowsToObjects(r).map(decodeTicket);
