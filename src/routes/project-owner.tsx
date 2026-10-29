@@ -19,10 +19,10 @@ function ProjectOwnerPage() {
   const navigate = useNavigate(); const qc = useQueryClient(); const create = useServerFn(createOwnerProject); const upload = useServerFn(uploadStoredFile); const logout = useServerFn(signOutProjectOwner);
   const isTicketsRoute = useRouterState({ select: (state) => state.location.pathname.startsWith("/project-owner/tickets") });
   const listTickets = useServerFn(listMyOwnerTickets);
-  const { data: session } = useQuery({ queryKey: ["project-owner-session"], queryFn: () => getProjectOwnerSession() });
-  const { data: tickets = [] } = useQuery({ queryKey: ["owner-support-tickets"], queryFn: () => listTickets(), refetchInterval: 5000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ["owner-projects"], queryFn: () => listOwnerProjects() });
-  const { data: requests = [], isLoading: requestsLoading } = useQuery({ queryKey: ["owner-requests"], queryFn: () => listOwnerRequests() });
+  const { data: session } = useQuery({ queryKey: ["project-owner-session"], queryFn: () => getProjectOwnerSession(), enabled: !isTicketsRoute });
+  const { data: tickets = [] } = useQuery({ queryKey: ["owner-support-tickets"], queryFn: () => listTickets(), enabled: !isTicketsRoute, refetchInterval: 5000, refetchOnMount: "always", refetchOnWindowFocus: "always" });
+  const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ["owner-projects"], queryFn: () => listOwnerProjects(), enabled: !isTicketsRoute });
+  const { data: requests = [], isLoading: requestsLoading } = useQuery({ queryKey: ["owner-requests"], queryFn: () => listOwnerRequests(), enabled: !isTicketsRoute });
   const [showForm, setShowForm] = useState(false); const [busy, setBusy] = useState(false); const [uploading, setUploading] = useState(false); const [error, setError] = useState<string | null>(null); const [form, setForm] = useState({ name: "", description: "", location: "", duration: "", cover_image: "", images: [] as string[], pdf_file: "" }); const [filter, setFilter] = useState("all");
   const createMutation = useMutation({ mutationFn: () => create({ data: form }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["owner-projects"] }); setForm({ name: "", description: "", location: "", duration: "", cover_image: "", images: [], pdf_file: "" }); setError(null); setShowForm(false); toast.success("تم إرسال المشروع للمراجعة"); }, onError: () => toast.error("تعذر إضافة المشروع") });
   async function uploadFile(file: File): Promise<string> { const data = await fileToBase64(file); const purpose = file.type === "application/pdf" ? "bid-pdf" : "project-image"; const result = await upload({ data: { filename: file.name, mime: file.type, purpose, data } }); return result.key; }
