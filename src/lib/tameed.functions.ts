@@ -352,12 +352,13 @@ export const clientCreateTameedRequest = createServerFn({ method: "POST" })
     const requestResult = await db.execute(
       `SELECT TRIM(status) AS status
        FROM project_requests
-       WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))`,
-      [claims.email],
+       WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
+         AND project_id = ?`,
+      [claims.email, data.project_id],
     );
     const requestStatuses = rowsToObjects<{ status: string | null }>(requestResult).map((row) => String(row.status ?? "").trim());
     if (requestStatuses.length === 0) {
-      throw new Error("عذراً، لم نجد طلب مشروع مسجلاً بالبريد الإلكتروني الخاص بحسابك. يرجى تقديم طلب المشروع أولاً، وبعد قبوله ستتمكن من إنشاء التعميد. شكراً لتفهمك.");
+      throw new Error("عذراً، لم نجد طلب مشروع مسجلاً بالبريد الإلكتروني الخاص بحسابك لهذا المشروع. يرجى تقديم طلب لهذا المشروع أولاً، وبعد قبوله ستتمكن من إنشاء التعميد. شكراً لتفهمك.");
     }
     if (!requestStatuses.includes("accepted")) {
       const statusLabels = requestStatuses.map((status) => REQUEST_STATUS_LABELS[status] ?? status).join("، ");
