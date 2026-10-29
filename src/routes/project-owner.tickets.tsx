@@ -9,7 +9,6 @@ import {
   listMyOwnerTickets,
   markMyOwnerTicketRead,
   replyToMyOwnerTicket,
-  closeMyOwnerTicket,
 } from "@/lib/owner-tickets.functions";
 import { ArrowRight, ChevronDown, Loader2, MessageSquare, Plus, Send, Ticket, X, XCircle } from "lucide-react";
 
