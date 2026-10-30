@@ -51,6 +51,7 @@ export function SiteHeader() {
   });
   const isAdmin = hasAdminRole(roles);
   const hideClientLinks = signedIn && !isAdmin;
+  const onClientPortal = path.startsWith("/client-portal");
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
@@ -101,7 +102,7 @@ export function SiteHeader() {
           <span>العمران</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
-          {!hideClientLinks && (
+          {!hideClientLinks && !onClientPortal && (
             <>
               <Link
                 to="/projects"
@@ -212,12 +213,14 @@ export function SiteHeader() {
           >
             <Briefcase className="h-4 w-4" /> بوابة العملاء
           </Link>
-          <Link
-            to="/contact"
-            className="rounded-md bg-foreground px-3 sm:px-4 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
-          >
-            تواصل بنا
-          </Link>
+          {!onClientPortal && (
+            <Link
+              to="/contact"
+              className="rounded-md bg-foreground px-3 sm:px-4 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
+            >
+              تواصل بنا
+            </Link>
+          )}
         </nav>
       </div>
     </header>
