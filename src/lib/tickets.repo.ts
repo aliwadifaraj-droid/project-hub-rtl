@@ -15,7 +15,7 @@ const ticketsTableReady = db.execute(`
     client_read_admin_count INTEGER NOT NULL DEFAULT 0,
     client_company_name TEXT
   )
-`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN user_role TEXT NOT NULL DEFAULT 'client'`).catch(() => undefined)).then(() => undefined);
+`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN user_role TEXT NOT NULL DEFAULT 'client'`).catch(() => undefined)).then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_tickets_owner_created_at ON tickets(user_id, user_role, created_at DESC)`).catch(() => undefined)).then(() => undefined);
 
 const ticketMessagesTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -49,6 +49,13 @@ export type TicketRow = {
   unread_admin_message_count: number;
   requester_name: string;
   requester_email: string;
+};
+
+export type TicketListRow = {
+  id: string;
+  subject: string;
+  status: string;
+  created_at: number;
 };
 
 export type TicketMessageRow = {
@@ -136,17 +143,22 @@ export async function listTicketsByUser(userId: string): Promise<TicketRow[]> {
   return rowsToObjects(r).map(decodeTicket);
 }
 
-export async function listTicketsByUserAndRole(userId: string, userRole: string): Promise<TicketRow[]> {
+export async function listTicketsByUserAndRole(userId: string, userRole: string): Promise<TicketListRow[]> {
   await ensureTicketTables();
   const r = await db.execute(
-    `SELECT tickets.*,
-            (SELECT message FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message,
-            (SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS latest_message_sender,
-            MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
-     FROM tickets WHERE user_id = ? AND user_role = ? ORDER BY updated_at DESC`,
+    `SELECT id, subject, status, created_at
+     FROM tickets
+     WHERE user_id = ? AND user_role = ?
+     ORDER BY created_at DESC
+     LIMIT 20`,
     [userId, userRole],
   );
-  return rowsToObjects(r).map(decodeTicket);
+  return rowsToObjects(r).map((row) => ({
+    id: String(row.id),
+    subject: String(row.subject ?? ""),
+    status: String(row.status ?? "open"),
+    created_at: Number(row.created_at ?? 0),
+  }));
 }
 
 export async function listAllTickets(): Promise<TicketRow[]> {
@@ -290,4 +302,18 @@ export async function countOpenTicketsByUserAndOrder(userId: string, orderId: st
     [userId, orderId],
   );
   return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
+}
+
+export async function deleteTicket(id: string): Promise<void> {
+  await ensureTicketTables();
+  await db.batch([
+    {
+      sql: `DELETE FROM ticket_messages WHERE ticket_id = ?`,
+      args: [id],
+    },
+    {
+      sql: `DELETE FROM tickets WHERE id = ?`,
+      args: [id],
+    },
+  ]);
 }
