@@ -5,7 +5,7 @@ import { resolveImage, buildR2Url } from "@/data/projects";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
-import { MapPin, Clock, ArrowLeft, Star } from "lucide-react";
+import { MapPin, Clock, ArrowLeft } from "lucide-react";
 
 const projectsQuery = queryOptions({
   queryKey: ["projects"],
@@ -45,14 +45,6 @@ function HomePage() {
             <p className="mt-3 max-w-2xl text-muted-foreground">
               تصفح أحدث الفرص وقدّم عرضك مباشرة من خلال المنصة.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                to="/vip"
-                className="inline-flex items-center gap-2 rounded-lg border border-foreground/20 bg-background px-6 py-3 text-base font-bold text-foreground shadow-sm hover:bg-secondary transition"
-              >
-                <Star className="h-4 w-4" /> العملاء المميزون
-              </Link>
-            </div>
           </div>
         </section>
 
