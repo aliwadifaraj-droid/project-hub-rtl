@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/site-header";
@@ -11,6 +11,7 @@ import { submitVipSubscription } from "@/lib/vip.functions";
 import { runOcrOnImage } from "@/lib/receipt-ocr";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
+import { getClientSession } from "@/lib/client.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
@@ -123,9 +124,20 @@ function VipPage() {
 
   const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
+  const getSession = useServerFn(getClientSession);
   const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
+  const { data: clientSession } = useQuery({ queryKey: ["client-session"], queryFn: () => getSession() });
   const isAdmin = hasAdminRole(roles);
+
+  useEffect(() => {
+    if (!clientSession) return;
+    const { company_name, email: sessionEmail, profile } = clientSession;
+    const cityMatch = SAUDI_CITIES.find((c) => c === profile.city);
+    setName((v) => v || company_name);
+    setEmail((v) => v || sessionEmail);
+    if (cityMatch) setCity((v) => v || cityMatch);
+  }, [clientSession]);
 
   const maintenance = !!mx?.enabled;
   const selectedPlanObj = PLANS.find((p) => p.id === selectedPlan) ?? PLANS[0];
