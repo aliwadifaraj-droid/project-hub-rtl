@@ -107,6 +107,7 @@ export const getPlatformRequests = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const isAdmin = context.roles.includes("admin");
+
     const requests = await requestsRepo.listAllRequests();
     const offerNotifs = await notificationsRepo.listOfferNotificationsBySource("platform");
     const fromRequests = await Promise.all(requests.map(async (r) => {
@@ -241,7 +242,8 @@ export const updateRequestStatus = createServerFn({ method: "POST" })
         const statusColors: Record<string, string> = { pending: "#6b7280", new: "#2563eb", reviewing: "#d97706", accepted: "#16a34a", rejected: "#dc2626" };
         const label = statusLabels[data.status]?? data.status;
         const color = statusColors[data.status]?? "#111";
-        const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb"><div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb"><h2 style="margin:0 0 12px">تحديث حالة طلبك</h2><p>مرحباً،</p><p>نودّ إعلامك بأن حالة طلبك المتعلق بمشروع <strong>"${projectName}"</strong> قد تم تحديثها إلى:</p><p style="font-size:18px;font-weight:bold;color:${color};padding:12px;background:#f3f4f6;border-radius:6px;text-align:center">${label}</p><p>شكراً لاستخدامك <strong>منصة العمران</strong>.</p></div></div>`;
+        const acceptedNote = data.status === "accepted" ? `<p>يرجى التوجه إلى حسابك في لوحة العملاء وإنشاء تعميد لإكمال إجراءات الطلب.</p>` : "";
+        const html = `<div dir="rtl" style="font-family:Arial,sans-serif;padding:24px;background:#f9fafb"><div style="max-width:560px;margin:auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb"><h2 style="margin:0 0 12px">تحديث حالة طلبك</h2><p>مرحباً،</p><p>نودّ إعلامك بأن حالة طلبك المتعلق بمشروع <strong>"${projectName}"</strong> قد تم تحديثها إلى:</p><p style="font-size:18px;font-weight:bold;color:${color};padding:12px;background:#f3f4f6;border-radius:6px;text-align:center">${label}</p>${acceptedNote}<p>شكراً لاستخدامك <strong>منصة العمران</strong>.</p></div></div>`;
         try { await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ from: "Alamran <send@ali-alhaddad.com>", to: [req.email], subject: "تحديث حالة طلبك في منصة العمران", html }) }); } catch (e) { console.error("Resend send exception", e); }
       }
     }
@@ -437,6 +439,7 @@ export const adminReplyContactMessage = createServerFn({ method: "POST" })
   });
 
 const FIRST_ADMIN_EMAIL = "aliwadifaraj@gmail.com";
+
 export const signupFirstAdmin = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; password: string }) => z.object({ email: z.string().email().max(255), password: z.string().min(6).max(72) }).parse(d))
   .handler(async ({ data }) => {
