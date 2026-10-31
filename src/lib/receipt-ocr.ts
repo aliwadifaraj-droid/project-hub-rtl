@@ -97,7 +97,7 @@ async function prepareImageForOcr(file: File): Promise<File> {
     element.onerror = () => reject(new Error("تعذر تجهيز صورة الإيصال"));
     element.src = dataUrl;
   });
-  const maxDimension = 1800;
+  const maxDimension = 1200;
   const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -122,22 +122,19 @@ async function recognizeImage(file: File): Promise<string> {
   }
 }
 
-export async function runOcrOnImage(file: File, expectedAmount?: number): Promise<string> {
+export async function runOcrOnImage(file: File): Promise<string> {
   let preparedFile = file;
   try {
     preparedFile = await prepareImageForOcr(file);
   } catch (e) {
     console.warn("[receipt-ocr] image preparation failed, using original", e);
   }
-  const preparedText = await recognizeImage(preparedFile);
-  if (preparedFile === file || parseOcrText(preparedText, expectedAmount).amount !== null) return preparedText;
-  const originalText = await recognizeImage(file);
-  return parseOcrText(originalText, expectedAmount).amount !== null ? originalText : preparedText;
+  return recognizeImage(preparedFile);
 }
 
 export async function scanReceiptFile(file: File, expectedAmount?: number): Promise<OcrResult> {
   try {
-    const text = await runOcrOnImage(file, expectedAmount);
+    const text = await runOcrOnImage(file);
     return parseOcrText(text, expectedAmount);
   } catch (e) {
     console.error("[receipt-ocr] Tesseract failed", e);
