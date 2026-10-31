@@ -51,7 +51,7 @@ export function SiteHeader() {
   });
   const isAdmin = hasAdminRole(roles);
   const hideClientLinks = signedIn && !isAdmin;
-  const onClientPortal = path.startsWith("/client-portal");
+  const onClientPortal = path.startsWith("/client-portal") || path.startsWith("/client/");
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
