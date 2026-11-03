@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { signInTeacher } from "@/lib/haraj.functions";
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/haraj")({
 function TeacherLoginPage() {
   const navigate = useNavigate();
   const login = useServerFn(signInTeacher);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,8 @@ function TeacherLoginPage() {
   useEffect(() => {
     setError("");
   }, []);
+
+  if (pathname.startsWith("/haraj/register")) return <Outlet />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
