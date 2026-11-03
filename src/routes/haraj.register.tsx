@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Loader2, Check, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/haraj/register")({
   head: () => ({
@@ -287,6 +288,7 @@ function HarajRegisterPage() {
         </div>
       </main>
       <SiteFooter />
+      <Toaster />
     </div>
   );
 }
