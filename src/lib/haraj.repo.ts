@@ -12,9 +12,11 @@ const TEACHER_LOGIN_TABLE = `
 
 type RawRow = Record<string, unknown>;
 
-async function marketColumns(): Promise<Set<string>> {
+async function marketColumns(): Promise<Map<string, string>> {
   const result = await db.execute("PRAGMA table_info(teachers_market)");
-  return new Set(rowsToObjects<RawRow>(result).map((row) => String(row.name)));
+  return new Map(
+    rowsToObjects<RawRow>(result).map((row): [string, string] => [String(row.name), String(row.type ?? "")]),
+  );
 }
 
 async function loginColumns(): Promise<Set<string>> {
@@ -30,7 +32,7 @@ async function ensureMarketStatus(): Promise<void> {
   }
 }
 
-function firstColumn(columns: Set<string>, names: string[]): string | null {
+function firstColumn(columns: { has(name: string): boolean }, names: string[]): string | null {
   return names.find((name) => columns.has(name)) ?? null;
 }
 
@@ -118,19 +120,24 @@ export async function insertTeacher(input: {
     throw new Error("أعمدة جدول المعلمين الحالية لا تطابق نموذج التسجيل");
   }
 
+  const idIsInteger = (columns.get(idColumn) ?? "").toUpperCase() === "INTEGER";
   const id = crypto.randomUUID();
   const createdColumn = firstColumn(columns, ["created_at", "registered_at", "createdAt"]);
-  const insertColumns = [idColumn, nameColumn, phoneColumn, cityColumn, professionColumn, emailColumn, "status"];
-  const values: unknown[] = [id, input.full_name, input.phone, input.city, input.profession, input.email, "active"];
+  const insertColumns = [nameColumn, phoneColumn, cityColumn, professionColumn, emailColumn, "status"];
+  const values: unknown[] = [input.full_name, input.phone, input.city, input.profession, input.email, "active"];
+  if (!idIsInteger) {
+    insertColumns.unshift(idColumn);
+    values.unshift(id);
+  }
   if (createdColumn) {
     insertColumns.push(createdColumn);
     values.push(new Date().toISOString());
   }
-  await db.execute(
+  const result = await db.execute(
     `INSERT INTO teachers_market (${insertColumns.join(",")}) VALUES (${insertColumns.map(() => "?").join(",")})`,
     values,
   );
-  return id;
+  return idIsInteger ? String(result.lastInsertRowid) : id;
 }
 
 export async function updateTeacherStatus(id: string, status: string): Promise<void> {
