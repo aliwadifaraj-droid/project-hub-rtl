@@ -78,7 +78,10 @@ export async function listAllTeachers(): Promise<TeacherMarketRow[]> {
 
 export async function getTeacherById(id: string): Promise<TeacherMarketRow | null> {
   await ensureMarketStatus();
-  const result = await db.execute("SELECT * FROM teachers_market WHERE id = ? LIMIT 1", [id]);
+  const columns = await marketColumns();
+  const idColumn = firstColumn(columns, ["id", "uuid", "teacher_id"]);
+  if (!idColumn) return null;
+  const result = await db.execute(`SELECT * FROM teachers_market WHERE ${idColumn} = ? LIMIT 1`, [id]);
   const rows = rowsToObjects<RawRow>(result);
   return rows[0] ? decodeTeacher(rows[0]) : null;
 }
@@ -123,9 +126,8 @@ export async function insertTeacher(input: {
     insertColumns.push(createdColumn);
     values.push(new Date().toISOString());
   }
-  const placeholders = insertColumns.map(() => "?").join(",");
   await db.execute(
-    `INSERT INTO teachers_market (${insertColumns.join(",")}) VALUES (${placeholders})`,
+    `INSERT INTO teachers_market (${insertColumns.join(",")}) VALUES (${insertColumns.map(() => "?").join(",")})`,
     values,
   );
   return id;
@@ -133,11 +135,17 @@ export async function insertTeacher(input: {
 
 export async function updateTeacherStatus(id: string, status: string): Promise<void> {
   await ensureMarketStatus();
-  await db.execute("UPDATE teachers_market SET status = ? WHERE id = ?", [status, id]);
+  const columns = await marketColumns();
+  const idColumn = firstColumn(columns, ["id", "uuid", "teacher_id"]);
+  if (!idColumn) throw new Error("معرّف جدول المعلمين غير موجود");
+  await db.execute(`UPDATE teachers_market SET status = ? WHERE ${idColumn} = ?`, [status, id]);
 }
 
 export async function deleteTeacher(id: string): Promise<void> {
-  await db.execute("DELETE FROM teachers_market WHERE id = ?", [id]);
+  const columns = await marketColumns();
+  const idColumn = firstColumn(columns, ["id", "uuid", "teacher_id"]);
+  if (!idColumn) throw new Error("معرّف جدول المعلمين غير موجود");
+  await db.execute(`DELETE FROM teachers_market WHERE ${idColumn} = ?`, [id]);
 }
 
 export async function findLoginByEmail(email: string): Promise<TeacherLoginRow | null> {
@@ -145,10 +153,7 @@ export async function findLoginByEmail(email: string): Promise<TeacherLoginRow |
   const emailColumn = firstColumn(columns, ["email", "email_address"]);
   const passwordColumn = firstColumn(columns, ["password_hash", "password", "encrypted_password"]);
   if (!emailColumn || !passwordColumn) return null;
-  const result = await db.execute(
-    `SELECT * FROM teachers WHERE lower(${emailColumn}) = lower(?) LIMIT 1`,
-    [email],
-  );
+  const result = await db.execute(`SELECT * FROM teachers WHERE lower(${emailColumn}) = lower(?) LIMIT 1`, [email]);
   const rows = rowsToObjects<RawRow>(result);
   if (!rows[0]) return null;
   return {
