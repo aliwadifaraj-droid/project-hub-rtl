@@ -1,19 +1,43 @@
-// Turso repository for `teachers_market` (profiles) and `teachers` (login).
+// Turso repository for the existing teachers_market table and teachers login table.
 import { db, rowsToObjects } from "./db";
 
-// Ensure the teachers login table exists (idempotent).
-db.execute(`
+const TEACHER_LOGIN_TABLE = `
   CREATE TABLE IF NOT EXISTS teachers (
-    id            TEXT PRIMARY KEY,
-    email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash TEXT NOT NULL,
-    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )
-`).catch(() => undefined);
+`;
 
-db.execute(`
-  CREATE INDEX IF NOT EXISTS idx_teachers_email ON teachers(email)
-`).catch(() => undefined);
+type RawRow = Record<string, unknown>;
+
+async function marketColumns(): Promise<Set<string>> {
+  const result = await db.execute("PRAGMA table_info(teachers_market)");
+  return new Set(rowsToObjects<RawRow>(result).map((row) => String(row.name)));
+}
+
+async function loginColumns(): Promise<Set<string>> {
+  await db.execute(TEACHER_LOGIN_TABLE);
+  const result = await db.execute("PRAGMA table_info(teachers)");
+  return new Set(rowsToObjects<RawRow>(result).map((row) => String(row.name)));
+}
+
+async function ensureMarketStatus(): Promise<void> {
+  const columns = await marketColumns();
+  if (!columns.has("status")) {
+    await db.execute("ALTER TABLE teachers_market ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
+  }
+}
+
+function firstColumn(columns: Set<string>, names: string[]): string | null {
+  return names.find((name) => columns.has(name)) ?? null;
+}
+
+function value(row: RawRow, names: string[], fallback = ""): string {
+  const key = names.find((name) => row[name] !== undefined && row[name] !== null);
+  return key ? String(row[key]) : fallback;
+}
 
 export type TeacherMarketRow = {
   id: string;
@@ -22,7 +46,7 @@ export type TeacherMarketRow = {
   city: string;
   profession: string;
   email: string;
-  status: string; // active | banned
+  status: string;
   created_at: string;
 };
 
@@ -33,51 +57,42 @@ export type TeacherLoginRow = {
   created_at: string;
 };
 
-function decodeTeacher(r: any): TeacherMarketRow {
+function decodeTeacher(row: RawRow): TeacherMarketRow {
   return {
-    id: String(r.id),
-    full_name: String(r.full_name ?? ""),
-    phone: String(r.phone ?? ""),
-    city: String(r.city ?? ""),
-    profession: String(r.profession ?? ""),
-    email: String(r.email ?? ""),
-    status: String(r.status ?? "active"),
-    created_at: String(r.created_at ?? ""),
+    id: value(row, ["id", "uuid", "teacher_id"]),
+    full_name: value(row, ["full_name", "name", "teacher_name", "fullName"]),
+    phone: value(row, ["phone", "phone_number", "mobile", "mobile_number"]),
+    city: value(row, ["city", "location", "region"]),
+    profession: value(row, ["profession", "job", "occupation", "specialty"]),
+    email: value(row, ["email", "email_address"]),
+    status: value(row, ["status"], "active"),
+    created_at: value(row, ["created_at", "registered_at", "createdAt"]),
   };
 }
 
-const MARKET_COLS =
-  "id,full_name,phone,city,profession,email,status,created_at";
-
 export async function listAllTeachers(): Promise<TeacherMarketRow[]> {
-  const r = await db.execute(
-    `SELECT ${MARKET_COLS} FROM teachers_market ORDER BY created_at DESC LIMIT 500`,
-  );
-  return rowsToObjects(r).map(decodeTeacher);
-}
-
-export async function listActiveTeachers(): Promise<TeacherMarketRow[]> {
-  const r = await db.execute(
-    `SELECT ${MARKET_COLS} FROM teachers_market WHERE status = 'active' ORDER BY created_at DESC LIMIT 500`,
-  );
-  return rowsToObjects(r).map(decodeTeacher);
+  await ensureMarketStatus();
+  const result = await db.execute("SELECT * FROM teachers_market ORDER BY rowid DESC LIMIT 500");
+  return rowsToObjects<RawRow>(result).map(decodeTeacher);
 }
 
 export async function getTeacherById(id: string): Promise<TeacherMarketRow | null> {
-  const r = await db.execute(
-    `SELECT ${MARKET_COLS} FROM teachers_market WHERE id = ? LIMIT 1`,
-    [id],
-  );
-  const rows = rowsToObjects(r);
+  await ensureMarketStatus();
+  const result = await db.execute("SELECT * FROM teachers_market WHERE id = ? LIMIT 1", [id]);
+  const rows = rowsToObjects<RawRow>(result);
   return rows[0] ? decodeTeacher(rows[0]) : null;
 }
 
 export async function findTeacherByEmail(email: string): Promise<TeacherMarketRow | null> {
-  const r = await db.execute(
-    `SELECT ${MARKET_COLS} FROM teachers_market WHERE lower(email) = lower(?) LIMIT 1`,
+  await ensureMarketStatus();
+  const columns = await marketColumns();
+  const emailColumn = firstColumn(columns, ["email", "email_address"]);
+  if (!emailColumn) return null;
+  const result = await db.execute(
+    `SELECT * FROM teachers_market WHERE lower(${emailColumn}) = lower(?) LIMIT 1`,
     [email],
   );
-  const rows = rowsToObjects(r);
+  const rows = rowsToObjects<RawRow>(result);
   return rows[0] ? decodeTeacher(rows[0]) : null;
 }
 
@@ -88,52 +103,85 @@ export async function insertTeacher(input: {
   profession: string;
   email: string;
 }): Promise<string> {
+  await ensureMarketStatus();
+  const columns = await marketColumns();
+  const idColumn = firstColumn(columns, ["id", "uuid", "teacher_id"]);
+  const nameColumn = firstColumn(columns, ["full_name", "name", "teacher_name", "fullName"]);
+  const phoneColumn = firstColumn(columns, ["phone", "phone_number", "mobile", "mobile_number"]);
+  const cityColumn = firstColumn(columns, ["city", "location", "region"]);
+  const professionColumn = firstColumn(columns, ["profession", "job", "occupation", "specialty"]);
+  const emailColumn = firstColumn(columns, ["email", "email_address"]);
+  if (!idColumn || !nameColumn || !phoneColumn || !cityColumn || !professionColumn || !emailColumn) {
+    throw new Error("أعمدة جدول المعلمين الحالية لا تطابق نموذج التسجيل");
+  }
+
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+  const createdColumn = firstColumn(columns, ["created_at", "registered_at", "createdAt"]);
+  const insertColumns = [idColumn, nameColumn, phoneColumn, cityColumn, professionColumn, emailColumn, "status"];
+  const values: unknown[] = [id, input.full_name, input.phone, input.city, input.profession, input.email, "active"];
+  if (createdColumn) {
+    insertColumns.push(createdColumn);
+    values.push(new Date().toISOString());
+  }
+  const placeholders = insertColumns.map(() => "?").join(",");
   await db.execute(
-    `INSERT INTO teachers_market (id,full_name,phone,city,profession,email,status,created_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
-    [id, input.full_name, input.phone, input.city, input.profession, input.email, "active", now],
+    `INSERT INTO teachers_market (${insertColumns.join(",")}) VALUES (${placeholders})`,
+    values,
   );
   return id;
 }
 
 export async function updateTeacherStatus(id: string, status: string): Promise<void> {
-  await db.execute(`UPDATE teachers_market SET status = ? WHERE id = ?`, [status, id]);
+  await ensureMarketStatus();
+  await db.execute("UPDATE teachers_market SET status = ? WHERE id = ?", [status, id]);
 }
 
 export async function deleteTeacher(id: string): Promise<void> {
-  await db.execute(`DELETE FROM teachers_market WHERE id = ?`, [id]);
+  await db.execute("DELETE FROM teachers_market WHERE id = ?", [id]);
 }
 
-// ---- teachers login table ----
-
 export async function findLoginByEmail(email: string): Promise<TeacherLoginRow | null> {
-  const r = await db.execute(
-    `SELECT id,email,password_hash,created_at FROM teachers WHERE lower(email) = lower(?) LIMIT 1`,
+  const columns = await loginColumns();
+  const emailColumn = firstColumn(columns, ["email", "email_address"]);
+  const passwordColumn = firstColumn(columns, ["password_hash", "password", "encrypted_password"]);
+  if (!emailColumn || !passwordColumn) return null;
+  const result = await db.execute(
+    `SELECT * FROM teachers WHERE lower(${emailColumn}) = lower(?) LIMIT 1`,
     [email],
   );
-  const rows = rowsToObjects(r);
+  const rows = rowsToObjects<RawRow>(result);
   if (!rows[0]) return null;
-  const x = rows[0] as any;
   return {
-    id: String(x.id),
-    email: String(x.email ?? ""),
-    password_hash: String(x.password_hash ?? ""),
-    created_at: String(x.created_at ?? ""),
+    id: value(rows[0], ["id", "teacher_id"]),
+    email: value(rows[0], [emailColumn]),
+    password_hash: value(rows[0], [passwordColumn]),
+    created_at: value(rows[0], ["created_at", "registered_at"]),
   };
 }
 
 export async function insertLogin(email: string, passwordHash: string): Promise<string> {
+  const columns = await loginColumns();
+  const idColumn = firstColumn(columns, ["id", "teacher_id"]);
+  const emailColumn = firstColumn(columns, ["email", "email_address"]);
+  const passwordColumn = firstColumn(columns, ["password_hash", "password", "encrypted_password"]);
+  if (!idColumn || !emailColumn || !passwordColumn) throw new Error("جدول تسجيل دخول المعلمين غير مكتمل");
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+  const createdColumn = firstColumn(columns, ["created_at", "registered_at"]);
+  const insertColumns = [idColumn, emailColumn, passwordColumn];
+  const values: unknown[] = [id, email.toLowerCase(), passwordHash];
+  if (createdColumn) {
+    insertColumns.push(createdColumn);
+    values.push(new Date().toISOString());
+  }
   await db.execute(
-    `INSERT INTO teachers (id,email,password_hash,created_at) VALUES (?,?,?,?)`,
-    [id, email.toLowerCase(), passwordHash, now],
+    `INSERT INTO teachers (${insertColumns.join(",")}) VALUES (${insertColumns.map(() => "?").join(",")})`,
+    values,
   );
   return id;
 }
 
 export async function deleteLoginByEmail(email: string): Promise<void> {
-  await db.execute(`DELETE FROM teachers WHERE lower(email) = lower(?)`, [email]);
+  const columns = await loginColumns();
+  const emailColumn = firstColumn(columns, ["email", "email_address"]);
+  if (emailColumn) await db.execute(`DELETE FROM teachers WHERE lower(${emailColumn}) = lower(?)`, [email]);
 }
