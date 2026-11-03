@@ -31,7 +31,7 @@ export const signInTeacher = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ email: z.string().trim().email(), password: z.string().min(1) }).parse(d))
   .handler(async ({ data }) => {
     const teacher = await harajRepo.findLoginByEmail(data.email);
-    if (!teacher || !(await verifyPassword(data.password, teacher.password))) {
+    if (!teacher || !(await verifyPassword(data.password, teacher.password_hash))) {
       throw new Error("بيانات الدخول غير صحيحة");
     }
     const token = await signSessionToken({ sub: teacher.id, email: teacher.email, roles: ["teacher"] });
