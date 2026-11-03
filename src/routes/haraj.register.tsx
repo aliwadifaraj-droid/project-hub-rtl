@@ -45,6 +45,7 @@ function HarajRegisterPage() {
   const navigate = useNavigate();
   const register = useServerFn(registerTeacher);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     full_name: "",
@@ -88,7 +89,11 @@ function HarajRegisterPage() {
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!validate()) return;
+    setSubmitError("");
+    if (!validate()) {
+      setSubmitError("يرجى تصحيح الحقول المحددة بالأحمر ثم المحاولة مرة أخرى");
+      return;
+    }
     setSubmitting(true);
     try {
       await register({
@@ -104,8 +109,13 @@ function HarajRegisterPage() {
       });
       toast.success("تم التسجيل بنجاح! سيتم تحويلك لصفحة المعلمين.");
       navigate({ to: "/haraj", replace: true });
-    } catch (err: any) {
-      toast.error(err?.message ?? "حدث خطأ أثناء التسجيل");
+    } catch (err) {
+      console.error("Teacher registration failed", err);
+      setSubmitError(
+        err instanceof Error && err.message
+          ? `فشل التسجيل: ${err.message}`
+          : "فشل التسجيل: حدث خطأ غير متوقع في الخادم، حاول مرة أخرى",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -136,6 +146,7 @@ function HarajRegisterPage() {
           </div>
 
           <form
+            noValidate
             onSubmit={handleSubmit}
             className="space-y-5 rounded-2xl border border-border bg-card p-6 shadow-sm"
           >
@@ -149,7 +160,6 @@ function HarajRegisterPage() {
                 onChange={(e) => update("full_name", e.target.value)}
                 className={inputCls("full_name")}
                 placeholder="مثال: محمد عبدالله"
-                required
               />
               {errors.full_name && (
                 <p className="mt-1 text-xs text-destructive">{errors.full_name}</p>
@@ -167,7 +177,6 @@ function HarajRegisterPage() {
                 className={inputCls("phone")}
                 placeholder="05xxxxxxxx"
                 dir="ltr"
-                required
               />
               {errors.phone && (
                 <p className="mt-1 text-xs text-destructive">{errors.phone}</p>
@@ -182,7 +191,6 @@ function HarajRegisterPage() {
                 value={form.city}
                 onChange={(e) => update("city", e.target.value)}
                 className={inputCls("city")}
-                required
               >
                 <option value="">اختر المدينة</option>
                 {HARAJ_CITIES.map((c) => (
@@ -202,7 +210,6 @@ function HarajRegisterPage() {
                 value={form.profession}
                 onChange={(e) => update("profession", e.target.value)}
                 className={inputCls("profession")}
-                required
               >
                 <option value="">اختر المهنة</option>
                 {PROFESSIONS.map((p) => (
@@ -220,7 +227,6 @@ function HarajRegisterPage() {
                   onChange={(e) => update("profession_other", e.target.value)}
                   className={`mt-2 ${inputCls("profession_other")}`}
                   placeholder="اكتب مهنتك هنا"
-                  required
                 />
               )}
               {errors.profession_other && (
@@ -239,7 +245,6 @@ function HarajRegisterPage() {
                 className={inputCls("email")}
                 placeholder="example@email.com"
                 dir="ltr"
-                required
               />
               {errors.email && (
                 <p className="mt-1 text-xs text-destructive">{errors.email}</p>
@@ -257,13 +262,20 @@ function HarajRegisterPage() {
                 className={inputCls("password")}
                 placeholder="6 أحرف على الأقل"
                 dir="ltr"
-                minLength={6}
-                required
               />
               {errors.password && (
                 <p className="mt-1 text-xs text-destructive">{errors.password}</p>
               )}
             </div>
+
+            {submitError ? (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
+              >
+                {submitError}
+              </p>
+            ) : null}
 
             <button
               type="submit"
