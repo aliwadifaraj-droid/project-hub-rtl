@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   adminListTeachers, deleteTeacher, toggleBanTeacher,
-  createHarajOffer, listActiveHarajOffers, assignHarajTeacher,
+  createHarajOffer, listActiveHarajOffers, deleteHarajOffer, assignHarajTeacher,
   adminListTeacherSubscriptions, approveTeacherSubscription, rejectTeacherSubscription,
 } from "@/lib/haraj.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
@@ -545,16 +545,32 @@ function AddOfferForm() {
 
 function ActiveOffersList() {
   const listOffers = useServerFn(listActiveHarajOffers);
+  const remove = useServerFn(deleteHarajOffer);
   const assign = useServerFn(assignHarajTeacher);
   const qc = useQueryClient();
   const [expandedOffer, setExpandedOffer] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-haraj-offers"],
     queryFn: () => listOffers(),
     refetchInterval: 15000,
   });
+
+  async function handleDelete(offer: AdminOffer) {
+    if (!confirm("حذف هذا العرض نهائياً؟ سيتم حذف الصور أيضاً ولا يمكن التراجع.")) return;
+    setDeleting(offer.id);
+    try {
+      await remove({ data: { id: offer.id } });
+      toast.success("تم حذف العرض والصور نهائياً");
+      qc.invalidateQueries({ queryKey: ["admin-haraj-offers"] });
+    } catch {
+      toast.error("تعذر حذف العرض، حاول مرة أخرى");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   async function handleAssign(offerId: string, teacherId: string) {
     if (!confirm("تثبيت هذا المعلم على العرض؟ سيختفي العرض من باقي المعلمين.")) return;
@@ -601,9 +617,21 @@ function ActiveOffersList() {
                 <span>{new Date(offer.created_at).toLocaleDateString("ar")}</span>
               </div>
             </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-600">
-              {offer.interests.length} مهتم
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-600">
+                {offer.interests.length} مهتم
+              </span>
+              <button
+                type="button"
+                onClick={() => handleDelete(offer)}
+                disabled={deleting === offer.id || assigning === offer.id}
+                className="inline-flex items-center gap-1 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-60"
+                title="حذف العرض والصور نهائياً"
+              >
+                {deleting === offer.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                حذف
+              </button>
+            </div>
           </div>
 
           <p className="mb-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{offer.description}</p>
