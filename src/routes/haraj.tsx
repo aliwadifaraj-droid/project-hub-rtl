@@ -39,34 +39,38 @@ function TeacherLoginPage() {
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <SiteHeader />
-      <main className="container mx-auto px-4 py-14">
-        <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-7 shadow-sm">
-          <div className="mb-7 flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-xl bg-amber-500/15 text-amber-600">
-              <Hammer className="h-5 w-5" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold">دخول المعلمين</h1>
-              <p className="text-sm text-muted-foreground">لوحة المعلم في حراج المعلمين</p>
+      <main className="container mx-auto px-4 py-10 sm:py-16">
+        <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-elegant)]">
+          <div className="bg-[image:var(--gradient-hero)] px-6 py-8 text-primary-foreground sm:px-10">
+            <div className="flex items-center gap-4">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[image:var(--gradient-accent)] text-accent-foreground">
+                <Hammer />
+              </span>
+              <div>
+                <p className="text-sm opacity-80">منصة العمران</p>
+                <h1 className="text-2xl font-extrabold sm:text-3xl">دخول المعلمين</h1>
+              </div>
             </div>
+            <p className="mt-4 max-w-md text-sm leading-7 opacity-85">أدخل بيانات حسابك لإدارة ملفك المهني ومتابعة الطلبات في حراج المعلمين.</p>
           </div>
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-4 p-6 sm:p-10">
             <div>
-              <label className="mb-1.5 block text-sm font-semibold">البريد الإلكتروني</label>
-              <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} dir="ltr" className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+              <label className="mb-1.5 block text-sm font-semibold">البريد الإلكتروني *</label>
+              <input className="inp" type="email" required dir="ltr" value={email} onChange={(event) => setEmail(event.target.value)} />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-semibold">كلمة السر</label>
-              <input type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} dir="ltr" className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+              <label className="mb-1.5 block text-sm font-semibold">كلمة المرور *</label>
+              <input className="inp" type="password" minLength={6} required dir="ltr" value={password} onChange={(event) => setPassword(event.target.value)} />
             </div>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <button type="submit" disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-bold text-background transition hover:bg-foreground/90 disabled:opacity-60">
+            {error && <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</div>}
+            <button type="submit" disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-60">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
               تسجيل الدخول
             </button>
-            <Link to="/haraj/register" className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-semibold hover:bg-secondary">
+            <Link to="/haraj/register" className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 text-sm font-semibold transition hover:bg-secondary">
               <UserPlus className="h-4 w-4" /> إنشاء حساب معلم
             </Link>
+            <Link to="/" className="block text-center text-xs text-muted-foreground hover:text-foreground">العودة للموقع</Link>
           </form>
         </div>
       </main>
