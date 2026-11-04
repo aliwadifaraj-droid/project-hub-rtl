@@ -11,6 +11,7 @@ import { extractPlanAmountFromOcr, normalizeArabicDigits } from "@/lib/receipt-a
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
 import { getClientSession } from "@/lib/client.functions";
+import { getMyTeacherProfile } from "@/lib/haraj.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
@@ -93,9 +94,11 @@ export function TeacherSubscription() {
   const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
   const getSession = useServerFn(getClientSession);
+  const getTeacherProfile = useServerFn(getMyTeacherProfile);
   const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
   const { data: clientSession } = useQuery({ queryKey: ["client-session"], queryFn: () => getSession() });
+  const { data: teacherProfile } = useQuery({ queryKey: ["my-teacher-profile"], queryFn: () => getTeacherProfile(), retry: false });
   const isAdmin = hasAdminRole(roles);
 
   useEffect(() => {
@@ -106,6 +109,14 @@ export function TeacherSubscription() {
     setEmail((v) => v || sessionEmail);
     if (cityMatch) setCity((v) => v || cityMatch);
   }, [clientSession]);
+
+  useEffect(() => {
+    if (!teacherProfile) return;
+    const cityMatch = SAUDI_CITIES.find((c) => c === teacherProfile.city);
+    setName((v) => v || teacherProfile.full_name);
+    setEmail((v) => v || teacherProfile.email);
+    if (cityMatch) setCity((v) => v || cityMatch);
+  }, [teacherProfile]);
 
   const maintenance = !!mx?.enabled;
   const selectedPlanObj = PLANS.find((p) => p.id === selectedPlan) ?? PLANS[0];
