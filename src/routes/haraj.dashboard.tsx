@@ -32,6 +32,7 @@ type HarajOffer = {
   created_at: string;
   images: string[];
   has_interest?: boolean;
+  interest_block_reason?: string | null;
 };
 
 type HarajTask = {
@@ -64,6 +65,7 @@ function TeacherDashboardPage() {
   const [offers, setOffers] = useState<HarajOffer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
+  const [subscriptionCity, setSubscriptionCity] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [tasks, setTasks] = useState<HarajTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
@@ -98,6 +100,7 @@ function TeacherDashboardPage() {
       const res = await fetchOffers();
       setOffers(res.rows as HarajOffer[]);
       setUnreadCount(res.unread ?? 0);
+      setSubscriptionCity(res.subscription_city ?? null);
     } catch (err) {
       setOffersError(err instanceof Error ? err.message : "تعذر تحميل العروض");
     } finally {
@@ -256,7 +259,14 @@ function TeacherDashboardPage() {
 
           {openPanel === "offers" && (
             <section className="mx-auto max-w-md space-y-4">
-              <h2 className="text-lg font-bold">عروض الإدارة</h2>
+              <div className="space-y-1">
+                <h2 className="text-lg font-bold">عروض الإدارة</h2>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {subscriptionCity
+                    ? <>اشتراكك الفعّال في مدينة <span className="font-semibold text-foreground">{subscriptionCity}</span>. يمكنك إبداء الاهتمام بعروض هذه المدينة فقط.</>
+                    : "ليس لديك اشتراك فعّال حالياً. يمكنك الاطلاع على جميع العروض، وإبداء الاهتمام يتطلب اشتراكاً فعّالاً."}
+                </p>
+              </div>
               {offersLoading && (
                 <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> جاري التحميل...
@@ -267,7 +277,7 @@ function TeacherDashboardPage() {
               )}
               {!offersLoading && !offersError && offers.length === 0 && (
                 <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-                  لا توجد عروض متاحة في مدينتك حالياً
+                  لا توجد عروض متاحة حالياً
                 </div>
               )}
               {offers.map((offer) => (
@@ -292,6 +302,9 @@ function TeacherDashboardPage() {
                       ))}
                     </div>
                   )}
+                  {!offer.has_interest && offer.interest_block_reason && (
+                    <p className="mb-3 rounded-lg bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">{offer.interest_block_reason}</p>
+                  )}
                   <div className="flex items-center justify-between border-t border-border pt-3">
                     <span className="text-xs text-muted-foreground">{formatDate(offer.created_at)}</span>
                     {offer.has_interest ? (
@@ -303,7 +316,11 @@ function TeacherDashboardPage() {
                         type="button"
                         onClick={() => handleInterest(offer.id)}
                         disabled={interestPending === offer.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
+                          offer.interest_block_reason
+                            ? "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                            : "bg-primary text-primary-foreground hover:opacity-90"
+                        }`}
                       >
                         {interestPending === offer.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Heart className="h-3.5 w-3.5" />}
                         أنا مهتم

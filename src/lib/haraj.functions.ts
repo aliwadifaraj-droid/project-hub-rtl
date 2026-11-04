@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as harajRepo from "./haraj.repo";
+import * as vipRepo from "./vip.repo";
 import { hashPassword, verifyPassword, setSessionCookie, signSessionToken } from "./auth.server";
 import { SAUDI_CITIES } from "./saudi-cities";
 import { insertOne as insertNotification } from "./notifications.repo";
@@ -141,12 +142,30 @@ export const listActiveHarajOffers = createServerFn({ method: "GET" })
     return { rows: result };
   });
 
+async function getTeacherSubscriptionCity(email: string): Promise<string | null> {
+  const subscription = await vipRepo.getActiveVipByEmail(email);
+  if (!subscription?.city) return null;
+  if (subscription.expires_at && new Date(subscription.expires_at).getTime() < Date.now()) return null;
+  return subscription.city;
+}
+
+function getInterestBlockReason(offerCity: string, subscriptionCity: string | null): string | null {
+  if (!subscriptionCity) {
+    return "لا يوجد لديك اشتراك فعّال. اشترك من زر اشتراكي حتى تتمكن من إبداء الاهتمام بالعروض";
+  }
+  if (subscriptionCity !== offerCity) {
+    return `هذا العرض في مدينة ${offerCity}، واشتراكك الفعّال في مدينة ${subscriptionCity}`;
+  }
+  return null;
+}
+
 export const getMyHarajOffers = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const teacher = await harajRepo.findTeacherByEmail(context.email);
     if (!teacher) throw new Error("لم يتم العثور على بيانات التسجيل");
-    const offers = await harajRepo.listOffersByCity(teacher.city);
+    const subscriptionCity = await getTeacherSubscriptionCity(context.email);
+    const offers = await harajRepo.listActiveHarajOffers();
     const result = await Promise.all(
       offers.map(async (o) => {
         const interested = await harajRepo.hasTeacherExpressedInterest(o.id, teacher.id);
@@ -155,10 +174,20 @@ export const getMyHarajOffers = createServerFn({ method: "GET" })
               o.image_keys.split(",").filter(Boolean).map((k) => resolveStoredFileUrl(k)),
             )
           : [];
-        return { ...o, images, has_interest: interested, owner_phone: "" };
+        return {
+          ...o,
+          images,
+          has_interest: interested,
+          owner_phone: "",
+          interest_block_reason: getInterestBlockReason(o.city, subscriptionCity),
+        };
       }),
     );
-    return { rows: result, unread: result.filter((o) => !o.has_interest).length };
+    return {
+      rows: result,
+      unread: result.filter((o) => !o.has_interest).length,
+      subscription_city: subscriptionCity,
+    };
   });
 
 export const getMyHarajTasks = createServerFn({ method: "GET" })
@@ -191,7 +220,9 @@ export const expressHarajInterest = createServerFn({ method: "POST" })
     const offer = await harajRepo.getHarajOfferById(data.offer_id);
     if (!offer) throw new Error("العرض غير موجود");
     if (offer.status !== "active") throw new Error("هذا العرض لم يعد متاحاً");
-    if (offer.city !== teacher.city) throw new Error("هذا العرض متاح فقط لمعلمي نفس المدينة");
+    const subscriptionCity = await getTeacherSubscriptionCity(context.email);
+    const blockReason = getInterestBlockReason(offer.city, subscriptionCity);
+    if (blockReason) throw new Error(blockReason);
     await harajRepo.insertInterest({
       offer_id: data.offer_id,
       teacher_id: teacher.id,
