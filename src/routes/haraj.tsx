@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tan
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { signInTeacher } from "@/lib/haraj.functions";
+import { saveStoredTeacher } from "@/lib/haraj-teacher-storage";
 import { SiteHeader } from "@/components/site-header";
 import { Loader2, Hammer, Lock, UserPlus } from "lucide-react";
 
@@ -23,15 +24,16 @@ function TeacherLoginPage() {
     setError("");
   }, []);
 
-  if (pathname.startsWith("/haraj/register")) return <Outlet />;
+  if (pathname.startsWith("/haraj/register") || pathname.startsWith("/haraj/dashboard")) return <Outlet />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await login({ data: { email, password } });
-      navigate({ to: "/haraj", replace: true });
+      const result = await login({ data: { email, password } });
+      saveStoredTeacher(result.teacher);
+      navigate({ to: "/haraj/dashboard", replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ أثناء تسجيل الدخول");
     } finally {
