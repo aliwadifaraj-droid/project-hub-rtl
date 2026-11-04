@@ -40,6 +40,14 @@ export const signInTeacher = createServerFn({ method: "POST" })
     return { ok: true, name: market?.full_name ?? "" };
   });
 
+export const getMyTeacherProfile = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const teacher = await harajRepo.findTeacherByEmail(context.email);
+    if (!teacher) throw new Error("لم يتم العثور على بيانات التسجيل");
+    return teacher;
+  });
+
 export const listTeachers = createServerFn({ method: "GET" }).handler(async () => []);
 
 export const adminListTeachers = createServerFn({ method: "GET" })
