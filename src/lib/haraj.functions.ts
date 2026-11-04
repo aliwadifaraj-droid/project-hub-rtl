@@ -36,7 +36,8 @@ export const signInTeacher = createServerFn({ method: "POST" })
     }
     const token = await signSessionToken({ sub: teacher.id, email: teacher.email, roles: ["teacher"] });
     setSessionCookie(token);
-    return { ok: true, teacher: { id: teacher.id, email: teacher.email } };
+    const market = await harajRepo.findTeacherByEmail(data.email);
+    return { ok: true, name: market?.full_name ?? "" };
   });
 
 export const listTeachers = createServerFn({ method: "GET" }).handler(async () => []);
