@@ -323,7 +323,7 @@ function TeacherDashboardPage() {
                         }`}
                       >
                         {interestPending === offer.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Heart className="h-3.5 w-3.5" />}
-                        أنا مهتم
+                        احجز العرض
                       </button>
                     )}
                   </div>
