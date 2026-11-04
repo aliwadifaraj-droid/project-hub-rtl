@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth-middleware.server";
 import * as harajRepo from "./haraj.repo";
-import * as vipRepo from "./vip.repo";
 import { hashPassword, verifyPassword, setSessionCookie, signSessionToken } from "./auth.server";
 import { SAUDI_CITIES } from "./saudi-cities";
 import { insertOne as insertNotification } from "./notifications.repo";
@@ -143,7 +142,7 @@ export const listActiveHarajOffers = createServerFn({ method: "GET" })
   });
 
 async function getTeacherSubscriptionCity(email: string): Promise<string | null> {
-  const subscription = await vipRepo.getActiveVipByEmail(email);
+  const subscription = await harajRepo.getActiveTeacherSubscriptionByEmail(email);
   if (!subscription?.city) return null;
   if (subscription.expires_at && new Date(subscription.expires_at).getTime() < Date.now()) return null;
   return subscription.city;
@@ -255,5 +254,88 @@ export const assignHarajTeacher = createServerFn({ method: "POST" })
       body: offer.work_name,
       link: "/haraj/dashboard",
     });
+    return { ok: true };
+  });
+
+// ─── Teacher Subscriptions (اشتراك المعلمين — مستقل عن اشتراك العملاء) ───
+
+const subscribeSchema = z.object({
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  email: z.string().trim().email("بريد إلكتروني غير صحيح"),
+  plan: z.string().trim().min(1, "اختر الباقة"),
+  city: z.string().trim().min(1, "اختر المدينة"),
+  receipt_path: z.string().trim().min(1, "إيصال التحويل مطلوب"),
+});
+
+export const submitTeacherSubscription = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => subscribeSchema.parse(d))
+  .handler(async ({ data }) => {
+    const id = await harajRepo.insertTeacherSubscription({
+      teacher_email: data.email,
+      name: data.name,
+      plan: data.plan,
+      city: data.city,
+      receipt_path: data.receipt_path,
+    });
+    const admins = (await (await import("./users.repo")).listUsersWithRoles(500)).filter((u) => u.roles.includes("admin"));
+    if (admins.length > 0) {
+      const { insertMany } = await import("./notifications.repo");
+      await insertMany(
+        admins.map((a) => ({
+          user_id: a.id,
+          title: "طلب اشتراك معلم جديد",
+          body: "تم رفع إيصال اشتراك معلم بانتظار الموافقة",
+          link: "/admin/haraj",
+        })),
+      );
+    }
+    return { id };
+  });
+
+export const getMyTeacherSubscription = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }) => {
+    const sub = await harajRepo.getActiveTeacherSubscriptionByEmail(context.email);
+    if (!sub) return { status: null as string | null, city: null as string | null, expires_at: null as string | null };
+    const expired = sub.expires_at ? new Date(sub.expires_at).getTime() < Date.now() : false;
+    return {
+      status: expired ? "expired" : sub.status,
+      city: sub.city || null,
+      expires_at: sub.expires_at || null,
+    };
+  });
+
+export const adminListTeacherSubscriptions = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    return harajRepo.listAllTeacherSubscriptions();
+  });
+
+export const approveTeacherSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ id: z.string() }).parse(d))
+  .handler(async ({ data }) => {
+    const row = await harajRepo.updateTeacherSubscriptionStatus(data.id, "active");
+    if (!row) throw new Error("الاشتراك غير موجود");
+    if (row.teacher_email) {
+      try {
+        const { sendResendEmail } = await import("./resend-send.server");
+        await sendResendEmail({
+          to: row.teacher_email,
+          subject: "تم تفعيل اشتراك المعلم ✅",
+          html: `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px"><h2>مرحباً ${row.name},</h2><p>تم <strong>تفعيل</strong> اشتراكك في حراج المعلمين بنجاح.</p><p>يمكنك الآن إبداء الاهتمام بالعروض في مدينة ${row.city}.</p></div>`,
+        });
+      } catch (e) {
+        console.error("teacher subscription approval email error", e);
+      }
+    }
+    return { ok: true };
+  });
+
+export const rejectTeacherSubscription = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ id: z.string() }).parse(d))
+  .handler(async ({ data }) => {
+    await harajRepo.updateTeacherSubscriptionStatus(data.id, "rejected");
     return { ok: true };
   });
