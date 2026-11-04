@@ -36,7 +36,7 @@ export const signInTeacher = createServerFn({ method: "POST" })
     }
     const token = await signSessionToken({ sub: teacher.id, email: teacher.email, roles: ["teacher"] });
     setSessionCookie(token);
-    return { ok: true };
+    return { ok: true, teacher: { id: teacher.id, email: teacher.email } };
   });
 
 export const listTeachers = createServerFn({ method: "GET" }).handler(async () => []);
