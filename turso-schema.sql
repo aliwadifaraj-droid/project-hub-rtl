@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS client_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_client_profiles_email ON client_profiles(lower(email));
 
--- ============ users (auth) ============
+-- ============ users (auth) ==========
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -162,15 +162,15 @@ CREATE TABLE IF NOT EXISTS project_submissions (
 
 -- ============ contact_messages ==========
 CREATE TABLE IF NOT EXISTS contact_messages (
-  id           TEXT PRIMARY KEY,
-  name         TEXT,
-  email        TEXT,
-  message      TEXT NOT NULL,
+  id         TEXT PRIMARY KEY,
+  name       TEXT,
+  email      TEXT,
+  message    TEXT NOT NULL,
   pdf_file_key TEXT,
   pdf_filename TEXT,
-  reply        TEXT,
-  replied_at   TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  reply      TEXT,
+  replied_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============ site_settings (singleton) ==========
@@ -199,14 +199,14 @@ CREATE TABLE IF NOT EXISTS bot_settings (
   id                          TEXT PRIMARY KEY,
   singleton                   INTEGER NOT NULL DEFAULT 1 UNIQUE,
   work_days                   TEXT NOT NULL DEFAULT '{"sun":true,"mon":true,"tue":true,"wed":true,"thu":true,"fri":false,"sat":false}',
-  work_start                  TEXT NOT NULL DEFAULT '09:00:00',
-  work_end                    TEXT NOT NULL DEFAULT '17:00:00',
-  off_hours_message           TEXT NOT NULL DEFAULT '',
-  fallback_message            TEXT NOT NULL DEFAULT '',
+  work_start                 TEXT NOT NULL DEFAULT '09:00:00',
+  work_end                   TEXT NOT NULL DEFAULT '17:00:00',
+  off_hours_message          TEXT NOT NULL DEFAULT '',
+  fallback_message           TEXT NOT NULL DEFAULT '',
   allow_escalation            INTEGER NOT NULL DEFAULT 1,
   show_suggested_questions    INTEGER NOT NULL DEFAULT 1,
   local_enabled               INTEGER NOT NULL DEFAULT 1,
-  local_system_prompt         TEXT NOT NULL DEFAULT '',
+  local_system_prompt        TEXT NOT NULL DEFAULT '',
   groq_enabled                INTEGER NOT NULL DEFAULT 1,
   gemini_system_instruction   TEXT NOT NULL DEFAULT '',
   gemini_dialect              TEXT NOT NULL DEFAULT 'سعودي',
@@ -352,7 +352,7 @@ CREATE TABLE IF NOT EXISTS blocked_users (
 );
 CREATE INDEX IF NOT EXISTS idx_blocked_users_company ON blocked_users(company_name);
 
--- ============ approval_tokens (client approval/تعميد) ============
+-- ============ approval_tokens (client approval/تعميد) ==========
 CREATE TABLE IF NOT EXISTS approval_tokens (
   id                 TEXT PRIMARY KEY,
   user_id            TEXT NOT NULL,
@@ -369,11 +369,11 @@ CREATE INDEX IF NOT EXISTS idx_approval_tokens_user ON approval_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_approval_tokens_token ON approval_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_approval_tokens_status ON approval_tokens(status);
 
--- ============ approval_tokens new columns ============
+-- ============ approval_tokens new columns ==========
 ALTER TABLE approval_tokens ADD COLUMN project_id TEXT;
 ALTER TABLE approval_tokens ADD COLUMN signature_image TEXT;
 
--- ============ approval_receipts ============
+-- ============ approval_receipts ==========
 CREATE TABLE IF NOT EXISTS approval_receipts (
   id           TEXT PRIMARY KEY,
   token_id     TEXT NOT NULL,
@@ -385,3 +385,23 @@ CREATE TABLE IF NOT EXISTS approval_receipts (
 );
 CREATE INDEX IF NOT EXISTS idx_approval_receipts_token ON approval_receipts(token_id);
 CREATE INDEX IF NOT EXISTS idx_approval_receipts_user ON approval_receipts(user_id);
+
+-- ============ teacher_subscriptions (اشتراك المعلمين — مستقل عن vip_subscribers) ==========
+CREATE TABLE IF NOT EXISTS teacher_subscriptions (
+  id             TEXT PRIMARY KEY,
+  teacher_email  TEXT NOT NULL,
+  name           TEXT NOT NULL DEFAULT '',
+  plan           TEXT NOT NULL DEFAULT '',
+  city           TEXT NOT NULL DEFAULT '',
+  status         TEXT NOT NULL DEFAULT 'pending',
+  receipt_path   TEXT,
+  expires_at     TEXT,
+  notes          TEXT,
+  ocr_bank       TEXT,
+  ocr_amount     TEXT,
+  ocr_date       TEXT,
+  ocr_time       TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_teacher_subs_email ON teacher_subscriptions(teacher_email);
+CREATE INDEX IF NOT EXISTS idx_teacher_subs_status ON teacher_subscriptions(status);
