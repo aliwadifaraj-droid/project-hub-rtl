@@ -308,7 +308,13 @@ export const getMyTeacherSubscription = createServerFn({ method: "GET" })
 export const adminListTeacherSubscriptions = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
-    return harajRepo.listAllTeacherSubscriptions();
+    const rows = await harajRepo.listAllTeacherSubscriptions();
+    return Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        receipt_url: r.receipt_path ? await resolveStoredFileUrl(r.receipt_path).catch(() => null) : null,
+      })),
+    );
   });
 
 export const approveTeacherSubscription = createServerFn({ method: "POST" })

@@ -5,17 +5,18 @@ import { useState } from "react";
 import {
   adminListTeachers, deleteTeacher, toggleBanTeacher,
   createHarajOffer, listActiveHarajOffers, assignHarajTeacher,
+  adminListTeacherSubscriptions, approveTeacherSubscription, rejectTeacherSubscription,
 } from "@/lib/haraj.functions";
 import { uploadFile as uploadStoredFile } from "@/lib/files.functions";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
-import { Loader2, Hammer, Trash2, Ban, Unlock, Plus, List, Upload, X, CheckCircle2, UserCheck, Phone, MapPin } from "lucide-react";
+import { Loader2, Hammer, Trash2, Ban, Unlock, Plus, List, Upload, X, CheckCircle2, UserCheck, Phone, MapPin, Star, Check, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/haraj")({
   component: AdminHarajPage,
 });
 
-type AdminTab = "teachers" | "add-offer" | "active-offers";
+type AdminTab = "teachers" | "add-offer" | "active-offers" | "subscriptions";
 
 type AdminOffer = {
   id: string;
@@ -73,6 +74,7 @@ function AdminHarajPage() {
 
   const tabs: { key: AdminTab; label: string; icon: typeof Hammer }[] = [
     { key: "teachers", label: "المعلمون", icon: Hammer },
+    { key: "subscriptions", label: "طلبات الاشتراك", icon: Star },
     { key: "add-offer", label: "إضافة عرض للمعلمين", icon: Plus },
     { key: "active-offers", label: "العروض النشطة", icon: List },
   ];
@@ -206,6 +208,154 @@ function AdminHarajPage() {
 
       {tab === "add-offer" && <AddOfferForm />}
       {tab === "active-offers" && <ActiveOffersList />}
+      {tab === "subscriptions" && <TeacherSubscriptionsTab />}
+    </div>
+  );
+}
+
+function TeacherSubscriptionsTab() {
+  const listFn = useServerFn(adminListTeacherSubscriptions);
+  const approveFn = useServerFn(approveTeacherSubscription);
+  const rejectFn = useServerFn(rejectTeacherSubscription);
+  const qc = useQueryClient();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin-teacher-subscriptions"],
+    queryFn: () => listFn(),
+  });
+
+  const approveMut = useMutation({
+    mutationFn: (id: string) => approveFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("تم تفعيل الاشتراك");
+      qc.invalidateQueries({ queryKey: ["admin-teacher-subscriptions"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rejectMut = useMutation({
+    mutationFn: (id: string) => rejectFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("تم رفض الطلب");
+      qc.invalidateQueries({ queryKey: ["admin-teacher-subscriptions"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const subs = (data ?? []) as Array<{
+    id: string;
+    teacher_email: string;
+    name: string;
+    plan: string;
+    city: string;
+    status: string;
+    expires_at: string | null;
+    receipt_path: string;
+    receipt_url: string | null;
+    created_at: string;
+  }>;
+
+  if (isLoading)
+    return (
+      <div className="grid place-items-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  if (error) return <p className="text-destructive">{(error as Error).message}</p>;
+
+  if (subs.length === 0)
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
+        لا توجد طلبات اشتراك حالياً.
+      </div>
+    );
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border bg-secondary/30 text-right">
+            <th className="px-4 py-3 font-semibold">الاسم</th>
+            <th className="px-4 py-3 font-semibold">البريد</th>
+            <th className="px-4 py-3 font-semibold">الباقة</th>
+            <th className="px-4 py-3 font-semibold">المدينة</th>
+            <th className="px-4 py-3 font-semibold">التاريخ</th>
+            <th className="px-4 py-3 font-semibold">الحالة</th>
+            <th className="px-4 py-3 font-semibold">الإيصال</th>
+            <th className="px-4 py-3 font-semibold">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {subs.map((s) => (
+            <tr key={s.id} className="border-b border-border/60 last:border-0 hover:bg-secondary/20 transition">
+              <td className="px-4 py-3 font-medium text-foreground">{s.name}</td>
+              <td className="px-4 py-3 text-muted-foreground" dir="ltr">{s.teacher_email}</td>
+              <td className="px-4 py-3 text-muted-foreground">{s.plan}</td>
+              <td className="px-4 py-3 text-muted-foreground">{s.city}</td>
+              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                {new Date(s.created_at).toLocaleDateString("ar")}
+              </td>
+              <td className="px-4 py-3">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    s.status === "active"
+                      ? "bg-green-500/15 text-green-600"
+                      : s.status === "pending"
+                        ? "bg-amber-500/15 text-amber-600"
+                        : s.status === "expired"
+                          ? "bg-gray-500/15 text-gray-600"
+                          : "bg-destructive/15 text-destructive"
+                  }`}
+                >
+                  {s.status === "active"
+                    ? "نشط"
+                    : s.status === "pending"
+                      ? "قيد المراجعة"
+                      : s.status === "expired"
+                        ? "منتهي"
+                        : "مرفوض"}
+                </span>
+              </td>
+              <td className="px-4 py-3">
+                {s.receipt_url ? (
+                  <a
+                    href={s.receipt_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-amber-600 hover:underline"
+                  >
+                    عرض
+                  </a>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                {s.status === "pending" && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => approveMut.mutate(s.id)}
+                      disabled={approveMut.isPending || rejectMut.isPending}
+                      className="inline-flex items-center gap-1 rounded-md border border-green-500/40 px-2.5 py-1.5 text-xs font-semibold text-green-600 transition hover:bg-green-500/10 disabled:opacity-60"
+                      title="تفعيل"
+                    >
+                      <Check className="h-3.5 w-3.5" /> تفعيل
+                    </button>
+                    <button
+                      onClick={() => rejectMut.mutate(s.id)}
+                      disabled={approveMut.isPending || rejectMut.isPending}
+                      className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2.5 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-60"
+                      title="رفض"
+                    >
+                      <XCircle className="h-3.5 w-3.5" /> رفض
+                    </button>
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

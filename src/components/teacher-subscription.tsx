@@ -3,15 +3,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
-import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } from "lucide-react";
+import { Star, Check, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } from "lucide-react";
 import { uploadPublicFile } from "@/lib/files.functions";
-import { submitVipSubscription } from "@/lib/vip.functions";
+import { submitTeacherSubscription, getMyTeacherProfile } from "@/lib/haraj.functions";
 import { runOcrOnImage } from "@/lib/receipt-ocr";
 import { extractPlanAmountFromOcr, normalizeArabicDigits } from "@/lib/receipt-amount";
-import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
-import { getClientSession } from "@/lib/client.functions";
-import { getMyTeacherProfile } from "@/lib/haraj.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { toast } from "sonner";
 import { SAUDI_CITIES } from "@/lib/saudi-cities";
@@ -73,7 +70,7 @@ function fileToBase64(file: File): Promise<string> {
 
 export function TeacherSubscription() {
   const navigate = useNavigate();
-  const subscribe = useServerFn(submitVipSubscription);
+  const subscribe = useServerFn(submitTeacherSubscription);
   const upload = useServerFn(uploadPublicFile);
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState<string>(PLANS[0].id);
@@ -91,24 +88,11 @@ export function TeacherSubscription() {
   const [ocrDate, setOcrDate] = useState("");
   const [ocrFailed, setOcrFailed] = useState(false);
 
-  const getMx = useServerFn(getVipMaintenance);
   const getRoles = useServerFn(getMyRoles);
-  const getSession = useServerFn(getClientSession);
   const getTeacherProfile = useServerFn(getMyTeacherProfile);
-  const { data: mx } = useQuery({ queryKey: ["vip-maintenance"], queryFn: () => getMx(), refetchInterval: 15000 });
   const { data: roles } = useQuery({ queryKey: ["my-roles"], queryFn: () => getRoles() });
-  const { data: clientSession } = useQuery({ queryKey: ["client-session"], queryFn: () => getSession() });
   const { data: teacherProfile } = useQuery({ queryKey: ["my-teacher-profile"], queryFn: () => getTeacherProfile(), retry: false });
   const isAdmin = hasAdminRole(roles);
-
-  useEffect(() => {
-    if (!clientSession) return;
-    const { company_name, email: sessionEmail, profile } = clientSession;
-    const cityMatch = SAUDI_CITIES.find((c) => c === profile.city);
-    setName((v) => v || company_name);
-    setEmail((v) => v || sessionEmail);
-    if (cityMatch) setCity((v) => v || cityMatch);
-  }, [clientSession]);
 
   useEffect(() => {
     if (!teacherProfile) return;
@@ -118,7 +102,6 @@ export function TeacherSubscription() {
     if (cityMatch) setCity((v) => v || cityMatch);
   }, [teacherProfile]);
 
-  const maintenance = !!mx?.enabled;
   const selectedPlanObj = PLANS.find((p) => p.id === selectedPlan) ?? PLANS[0];
 
   function goToStep2() {
@@ -206,7 +189,7 @@ export function TeacherSubscription() {
     setLoading(true);
     try {
       const data = await fileToBase64(file);
-      const res = await upload({ data: { filename: file.name, mime: file.type, purpose: "vip-receipt", data } });
+      const res = await upload({ data: { filename: file.name, mime: file.type, purpose: "teacher-receipt", data } });
       await subscribe({ data: { name: name.trim(), email: email.trim(), receipt_path: res.key, plan: selectedPlan, city } });
       setSubmitted(true);
     } catch (err) {
@@ -228,17 +211,11 @@ export function TeacherSubscription() {
         <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[image:var(--gradient-accent)] text-accent-foreground">
           <Star className="h-6 w-6" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">العملاء المميزون</h1>
-        <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وحول المبلغ بنكي، ثم ارفع إيصال الدفع.</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">اشتراك المعلمين</h1>
+        <p className="mt-2 text-muted-foreground">اختر الباقة المناسبة وحول المبلغ بنكي، ثم ارفع إيصال الدفع لتفعيل اشتراكك في حراج المعلمين.</p>
       </div>
 
-      {maintenance && !isAdmin ? (
-        <div className="mx-auto mt-10 max-w-xl rounded-xl border border-border bg-card p-10 text-center">
-          <Wrench className="mx-auto h-10 w-10 text-muted-foreground" />
-          <h2 className="mt-4 text-xl font-bold">الصفحة تحت الصيانة</h2>
-          <p className="mt-2 text-sm text-muted-foreground">نعتذر عن الإزعاج، سنعود قريباً.</p>
-        </div>
-      ) : submitted ? (
+      {submitted ? (
         <div className="mx-auto mt-10 max-w-xl rounded-xl border border-border bg-card p-10 text-center">
           <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-600">
             <Check className="h-7 w-7" />

@@ -382,3 +382,127 @@ export async function removeInterestsForOffer(offerId: string): Promise<void> {
   await ensureInterestTable();
   await db.execute(`DELETE FROM haraj_offer_interests WHERE offer_id = ?`, [offerId]);
 }
+
+// ─── Teacher Subscriptions (اشتراك المعلمين — مستقل عن اشتراك العملاء) ───
+
+export type TeacherSubscriptionRow = {
+  id: string;
+  teacher_email: string;
+  name: string;
+  plan: string;
+  city: string;
+  status: string;
+  expires_at: string | null;
+  receipt_path: string;
+  created_at: string;
+};
+
+function decodeTeacherSubscription(row: RawRow): TeacherSubscriptionRow {
+  return {
+    id: String(row.id),
+    teacher_email: String(row.teacher_email ?? ""),
+    name: String(row.name ?? ""),
+    plan: String(row.plan ?? ""),
+    city: String(row.city ?? ""),
+    status: String(row.status ?? "pending"),
+    expires_at: row.expires_at ? String(row.expires_at) : null,
+    receipt_path: String(row.receipt_path ?? ""),
+    created_at: String(row.created_at ?? ""),
+  };
+}
+
+async function ensureTeacherSubscriptionTable(): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS teacher_subscriptions (
+      id TEXT PRIMARY KEY,
+      teacher_email TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      plan TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      expires_at TEXT,
+      receipt_path TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  );
+}
+
+function planToDays(plan: string): number {
+  if (plan === "شهرين") return 60;
+  if (plan === "3 شهور") return 90;
+  return 30;
+}
+
+export async function insertTeacherSubscription(input: {
+  teacher_email: string;
+  name: string;
+  plan: string;
+  city: string;
+  receipt_path: string;
+}): Promise<string> {
+  await ensureTeacherSubscriptionTable();
+  const id = crypto.randomUUID();
+  await db.execute(
+    `INSERT INTO teacher_subscriptions (id, teacher_email, name, plan, city, status, receipt_path, created_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
+    [id, input.teacher_email, input.name, input.plan, input.city, input.receipt_path, new Date().toISOString()],
+  );
+  return id;
+}
+
+export async function getActiveTeacherSubscriptionByEmail(email: string): Promise<TeacherSubscriptionRow | null> {
+  await ensureTeacherSubscriptionTable();
+  const r = await db.execute(
+    `SELECT * FROM teacher_subscriptions
+      WHERE lower(teacher_email) = lower(?) AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1`,
+    [email],
+  );
+  const rows = rowsToObjects<RawRow>(r);
+  return rows[0] ? decodeTeacherSubscription(rows[0]) : null;
+}
+
+export async function listAllTeacherSubscriptions(): Promise<TeacherSubscriptionRow[]> {
+  await ensureTeacherSubscriptionTable();
+  const r = await db.execute(
+    `SELECT * FROM teacher_subscriptions ORDER BY created_at DESC LIMIT 500`,
+  );
+  return rowsToObjects<RawRow>(r).map(decodeTeacherSubscription);
+}
+
+export async function updateTeacherSubscriptionStatus(
+  id: string,
+  status: "active" | "rejected" | "expired",
+): Promise<TeacherSubscriptionRow | null> {
+  await ensureTeacherSubscriptionTable();
+  if (status === "active") {
+    const existing = await db.execute(
+      `SELECT plan FROM teacher_subscriptions WHERE id = ? LIMIT 1`,
+      [id],
+    );
+    const row = rowsToObjects<{ plan: string }>(existing)[0];
+    const days = planToDays(row?.plan ?? "شهر");
+    const expiresAt = new Date(Date.now() + days * 24 * 3600_000).toISOString();
+    await db.execute(
+      `UPDATE teacher_subscriptions SET status = ?, expires_at = ? WHERE id = ?`,
+      [status, expiresAt, id],
+    );
+  } else {
+    await db.execute(
+      `UPDATE teacher_subscriptions SET status = ?, expires_at = NULL WHERE id = ?`,
+      [status, id],
+    );
+  }
+  const r = await db.execute(`SELECT * FROM teacher_subscriptions WHERE id = ? LIMIT 1`, [id]);
+  const rows = rowsToObjects<RawRow>(r);
+  return rows[0] ? decodeTeacherSubscription(rows[0]) : null;
+}
+
+export async function markExpiredTeacherSubscriptions(): Promise<number> {
+  await ensureTeacherSubscriptionTable();
+  const r = await db.execute(
+    `UPDATE teacher_subscriptions SET status = 'expired'
+      WHERE status = 'active' AND expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')`,
+  );
+  return r.rowsAffected ?? 0;
+}
