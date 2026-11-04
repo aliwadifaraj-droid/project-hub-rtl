@@ -7,6 +7,7 @@ import { Star, Check, Wrench, ChevronLeft, ChevronDown, Upload, Copy, Loader2 } 
 import { uploadPublicFile } from "@/lib/files.functions";
 import { submitVipSubscription } from "@/lib/vip.functions";
 import { runOcrOnImage } from "@/lib/receipt-ocr";
+import { extractPlanAmountFromOcr, normalizeArabicDigits } from "@/lib/receipt-amount";
 import { getVipMaintenance } from "@/lib/site-settings.functions";
 import { getMyRoles } from "@/lib/admin.functions";
 import { getClientSession } from "@/lib/client.functions";
@@ -27,36 +28,6 @@ const PLANS = [
 ];
 
 const VALID_PLAN_AMOUNTS = [50, 100, 250];
-
-function normalizeArabicDigits(text: string): string {
-  return text.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
-}
-
-function extractAmountFromOcr(text: string): string {
-  const normalized = normalizeArabicDigits(text);
-  const patterns = [
-    /(?:المبلغ|amount|التحويل|transfer|قيمة|value|مبلغ)\s*[:：]?\s*(\d+(?:[.,]\d{1,2})?)/i,
-    /(\d+(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
-    /(\d{3,})\s*(?:ريال|sar|ر\.س|sr)/i,
-    /\b(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:ريال|sar|ر\.س|sr)/i,
-    /\b(\d{2,3}(?:[.,]\d{1,2})?)\b/,
-  ];
-  for (const p of patterns) {
-    const m = normalized.match(p);
-    if (m && m[1]) {
-      const num = Number(m[1].replace(/[,]/g, ""));
-      if (VALID_PLAN_AMOUNTS.includes(num)) return String(num);
-    }
-  }
-  for (const p of patterns) {
-    const m = normalized.match(p);
-    if (m && m[1]) {
-      const num = Number(m[1].replace(/[,]/g, ""));
-      if (num > 0) return String(num);
-    }
-  }
-  return "";
-}
 
 function extractDateFromOcr(text: string): string {
   const normalized = normalizeArabicDigits(text);
@@ -176,7 +147,7 @@ export function TeacherSubscription() {
     setOcrScanning(true);
     try {
       const text = await runOcrOnImage(file);
-      const amount = extractAmountFromOcr(text);
+      const amount = extractPlanAmountFromOcr(text, VALID_PLAN_AMOUNTS);
       const date = extractDateFromOcr(text);
       setOcrAmount(amount);
       setOcrDate(date);
