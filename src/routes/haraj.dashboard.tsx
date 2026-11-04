@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
+import { TeacherSubscription } from "@/components/teacher-subscription";
 import { getMyTeacherProfile } from "@/lib/haraj.functions";
 import type { TeacherMarketRow } from "@/lib/haraj.repo";
 
@@ -10,6 +11,8 @@ export const Route = createFileRoute("/haraj/dashboard")({
   head: () => ({ meta: [{ title: "لوحة المعلم — حراج المعلمين" }] }),
   component: TeacherDashboardPage,
 });
+
+type Panel = "profile" | "subscription";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "نشط",
@@ -25,8 +28,8 @@ function TeacherDashboardPage() {
   const navigate = useNavigate();
   const fetchProfile = useServerFn(getMyTeacherProfile);
   const [teacherName, setTeacherName] = useState<string | null>(null);
+  const [openPanel, setOpenPanel] = useState<Panel | null>(null);
   const [profile, setProfile] = useState<TeacherMarketRow | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
 
@@ -39,13 +42,7 @@ function TeacherDashboardPage() {
     setTeacherName(name);
   }, [navigate]);
 
-  async function toggleProfile() {
-    if (profileOpen) {
-      setProfileOpen(false);
-      return;
-    }
-    setProfileOpen(true);
-    if (profile) return;
+  async function loadProfile() {
     setProfileLoading(true);
     setProfileError("");
     try {
@@ -55,6 +52,15 @@ function TeacherDashboardPage() {
     } finally {
       setProfileLoading(false);
     }
+  }
+
+  function togglePanel(panel: Panel) {
+    if (openPanel === panel) {
+      setOpenPanel(null);
+      return;
+    }
+    setOpenPanel(panel);
+    if (panel === "profile" && !profile) void loadProfile();
   }
 
   function logout() {
@@ -80,33 +86,41 @@ function TeacherDashboardPage() {
     <div className="min-h-screen bg-background" dir="rtl">
       <SiteHeader />
       <main className="container mx-auto px-4 py-14">
-        <div className="mx-auto max-w-md space-y-6">
+        <div className="mx-auto max-w-xl space-y-6">
           <div
-            className="space-y-6 rounded-2xl p-8 text-center text-primary-foreground shadow-elegant"
+            className="mx-auto max-w-md space-y-6 rounded-2xl p-8 text-center text-primary-foreground shadow-elegant"
             style={{ backgroundImage: "var(--gradient-hero)" }}
           >
             <h1 className="text-2xl font-bold">مرحباً {teacherName}</h1>
             <div className="grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={toggleProfile}
-                aria-expanded={profileOpen}
+                onClick={() => togglePanel("profile")}
+                aria-expanded={openPanel === "profile"}
                 className="inline-flex w-full items-center justify-center rounded-lg bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
               >
                 بياناتي
               </button>
               <button
                 type="button"
+                onClick={() => togglePanel("subscription")}
+                aria-expanded={openPanel === "subscription"}
+                className="inline-flex w-full items-center justify-center rounded-lg bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
+              >
+                اشتراكي
+              </button>
+              <button
+                type="button"
                 onClick={logout}
-                className="inline-flex w-full items-center justify-center rounded-lg border border-primary-foreground/40 px-5 py-2.5 text-sm font-semibold transition hover:bg-primary-foreground/10"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-primary-foreground/40 px-5 py-2.5 text-sm font-semibold transition hover:bg-primary-foreground/10 sm:col-span-2"
               >
                 تسجيل الخروج
               </button>
             </div>
           </div>
 
-          {profileOpen && (
-            <section className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
+          {openPanel === "profile" && (
+            <section className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
               <h2 className="mb-4 text-lg font-bold">بيانات التسجيل</h2>
               {profileLoading && (
                 <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
@@ -128,6 +142,8 @@ function TeacherDashboardPage() {
               )}
             </section>
           )}
+
+          {openPanel === "subscription" && <TeacherSubscription />}
         </div>
       </main>
     </div>
