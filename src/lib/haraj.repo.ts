@@ -267,6 +267,13 @@ export async function listActiveHarajOffers(): Promise<HarajOfferRow[]> {
   return rowsToObjects<RawRow>(r).map(decodeOffer);
 }
 
+export async function deleteHarajOffer(id: string): Promise<void> {
+  await ensureOfferTable();
+  await ensureInterestTable();
+  await db.execute(`DELETE FROM haraj_offer_interests WHERE offer_id = ?`, [id]);
+  await db.execute(`DELETE FROM haraj_offers WHERE id = ?`, [id]);
+}
+
 export async function listOffersByCity(city: string): Promise<HarajOfferRow[]> {
   await ensureOfferTable();
   const r = await db.execute(
