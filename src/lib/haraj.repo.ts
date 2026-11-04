@@ -197,3 +197,188 @@ export async function deleteLoginByEmail(email: string): Promise<void> {
   const emailColumn = firstColumn(columns, ["email", "email_address"]);
   if (emailColumn) await db.execute(`DELETE FROM teachers WHERE lower(${emailColumn}) = lower(?)`, [email]);
 }
+
+// ─── Haraj Offers (إدارة → معلمين) ───────────────────────────────
+
+export type HarajOfferRow = {
+  id: string;
+  work_name: string;
+  description: string;
+  city: string;
+  owner_phone: string;
+  image_keys: string;
+  status: string;
+  assigned_teacher_id: string | null;
+  created_at: string;
+};
+
+function decodeOffer(row: RawRow): HarajOfferRow {
+  return {
+    id: String(row.id),
+    work_name: String(row.work_name ?? ""),
+    description: String(row.description ?? ""),
+    city: String(row.city ?? ""),
+    owner_phone: String(row.owner_phone ?? ""),
+    image_keys: String(row.image_keys ?? ""),
+    status: String(row.status ?? "active"),
+    assigned_teacher_id: row.assigned_teacher_id ? String(row.assigned_teacher_id) : null,
+    created_at: String(row.created_at ?? ""),
+  };
+}
+
+async function ensureOfferTable(): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS haraj_offers (
+      id TEXT PRIMARY KEY,
+      work_name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL,
+      owner_phone TEXT NOT NULL,
+      image_keys TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      assigned_teacher_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  );
+}
+
+export async function insertHarajOffer(input: {
+  work_name: string;
+  description: string;
+  city: string;
+  owner_phone: string;
+  image_keys: string;
+}): Promise<string> {
+  await ensureOfferTable();
+  const id = crypto.randomUUID();
+  await db.execute(
+    `INSERT INTO haraj_offers (id, work_name, description, city, owner_phone, image_keys, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+    [id, input.work_name, input.description, input.city, input.owner_phone, input.image_keys, new Date().toISOString()],
+  );
+  return id;
+}
+
+export async function listActiveHarajOffers(): Promise<HarajOfferRow[]> {
+  await ensureOfferTable();
+  const r = await db.execute(
+    `SELECT * FROM haraj_offers WHERE status = 'active' ORDER BY created_at DESC LIMIT 200`,
+  );
+  return rowsToObjects<RawRow>(r).map(decodeOffer);
+}
+
+export async function listOffersByCity(city: string): Promise<HarajOfferRow[]> {
+  await ensureOfferTable();
+  const r = await db.execute(
+    `SELECT * FROM haraj_offers WHERE status = 'active' AND city = ? ORDER BY created_at DESC LIMIT 200`,
+    [city],
+  );
+  return rowsToObjects<RawRow>(r).map(decodeOffer);
+}
+
+export async function getHarajOfferById(id: string): Promise<HarajOfferRow | null> {
+  await ensureOfferTable();
+  const r = await db.execute(`SELECT * FROM haraj_offers WHERE id = ? LIMIT 1`, [id]);
+  const rows = rowsToObjects<RawRow>(r);
+  return rows[0] ? decodeOffer(rows[0]) : null;
+}
+
+export async function assignTeacherToOffer(offerId: string, teacherId: string): Promise<void> {
+  await ensureOfferTable();
+  await db.execute(
+    `UPDATE haraj_offers SET status = 'assigned', assigned_teacher_id = ? WHERE id = ?`,
+    [teacherId, offerId],
+  );
+}
+
+export async function listAssignedOffersForTeacher(teacherId: string): Promise<HarajOfferRow[]> {
+  await ensureOfferTable();
+  const r = await db.execute(
+    `SELECT * FROM haraj_offers WHERE status = 'assigned' AND assigned_teacher_id = ? ORDER BY created_at DESC LIMIT 200`,
+    [teacherId],
+  );
+  return rowsToObjects<RawRow>(r).map(decodeOffer);
+}
+
+// ─── Haraj Offer Interests (معلم → أنا مهتم) ──────────────────────
+
+export type HarajInterestRow = {
+  id: string;
+  offer_id: string;
+  teacher_id: string;
+  teacher_name: string;
+  teacher_phone: string;
+  teacher_city: string;
+  teacher_profession: string;
+  created_at: string;
+};
+
+function decodeInterest(row: RawRow): HarajInterestRow {
+  return {
+    id: String(row.id),
+    offer_id: String(row.offer_id),
+    teacher_id: String(row.teacher_id),
+    teacher_name: String(row.teacher_name ?? ""),
+    teacher_phone: String(row.teacher_phone ?? ""),
+    teacher_city: String(row.teacher_city ?? ""),
+    teacher_profession: String(row.teacher_profession ?? ""),
+    created_at: String(row.created_at ?? ""),
+  };
+}
+
+async function ensureInterestTable(): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS haraj_offer_interests (
+      id TEXT PRIMARY KEY,
+      offer_id TEXT NOT NULL,
+      teacher_id TEXT NOT NULL,
+      teacher_name TEXT NOT NULL DEFAULT '',
+      teacher_phone TEXT NOT NULL DEFAULT '',
+      teacher_city TEXT NOT NULL DEFAULT '',
+      teacher_profession TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(offer_id, teacher_id)
+    )`,
+  );
+}
+
+export async function insertInterest(input: {
+  offer_id: string;
+  teacher_id: string;
+  teacher_name: string;
+  teacher_phone: string;
+  teacher_city: string;
+  teacher_profession: string;
+}): Promise<string> {
+  await ensureInterestTable();
+  const id = crypto.randomUUID();
+  await db.execute(
+    `INSERT OR IGNORE INTO haraj_offer_interests (id, offer_id, teacher_id, teacher_name, teacher_phone, teacher_city, teacher_profession, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, input.offer_id, input.teacher_id, input.teacher_name, input.teacher_phone, input.teacher_city, input.teacher_profession, new Date().toISOString()],
+  );
+  return id;
+}
+
+export async function listInterestsForOffer(offerId: string): Promise<HarajInterestRow[]> {
+  await ensureInterestTable();
+  const r = await db.execute(
+    `SELECT * FROM haraj_offer_interests WHERE offer_id = ? ORDER BY created_at ASC`,
+    [offerId],
+  );
+  return rowsToObjects<RawRow>(r).map(decodeInterest);
+}
+
+export async function hasTeacherExpressedInterest(offerId: string, teacherId: string): Promise<boolean> {
+  await ensureInterestTable();
+  const r = await db.execute(
+    `SELECT 1 FROM haraj_offer_interests WHERE offer_id = ? AND teacher_id = ? LIMIT 1`,
+    [offerId, teacherId],
+  );
+  return rowsToObjects(r).length > 0;
+}
+
+export async function removeInterestsForOffer(offerId: string): Promise<void> {
+  await ensureInterestTable();
+  await db.execute(`DELETE FROM haraj_offer_interests WHERE offer_id = ?`, [offerId]);
+}
