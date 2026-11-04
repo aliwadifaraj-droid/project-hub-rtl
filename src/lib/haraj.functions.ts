@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword, setSessionCookie, signSessionToken } from
 import { SAUDI_CITIES } from "./saudi-cities";
 import { insertOne as insertNotification } from "./notifications.repo";
 import { resolveStoredFileUrl } from "./storage-url";
+import { deleteFromR2 } from "./r2";
 
 const registerSchema = z.object({
   full_name: z.string().trim().min(2, "الاسم مطلوب").max(100),
@@ -139,6 +140,19 @@ export const listActiveHarajOffers = createServerFn({ method: "GET" })
       }),
     );
     return { rows: result };
+  });
+
+export const deleteHarajOffer = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ id: z.string().min(1) }).parse(d))
+  .handler(async ({ data }) => {
+    const offer = await harajRepo.getHarajOfferById(data.id);
+    if (!offer) throw new Error("العرض غير موجود");
+
+    const imageKeys = offer.image_keys.split(",").map((key) => key.trim()).filter(Boolean);
+    await Promise.all(imageKeys.map((key) => deleteFromR2(key)));
+    await harajRepo.deleteHarajOffer(data.id);
+    return { ok: true };
   });
 
 async function getTeacherSubscriptionCity(email: string): Promise<string | null> {
