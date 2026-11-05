@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Loader2, Briefcase, CheckCircle2, Phone, MapPin, Heart, Clapperboard } from "lucide-react";
+import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Bell, Ticket, Crown, LogOut, User, TrendingUp } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { TeacherSubscription } from "@/components/teacher-subscription";
 import { getMyTeacherProfile, getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
@@ -50,6 +50,9 @@ function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("ar-SA");
 }
+
+const TILE_BASE =
+  "relative inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-base font-bold transition hover:-translate-y-0.5 hover:shadow-md";
 
 function TeacherDashboardPage() {
   const navigate = useNavigate();
@@ -178,30 +181,34 @@ function TeacherDashboardPage() {
       <Toaster position="top-center" dir="rtl" />
       <main className="container mx-auto px-4 py-14">
         <div className="mx-auto max-w-xl space-y-6">
-          <div
-            className="space-y-6 rounded-2xl p-6 text-primary-foreground shadow-elegant sm:p-8"
-            style={{ backgroundImage: "var(--gradient-hero)" }}
-          >
-            <div>
-              <h1 className="text-xl font-bold">لوحة المعلم</h1>
-              <p className="text-sm text-primary-foreground/80">{teacherName}</p>
+          <div className="rounded-2xl border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-3">
+              <span className="grid h-12 w-12 place-items-center rounded-xl bg-[image:var(--gradient-accent)] text-accent-foreground">
+                <Building2 className="h-6 w-6" />
+              </span>
+              <div>
+                <h1 className="text-xl font-bold">لوحة المعلم</h1>
+                <p className="text-sm text-muted-foreground">مرحباً {teacherName}</p>
+              </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => togglePanel("subscription")}
                 aria-expanded={openPanel === "subscription"}
-                className="inline-flex w-full items-center justify-center rounded-full bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
+                className={`${TILE_BASE} border-emerald-300 bg-emerald-50 text-emerald-800`}
               >
+                <Bell className="h-5 w-5" />
                 اشتراكي
               </button>
               <button
                 type="button"
                 onClick={() => togglePanel("offers")}
                 aria-expanded={openPanel === "offers"}
-                className="relative inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
+                className={`${TILE_BASE} border-emerald-300 bg-emerald-50 text-emerald-800`}
               >
-                <Clapperboard className="h-4 w-4" />
+                <Ticket className="h-5 w-5" />
                 عروض الإدارة
                 {unreadCount > 0 && (
                   <span className="absolute -top-1.5 -end-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
@@ -213,12 +220,12 @@ function TeacherDashboardPage() {
                 type="button"
                 onClick={() => togglePanel("tasks")}
                 aria-expanded={openPanel === "tasks"}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
+                className={`${TILE_BASE} border-amber-300 bg-amber-50 text-amber-800`}
               >
-                <Briefcase className="h-4 w-4" />
+                <Crown className="h-5 w-5" />
                 مهامي
                 {tasks.length > 0 && (
-                  <span className="inline-flex items-center justify-center rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold">
+                  <span className="inline-flex items-center justify-center rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
                     {tasks.length}
                   </span>
                 )}
@@ -226,21 +233,26 @@ function TeacherDashboardPage() {
               <button
                 type="button"
                 onClick={logout}
-                className="inline-flex w-full items-center justify-center rounded-full border border-primary-foreground/40 px-5 py-2.5 text-sm font-semibold transition hover:bg-primary-foreground/10"
+                className={`${TILE_BASE} border-stone-300 bg-stone-100 text-stone-700`}
               >
+                <LogOut className="h-5 w-5" />
                 تسجيل الخروج
               </button>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => togglePanel("profile")}
-            aria-expanded={openPanel === "profile"}
-            className="inline-flex w-full items-center justify-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
-          >
-            بياناتي
-          </button>
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => togglePanel("profile")}
+              aria-expanded={openPanel === "profile"}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
+            >
+              <User className="h-4 w-4" />
+              بياناتي
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
 
           {openPanel === "profile" && (
             <section className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
