@@ -51,8 +51,12 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("ar-SA");
 }
 
+function hapticTap() {
+  navigator.vibrate?.(10);
+}
+
 const TILE_BASE =
-  "relative inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-base font-bold transition hover:-translate-y-0.5 hover:shadow-md";
+  "relative inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-base font-bold transition duration-150 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0.5 active:scale-[0.96] active:brightness-90";
 
 function TeacherDashboardPage() {
   const navigate = useNavigate();
@@ -225,14 +229,20 @@ function TeacherDashboardPage() {
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => navigate({ to: "/haraj/subscription" })}
+                onClick={() => {
+                  hapticTap();
+                  navigate({ to: "/haraj/subscription" });
+                }}
                 className={`${TILE_BASE} border-emerald-300 bg-emerald-50 text-emerald-800`}
               >
                 اشتراكي
               </button>
               <button
                 type="button"
-                onClick={scrollToOffers}
+                onClick={() => {
+                  hapticTap();
+                  scrollToOffers();
+                }}
                 className={`${TILE_BASE} border-emerald-300 bg-emerald-50 text-emerald-800`}
               >
                 <Ticket className="h-5 w-5" />
@@ -245,7 +255,10 @@ function TeacherDashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => togglePanel("tasks")}
+                onClick={() => {
+                  hapticTap();
+                  togglePanel("tasks");
+                }}
                 aria-expanded={openPanel === "tasks"}
                 className={`${TILE_BASE} border-amber-300 bg-amber-50 text-amber-800`}
               >
@@ -259,7 +272,10 @@ function TeacherDashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={logout}
+                onClick={() => {
+                  hapticTap();
+                  logout();
+                }}
                 className={`${TILE_BASE} border-stone-300 bg-stone-100 text-stone-700`}
               >
                 <LogOut className="h-5 w-5" />
@@ -271,9 +287,12 @@ function TeacherDashboardPage() {
           <div className="flex flex-wrap justify-center gap-3">
             <button
               type="button"
-              onClick={() => togglePanel("profile")}
+              onClick={() => {
+                hapticTap();
+                togglePanel("profile");
+              }}
               aria-expanded={openPanel === "profile"}
-              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition duration-150 hover:bg-secondary active:scale-[0.96] active:brightness-90"
             >
               <User className="h-4 w-4" />
               بياناتي
@@ -281,7 +300,8 @@ function TeacherDashboardPage() {
             </button>
             <Link
               to="/haraj/support"
-              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
+              onClick={hapticTap}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition duration-150 hover:bg-secondary active:scale-[0.96] active:brightness-90"
             >
               <MessageSquare className="h-4 w-4" />
               الدعم الفني
