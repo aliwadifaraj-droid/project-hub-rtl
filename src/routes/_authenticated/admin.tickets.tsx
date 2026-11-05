@@ -149,7 +149,10 @@ function AdminTicketsPage() {
                   </span>
                 </div>
                 <h3 className="mt-1.5 truncate text-sm font-semibold">{t.subject}</h3>
-                <p className="mt-1 truncate text-xs font-medium text-foreground/80">{t.requester_name}</p>
+                <p className="mt-1 truncate text-xs font-medium text-foreground/80">
+                  {t.requester_name}
+                  {t.user_role === "teacher" && t.requester_profession ? ` — ${t.requester_profession}` : ""}
+                </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {new Date(t.created_at * 1000).toLocaleDateString("ar-SA")}
                 </p>
@@ -169,7 +172,12 @@ function AdminTicketsPage() {
                 <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span>التصنيف: {detail.ticket.category}</span>
                   {detail.ticket.order_id && <span>رقم الطلب: {detail.ticket.order_id}</span>}
-                  <span>صاحب التذكرة: {detail.ticket.requester_name}</span>
+                  <span>
+                    صاحب التذكرة: {detail.ticket.requester_name}
+                    {detail.ticket.user_role === "teacher" && detail.ticket.requester_profession
+                      ? ` — ${detail.ticket.requester_profession}`
+                      : ""}
+                  </span>
                   {detail.ticket.requester_email && <span>{detail.ticket.requester_email}</span>}
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${ROLE_COLORS[detail.ticket.user_role] ?? ROLE_COLORS.client}`}>
                     {ROLE_LABELS[detail.ticket.user_role] ?? "عميل"}
