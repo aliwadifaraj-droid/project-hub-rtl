@@ -165,7 +165,7 @@ export async function listAllTickets(): Promise<TicketRow[]> {
   await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
-            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF((SELECT tm.full_name FROM teachers_market tm JOIN teachers tl ON lower(tl.email) = lower(tm.email) WHERE tl.id = tickets.user_id LIMIT 1), ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
@@ -183,7 +183,7 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
   await ensureTicketTables();
   const r = await db.execute(
     `SELECT tickets.*,
-            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF((SELECT tm.full_name FROM teachers_market tm JOIN teachers tl ON lower(tl.email) = lower(tm.email) WHERE tl.id = tickets.user_id LIMIT 1), ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
+            COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
@@ -229,6 +229,7 @@ export async function listTicketMessages(ticketId: string): Promise<TicketMessag
   await ensureTicketTables();
   const r = await db.execute(
     `SELECT * FROM ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC`,
+    [ticketId],
   );
   return rowsToObjects(r).map(decodeMessage);
 }
@@ -266,7 +267,7 @@ export async function updateTicketPriority(id: string, priority: string): Promis
   await ensureTicketTables();
   await db.execute(
     `UPDATE tickets SET priority = ?, updated_at = unixepoch() WHERE id = ?`,
-    [priority, id],
+    [id, priority],
   );
 }
 
