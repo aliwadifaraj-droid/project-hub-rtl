@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Bell, Ticket, Crown, LogOut, User, TrendingUp } from "lucide-react";
+import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { TeacherSubscription } from "@/components/teacher-subscription";
 import { getMyTeacherProfile, getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
@@ -199,7 +199,6 @@ function TeacherDashboardPage() {
                 aria-expanded={openPanel === "subscription"}
                 className={`${TILE_BASE} border-emerald-300 bg-emerald-50 text-emerald-800`}
               >
-                <Bell className="h-5 w-5" />
                 اشتراكي
               </button>
               <button
