@@ -1,7 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp } from "lucide-react";
+import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { TeacherSubscription } from "@/components/teacher-subscription";
 import { getMyTeacherProfile, getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
@@ -240,7 +240,7 @@ function TeacherDashboardPage() {
             </div>
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center gap-3">
             <button
               type="button"
               onClick={() => togglePanel("profile")}
@@ -251,6 +251,13 @@ function TeacherDashboardPage() {
               بياناتي
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </button>
+            <Link
+              to="/haraj/support"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
+            >
+              <MessageSquare className="h-4 w-4" />
+              الدعم الفني
+            </Link>
           </div>
 
           {openPanel === "profile" && (
