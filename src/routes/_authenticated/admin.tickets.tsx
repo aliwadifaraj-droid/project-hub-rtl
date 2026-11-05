@@ -30,10 +30,10 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "bg-gray-100 text-gray-600", medium: "bg-blue-100 text-blue-800", high: "bg-red-100 text-red-800",
 };
 const ROLE_LABELS: Record<string, string> = {
-  client: "عميل", owner: "صاحب مشروع",
+  client: "عميل", owner: "صاحب مشروع", teacher: "معلم",
 };
 const ROLE_COLORS: Record<string, string> = {
-  client: "bg-emerald-100 text-emerald-800", owner: "bg-purple-100 text-purple-800",
+  client: "bg-emerald-100 text-emerald-800", owner: "bg-purple-100 text-purple-800", teacher: "bg-amber-100 text-amber-800",
 };
 
 function AdminTicketsPage() {
