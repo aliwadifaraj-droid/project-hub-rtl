@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { TeacherSubscription } from "@/components/teacher-subscription";
@@ -14,12 +14,14 @@ export const Route = createFileRoute("/haraj/dashboard")({
   component: TeacherDashboardPage,
 });
 
-type Panel = "profile" | "subscription" | "offers" | "tasks";
+type Panel = "profile" | "subscription" | "tasks";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "نشط",
   banned: "موقوف",
 };
+
+const SEEN_OFFERS_KEY_PREFIX = "haraj_seen_offers:";
 
 type HarajOffer = {
   id: string;
@@ -51,6 +53,16 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("ar-SA");
 }
 
+function readSeenOfferIds(teacherName: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(SEEN_OFFERS_KEY_PREFIX + teacherName);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
 const TILE_BASE =
   "relative inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-base font-bold transition hover:-translate-y-0.5 hover:shadow-md";
 
@@ -60,6 +72,7 @@ function TeacherDashboardPage() {
   const fetchOffers = useServerFn(getMyHarajOffers);
   const fetchTasks = useServerFn(getMyHarajTasks);
   const expressInterest = useServerFn(expressHarajInterest);
+  const offersRef = useRef<HTMLElement>(null);
   const [teacherName, setTeacherName] = useState<string | null>(null);
   const [openPanel, setOpenPanel] = useState<Panel | null>(null);
   const [profile, setProfile] = useState<TeacherMarketRow | null>(null);
@@ -69,7 +82,7 @@ function TeacherDashboardPage() {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
   const [subscriptionCity, setSubscriptionCity] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [seenOfferIds, setSeenOfferIds] = useState<Set<string>>(new Set());
   const [tasks, setTasks] = useState<HarajTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
@@ -86,10 +99,18 @@ function TeacherDashboardPage() {
   }, [navigate]);
 
   useEffect(() => {
+    if (teacherName === null) return;
+    setSeenOfferIds(readSeenOfferIds(teacherName));
+    void loadOffers();
+  }, [teacherName]);
+
+  useEffect(() => {
     if (revealedReasonOfferId === null) return;
     const timer = setTimeout(() => setRevealedReasonOfferId(null), 4000);
     return () => clearTimeout(timer);
   }, [revealedReasonOfferId]);
+
+  const unreadCount = offers.filter((o) => !seenOfferIds.has(o.id)).length;
 
   async function loadProfile() {
     setProfileLoading(true);
@@ -109,7 +130,6 @@ function TeacherDashboardPage() {
     try {
       const res = await fetchOffers();
       setOffers(res.rows as HarajOffer[]);
-      setUnreadCount(res.unread ?? 0);
       setSubscriptionCity(res.subscription_city ?? null);
     } catch (err) {
       setOffersError(err instanceof Error ? err.message : "تعذر تحميل العروض");
@@ -138,8 +158,19 @@ function TeacherDashboardPage() {
     }
     setOpenPanel(panel);
     if (panel === "profile" && !profile) void loadProfile();
-    if (panel === "offers") void loadOffers();
     if (panel === "tasks") void loadTasks();
+  }
+
+  function scrollToOffers() {
+    offersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function markOffersSeen() {
+    if (teacherName === null || unreadCount === 0) return;
+    const next = new Set(seenOfferIds);
+    offers.forEach((o) => next.add(o.id));
+    setSeenOfferIds(next);
+    localStorage.setItem(SEEN_OFFERS_KEY_PREFIX + teacherName, JSON.stringify(Array.from(next)));
   }
 
   async function handleInterest(offerId: string) {
@@ -148,7 +179,6 @@ function TeacherDashboardPage() {
       await expressInterest({ data: { offer_id: offerId } });
       toast.success("تم تسجيل اهتمامك بنجاح");
       setOffers((prev) => prev.map((o) => (o.id === offerId ? { ...o, has_interest: true } : o)));
-      setUnreadCount((c) => Math.max(0, c - 1));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "حدث خطأ");
     } finally {
@@ -203,8 +233,7 @@ function TeacherDashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => togglePanel("offers")}
-                aria-expanded={openPanel === "offers"}
+                onClick={scrollToOffers}
                 className={`${TILE_BASE} border-emerald-300 bg-emerald-50 text-emerald-800`}
               >
                 <Ticket className="h-5 w-5" />
@@ -260,6 +289,86 @@ function TeacherDashboardPage() {
             </Link>
           </div>
 
+          <section ref={offersRef} className="mx-auto max-w-md scroll-mt-6 space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold">عروض الإدارة</h2>
+              <p className="text-sm leading-6 text-muted-foreground">
+                {subscriptionCity
+                  ? <>اشتراكك الفعّال في مدينة <span className="font-semibold text-foreground">{subscriptionCity}</span>. يمكنك إبداء الاهتمام بعروض هذه المدينة فقط.</>
+                  : "ليس لديك اشتراك فعّال حالياً. يمكنك الاطلاع على جميع العروض، وإبداء الاهتمام يتطلب اشتراكاً فعّالاً."}
+              </p>
+            </div>
+            {offersLoading && (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> جاري التحميل...
+              </div>
+            )}
+            {offersError && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{offersError}</div>
+            )}
+            {!offersLoading && !offersError && offers.length === 0 && (
+              <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                لا توجد عروض متاحة حالياً
+              </div>
+            )}
+            {offers.map((offer) => (
+              <div
+                key={offer.id}
+                onClick={markOffersSeen}
+                className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <h3 className="font-bold">{offer.work_name}</h3>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                    <MapPin className="h-3 w-3" /> {offer.city}
+                  </span>
+                </div>
+                <p className="mb-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{offer.description}</p>
+                {offer.images.length > 0 && (
+                  <div className="mb-3 grid grid-cols-3 gap-2">
+                    {offer.images.slice(0, 6).map((src, i) => (
+                      <img
+                        key={i}
+                        src={src}
+                        alt={`صورة ${i + 1}`}
+                        className="aspect-square w-full rounded-lg object-cover"
+                        loading="lazy"
+                      />
+                    ))}
+                  </div>
+                )}
+                {!offer.has_interest && offer.interest_block_reason && revealedReasonOfferId === offer.id && (
+                  <p className="mb-3 rounded-lg bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">{offer.interest_block_reason}</p>
+                )}
+                <div className="flex items-center justify-between border-t border-border pt-3">
+                  <span className="text-xs text-muted-foreground">{formatDate(offer.created_at)}</span>
+                  {offer.has_interest ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-600">
+                      <CheckCircle2 className="h-4 w-4" /> سجّلت اهتمامك
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (offer.interest_block_reason) setRevealedReasonOfferId(offer.id);
+                        void handleInterest(offer.id);
+                      }}
+                      disabled={interestPending === offer.id}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
+                        offer.interest_block_reason
+                          ? "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                          : "bg-primary text-primary-foreground hover:opacity-90"
+                      }`}
+                    >
+                      {interestPending === offer.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Heart className="h-3.5 w-3.5" />}
+                      احجز العرض
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </section>
+
           {openPanel === "profile" && (
             <section className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
               <h2 className="mb-4 text-lg font-bold">بيانات التسجيل</h2>
@@ -285,84 +394,6 @@ function TeacherDashboardPage() {
           )}
 
           {openPanel === "subscription" && <TeacherSubscription />}
-
-          {openPanel === "offers" && (
-            <section className="mx-auto max-w-md space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-lg font-bold">عروض الإدارة</h2>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {subscriptionCity
-                    ? <>اشتراكك الفعّال في مدينة <span className="font-semibold text-foreground">{subscriptionCity}</span>. يمكنك إبداء الاهتمام بعروض هذه المدينة فقط.</>
-                    : "ليس لديك اشتراك فعّال حالياً. يمكنك الاطلاع على جميع العروض، وإبداء الاهتمام يتطلب اشتراكاً فعّالاً."}
-                </p>
-              </div>
-              {offersLoading && (
-                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> جاري التحميل...
-                </div>
-              )}
-              {offersError && (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{offersError}</div>
-              )}
-              {!offersLoading && !offersError && offers.length === 0 && (
-                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-                  لا توجد عروض متاحة حالياً
-                </div>
-              )}
-              {offers.map((offer) => (
-                <div key={offer.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <h3 className="font-bold">{offer.work_name}</h3>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3" /> {offer.city}
-                    </span>
-                  </div>
-                  <p className="mb-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{offer.description}</p>
-                  {offer.images.length > 0 && (
-                    <div className="mb-3 grid grid-cols-3 gap-2">
-                      {offer.images.slice(0, 6).map((src, i) => (
-                        <img
-                          key={i}
-                          src={src}
-                          alt={`صورة ${i + 1}`}
-                          className="aspect-square w-full rounded-lg object-cover"
-                          loading="lazy"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {!offer.has_interest && offer.interest_block_reason && revealedReasonOfferId === offer.id && (
-                    <p className="mb-3 rounded-lg bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">{offer.interest_block_reason}</p>
-                  )}
-                  <div className="flex items-center justify-between border-t border-border pt-3">
-                    <span className="text-xs text-muted-foreground">{formatDate(offer.created_at)}</span>
-                    {offer.has_interest ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-600">
-                        <CheckCircle2 className="h-4 w-4" /> سجّلت اهتمامك
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (offer.interest_block_reason) setRevealedReasonOfferId(offer.id);
-                          void handleInterest(offer.id);
-                        }}
-                        disabled={interestPending === offer.id}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
-                          offer.interest_block_reason
-                            ? "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                            : "bg-primary text-primary-foreground hover:opacity-90"
-                        }`}
-                      >
-                        {interestPending === offer.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Heart className="h-3.5 w-3.5" />}
-                        احجز العرض
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
 
           {openPanel === "tasks" && (
             <section className="mx-auto max-w-md space-y-4">
