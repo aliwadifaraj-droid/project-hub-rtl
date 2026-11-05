@@ -1,11 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare } from "lucide-react";
+import { Loader2, CheckCircle2, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare, MapPin } from "lucide-react";
 import { HarajTeacherHeader } from "@/components/haraj-teacher-header";
-import { getMyTeacherProfile, getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
+import { getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
 import { getMyHarajUnreadOfferCount, markMyHarajOffersRead } from "@/lib/haraj-offer-reads.functions";
-import type { TeacherMarketRow } from "@/lib/haraj.repo";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -13,13 +12,6 @@ export const Route = createFileRoute("/haraj/dashboard")({
   head: () => ({ meta: [{ title: "لوحة المعلم — حراج المعلمين" }] }),
   component: TeacherDashboardPage,
 });
-
-type Panel = "profile" | "tasks";
-
-const STATUS_LABELS: Record<string, string> = {
-  active: "نشط",
-  banned: "موقوف",
-};
 
 type HarajOffer = {
   id: string;
@@ -60,7 +52,6 @@ const TILE_BASE =
 
 function TeacherDashboardPage() {
   const navigate = useNavigate();
-  const fetchProfile = useServerFn(getMyTeacherProfile);
   const fetchOffers = useServerFn(getMyHarajOffers);
   const fetchUnreadCount = useServerFn(getMyHarajUnreadOfferCount);
   const markOffersReadOnServer = useServerFn(markMyHarajOffersRead);
@@ -68,18 +59,12 @@ function TeacherDashboardPage() {
   const expressInterest = useServerFn(expressHarajInterest);
   const offersRef = useRef<HTMLElement>(null);
   const [teacherName, setTeacherName] = useState<string | null>(null);
-  const [openPanel, setOpenPanel] = useState<Panel | null>(null);
-  const [profile, setProfile] = useState<TeacherMarketRow | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState("");
   const [offers, setOffers] = useState<HarajOffer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
   const [subscriptionCity, setSubscriptionCity] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [tasks, setTasks] = useState<HarajTask[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
-  const [tasksError, setTasksError] = useState("");
   const [interestPending, setInterestPending] = useState<string | null>(null);
   const [revealedReasonOfferId, setRevealedReasonOfferId] = useState<string | null>(null);
 
@@ -96,6 +81,7 @@ function TeacherDashboardPage() {
     if (teacherName === null) return;
     void loadOffers();
     void loadUnreadCount();
+    void loadTasks();
   }, [teacherName]);
 
   useEffect(() => {
@@ -103,18 +89,6 @@ function TeacherDashboardPage() {
     const timer = setTimeout(() => setRevealedReasonOfferId(null), 4000);
     return () => clearTimeout(timer);
   }, [revealedReasonOfferId]);
-
-  async function loadProfile() {
-    setProfileLoading(true);
-    setProfileError("");
-    try {
-      setProfile(await fetchProfile());
-    } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "تعذر تحميل البيانات");
-    } finally {
-      setProfileLoading(false);
-    }
-  }
 
   async function loadOffers() {
     setOffersLoading(true);
@@ -140,26 +114,12 @@ function TeacherDashboardPage() {
   }
 
   async function loadTasks() {
-    setTasksLoading(true);
-    setTasksError("");
     try {
       const res = await fetchTasks();
       setTasks(res.rows as HarajTask[]);
     } catch (err) {
-      setTasksError(err instanceof Error ? err.message : "تعذر تحميل المهام");
-    } finally {
-      setTasksLoading(false);
+      toast.error(err instanceof Error ? err.message : "تعذر تحميل المهام");
     }
-  }
-
-  function togglePanel(panel: Panel) {
-    if (openPanel === panel) {
-      setOpenPanel(null);
-      return;
-    }
-    setOpenPanel(panel);
-    if (panel === "profile" && !profile) void loadProfile();
-    if (panel === "tasks") void loadTasks();
   }
 
   function scrollToOffers() {
@@ -196,18 +156,6 @@ function TeacherDashboardPage() {
   }
 
   if (teacherName === null) return null;
-
-  const profileRows = profile
-    ? [
-        { label: "الاسم الكامل", value: profile.full_name, ltr: false },
-        { label: "رقم الجوال", value: profile.phone, ltr: true },
-        { label: "المدينة", value: profile.city, ltr: false },
-        { label: "المهنة", value: profile.profession, ltr: false },
-        { label: "البريد الإلكتروني", value: profile.email, ltr: true },
-        { label: "الحالة", value: STATUS_LABELS[profile.status] ?? profile.status, ltr: false },
-        { label: "تاريخ التسجيل", value: formatDate(profile.created_at), ltr: true },
-      ]
-    : [];
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
@@ -257,9 +205,8 @@ function TeacherDashboardPage() {
                 type="button"
                 onClick={() => {
                   hapticTap();
-                  togglePanel("tasks");
+                  navigate({ to: "/haraj/tasks" });
                 }}
-                aria-expanded={openPanel === "tasks"}
                 className={`${TILE_BASE} border-amber-300 bg-amber-50 text-amber-800`}
               >
                 <Crown className="h-5 w-5" />
@@ -289,9 +236,8 @@ function TeacherDashboardPage() {
               type="button"
               onClick={() => {
                 hapticTap();
-                togglePanel("profile");
+                navigate({ to: "/haraj/profile" });
               }}
-              aria-expanded={openPanel === "profile"}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition duration-150 hover:bg-secondary active:scale-[0.96] active:brightness-90"
             >
               <User className="h-4 w-4" />
@@ -387,80 +333,6 @@ function TeacherDashboardPage() {
               </div>
             ))}
           </section>
-
-          {openPanel === "profile" && (
-            <section className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
-              <h2 className="mb-4 text-lg font-bold">بيانات التسجيل</h2>
-              {profileLoading && (
-                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> جاري التحميل...
-                </div>
-              )}
-              {profileError && (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{profileError}</div>
-              )}
-              {profile && (
-                <dl className="divide-y divide-border">
-                  {profileRows.map((row) => (
-                    <div key={row.label} className="flex items-center justify-between gap-4 py-3">
-                      <dt className="text-sm text-muted-foreground">{row.label}</dt>
-                      <dd className="text-sm font-semibold" dir={row.ltr ? "ltr" : undefined}>{row.value || "-"}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-            </section>
-          )}
-
-          {openPanel === "tasks" && (
-            <section className="mx-auto max-w-md space-y-4">
-              <h2 className="text-lg font-bold">مهامي</h2>
-              {tasksLoading && (
-                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> جاري التحميل...
-                </div>
-              )}
-              {tasksError && (
-                <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{tasksError}</div>
-              )}
-              {!tasksLoading && !tasksError && tasks.length === 0 && (
-                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-                  لا توجد مشاريع مثبتة عليك حالياً
-                </div>
-              )}
-              {tasks.map((task) => (
-                <div key={task.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <h3 className="font-bold">{task.work_name}</h3>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600">
-                      <CheckCircle2 className="h-3 w-3" /> مثبت
-                    </span>
-                  </div>
-                  <p className="mb-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{task.description}</p>
-                  {task.images.length > 0 && (
-                    <div className="mb-3 grid grid-cols-3 gap-2">
-                      {task.images.slice(0, 6).map((src, i) => (
-                        <img
-                          key={i}
-                          src={src}
-                          alt={`صورة ${i + 1}`}
-                          className="aspect-square w-full rounded-lg object-cover"
-                          loading="lazy"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  <div className="rounded-lg bg-secondary/40 px-4 py-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold" dir="ltr">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      {task.owner_phone}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">رقم جوال صاحب العمل — متاح بعد التثبيت</p>
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
         </div>
       </main>
     </div>

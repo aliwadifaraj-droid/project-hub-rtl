@@ -19,7 +19,7 @@ function TeacherLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  if (pathname.startsWith("/haraj/register") || pathname.startsWith("/haraj/dashboard") || pathname.startsWith("/haraj/support") || pathname.startsWith("/haraj/subscription")) return <Outlet />;
+  if (pathname.startsWith("/haraj/register") || pathname.startsWith("/haraj/dashboard") || pathname.startsWith("/haraj/support") || pathname.startsWith("/haraj/subscription") || pathname.startsWith("/haraj/profile") || pathname.startsWith("/haraj/tasks")) return <Outlet />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
