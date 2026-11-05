@@ -71,6 +71,7 @@ function TeacherDashboardPage() {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
   const [interestPending, setInterestPending] = useState<string | null>(null);
+  const [revealedReasonIds, setRevealedReasonIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const name = localStorage.getItem("teacher_name");
@@ -302,7 +303,7 @@ function TeacherDashboardPage() {
                       ))}
                     </div>
                   )}
-                  {!offer.has_interest && offer.interest_block_reason && (
+                  {!offer.has_interest && offer.interest_block_reason && revealedReasonIds[offer.id] && (
                     <p className="mb-3 rounded-lg bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">{offer.interest_block_reason}</p>
                   )}
                   <div className="flex items-center justify-between border-t border-border pt-3">
@@ -314,7 +315,10 @@ function TeacherDashboardPage() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleInterest(offer.id)}
+                        onClick={() => {
+                          if (offer.interest_block_reason) setRevealedReasonIds((prev) => ({ ...prev, [offer.id]: true }));
+                          void handleInterest(offer.id);
+                        }}
                         disabled={interestPending === offer.id}
                         className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition disabled:opacity-60 ${
                           offer.interest_block_reason
