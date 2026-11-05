@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
 import { getSessionClaims } from "./auth.server";
+import { db, rowsToObjects } from "./db";
 import * as harajRepo from "./haraj.repo";
 import * as ticketsRepo from "./tickets.repo";
 import { appendClientTicketReply } from "./client-ticket-replies.repo";
@@ -24,6 +25,31 @@ async function requireOwnedTicket(id: string, userId: string): Promise<ticketsRe
   return ticket;
 }
 
+async function findTeacherForTicket(userId: string, email: string): Promise<harajRepo.TeacherMarketRow | null> {
+  const teacherByEmail = await harajRepo.findTeacherByEmail(email);
+  if (teacherByEmail) return teacherByEmail;
+
+  const result = await db.execute(
+    `SELECT market.*
+     FROM teachers_market AS market
+     INNER JOIN teachers AS login ON lower(market.email) = lower(login.email)
+     WHERE login.id = ? LIMIT 1`,
+    [userId],
+  );
+  const row = rowsToObjects<Record<string, unknown>>(result)[0];
+  if (!row) return null;
+  return {
+    id: String(row.id ?? row.uuid ?? row.teacher_id ?? ""),
+    full_name: String(row.full_name ?? row.name ?? row.teacher_name ?? row.fullName ?? ""),
+    phone: String(row.phone ?? row.phone_number ?? row.mobile ?? row.mobile_number ?? ""),
+    city: String(row.city ?? row.location ?? row.region ?? ""),
+    profession: String(row.profession ?? row.job ?? row.occupation ?? row.specialty ?? ""),
+    email: String(row.email ?? row.email_address ?? email),
+    status: String(row.status ?? "active"),
+    created_at: String(row.created_at ?? row.registered_at ?? row.createdAt ?? ""),
+  };
+}
+
 export const listMyHarajTickets = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
@@ -35,7 +61,7 @@ export const createHarajTicket = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createTicketSchema.parse(data))
   .handler(async ({ data, context }) => {
     const claims = await getSessionClaims();
-    const teacher = claims?.email ? await harajRepo.findTeacherByEmail(claims.email) : null;
+    const teacher = claims ? await findTeacherForTicket(context.userId, claims.email) : null;
     const id = await ticketsRepo.createTicket({
       user_id: context.userId,
       user_role: TEACHER_ROLE,
