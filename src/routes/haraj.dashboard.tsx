@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare } from "lucide-react";
 import { HarajTeacherHeader } from "@/components/haraj-teacher-header";
-import { TeacherSubscription } from "@/components/teacher-subscription";
 import { getMyTeacherProfile, getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
 import { getMyHarajUnreadOfferCount, markMyHarajOffersRead } from "@/lib/haraj-offer-reads.functions";
 import type { TeacherMarketRow } from "@/lib/haraj.repo";
@@ -15,7 +14,7 @@ export const Route = createFileRoute("/haraj/dashboard")({
   component: TeacherDashboardPage,
 });
 
-type Panel = "profile" | "subscription" | "tasks";
+type Panel = "profile" | "tasks";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "نشط",
@@ -226,8 +225,7 @@ function TeacherDashboardPage() {
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => togglePanel("subscription")}
-                aria-expanded={openPanel === "subscription"}
+                onClick={() => navigate({ to: "/haraj/subscription" })}
                 className={`${TILE_BASE} border-emerald-300 bg-emerald-50 text-emerald-800`}
               >
                 اشتراكي
@@ -393,8 +391,6 @@ function TeacherDashboardPage() {
               )}
             </section>
           )}
-
-          {openPanel === "subscription" && <TeacherSubscription />}
 
           {openPanel === "tasks" && (
             <section className="mx-auto max-w-md space-y-4">
