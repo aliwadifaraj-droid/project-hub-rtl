@@ -49,6 +49,7 @@ export type TicketRow = {
   unread_admin_message_count: number;
   requester_name: string;
   requester_email: string;
+  requester_profession: string | null;
 };
 
 export type TicketListRow = {
@@ -85,6 +86,7 @@ function decodeTicket(row: any): TicketRow {
     unread_admin_message_count: Number(row.unread_admin_message_count ?? 0),
     requester_name: String(row.requester_name ?? row.user_id ?? ""),
     requester_email: String(row.requester_email ?? ""),
+    requester_profession: row.requester_profession ? String(row.requester_profession) : null,
   };
 }
 
@@ -167,6 +169,7 @@ export async function listAllTickets(): Promise<TicketRow[]> {
     `SELECT tickets.*,
             COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
+            tm.profession AS requester_profession,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
@@ -174,6 +177,8 @@ export async function listAllTickets(): Promise<TicketRow[]> {
      LEFT JOIN project_owner_profiles pop ON pop.owner_id = tickets.user_id
      LEFT JOIN clients c ON c.id = tickets.user_id
      LEFT JOIN users u ON u.id = tickets.user_id
+     LEFT JOIN teachers t ON t.id = tickets.user_id
+     LEFT JOIN teachers_market tm ON lower(tm.email) = lower(t.email)
      ORDER BY tickets.updated_at DESC LIMIT 500`,
   );
   return rowsToObjects(r).map(decodeTicket);
@@ -185,6 +190,7 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
     `SELECT tickets.*,
             COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
+            tm.profession AS requester_profession,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
@@ -192,6 +198,8 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
      LEFT JOIN project_owner_profiles pop ON pop.owner_id = tickets.user_id
      LEFT JOIN clients c ON c.id = tickets.user_id
      LEFT JOIN users u ON u.id = tickets.user_id
+     LEFT JOIN teachers t ON t.id = tickets.user_id
+     LEFT JOIN teachers_market tm ON lower(tm.email) = lower(t.email)
      WHERE tickets.id = ? LIMIT 1`,
     [id],
   );
@@ -246,7 +254,7 @@ export async function addTicketMessage(input: {
     {
       sql: `INSERT INTO ticket_messages (id, ticket_id, sender_type, sender_id, message, attachment_url, created_at)
             VALUES (?, ?, ?, ?, ?, ?, unixepoch())`,
-      args: [crypto.randomUUID(), input.ticket_id, input.sender_type, input.sender_id, input.message, input.attachment_url ?? null],
+      args: [crypto.randomUUID(), input.ticket_id, input.sender_type, input.message, input.attachment_url ?? null],
     },
     {
       sql: `UPDATE tickets SET updated_at = unixepoch() WHERE id = ?`,
