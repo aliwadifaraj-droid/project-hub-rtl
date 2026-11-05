@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth } from "./auth-middleware.server";
+import { getSessionClaims } from "./auth.server";
+import * as harajRepo from "./haraj.repo";
 import * as ticketsRepo from "./tickets.repo";
 import { appendClientTicketReply } from "./client-ticket-replies.repo";
 
@@ -32,9 +34,12 @@ export const createHarajTicket = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((data: unknown) => createTicketSchema.parse(data))
   .handler(async ({ data, context }) => {
+    const claims = await getSessionClaims();
+    const teacher = claims?.email ? await harajRepo.findTeacherByEmail(claims.email) : null;
     const id = await ticketsRepo.createTicket({
       user_id: context.userId,
       user_role: TEACHER_ROLE,
+      client_company_name: teacher?.full_name || null,
       subject: data.subject,
       category: data.category,
       priority: "medium",
