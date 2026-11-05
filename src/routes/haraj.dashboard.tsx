@@ -5,6 +5,7 @@ import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, 
 import { SiteHeader } from "@/components/site-header";
 import { TeacherSubscription } from "@/components/teacher-subscription";
 import { getMyTeacherProfile, getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
+import { getMyHarajUnreadOfferCount, markMyHarajOffersRead } from "@/lib/haraj-offer-reads.functions";
 import type { TeacherMarketRow } from "@/lib/haraj.repo";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -20,8 +21,6 @@ const STATUS_LABELS: Record<string, string> = {
   active: "نشط",
   banned: "موقوف",
 };
-
-const SEEN_OFFERS_KEY_PREFIX = "haraj_seen_offers:";
 
 type HarajOffer = {
   id: string;
@@ -53,16 +52,6 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("ar-SA");
 }
 
-function readSeenOfferIds(teacherName: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(SEEN_OFFERS_KEY_PREFIX + teacherName);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : []);
-  } catch {
-    return new Set();
-  }
-}
-
 const TILE_BASE =
   "relative inline-flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-base font-bold transition hover:-translate-y-0.5 hover:shadow-md";
 
@@ -70,6 +59,8 @@ function TeacherDashboardPage() {
   const navigate = useNavigate();
   const fetchProfile = useServerFn(getMyTeacherProfile);
   const fetchOffers = useServerFn(getMyHarajOffers);
+  const fetchUnreadCount = useServerFn(getMyHarajUnreadOfferCount);
+  const markOffersReadOnServer = useServerFn(markMyHarajOffersRead);
   const fetchTasks = useServerFn(getMyHarajTasks);
   const expressInterest = useServerFn(expressHarajInterest);
   const offersRef = useRef<HTMLElement>(null);
@@ -82,7 +73,7 @@ function TeacherDashboardPage() {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState("");
   const [subscriptionCity, setSubscriptionCity] = useState<string | null>(null);
-  const [seenOfferIds, setSeenOfferIds] = useState<Set<string>>(new Set());
+  const [unreadCount, setUnreadCount] = useState(0);
   const [tasks, setTasks] = useState<HarajTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
@@ -100,8 +91,8 @@ function TeacherDashboardPage() {
 
   useEffect(() => {
     if (teacherName === null) return;
-    setSeenOfferIds(readSeenOfferIds(teacherName));
     void loadOffers();
+    void loadUnreadCount();
   }, [teacherName]);
 
   useEffect(() => {
@@ -109,8 +100,6 @@ function TeacherDashboardPage() {
     const timer = setTimeout(() => setRevealedReasonOfferId(null), 4000);
     return () => clearTimeout(timer);
   }, [revealedReasonOfferId]);
-
-  const unreadCount = offers.filter((o) => !seenOfferIds.has(o.id)).length;
 
   async function loadProfile() {
     setProfileLoading(true);
@@ -135,6 +124,15 @@ function TeacherDashboardPage() {
       setOffersError(err instanceof Error ? err.message : "تعذر تحميل العروض");
     } finally {
       setOffersLoading(false);
+    }
+  }
+
+  async function loadUnreadCount() {
+    try {
+      const res = await fetchUnreadCount();
+      setUnreadCount(res.unread);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر تحميل عدد العروض الجديدة");
     }
   }
 
@@ -165,12 +163,15 @@ function TeacherDashboardPage() {
     offersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function markOffersSeen() {
-    if (teacherName === null || unreadCount === 0) return;
-    const next = new Set(seenOfferIds);
-    offers.forEach((o) => next.add(o.id));
-    setSeenOfferIds(next);
-    localStorage.setItem(SEEN_OFFERS_KEY_PREFIX + teacherName, JSON.stringify(Array.from(next)));
+  async function markOffersSeen() {
+    if (unreadCount === 0) return;
+    setUnreadCount(0);
+    try {
+      await markOffersReadOnServer();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "حدث خطأ");
+      void loadUnreadCount();
+    }
   }
 
   async function handleInterest(offerId: string) {
@@ -314,7 +315,7 @@ function TeacherDashboardPage() {
             {offers.map((offer) => (
               <div
                 key={offer.id}
-                onClick={markOffersSeen}
+                onClick={() => void markOffersSeen()}
                 className="rounded-2xl border border-border bg-card p-5 shadow-sm"
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
