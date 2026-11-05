@@ -49,7 +49,9 @@ export const getMyTeacherProfile = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const teacher = await harajRepo.findTeacherByEmail(context.email);
     if (!teacher) throw new Error("لم يتم العثور على بيانات التسجيل");
-    return teacher;
+    if (teacher.created_at) return teacher;
+    const login = await harajRepo.findLoginByEmail(context.email);
+    return { ...teacher, created_at: login?.created_at ?? "" };
   });
 
 export const listTeachers = createServerFn({ method: "GET" }).handler(async () => []);
