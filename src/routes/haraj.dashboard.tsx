@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, Phone, MapPin, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare } from "lucide-react";
-import { SiteHeader } from "@/components/site-header";
+import { HarajTeacherHeader } from "@/components/haraj-teacher-header";
 import { TeacherSubscription } from "@/components/teacher-subscription";
 import { getMyTeacherProfile, getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
 import { getMyHarajUnreadOfferCount, markMyHarajOffersRead } from "@/lib/haraj-offer-reads.functions";
@@ -208,7 +208,7 @@ function TeacherDashboardPage() {
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      <SiteHeader />
+      <HarajTeacherHeader />
       <Toaster position="top-center" dir="rtl" />
       <main className="container mx-auto px-4 py-14">
         <div className="mx-auto max-w-xl space-y-6">
