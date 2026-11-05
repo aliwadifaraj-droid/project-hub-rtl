@@ -44,14 +44,18 @@ export const signInTeacher = createServerFn({ method: "POST" })
     return { ok: true, name: market?.full_name ?? "" };
   });
 
+async function withRegistrationDate<T extends { email: string; created_at: string }>(teacher: T): Promise<T> {
+  if (teacher.created_at) return teacher;
+  const login = await harajRepo.findLoginByEmail(teacher.email);
+  return { ...teacher, created_at: login?.created_at ?? "" };
+}
+
 export const getMyTeacherProfile = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const teacher = await harajRepo.findTeacherByEmail(context.email);
     if (!teacher) throw new Error("لم يتم العثور على بيانات التسجيل");
-    if (teacher.created_at) return teacher;
-    const login = await harajRepo.findLoginByEmail(context.email);
-    return { ...teacher, created_at: login?.created_at ?? "" };
+    return withRegistrationDate(teacher);
   });
 
 export const listTeachers = createServerFn({ method: "GET" }).handler(async () => []);
@@ -60,7 +64,7 @@ export const adminListTeachers = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     if (!context.roles?.includes("admin") && !context.roles?.includes("employee")) throw new Error("غير مصرح");
-    const rows = await harajRepo.listAllTeachers();
+    const rows = await Promise.all((await harajRepo.listAllTeachers()).map(withRegistrationDate));
     return { rows, isAdmin: context.roles?.includes("admin") ?? false };
   });
 
