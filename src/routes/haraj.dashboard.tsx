@@ -210,7 +210,7 @@ function TeacherDashboardPage() {
     <div className="min-h-screen bg-background" dir="rtl">
       <HarajTeacherHeader />
       <Toaster position="top-center" dir="rtl" />
-      <main className="container mx-auto px-4 py-14">
+      <main className="container mx-auto px-4 pb-14 pt-4">
         <div className="mx-auto max-w-xl space-y-6">
           <div className="rounded-2xl border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
             <div className="flex items-center gap-3">
