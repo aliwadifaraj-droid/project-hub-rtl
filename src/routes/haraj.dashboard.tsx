@@ -179,24 +179,19 @@ function TeacherDashboardPage() {
       <main className="container mx-auto px-4 py-14">
         <div className="mx-auto max-w-xl space-y-6">
           <div
-            className="mx-auto max-w-md space-y-6 rounded-2xl p-8 text-center text-primary-foreground shadow-elegant"
+            className="space-y-6 rounded-2xl p-6 text-primary-foreground shadow-elegant sm:p-8"
             style={{ backgroundImage: "var(--gradient-hero)" }}
           >
-            <h1 className="text-2xl font-bold">مرحباً {teacherName}</h1>
+            <div>
+              <h1 className="text-xl font-bold">لوحة المعلم</h1>
+              <p className="text-sm text-primary-foreground/80">{teacherName}</p>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => togglePanel("profile")}
-                aria-expanded={openPanel === "profile"}
-                className="inline-flex w-full items-center justify-center rounded-lg bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
-              >
-                بياناتي
-              </button>
               <button
                 type="button"
                 onClick={() => togglePanel("subscription")}
                 aria-expanded={openPanel === "subscription"}
-                className="inline-flex w-full items-center justify-center rounded-lg bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
+                className="inline-flex w-full items-center justify-center rounded-full bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
               >
                 اشتراكي
               </button>
@@ -204,7 +199,7 @@ function TeacherDashboardPage() {
                 type="button"
                 onClick={() => togglePanel("offers")}
                 aria-expanded={openPanel === "offers"}
-                className="relative inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
+                className="relative inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
               >
                 <Clapperboard className="h-4 w-4" />
                 عروض الإدارة
@@ -218,7 +213,7 @@ function TeacherDashboardPage() {
                 type="button"
                 onClick={() => togglePanel("tasks")}
                 aria-expanded={openPanel === "tasks"}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary-foreground px-5 py-2.5 text-sm font-semibold text-primary transition hover:opacity-90"
               >
                 <Briefcase className="h-4 w-4" />
                 مهامي
@@ -231,12 +226,21 @@ function TeacherDashboardPage() {
               <button
                 type="button"
                 onClick={logout}
-                className="inline-flex w-full items-center justify-center rounded-lg border border-primary-foreground/40 px-5 py-2.5 text-sm font-semibold transition hover:bg-primary-foreground/10 sm:col-span-2"
+                className="inline-flex w-full items-center justify-center rounded-full border border-primary-foreground/40 px-5 py-2.5 text-sm font-semibold transition hover:bg-primary-foreground/10"
               >
                 تسجيل الخروج
               </button>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => togglePanel("profile")}
+            aria-expanded={openPanel === "profile"}
+            className="inline-flex w-full items-center justify-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
+          >
+            بياناتي
+          </button>
 
           {openPanel === "profile" && (
             <section className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
