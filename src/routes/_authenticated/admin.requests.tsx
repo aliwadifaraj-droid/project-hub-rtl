@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   getPlatformRequests,
   updateRequestStatus,
@@ -383,30 +384,36 @@ function DeleteRequestModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" dir="rtl" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-start gap-3">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 p-4" dir="rtl" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-[90vw] max-w-md min-w-0 rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-500/15 text-red-400">
             <Trash2 className="h-5 w-5" />
           </span>
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold">حذف الطلب نهائياً؟</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              سيتم حذف طلب <span className="font-semibold text-slate-200">{company || "هذه الشركة"}</span> من لوحة الإدارة وقاعدة البيانات وملف العرض المرفق من التخزين. لا يمكن التراجع عن هذا الإجراء.
+            <p className="mt-1 break-words text-sm leading-6 text-slate-400">
+              سيتم حذف طلب <span className="font-semibold text-slate-200">{company || "هذه الشركة"}</span> نهائياً من لوحة الإدارة وقاعدة البيانات، مع ملف العرض المرفق. لا يمكن التراجع عن هذا الإجراء.
             </p>
           </div>
         </div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} disabled={pending} className="rounded-md border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800 disabled:opacity-60">
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onClose} disabled={pending} className="rounded-md border border-slate-600 px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-60">
             إلغاء
           </button>
-          <button type="button" onClick={onConfirm} disabled={pending} className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-60">
+          <button type="button" onClick={onConfirm} disabled={pending} className="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-60">
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} حذف نهائي
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
