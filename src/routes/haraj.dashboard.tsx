@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { Loader2, CheckCircle2, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare, MapPin } from "lucide-react";
+import { Loader2, CheckCircle2, Heart, Building2, Ticket, Crown, LogOut, User, TrendingUp, MessageSquare, MapPin, Bell } from "lucide-react";
 import { HarajTeacherHeader } from "@/components/haraj-teacher-header";
 import { getMyHarajOffers, getMyHarajTasks, expressHarajInterest } from "@/lib/haraj.functions";
 import { getMyHarajUnreadOfferCount, markMyHarajOffersRead } from "@/lib/haraj-offer-reads.functions";
+import { listMyHarajTickets } from "@/lib/haraj-tickets.functions";
+import { getTicketUnreadCount } from "@/lib/client-ticket-unread";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -54,6 +56,7 @@ function TeacherDashboardPage() {
   const navigate = useNavigate();
   const fetchOffers = useServerFn(getMyHarajOffers);
   const fetchUnreadCount = useServerFn(getMyHarajUnreadOfferCount);
+  const fetchSupportTickets = useServerFn(listMyHarajTickets);
   const markOffersReadOnServer = useServerFn(markMyHarajOffersRead);
   const fetchTasks = useServerFn(getMyHarajTasks);
   const expressInterest = useServerFn(expressHarajInterest);
@@ -64,6 +67,7 @@ function TeacherDashboardPage() {
   const [offersError, setOffersError] = useState("");
   const [subscriptionCity, setSubscriptionCity] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [supportUnread, setSupportUnread] = useState(0);
   const [tasks, setTasks] = useState<HarajTask[]>([]);
   const [interestPending, setInterestPending] = useState<string | null>(null);
   const [revealedReasonOfferId, setRevealedReasonOfferId] = useState<string | null>(null);
@@ -82,6 +86,7 @@ function TeacherDashboardPage() {
     void loadOffers();
     void loadUnreadCount();
     void loadTasks();
+    void loadSupportUnread();
   }, [teacherName]);
 
   useEffect(() => {
@@ -119,6 +124,15 @@ function TeacherDashboardPage() {
       setTasks(res.rows as HarajTask[]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "تعذر تحميل المهام");
+    }
+  }
+
+  async function loadSupportUnread() {
+    try {
+      const tickets = await fetchSupportTickets();
+      setSupportUnread(tickets.reduce((sum, ticket) => sum + getTicketUnreadCount(ticket), 0));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر تحميل رسائل الدعم");
     }
   }
 
@@ -251,6 +265,14 @@ function TeacherDashboardPage() {
             >
               <MessageSquare className="h-4 w-4" />
               الدعم الفني
+              <span className="relative inline-flex">
+                <Bell className="h-4 w-4 text-muted-foreground" />
+                {supportUnread > 0 && (
+                  <span className="absolute -top-1.5 -end-1.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {supportUnread > 99 ? "99+" : supportUnread}
+                  </span>
+                )}
+              </span>
             </Link>
           </div>
 
