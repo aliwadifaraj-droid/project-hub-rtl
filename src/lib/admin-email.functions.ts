@@ -8,6 +8,13 @@ const attachmentSchema = z.object({
   content: z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/).max(7_000_000),
 });
 
+const imageSignatures = {
+  "image/jpeg": "/9j/",
+  "image/png": "iVBORw0KGgo",
+  "image/webp": "UklGR",
+  "image/gif": "R0lGOD",
+} as const;
+
 export const adminSendEmailWithImage = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) => z.object({
@@ -20,8 +27,11 @@ export const adminSendEmailWithImage = createServerFn({ method: "POST" })
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) throw new Error("RESEND_API_KEY غير مضبوط في المتغيرات");
 
-    if (data.attachment && Math.floor(data.attachment.content.length * 3 / 4) > 5 * 1024 * 1024) {
-      throw new Error("حجم الصورة كبير جداً");
+    if (data.attachment) {
+      const { content, contentType } = data.attachment;
+      if (!content.startsWith(imageSignatures[contentType]) || Math.floor(content.length * 3 / 4) > 5 * 1024 * 1024) {
+        throw new Error("الصورة المرفقة غير صالحة أو كبيرة جداً");
+      }
     }
 
     const safeMessage = data.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
