@@ -21,7 +21,7 @@ export const adminSendEmailWithImage = createServerFn({ method: "POST" })
     to: z.string().trim().email().max(255),
     subject: z.string().trim().min(1).max(300),
     message: z.string().trim().min(1).max(10000),
-    attachment: attachmentSchema.optional(),
+    attachment: attachmentSchema.nullish(),
   }).parse(d))
   .handler(async ({ data }) => {
     const apiKey = process.env.RESEND_API_KEY;
