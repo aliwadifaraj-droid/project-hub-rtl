@@ -285,7 +285,7 @@ function MessagesPage() {
       </div>
 
       <Dialog open={showNewMessageModal} onOpenChange={setShowNewMessageModal}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>إرسال رسالة جديدة</DialogTitle>
           </DialogHeader>
