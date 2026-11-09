@@ -86,8 +86,8 @@ function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background" dir="rtl">
       <SiteHeader />
-      <main className="flex-1">
-        <section className="sticky top-16 z-50 border-b border-border/60 bg-background">
+      <main className="flex-1 pt-[180px] sm:pt-[220px]">
+        <section className="fixed inset-x-0 top-16 z-50 border-b border-border/60 bg-background">
           <div className="container mx-auto px-3 sm:px-4"><HeroSlider /></div>
         </section>
         <section className="container mx-auto px-4 py-7 sm:py-10">
