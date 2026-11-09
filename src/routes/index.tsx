@@ -49,7 +49,7 @@ function HeroSlider() {
   const SlideIcon = slide.icon;
 
   useEffect(() => {
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % slides.length), 5000);
+    const timer = window.setInterval(() => setActive((current) => (current + 1) % slides.length), 10000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -87,7 +87,7 @@ function HomePage() {
     <div className="min-h-screen flex flex-col bg-background" dir="rtl">
       <SiteHeader />
       <main className="flex-1">
-        <section className="border-b border-border/60">
+        <section className="sticky top-16 z-50 border-b border-border/60 bg-background">
           <div className="container mx-auto px-3 sm:px-4"><HeroSlider /></div>
         </section>
         <section className="container mx-auto px-4 py-7 sm:py-10">
