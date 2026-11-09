@@ -62,7 +62,7 @@ function HeroSlider({ compact }: { compact: boolean }) {
     >
       {compact ? (
         <a href={slide.href} target="_blank" rel="noreferrer" className="flex h-full items-center justify-center text-sm font-bold transition-opacity hover:opacity-80">
-          اعرض مشروعك مجاناً - اضغط هنا
+          {slide.title}
         </a>
       ) : (
         <>
