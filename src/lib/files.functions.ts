@@ -172,5 +172,5 @@ export const registerPublicUploadedFile = createServerFn({ method: "POST" })
       purpose: data.purpose,
       uploaded_by: null,
     });
-    return { id, key, publicUrl: data.publicUrl ?? "" };
+    return { id, key: data.key, publicUrl: data.publicUrl ?? "" };
   });
