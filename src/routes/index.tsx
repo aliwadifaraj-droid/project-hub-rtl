@@ -14,7 +14,7 @@ const projectsQuery = queryOptions({
 
 const slides = [
   { eyebrow: "لوحة صاحب المشروع", title: "اعرض مشروعك مجاناً", description: "تابع العروض واختر المقاول المناسب.", action: "دخول المالك", href: "https://ali-alhaddad.com/owner-login", color: "from-emerald-800 via-emerald-600 to-emerald-950", icon: House },
-  { eyebrow: "لوحة العملاء", title: "قدّم عرضك على مشاريع حقيقية", description: "وصل إلى عملاء جادين في مدينتك.", action: "دخول العملاء", href: "https://ali-alhaddad.com/client-login", color: "from-blue-900 via-blue-700 to-blue-950", icon: BriefcaseBusiness },
+  { eyebrow: "لوحة العملاء", title: "قدّم عرض سعرك على مشاريع حقيقية..", description: "وصل إلى مشاريع حصرية في مدينتك", action: "دخول العملاء", href: "https://ali-alhaddad.com/client-login", color: "from-blue-900 via-blue-700 to-blue-950", icon: BriefcaseBusiness },
   { eyebrow: "لوحة المعلم", title: "اعرض مهنتك واحصل على فرص", description: "نجار، حداد، بناء، مهندس، كهربائي وأكثر.", action: "دخول المعلم", href: "https://ali-alhaddad.com/haraj", color: "from-orange-800 via-orange-500 to-orange-950", icon: Hammer },
   { eyebrow: "منصة العمران", title: "المالك والعميل والمعلم معاً", description: "كل أطراف البناء في مكان واحد.", action: "اكتشف المنصة", href: "https://ali-alhaddad.com", color: "from-slate-900 via-cyan-900 to-slate-950", icon: Layers3 },
 ] as const;
