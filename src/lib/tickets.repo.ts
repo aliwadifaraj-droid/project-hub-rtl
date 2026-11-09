@@ -13,9 +13,10 @@ const ticketsTableReady = db.execute(`
     created_at INTEGER DEFAULT (unixepoch()),
     updated_at INTEGER DEFAULT (unixepoch()),
     client_read_admin_count INTEGER NOT NULL DEFAULT 0,
-    client_company_name TEXT
+    client_company_name TEXT,
+    admin_read_at INTEGER
   )
-`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN user_role TEXT NOT NULL DEFAULT 'client'`).catch(() => undefined)).then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_tickets_owner_created_at ON tickets(user_id, user_role, created_at DESC)`).catch(() => undefined)).then(() => undefined);
+`).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_read_admin_count INTEGER NOT NULL DEFAULT 0`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN client_company_name TEXT`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN user_role TEXT NOT NULL DEFAULT 'client'`).catch(() => undefined)).then(() => db.execute(`ALTER TABLE tickets ADD COLUMN admin_read_at INTEGER`).catch(() => undefined)).then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_tickets_owner_created_at ON tickets(user_id, user_role, created_at DESC)`).catch(() => undefined)).then(() => undefined);
 
 const ticketMessagesTableReady = db.execute(`
   CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -49,6 +50,8 @@ export type TicketRow = {
   unread_admin_message_count: number;
   requester_name: string;
   requester_email: string;
+  requester_profession: string | null;
+  is_unread: boolean;
 };
 
 export type TicketListRow = {
@@ -85,6 +88,8 @@ function decodeTicket(row: any): TicketRow {
     unread_admin_message_count: Number(row.unread_admin_message_count ?? 0),
     requester_name: String(row.requester_name ?? row.user_id ?? ""),
     requester_email: String(row.requester_email ?? ""),
+    requester_profession: row.requester_profession ? String(row.requester_profession) : null,
+    is_unread: Boolean(row.is_unread),
   };
 }
 
@@ -167,6 +172,10 @@ export async function listAllTickets(): Promise<TicketRow[]> {
     `SELECT tickets.*,
             COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
+            tm.profession AS requester_profession,
+            CASE WHEN COALESCE((SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1), 'user') <> 'admin'
+              AND (tickets.admin_read_at IS NULL OR tickets.admin_read_at < COALESCE((SELECT created_at FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1), tickets.created_at))
+              THEN 1 ELSE 0 END AS is_unread,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
@@ -174,7 +183,9 @@ export async function listAllTickets(): Promise<TicketRow[]> {
      LEFT JOIN project_owner_profiles pop ON pop.owner_id = tickets.user_id
      LEFT JOIN clients c ON c.id = tickets.user_id
      LEFT JOIN users u ON u.id = tickets.user_id
-     ORDER BY tickets.updated_at DESC LIMIT 500`,
+     LEFT JOIN teachers t ON t.id = tickets.user_id
+     LEFT JOIN teachers_market tm ON lower(tm.email) = lower(t.email)
+     ORDER BY is_unread DESC, tickets.updated_at DESC LIMIT 500`,
   );
   return rowsToObjects(r).map(decodeTicket);
 }
@@ -185,6 +196,10 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
     `SELECT tickets.*,
             COALESCE(NULLIF(tickets.client_company_name, ''), NULLIF(cp.company_name, ''), NULLIF(p.display_name, ''), NULLIF(pop.company_name, ''), c.email, u.email, tickets.user_id) AS requester_name,
             COALESCE(c.email, u.email, '') AS requester_email,
+            tm.profession AS requester_profession,
+            CASE WHEN COALESCE((SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1), 'user') <> 'admin'
+              AND (tickets.admin_read_at IS NULL OR tickets.admin_read_at < COALESCE((SELECT created_at FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1), tickets.created_at))
+              THEN 1 ELSE 0 END AS is_unread,
             MAX(0, (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = tickets.id AND sender_type = 'admin') - COALESCE(tickets.client_read_admin_count, 0)) AS unread_admin_message_count
      FROM tickets
      LEFT JOIN client_profiles cp ON cp.user_id = tickets.user_id
@@ -192,11 +207,29 @@ export async function getTicketById(id: string): Promise<TicketRow | null> {
      LEFT JOIN project_owner_profiles pop ON pop.owner_id = tickets.user_id
      LEFT JOIN clients c ON c.id = tickets.user_id
      LEFT JOIN users u ON u.id = tickets.user_id
+     LEFT JOIN teachers t ON t.id = tickets.user_id
+     LEFT JOIN teachers_market tm ON lower(tm.email) = lower(t.email)
      WHERE tickets.id = ? LIMIT 1`,
     [id],
   );
   const row = rowsToObjects(r)[0];
   return row ? decodeTicket(row) : null;
+}
+
+export async function markTicketRead(ticketId: string): Promise<void> {
+  await ensureTicketTables();
+  await db.execute(`UPDATE tickets SET admin_read_at = unixepoch() WHERE id = ?`, [ticketId]);
+}
+
+export async function countUnreadTickets(): Promise<number> {
+  await ensureTicketTables();
+  const r = await db.execute(`
+    SELECT COUNT(*) AS c
+    FROM tickets
+    WHERE COALESCE((SELECT sender_type FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1), 'user') <> 'admin'
+      AND (tickets.admin_read_at IS NULL OR tickets.admin_read_at < COALESCE((SELECT created_at FROM ticket_messages WHERE ticket_id = tickets.id ORDER BY created_at DESC, rowid DESC LIMIT 1), tickets.created_at))
+  `);
+  return Number(rowsToObjects<{ c: number }>(r)[0]?.c ?? 0);
 }
 
 export async function markTicketMessagesRead(ticketId: string, userId: string): Promise<void> {
@@ -267,7 +300,7 @@ export async function updateTicketPriority(id: string, priority: string): Promis
   await ensureTicketTables();
   await db.execute(
     `UPDATE tickets SET priority = ?, updated_at = unixepoch() WHERE id = ?`,
-    [priority, id],
+    [id, priority],
   );
 }
 

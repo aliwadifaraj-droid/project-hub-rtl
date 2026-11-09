@@ -32,8 +32,28 @@ export function extractAmountFromOcr(text: string, expectedAmount?: number): num
     const amount = Number(match[1].replace(/,/g, ""));
     if (Number.isFinite(amount) && amount > 0 && !amounts.includes(amount)) amounts.push(amount);
   }
+
+  // Bank receipts often show the debit as a standalone number (for example 500.58)
+  // without a currency label. Avoid date fragments and account numbers.
+  const standaloneAmounts = normalized.match(/(?<![\d/])(?:\d{1,3}[,.]\d{2}|\d{1,3}(?:,\d{3})+)(?![\d/])/g) ?? [];
+  for (const value of standaloneAmounts) {
+    const amount = value.includes(",") && !value.match(/,\d{2}$/)
+      ? Number(value.replace(/,/g, ""))
+      : Number(value.replace(",", "."));
+    if (Number.isFinite(amount) && amount > 0 && !amounts.includes(amount)) amounts.push(amount);
+  }
+
   const expected = Number(expectedAmount);
   if (Number.isFinite(expected) && expected > 0) {
+    const standaloneNumbers = normalized.match(/\d[\d\s,٬.٫]*\d|\d+/g) ?? [];
+    for (const candidate of standaloneNumbers) {
+      const compact = candidate.replace(/\s+/g, "").replace(/[٬,]/g, "").replace(/٫/g, ".");
+      const amount = Number(compact);
+      if (Number.isFinite(amount) && amount > 0 && Math.abs(amount - expected) <= 2) {
+        return amount;
+      }
+    }
+
     const matchingAmount = amounts.find((amount) => Math.abs(amount - expected) <= 2);
     if (matchingAmount !== undefined) return matchingAmount;
     const mergedDigitAmount = amounts.find((amount) => {

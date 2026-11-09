@@ -92,6 +92,8 @@ export function SiteHeader() {
     qc.setQueryData(["chat-unread-count"], 0);
   }
 
+  if (path.startsWith("/haraj")) return null;
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">

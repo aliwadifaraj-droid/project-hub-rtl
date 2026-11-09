@@ -1,7 +1,11 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { LifeBuoy } from "lucide-react";
 
 export function SupportWidget() {
+  const path = useRouterState({ select: (state) => state.location.pathname });
+
+  if (path.startsWith("/admin")) return null;
+
   return (
     <Link
       to="/support/tickets"

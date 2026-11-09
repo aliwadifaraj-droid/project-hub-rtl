@@ -132,6 +132,26 @@
   }
 
   @media (max-width: 640px) {
+    html,
+    body {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    body > div {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
     [aria-labelledby="tameed-title"] > div {
       transform: translateX(1.5rem) !important;
     }
@@ -160,8 +180,7 @@
 
   @media print {
     .print\:hidden {
-      display: none !important;
+      display: none;
     }
   }
-
 }

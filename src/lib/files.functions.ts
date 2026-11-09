@@ -26,7 +26,7 @@ if (typeof globalThis !== "undefined") {
 const uploadSchema = z.object({
   filename: z.string().min(1).max(200),
   mime: z.string().max(200).optional(),
-  purpose: z.enum(["project-image", "bid-pdf", "vip-receipt", "other"]).default("other"),
+  purpose: z.enum(["project-image", "bid-pdf", "vip-receipt", "teacher-receipt", "other"]).default("other"),
   /** Base64-encoded file bytes. */
   data: z.string().min(1),
 });
@@ -62,7 +62,7 @@ export const uploadFile = createServerFn({ method: "POST" })
 /** Public upload for visitor-facing forms. Restricted by purpose and file size. */
 export const uploadPublicFile = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => uploadSchema.extend({
-    purpose: z.enum(["project-image", "vip-receipt", "bid-pdf"]),
+    purpose: z.enum(["project-image", "vip-receipt", "teacher-receipt", "bid-pdf"]),
   }).parse(d))
   .handler(async ({ data }) => {
     const bytes = b64ToBytes(data.data);
@@ -70,10 +70,10 @@ export const uploadPublicFile = createServerFn({ method: "POST" })
     const isImage = (data.mime ?? "").startsWith("image/");
     if (data.purpose === "project-image" && !isImage) throw new Error("الملف يجب أن يكون صورة");
     if (data.purpose === "bid-pdf" && !isPdf) throw new Error("الملف يجب أن يكون PDF");
-    if (data.purpose === "vip-receipt" && !isImage && !isPdf) throw new Error("الإيصال يجب أن يكون صورة أو PDF");
+    if ((data.purpose === "vip-receipt" || data.purpose === "teacher-receipt") && !isImage && !isPdf) throw new Error("الإيصال يجب أن يكون صورة أو PDF");
     const max = data.purpose === "bid-pdf" ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
     if (bytes.length > max) throw new Error(data.purpose === "bid-pdf" ? "حجم الملف أكبر من 10MB" : "حجم الملف أكبر من 5MB");
-    const key = makeKey(data.purpose === "bid-pdf" ? "bids" : data.purpose === "vip-receipt" ? "vip-receipts" : "submissions", data.filename);
+    const key = data.purpose === "bid-pdf" ? makeKey("bids", data.filename) : data.purpose === "vip-receipt" ? makeKey("vip-receipts", data.filename) : data.purpose === "teacher-receipt" ? makeKey("teacher-receipts", data.filename) : makeKey("submissions", data.filename);
     await uploadToR2({ key, body: bytes, contentType: data.mime });
     const id = await insertFile({
       r2_key: key,
@@ -135,7 +135,7 @@ export const registerUploadedFile = createServerFn({ method: "POST" })
       filename: z.string().min(1).max(200),
       mime: z.string().max(200).optional(),
       size: z.number().int().min(0).max(200 * 1024 * 1024),
-      purpose: z.enum(["project-image", "bid-pdf", "vip-receipt", "other"]).default("other"),
+      purpose: z.enum(["project-image", "bid-pdf", "vip-receipt", "teacher-receipt", "other"]).default("other"),
       publicUrl: z.string().url().optional(),
     }).parse(d),
   )
@@ -159,7 +159,7 @@ export const registerPublicUploadedFile = createServerFn({ method: "POST" })
       filename: z.string().min(1).max(200),
       mime: z.string().max(200).optional(),
       size: z.number().int().min(0).max(20 * 1024 * 1024),
-      purpose: z.enum(["project-image", "vip-receipt", "bid-pdf"]),
+      purpose: z.enum(["project-image", "vip-receipt", "teacher-receipt", "bid-pdf"]),
       publicUrl: z.string().url().optional(),
     }).parse(d),
   )

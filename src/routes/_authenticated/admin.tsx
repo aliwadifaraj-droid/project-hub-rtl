@@ -9,10 +9,10 @@ import { countPendingProjects } from "@/lib/project-approval.functions";
 import { listMyNotifications, countMyUnreadNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/notifications.functions";
 import { countUnreadTeamMessages } from "@/lib/chat.functions";
 import { adminCountOpenSupportChats } from "@/lib/support.functions";
-import { adminCountOpenTickets } from "@/lib/tickets.functions";
+import { adminCountUnreadTickets } from "@/lib/tickets.functions";
 import { testPush } from "@/lib/push-test.functions";
 import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
-import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, Ticket, BadgeCheck, UserCog } from "lucide-react";
+import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, Ticket, BadgeCheck, UserCog, Hammer } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { SupportWidget } from "@/components/support-widget";
 import { toast } from "sonner";
@@ -32,7 +32,7 @@ function AdminLayout() {
   const countUnread = useServerFn(countMyUnreadNotifications);
   const countTeamUnread = useServerFn(countUnreadTeamMessages);
   const countOpenSupport = useServerFn(adminCountOpenSupportChats);
-  const countTickets = useServerFn(adminCountOpenTickets);
+  const countTickets = useServerFn(adminCountUnreadTickets);
   const doSignOut = useServerFn(signOut);
   const listNotifs = useServerFn(listMyNotifications);
   const markRead = useServerFn(markNotificationRead);
@@ -90,7 +90,7 @@ function AdminLayout() {
     refetchInterval: 2000,
   });
   const { data: openTicketsCount = 0 } = useQuery({
-    queryKey: ["open-tickets-count"],
+    queryKey: ["unread-tickets-count"],
     queryFn: async () => {
       const res = await countTickets();
       return res.count;
@@ -155,6 +155,7 @@ function AdminLayout() {
     { to: "/admin/vip", label: "العملاء المميزون", icon: Star, show: isAdmin },
     { to: "/admin/approvals", label: "اعتماد العملاء", icon: BadgeCheck, show: isAdmin },
     { to: "/admin/settings", label: "الإعدادات", icon: Settings2, show: isAdmin },
+    { to: "/admin/haraj", label: "حراج المعلمين", icon: Hammer, show: isAdmin },
   ];
 
   async function openNotif(open: boolean) {

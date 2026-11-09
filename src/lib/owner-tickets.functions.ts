@@ -18,7 +18,13 @@ async function getRequiredOwnerId(): Promise<string> {
 
 export const listMyOwnerTickets = createServerFn({ method: "GET" }).handler(async () => {
   const ownerId = await getRequiredOwnerId();
-  return ticketsRepo.listTicketsByUserAndRole(ownerId, "owner");
+  const tickets = await ticketsRepo.listTicketsByUserAndRole(ownerId, "owner");
+  return Promise.all(
+    tickets.map(async (ticket) => {
+      const detailed = await ticketsRepo.getTicketForOwner(ticket.id, ownerId);
+      return { ...ticket, unread_admin_message_count: detailed?.unread_admin_message_count ?? 0 };
+    }),
+  );
 });
 
 const createTicketSchema = z.object({

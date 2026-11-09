@@ -27,6 +27,30 @@ import { detectCity } from "./vip-notify.server";
 import { requireAuth } from "./auth-middleware.server";
 import { resolveStoredFileUrl } from "./storage-url";
 import { insertSubscription, deleteSubscription } from "./push.repo";
+import {
+  getClientIp,
+  checkRateLimit,
+  recordFailedAttempt,
+  resetRateLimit,
+  formatRetryMs,
+} from "./rate-limiter";
+
+// --- Rate limit constants ---
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+const SIGNUP_MAX_ATTEMPTS = 3;
+const SIGNUP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const SIGNUP_LOCKOUT_MS = 60 * 60 * 1000; // 1 hour
+
+function loginRateKey(email: string): string {
+  return `login:${getClientIp()}:${email}`;
+}
+
+function signupRateKey(): string {
+  return `signup:${getClientIp()}`;
+}
 
 const clientCredsSchema = z.object({
   email: z.string().email().max(255).transform((s) => s.trim().toLowerCase()),
@@ -45,6 +69,12 @@ const signUpClientSchema = clientCredsSchema.extend({
 export const signUpClient = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => signUpClientSchema.parse(d))
   .handler(async ({ data }) => {
+    const sKey = signupRateKey();
+    const sLimit = checkRateLimit(sKey, SIGNUP_MAX_ATTEMPTS, SIGNUP_WINDOW_MS, SIGNUP_LOCKOUT_MS);
+    if (!sLimit.allowed) {
+      throw new Error(formatRetryMs(sLimit.retryAfterMs));
+    }
+
     const existing = await findClientByEmail(data.email);
     if (existing) throw new Error("هذا البريد مسجل بالفعل");
     const hash = await hashPassword(data.password);
@@ -56,6 +86,7 @@ export const signUpClient = createServerFn({ method: "POST" })
       cr_number: data.cr_number,
       bio: data.bio,
     });
+    resetRateLimit(sKey);
     const token = await signSessionToken({ sub: clientId, email: data.email, roles: ["client"] });
     setSessionCookie(token);
     return { id: clientId, email: data.email, roles: ["client"] };
@@ -65,10 +96,23 @@ export const signUpClient = createServerFn({ method: "POST" })
 export const signInClient = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => clientCredsSchema.parse(d))
   .handler(async ({ data }) => {
+    const key = loginRateKey(data.email);
+    const limit = checkRateLimit(key, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, LOGIN_LOCKOUT_MS);
+    if (!limit.allowed) {
+      throw new Error(formatRetryMs(limit.retryAfterMs));
+    }
+
     const client = await findClientByEmail(data.email);
-    if (!client) throw new Error("بيانات الدخول غير صحيحة");
+    if (!client) {
+      recordFailedAttempt(key, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, LOGIN_LOCKOUT_MS);
+      throw new Error("بيانات الدخول غير صحيحة");
+    }
     const ok = await verifyPassword(data.password, client.password_hash);
-    if (!ok) throw new Error("بيانات الدخول غير صحيحة");
+    if (!ok) {
+      recordFailedAttempt(key, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, LOGIN_LOCKOUT_MS);
+      throw new Error("بيانات الدخول غير صحيحة");
+    }
+    resetRateLimit(key);
     const token = await signSessionToken({ sub: client.id, email: client.email, roles: ["client"] });
     setSessionCookie(token);
     return { id: client.id, email: client.email, roles: ["client"] };

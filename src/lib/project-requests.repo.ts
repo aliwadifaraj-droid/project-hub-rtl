@@ -213,6 +213,14 @@ export async function updateRequestStatus(id: string, status: string, note?: str
   ]);
 }
 
+export async function deleteRequestById(id: string): Promise<void> {
+  await db.execute(`DELETE FROM project_requests WHERE id = ?`, [id]);
+}
+
+export async function deleteRequestsByPdfPath(path: string): Promise<void> {
+  await db.execute(`DELETE FROM project_requests WHERE pdf_url = ?`, [path]);
+}
+
 let _projectNameColReady: Promise<void> | null = null;
 export function ensureProjectNameColumn(): Promise<void> {
   if (!_projectNameColReady) {

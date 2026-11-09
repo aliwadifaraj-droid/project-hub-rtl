@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   getPlatformRequests,
   updateRequestStatus,
@@ -9,9 +10,10 @@ import {
   getMyRoles,
   sendRequestMessage,
 } from "@/lib/admin.functions";
-import { FileDown, Loader2, Bell, Mail, X, Ban } from "lucide-react";
+import { FileDown, Loader2, Bell, Mail, X, Ban, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { adminBlockCompany } from "@/lib/blocked.functions";
+import { deleteRequest } from "@/lib/request-delete.functions";
 
 
 export const Route = createFileRoute("/_authenticated/admin/requests")({
@@ -45,6 +47,19 @@ function RequestsPage() {
   const blockMut = useMutation({
     mutationFn: (v: { company_name?: string; email?: string }) => blockFn({ data: v }),
     onSuccess: () => { toast.success("تم حظر الشركة"); qc.invalidateQueries({ queryKey: ["platform-requests"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; company: string } | null>(null);
+  const deleteFn = useServerFn(deleteRequest);
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: (res) => {
+      if (res.storageDeleted) toast.success("تم حذف الطلب نهائياً");
+      else toast.warning("تم حذف الطلب من قاعدة البيانات، لكن تعذر حذف الملف المرفق من التخزين");
+      setDeleteTarget(null);
+      qc.invalidateQueries({ queryKey: ["platform-requests"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -108,6 +123,7 @@ function RequestsPage() {
                 <th className="p-3 font-semibold">الحالة</th>
                 <th className="p-3 font-semibold">عرض السعر</th>
                 <th className="p-3 font-semibold">حظر</th>
+                <th className="p-3 font-semibold">حذف</th>
               </tr>
             </thead>
             <tbody>
@@ -174,11 +190,21 @@ function RequestsPage() {
                       </button>
                     ) : "-"}
                   </td>
+                  <td className="p-3">
+                    {isAdmin ? (
+                      <button
+                        onClick={() => setDeleteTarget({ id: r.id, company: r.company_name ?? "" })}
+                        className="inline-flex items-center gap-1 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-red-300 hover:bg-red-600 hover:text-white transition"
+                      >
+                        <Trash2 className="h-4 w-4" /> حذف
+                      </button>
+                    ) : "-"}
+                  </td>
 
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={8} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-slate-400">لا توجد طلبات بعد</td></tr>
               )}
             </tbody>
           </table>
@@ -237,6 +263,14 @@ function RequestsPage() {
                   <Mail className="h-4 w-4" /> رسالة خاصة
                 </button>
               ) : null}
+              {isAdmin ? (
+                <button
+                  onClick={() => setDeleteTarget({ id: r.id, company: r.company_name ?? "" })}
+                  className="inline-flex w-full items-center justify-center gap-1 rounded-md bg-red-600/80 px-3 py-2 text-xs font-medium text-white hover:bg-red-500"
+                >
+                  <Trash2 className="h-4 w-4" /> حذف الطلب
+                </button>
+              ) : null}
             </div>
           ))}
           {rows.length === 0 && <div className="p-8 text-center text-slate-400">لا توجد طلبات بعد</div>}
@@ -254,6 +288,15 @@ function RequestsPage() {
       )}
 
       {msgTarget && <MessageModal target={msgTarget} onClose={() => setMsgTarget(null)} />}
+
+      {deleteTarget && (
+        <DeleteRequestModal
+          company={deleteTarget.company}
+          pending={deleteMut.isPending}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id)}
+        />
+      )}
     </div>
   );
 
@@ -327,6 +370,50 @@ function NoteModal({
         </form>
       </div>
     </div>
+  );
+}
+
+function DeleteRequestModal({
+  company,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  company: string;
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 p-4" dir="rtl" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-[90vw] max-w-md min-w-0 rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-500/15 text-red-400">
+            <Trash2 className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-bold">حذف الطلب نهائياً؟</h2>
+            <p className="mt-1 break-words text-sm leading-6 text-slate-400">
+              سيتم حذف طلب <span className="font-semibold text-slate-200">{company || "هذه الشركة"}</span> نهائياً من لوحة الإدارة وقاعدة البيانات، مع ملف العرض المرفق. لا يمكن التراجع عن هذا الإجراء.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onClose} disabled={pending} className="rounded-md border border-slate-600 px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-800 disabled:opacity-60">
+            إلغاء
+          </button>
+          <button type="button" onClick={onConfirm} disabled={pending} className="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-60">
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} حذف نهائي
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

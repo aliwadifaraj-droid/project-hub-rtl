@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { adminListTickets, adminGetTicket, adminUpdateTicketStatus, adminUpdateTicketPriority, adminDeleteTicket, replyToTicket } from "@/lib/tickets.functions";
+import { adminListTickets, adminGetTicket, adminMarkTicketRead, adminUpdateTicketStatus, adminUpdateTicketPriority, adminDeleteTicket, replyToTicket } from "@/lib/tickets.functions";
 import { Loader2, Send, Inbox, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
@@ -30,16 +30,17 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "bg-gray-100 text-gray-600", medium: "bg-blue-100 text-blue-800", high: "bg-red-100 text-red-800",
 };
 const ROLE_LABELS: Record<string, string> = {
-  client: "عميل", owner: "صاحب مشروع",
+  client: "عميل", owner: "صاحب مشروع", teacher: "معلم",
 };
 const ROLE_COLORS: Record<string, string> = {
-  client: "bg-emerald-100 text-emerald-800", owner: "bg-purple-100 text-purple-800",
+  client: "bg-emerald-100 text-emerald-800", owner: "bg-purple-100 text-purple-800", teacher: "bg-amber-100 text-amber-800",
 };
 
 function AdminTicketsPage() {
   const qc = useQueryClient();
   const listFn = useServerFn(adminListTickets);
   const getFn = useServerFn(adminGetTicket);
+  const markReadFn = useServerFn(adminMarkTicketRead);
   const statusFn = useServerFn(adminUpdateTicketStatus);
   const priorityFn = useServerFn(adminUpdateTicketPriority);
   const replyFn = useServerFn(replyToTicket);
@@ -54,6 +55,21 @@ function AdminTicketsPage() {
     queryFn: () => listFn(),
     refetchInterval: 10000,
   });
+
+  const markReadMut = useMutation({
+    mutationFn: (id: string) => markReadFn({ data: { id } }),
+    onSuccess: (_, id) => {
+      qc.setQueryData(["admin-tickets"], (current: typeof tickets) => current.map((ticket) => ticket.id === id ? { ...ticket, is_unread: false } : ticket));
+      qc.setQueryData(["unread-tickets-count"], (count: number | undefined) => Math.max(0, (count ?? 0) - 1));
+    },
+    onError: (e: Error) => toast.error(e.message || "تعذر تحديث حالة التذكرة"),
+  });
+
+  function openTicket(id: string) {
+    const ticket = tickets.find((item) => item.id === id);
+    if (ticket?.is_unread) markReadMut.mutate(id);
+    setActiveId(id);
+  }
 
   const { data: detail } = useQuery({
     queryKey: ["admin-ticket-detail", activeId],
@@ -130,9 +146,9 @@ function AdminTicketsPage() {
             {tickets.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setActiveId(t.id)}
+                onClick={() => openTicket(t.id)}
                 className={`block w-full rounded-xl border p-3 text-right transition ${
-                  activeId === t.id ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/30"
+                  t.is_unread ? "border-red-300 bg-red-50/70 hover:border-red-400" : activeId === t.id ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/30"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -148,8 +164,11 @@ function AdminTicketsPage() {
                     {PRIORITY_LABELS[t.priority] ?? t.priority}
                   </span>
                 </div>
-                <h3 className="mt-1.5 truncate text-sm font-semibold">{t.subject}</h3>
-                <p className="mt-1 truncate text-xs font-medium text-foreground/80">{t.requester_name}</p>
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <h3 className="truncate text-sm font-semibold">{t.subject}</h3>
+                  {t.is_unread && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white"><span className="h-1.5 w-1.5 rounded-full bg-white" />جديدة</span>}
+                </div>
+                <p className="mt-1 truncate text-xs font-medium text-foreground/80">{t.requester_name}{t.user_role === "teacher" && t.requester_profession ? ` — ${t.requester_profession}` : ""}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {new Date(t.created_at * 1000).toLocaleDateString("ar-SA")}
                 </p>
@@ -169,7 +188,7 @@ function AdminTicketsPage() {
                 <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span>التصنيف: {detail.ticket.category}</span>
                   {detail.ticket.order_id && <span>رقم الطلب: {detail.ticket.order_id}</span>}
-                  <span>صاحب التذكرة: {detail.ticket.requester_name}</span>
+                  <span>صاحب التذكرة: {detail.ticket.requester_name}{detail.ticket.user_role === "teacher" && detail.ticket.requester_profession ? ` — ${detail.ticket.requester_profession}` : ""}</span>
                   {detail.ticket.requester_email && <span>{detail.ticket.requester_email}</span>}
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${ROLE_COLORS[detail.ticket.user_role] ?? ROLE_COLORS.client}`}>
                     {ROLE_LABELS[detail.ticket.user_role] ?? "عميل"}
