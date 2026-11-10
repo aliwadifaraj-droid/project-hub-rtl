@@ -3,8 +3,11 @@ import { z } from "zod";
 import { render } from "@react-email/components";
 import { requireAdmin, requireAuth } from "./auth-middleware.server";
 import * as meetingsRepo from "./meetings.repo";
-import { sendResendEmailWithResult } from "./resend-send.server";
-import { MeetingInvitationEmail } from "./email-templates/meeting-invitation";
+import { sendResendEmailWithResult, type ResendSendResult } from "./resend-send.server";
+import {
+  MeetingInvitationEmail,
+  type MeetingInvitationProps,
+} from "./email-templates/meeting-invitation";
 import { MeetingNoShowEmail } from "./email-templates/meeting-no-show";
 import { buildAgoraRtcToken } from "./agora-token.server";
 import { readAgoraSettings } from "./site-settings.functions";
@@ -23,6 +26,19 @@ function canAccessMeeting(
   if (context.roles?.includes("admin")) return true;
   const email = context.email.toLowerCase();
   return meeting.client_email.toLowerCase() === email || meeting.owner_email.toLowerCase() === email;
+}
+
+async function sendMeetingInvitation(
+  opts: MeetingInvitationProps & { to: string; subject: string },
+): Promise<ResendSendResult> {
+  try {
+    const { to, subject, ...props } = opts;
+    const html = await render(MeetingInvitationEmail(props));
+    return await sendResendEmailWithResult({ to, subject, html });
+  } catch (e) {
+    console.error("Failed to prepare meeting invitation", e);
+    return { ok: false, error: e instanceof Error ? e.message : "تعذّر تجهيز الإيميل" };
+  }
 }
 
 export const createMeeting = createServerFn({ method: "POST" })
@@ -51,34 +67,35 @@ export const createMeeting = createServerFn({ method: "POST" })
         meeting_time: data.meeting_time,
       });
 
-      let emailed = false;
-      let emailError: string | null = null;
-      try {
-        const html = await render(
-          MeetingInvitationEmail({
-            clientName: client.name,
-            ownerName: data.owner_name,
-            meetingDate: data.meeting_date,
-            meetingTime: data.meeting_time,
-          }),
-        );
-        const sent = await sendResendEmailWithResult({
-          to: client.email,
-          subject: `دعوة لحضور اجتماع — ${data.meeting_date} ${data.meeting_time}`,
-          html,
-        });
-        emailed = sent.ok;
-        if (!sent.ok) emailError = sent.error;
-      } catch (e) {
-        console.error("Failed to send meeting email to", client.email, e);
-        emailError = e instanceof Error ? e.message : "تعذّر تجهيز الإيميل";
+      const invitation = {
+        clientName: client.name,
+        ownerName: data.owner_name,
+        meetingDate: data.meeting_date,
+        meetingTime: data.meeting_time,
+      };
+      const subject = `دعوة لحضور اجتماع — ${data.meeting_date} ${data.meeting_time}`;
+
+      const clientSent = await sendMeetingInvitation({
+        ...invitation,
+        variant: "client",
+        to: client.email,
+        subject,
+      });
+      const ownerSent = await sendMeetingInvitation({
+        ...invitation,
+        variant: "owner",
+        to: data.owner_email,
+        subject,
+      });
+      if (!ownerSent.ok) {
+        console.error("Failed to send meeting email to owner", data.owner_email, ownerSent.error);
       }
 
       results.push({
         client_email: row.client_email,
         client_name: row.client_name,
-        emailed,
-        emailError,
+        emailed: clientSent.ok,
+        emailError: clientSent.ok ? null : clientSent.error,
       });
     }
 
