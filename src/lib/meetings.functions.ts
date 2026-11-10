@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { render } from "@react-email/components";
 import { requireAdmin } from "./auth-middleware.server";
 import * as meetingsRepo from "./meetings.repo";
 import { sendResendEmail } from "./resend-send.server";
-import { render } from "@react-email/render";
-import MeetingInvitationEmail from "./email-templates/meeting-invitation";
+import { MeetingInvitationEmail } from "./email-templates/meeting-invitation";
 
 const clientSchema = z.object({
   email: z.string().email().max(255),
