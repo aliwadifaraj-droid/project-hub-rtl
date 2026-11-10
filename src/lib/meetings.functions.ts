@@ -124,11 +124,12 @@ export const joinMeeting = createServerFn({ method: "POST" })
       throw new Error("الاجتماع منتهي");
     }
     const agoraSettings = await readAgoraSettings();
-    const appId = agoraSettings.appId || null;
+    const appId = agoraSettings.appId || process.env.AGORA_APP_ID?.trim() || null;
     if (!appId) {
       throw new Error("إعدادات غرفة الاجتماع غير مكتملة. الحقل الناقص: Agora App ID.");
     }
-    const appCertificate = agoraSettings.appCertificate || null;
+    const appCertificate =
+      agoraSettings.appCertificate || process.env.AGORA_APP_CERTIFICATE?.trim() || null;
     const channelName = `meeting_${meeting.id}`;
     const token = buildAgoraRtcToken({
       appId,
