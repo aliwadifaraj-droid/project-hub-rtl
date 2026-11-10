@@ -6,7 +6,6 @@ import * as meetingsRepo from "./meetings.repo";
 import { sendResendEmail } from "./resend-send.server";
 import { MeetingInvitationEmail } from "./email-templates/meeting-invitation";
 import { MeetingNoShowEmail } from "./email-templates/meeting-no-show";
-import { getSessionClaims } from "./auth.server";
 
 const clientSchema = z.object({
   email: z.string().email().max(255),
@@ -76,13 +75,12 @@ export const listMyUpcomingMeetings = createServerFn({ method: "GET" })
   });
 
 export const getMeetingDetails = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
-    const claims = await getSessionClaims();
-    if (!claims) throw new Error("غير مصرح");
-    const email = claims.email;
+    const email = context.email;
     if (meeting.client_email.toLowerCase() !== email.toLowerCase() && meeting.owner_email.toLowerCase() !== email.toLowerCase()) {
       throw new Error("غير مصرح لهذا الاجتماع");
     }
@@ -90,13 +88,12 @@ export const getMeetingDetails = createServerFn({ method: "GET" })
   });
 
 export const joinMeeting = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
-    const claims = await getSessionClaims();
-    if (!claims) throw new Error("غير مصرح");
-    const email = claims.email;
+    const email = context.email;
     if (meeting.client_email.toLowerCase() !== email.toLowerCase() && meeting.owner_email.toLowerCase() !== email.toLowerCase()) {
       throw new Error("غير مصرح لهذا الاجتماع");
     }
@@ -107,18 +104,17 @@ export const joinMeeting = createServerFn({ method: "POST" })
     const appId = process.env.AGORA_APP_ID || "";
     const appCertificate = process.env.AGORA_APP_CERTIFICATE || "";
     const channelName = `meeting_${meeting.id}`;
-    const token = await generateAgoraToken(appId, appCertificate, channelName, claims.sub);
-    return { appId, token, channelName, uid: claims.sub };
+    const token = await generateAgoraToken(appId, appCertificate, channelName, context.userId);
+    return { appId, token, channelName, uid: context.userId };
   });
 
 export const closeMeeting = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
-    const claims = await getSessionClaims();
-    if (!claims) throw new Error("غير مصرح");
-    if (meeting.client_email.toLowerCase() !== claims.email.toLowerCase() && meeting.owner_email.toLowerCase() !== claims.email.toLowerCase()) {
+    if (meeting.client_email.toLowerCase() !== context.email.toLowerCase() && meeting.owner_email.toLowerCase() !== context.email.toLowerCase()) {
       throw new Error("غير مصرح لهذا الاجتماع");
     }
     await meetingsRepo.markMeetingClosed(data.id);
@@ -126,6 +122,7 @@ export const closeMeeting = createServerFn({ method: "POST" })
   });
 
 export const reportMeetingNoShow = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);

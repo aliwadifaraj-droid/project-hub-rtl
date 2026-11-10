@@ -39,9 +39,7 @@ function ensureMeetingsTable(): Promise<void> {
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_meetings_client ON meetings(client_email)`))
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_email)`))
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status)`))
-      .then(() => db.execute(`ALTER TABLE meetings ADD COLUMN status TEXT NOT NULL DEFAULT 'scheduled'`).catch(() => undefined))
-      .then(() => db.execute(`ALTER TABLE meetings ADD COLUMN joined_at TEXT`).catch(() => undefined))
-      .then(() => db.execute(`ALTER TABLE meetings ADD COLUMN closed_at TEXT`).catch(() => undefined))
+      .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_meetings_date_status ON meetings(meeting_date, status)`))
       .then(() => undefined);
   }
   return meetingsTableReady;
