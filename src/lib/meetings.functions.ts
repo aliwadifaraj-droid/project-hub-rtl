@@ -113,7 +113,14 @@ export const getMeetingDetails = createServerFn({ method: "GET" })
 
 export const joinMeeting = createServerFn({ method: "POST" })
   .middleware([requireAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        appId: z.string().trim().regex(/^[0-9a-fA-F]{32}$/),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
@@ -124,21 +131,17 @@ export const joinMeeting = createServerFn({ method: "POST" })
       throw new Error("الاجتماع منتهي");
     }
     const agoraSettings = await readAgoraSettings();
-    const appId = agoraSettings.appId || process.env.AGORA_APP_ID?.trim() || null;
-    if (!appId) {
-      throw new Error("إعدادات غرفة الاجتماع غير مكتملة. الحقل الناقص: Agora App ID.");
-    }
     const appCertificate =
       agoraSettings.appCertificate || process.env.AGORA_APP_CERTIFICATE?.trim() || null;
     const channelName = `meeting_${meeting.id}`;
     const token = buildAgoraRtcToken({
-      appId,
+      appId: data.appId,
       appCertificate,
       channelName,
       ttlSeconds: MEETING_TOKEN_TTL_SECONDS,
     });
     await meetingsRepo.markMeetingJoined(data.id);
-    return { appId, token: token ?? null, channelName };
+    return { token: token ?? null, channelName };
   });
 
 export const closeMeeting = createServerFn({ method: "POST" })
