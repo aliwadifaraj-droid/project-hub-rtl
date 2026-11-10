@@ -66,6 +66,7 @@ export function MeetingRoomButton({
   variant: "floating" | "header";
 }) {
   const [showRoom, setShowRoom] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const listMeetings = useServerFn(listMyUpcomingMeetings);
 
   const { data: meetings = [] } = useQuery({
@@ -80,9 +81,27 @@ export function MeetingRoomButton({
     (m) => m.status === "scheduled" || m.status === "active",
   );
 
+  useEffect(() => {
+    if (!activeMeeting) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [activeMeeting]);
+
+  const remainingMs = activeMeeting
+    ? getMeetingStartTimestamp(activeMeeting.meeting_date, activeMeeting.meeting_time) - now
+    : 0;
+
   const handleClick = useCallback(() => {
     setShowRoom(true);
   }, []);
+
+  const countdownBadge =
+    remainingMs > 0 ? (
+      <span dir="ltr" className="font-mono text-xs font-bold tabular-nums">
+        {formatCountdown(remainingMs)}
+      </span>
+    ) : null;
 
   if (variant === "header") {
     return (
@@ -100,6 +119,7 @@ export function MeetingRoomButton({
               <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
             </span>
           )}
+          {countdownBadge}
         </button>
         {showRoom && (
           <MeetingRoom
@@ -127,6 +147,7 @@ export function MeetingRoomButton({
             <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
           </span>
         )}
+        {countdownBadge}
       </button>
       {showRoom && (
         <MeetingRoom
