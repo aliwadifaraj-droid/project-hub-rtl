@@ -38,9 +38,8 @@ type MeetingRow = {
 
 type AgoraConnection = {
   appId: string;
-  token: string;
+  token: string | null;
   channelName: string;
-  uid: string;
 };
 
 const MEETING_DURATION_MS = 60 * 60 * 1000;
@@ -275,13 +274,7 @@ function MeetingRoom({
           setParticipants((prev) => Math.max(1, prev - 1));
         });
 
-        const uid = conn.uid ? Number(conn.uid.replace(/[^0-9]/g, "").slice(0, 9)) || 0 : 0;
-        await client.join(
-          conn.appId,
-          conn.channelName,
-          conn.token || undefined,
-          uid || undefined,
-        );
+        await client.join(conn.appId, conn.channelName, conn.token, 0);
 
         const localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         localAudioTrackRef.current = localAudioTrack;
