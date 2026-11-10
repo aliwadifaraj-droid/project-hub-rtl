@@ -133,7 +133,7 @@ export const joinMeeting = createServerFn({ method: "POST" })
       ttlSeconds: MEETING_TOKEN_TTL_SECONDS,
     });
     await meetingsRepo.markMeetingJoined(data.id);
-    return { appId, token, channelName };
+    return { appId, token: token ?? null, channelName };
   });
 
 export const closeMeeting = createServerFn({ method: "POST" })
