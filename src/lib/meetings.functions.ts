@@ -3,7 +3,7 @@ import { z } from "zod";
 import { render } from "@react-email/components";
 import { requireAdmin, requireAuth } from "./auth-middleware.server";
 import * as meetingsRepo from "./meetings.repo";
-import { sendResendEmail } from "./resend-send.server";
+import { sendResendEmailWithResult } from "./resend-send.server";
 import { MeetingInvitationEmail } from "./email-templates/meeting-invitation";
 import { MeetingNoShowEmail } from "./email-templates/meeting-no-show";
 
@@ -35,7 +35,7 @@ export const createMeeting = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    const results: Array<{ client_email: string; client_name: string; emailed: boolean }> = [];
+    const results: Array<{ client_email: string; client_name: string; emailed: boolean; emailError: string | null }> = [];
 
     for (const client of data.clients) {
       const row = await meetingsRepo.insertMeeting({
@@ -48,6 +48,7 @@ export const createMeeting = createServerFn({ method: "POST" })
       });
 
       let emailed = false;
+      let emailError: string | null = null;
       try {
         const html = await render(
           MeetingInvitationEmail({
@@ -57,19 +58,23 @@ export const createMeeting = createServerFn({ method: "POST" })
             meetingTime: data.meeting_time,
           }),
         );
-        emailed = await sendResendEmail({
+        const sent = await sendResendEmailWithResult({
           to: client.email,
           subject: `دعوة لحضور اجتماع — ${data.meeting_date} ${data.meeting_time}`,
           html,
         });
+        emailed = sent.ok;
+        if (!sent.ok) emailError = sent.error;
       } catch (e) {
         console.error("Failed to send meeting email to", client.email, e);
+        emailError = e instanceof Error ? e.message : "تعذّر تجهيز الإيميل";
       }
 
       results.push({
         client_email: row.client_email,
         client_name: row.client_name,
         emailed,
+        emailError,
       });
     }
 
@@ -136,7 +141,7 @@ export const closeMeeting = createServerFn({ method: "POST" })
   });
 
 export const reportMeetingNoShow = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
@@ -156,11 +161,12 @@ export const reportMeetingNoShow = createServerFn({ method: "POST" })
           meetingTime: meeting.meeting_time,
         }),
       );
-      emailed = await sendResendEmail({
+      const sent = await sendResendEmailWithResult({
         to: meeting.client_email,
         subject: `لم يتم الحضور في الموعد — ${meeting.meeting_date} ${meeting.meeting_time}`,
         html,
       });
+      emailed = sent.ok;
     } catch (e) {
       console.error("Failed to send no-show email", e);
     }

@@ -1,5 +1,6 @@
 // Turso repository for `meetings` (admin-scheduled client meetings).
 import { db } from "./db";
+import { riyadhToday } from "./meeting-time";
 
 export type MeetingInput = {
   owner_email: string;
@@ -58,7 +59,7 @@ export async function insertMeeting(data: MeetingInput): Promise<MeetingRow> {
 
 export async function listUpcomingByEmail(email: string): Promise<MeetingRow[]> {
   await ensureMeetingsTable();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = riyadhToday();
   const result = await db.execute(
     `SELECT * FROM meetings
      WHERE (lower(client_email) = lower(?) OR lower(owner_email) = lower(?))
@@ -73,7 +74,7 @@ export async function listUpcomingByEmail(email: string): Promise<MeetingRow[]> 
 
 export async function listUpcomingForAdmin(): Promise<MeetingRow[]> {
   await ensureMeetingsTable();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = riyadhToday();
   const result = await db.execute(
     `SELECT * FROM meetings
      WHERE meeting_date >= ?

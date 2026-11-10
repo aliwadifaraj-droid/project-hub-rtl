@@ -181,7 +181,7 @@ function AdminLayout() {
             لوحة التحكم
           </Link>
           <div className="flex items-center gap-2">
-            <MeetingRoomButton userRole="owner" variant="header" />
+            <MeetingRoomButton userRole="owner" variant="header" canReportNoShow />
             {/* Notifications bell with dropdown */}
             <div className="relative">
               <button

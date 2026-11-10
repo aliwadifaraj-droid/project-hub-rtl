@@ -5,6 +5,7 @@ import { useState } from "react";
 import { adminListProjectOwners } from "@/lib/project-owner-admin.functions";
 import { adminListClients } from "@/lib/admin.functions";
 import { adminListUpcomingMeetings, createMeeting } from "@/lib/meetings.functions";
+import { riyadhToday } from "@/lib/meeting-time";
 import { ArrowRight, Building2, CalendarDays, Check, Clock, Loader2, Mail, Search, UserCircle, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -304,7 +305,7 @@ function ScheduleMeetingDialog({
 }) {
   const schedule = useServerFn(createMeeting);
   const queryClient = useQueryClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = riyadhToday();
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -323,15 +324,15 @@ function ScheduleMeetingDialog({
           meeting_time: time,
         },
       }),
-    onSuccess: (res: { created: number; results: Array<{ emailed: boolean }> }) => {
+    onSuccess: (res: { created: number; results: Array<{ emailed: boolean; emailError: string | null }> }) => {
       const emailedCount = res.results.filter((r) => r.emailed).length;
       toast.success(`تم حفظ ${res.created} اجتماع`);
       if (emailedCount > 0) {
         toast.success(`تم إرسال ${emailedCount} إيميل دعوة`);
       }
-      const failedCount = res.created - emailedCount;
-      if (failedCount > 0) {
-        toast.error(`تعذّر إرسال ${failedCount} إيميل دعوة`);
+      const failed = res.results.filter((r) => !r.emailed);
+      if (failed.length > 0) {
+        toast.error(`تعذّر إرسال ${failed.length} إيميل دعوة: ${failed[0].emailError ?? "سبب غير معروف"}`);
       }
       void queryClient.invalidateQueries({ queryKey: ["admin-upcoming-meetings"] });
       onClose();

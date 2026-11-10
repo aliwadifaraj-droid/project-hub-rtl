@@ -20,6 +20,7 @@ import {
   closeMeeting,
   reportMeetingNoShow,
 } from "@/lib/meetings.functions";
+import { meetingStartTimestamp } from "@/lib/meeting-time";
 
 type MeetingRow = {
   id: string;
@@ -54,16 +55,14 @@ function formatCountdown(ms: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function getMeetingStartTimestamp(date: string, time: string): number {
-  return new Date(`${date}T${time}:00`).getTime();
-}
-
 export function MeetingRoomButton({
   userRole,
   variant,
+  canReportNoShow = false,
 }: {
   userRole: "client" | "owner";
   variant: "floating" | "header";
+  canReportNoShow?: boolean;
 }) {
   const [showRoom, setShowRoom] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -89,7 +88,7 @@ export function MeetingRoomButton({
   }, [activeMeeting]);
 
   const remainingMs = activeMeeting
-    ? getMeetingStartTimestamp(activeMeeting.meeting_date, activeMeeting.meeting_time) - now
+    ? meetingStartTimestamp(activeMeeting.meeting_date, activeMeeting.meeting_time) - now
     : 0;
 
   const handleClick = useCallback(() => {
@@ -125,6 +124,7 @@ export function MeetingRoomButton({
           <MeetingRoom
             meeting={activeMeeting ?? null}
             userRole={userRole}
+            canReportNoShow={canReportNoShow}
             onClose={() => setShowRoom(false)}
           />
         )}
@@ -153,6 +153,7 @@ export function MeetingRoomButton({
         <MeetingRoom
           meeting={activeMeeting ?? null}
           userRole={userRole}
+          canReportNoShow={canReportNoShow}
           onClose={() => setShowRoom(false)}
         />
       )}
@@ -163,10 +164,12 @@ export function MeetingRoomButton({
 function MeetingRoom({
   meeting,
   userRole,
+  canReportNoShow,
   onClose,
 }: {
   meeting: MeetingRow | null;
   userRole: "client" | "owner";
+  canReportNoShow: boolean;
   onClose: () => void;
 }) {
   const joinFn = useServerFn(joinMeeting);
@@ -192,7 +195,7 @@ function MeetingRoom({
   const joinedRef = useRef(false);
 
   const meetingStartTs = meeting
-    ? getMeetingStartTimestamp(meeting.meeting_date, meeting.meeting_time)
+    ? meetingStartTimestamp(meeting.meeting_date, meeting.meeting_time)
     : 0;
 
   const clearAllTimers = useCallback(() => {
@@ -301,7 +304,7 @@ function MeetingRoom({
 
         noShowTimerRef.current = setTimeout(() => {
           setParticipants((cur) => {
-            if (cur < 2) {
+            if (cur < 2 && canReportNoShow) {
               void handleNoShow();
             }
             return cur;
@@ -315,7 +318,7 @@ function MeetingRoom({
         setPhase("countdown");
       }
     },
-    [handleEndCall, handleNoShow],
+    [handleEndCall, handleNoShow, canReportNoShow],
   );
 
   const handleJoin = useCallback(async () => {
