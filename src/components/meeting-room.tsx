@@ -20,6 +20,8 @@ import {
   closeMeeting,
   reportMeetingNoShow,
 } from "@/lib/meetings.functions";
+import { getMyRoles } from "@/lib/admin.functions";
+import { hasAdminRole } from "@/lib/role-label";
 import { meetingStartTimestamp } from "@/lib/meeting-time";
 
 type MeetingRow = {
@@ -174,6 +176,13 @@ function MeetingRoom({
   const joinFn = useServerFn(joinMeeting);
   const closeFn = useServerFn(closeMeeting);
   const noShowFn = useServerFn(reportMeetingNoShow);
+  const getRolesFn = useServerFn(getMyRoles);
+
+  const { data: roles } = useQuery({
+    queryKey: ["my-roles"],
+    queryFn: () => getRolesFn(),
+  });
+  const isAdmin = hasAdminRole(roles);
 
   const [phase, setPhase] = useState<
     "waiting" | "countdown" | "active" | "ended" | "no_show" | "closed" | "no_meeting"
@@ -519,7 +528,7 @@ function MeetingRoom({
             </div>
           </div>
 
-          {error && (
+          {error && isAdmin && (
             <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
               {error}
             </div>
@@ -589,7 +598,7 @@ function MeetingRoom({
           {formatCountdown(MEETING_DURATION_MS - callDurationMs)}
         </div>
 
-        {error && (
+        {error && isAdmin && (
           <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
             {error}
           </div>
