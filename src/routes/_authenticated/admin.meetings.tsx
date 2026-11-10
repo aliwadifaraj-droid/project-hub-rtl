@@ -5,7 +5,7 @@ import { useState } from "react";
 import { adminListProjectOwners } from "@/lib/project-owner-admin.functions";
 import { adminListClients } from "@/lib/admin.functions";
 import { createMeeting } from "@/lib/meetings.functions";
-import { ArrowRight, Building2, CalendarDays, Clock, Loader2, Mail, Search, UserCircle, Users, X } from "lucide-react";
+import { ArrowRight, Building2, CalendarDays, Check, Clock, Loader2, Mail, Search, UserCircle, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/meetings")({
@@ -106,7 +106,30 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
     queryFn: () => listClients(),
   });
   const clients: Client[] = (data ?? []) as Client[];
-  const [selected, setSelected] = useState<Client | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showSchedule, setShowSchedule] = useState(false);
+
+  function toggleClient(email: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) {
+        next.delete(email);
+      } else {
+        next.add(email);
+      }
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelected(new Set(clients.map((c) => c.email)));
+  }
+
+  function clearAll() {
+    setSelected(new Set());
+  }
+
+  const selectedClients = clients.filter((c) => selected.has(c.email));
 
   return (
     <section className="space-y-6">
@@ -129,8 +152,21 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
         </div>
       </header>
 
-      <div className="flex items-center gap-2 text-sm font-semibold">
-        <Users className="h-4 w-4" /> اختر عميلاً لجدولة اجتماع
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Users className="h-4 w-4" /> اختر العملاء لجدولة اجتماع
+        </div>
+        {clients.length > 0 && (
+          <div className="flex items-center gap-2 text-xs">
+            <button type="button" onClick={selectAll} className="text-muted-foreground hover:text-foreground">
+              تحديد الكل
+            </button>
+            <span className="text-muted-foreground">|</span>
+            <button type="button" onClick={clearAll} className="text-muted-foreground hover:text-foreground">
+              مسح التحديد
+            </button>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -143,33 +179,61 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
         <p className="text-sm text-muted-foreground">لا يوجد عملاء مسجلون</p>
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-          {clients.map((c) => (
-            <li key={c.email}>
-              <button
-                type="button"
-                onClick={() => setSelected(c)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-start transition hover:bg-secondary"
-              >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary">
-                  <UserCircle className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{c.display_name || "بدون اسم"}</div>
-                  <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                    <Mail className="h-3 w-3" /> {c.email}
+          {clients.map((c) => {
+            const isSelected = selected.has(c.email);
+            return (
+              <li key={c.email}>
+                <button
+                  type="button"
+                  onClick={() => toggleClient(c.email)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-start transition hover:bg-secondary"
+                >
+                  <span
+                    className={`grid h-5 w-5 shrink-0 place-items-center rounded border transition ${
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    }`}
+                  >
+                    {isSelected && <Check className="h-3.5 w-3.5" />}
+                  </span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary">
+                    <UserCircle className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{c.display_name || "بدون اسم"}</div>
+                    <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                      <Mail className="h-3 w-3" /> {c.email}
+                    </div>
                   </div>
-                </div>
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
 
-      {selected && (
+      {selected.size > 0 && (
+        <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 shadow-lg">
+          <span className="text-sm font-medium">
+            {selected.size} عميل محدد
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowSchedule(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+          >
+            <CalendarDays className="h-4 w-4" />
+            جدولة اجتماع
+          </button>
+        </div>
+      )}
+
+      {showSchedule && selectedClients.length > 0 && (
         <ScheduleMeetingDialog
           owner={owner}
-          client={selected}
-          onClose={() => setSelected(null)}
+          clients={selectedClients}
+          onClose={() => setShowSchedule(false)}
         />
       )}
     </section>
@@ -178,11 +242,11 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
 
 function ScheduleMeetingDialog({
   owner,
-  client,
+  clients,
   onClose,
 }: {
   owner: Owner;
-  client: Client;
+  clients: Client[];
   onClose: () => void;
 }) {
   const schedule = useServerFn(createMeeting);
@@ -197,14 +261,20 @@ function ScheduleMeetingDialog({
         data: {
           owner_email: owner.email,
           owner_name: owner.company_name ?? "",
-          client_email: client.email,
-          client_name: client.display_name ?? "",
+          clients: clients.map((c) => ({
+            email: c.email,
+            name: c.display_name ?? "",
+          })),
           meeting_date: date,
           meeting_time: time,
         },
       }),
-    onSuccess: () => {
-      toast.success("تم حفظ الاجتماع");
+    onSuccess: (res: { created: number; results: Array<{ emailed: boolean }> }) => {
+      const emailedCount = res.results.filter((r) => r.emailed).length;
+      toast.success(`تم حفظ ${res.created} اجتماع`);
+      if (emailedCount > 0) {
+        toast.success(`تم إرسال ${emailedCount} إيميل دعوة`);
+      }
       onClose();
     },
     onError: (e: Error) => {
@@ -236,11 +306,15 @@ function ScheduleMeetingDialog({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold">جدولة اجتماع</h2>
-            <p className="text-sm text-muted-foreground">{client.display_name || client.email}</p>
+            <p className="text-sm text-muted-foreground">{clients.length} عميل</p>
           </div>
           <button type="button" onClick={onClose} aria-label="إغلاق" className="rounded-md p-1 hover:bg-secondary">
             <X className="h-4 w-4" />
           </button>
+        </div>
+
+        <div className="rounded-md bg-secondary/50 p-3 text-sm text-muted-foreground">
+          سيتم إرسال دعوة بالبريد الإلكتروني لكل العملاء المحددين تحتوي على تاريخ ووقت الاجتماع.
         </div>
 
         <label className="block space-y-1.5">
@@ -284,7 +358,7 @@ function ScheduleMeetingDialog({
             className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            حفظ الاجتماع
+            حفظ وإرسال الدعوات
           </button>
         </div>
       </form>
