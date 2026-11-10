@@ -14,7 +14,6 @@ import {
   X,
   Volume2,
 } from "lucide-react";
-import { toast } from "sonner";
 import {
   listMyUpcomingMeetings,
   joinMeeting,
@@ -82,12 +81,8 @@ export function MeetingRoomButton({
   );
 
   const handleClick = useCallback(() => {
-    if (!activeMeeting) {
-      toast.info("لا يوجد اجتماع مجدول حالياً");
-      return;
-    }
     setShowRoom(true);
-  }, [activeMeeting]);
+  }, []);
 
   if (variant === "header") {
     return (
@@ -106,16 +101,9 @@ export function MeetingRoomButton({
             </span>
           )}
         </button>
-        {showRoom && activeMeeting && (
+        {showRoom && (
           <MeetingRoom
-            meeting={activeMeeting}
-            userRole={userRole}
-            onClose={() => setShowRoom(false)}
-          />
-        )}
-        {showRoom && !activeMeeting && (
-          <MeetingRoom
-            meeting={null}
+            meeting={activeMeeting ?? null}
             userRole={userRole}
             onClose={() => setShowRoom(false)}
           />
@@ -140,16 +128,9 @@ export function MeetingRoomButton({
           </span>
         )}
       </button>
-      {showRoom && activeMeeting && (
+      {showRoom && (
         <MeetingRoom
-          meeting={activeMeeting}
-          userRole={userRole}
-          onClose={() => setShowRoom(false)}
-        />
-      )}
-      {showRoom && !activeMeeting && (
-        <MeetingRoom
-          meeting={null}
+          meeting={activeMeeting ?? null}
           userRole={userRole}
           onClose={() => setShowRoom(false)}
         />
@@ -176,7 +157,6 @@ function MeetingRoom({
   >(meeting ? "countdown" : "no_meeting");
   const [countdownMs, setCountdownMs] = useState(0);
   const [callDurationMs, setCallDurationMs] = useState(0);
-  const [agoraConn, setAgoraConn] = useState<AgoraConnection | null>(null);
   const [muted, setMuted] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
   const [participants, setParticipants] = useState(1);
@@ -263,7 +243,7 @@ function MeetingRoom({
         const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         agoraClientRef.current = client;
 
-        client.on("user-published", async (_user: unknown) => {
+        client.on("user-published", async () => {
           setParticipants((prev) => prev + 1);
         });
 
@@ -298,13 +278,14 @@ function MeetingRoom({
           });
         }, 1000);
 
-        if (participants < 2) {
-          noShowTimerRef.current = setTimeout(() => {
-            if (participants < 2) {
+        noShowTimerRef.current = setTimeout(() => {
+          setParticipants((cur) => {
+            if (cur < 2) {
               void handleNoShow();
             }
-          }, NO_SHOW_TIMEOUT_MS);
-        }
+            return cur;
+          });
+        }, NO_SHOW_TIMEOUT_MS);
       } catch (err) {
         console.error("Agora join failed", err);
         setError(
@@ -313,7 +294,7 @@ function MeetingRoom({
         setPhase("countdown");
       }
     },
-    [handleEndCall, handleNoShow, participants],
+    [handleEndCall, handleNoShow],
   );
 
   const handleJoin = useCallback(async () => {
@@ -322,7 +303,6 @@ function MeetingRoom({
     setError(null);
     try {
       const conn = await joinFn({ data: { id: meeting.id } });
-      setAgoraConn(conn);
       await joinAgoraCall(conn);
     } catch (err) {
       setError(
@@ -351,14 +331,9 @@ function MeetingRoom({
       const remaining = startTs - currentNow;
 
       if (remaining <= 0) {
-        setPhase((prev) => {
-          if (prev === "countdown") return "countdown";
-          return prev;
-        });
         setCountdownMs(0);
       } else {
         setCountdownMs(remaining);
-        setPhase("countdown");
       }
     }, 1000);
 
@@ -663,7 +638,7 @@ function MeetingRoomModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
+      className="pointer-events-auto fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="meeting-room-title"

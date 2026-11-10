@@ -405,3 +405,21 @@ CREATE TABLE IF NOT EXISTS teacher_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_teacher_subs_email ON teacher_subscriptions(teacher_email);
 CREATE INDEX IF NOT EXISTS idx_teacher_subs_status ON teacher_subscriptions(status);
+
+-- ============ meetings (admin-scheduled client meetings) ==========
+CREATE TABLE IF NOT EXISTS meetings (
+  id            TEXT PRIMARY KEY,
+  owner_email   TEXT NOT NULL DEFAULT '',
+  owner_name    TEXT NOT NULL DEFAULT '',
+  client_email  TEXT NOT NULL,
+  client_name   TEXT NOT NULL DEFAULT '',
+  meeting_date  TEXT NOT NULL,
+  meeting_time  TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'scheduled',
+  joined_at     TEXT,
+  closed_at     TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_meetings_client ON meetings(client_email);
+CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_email);
+CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);

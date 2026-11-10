@@ -176,7 +176,7 @@ async function generateAgoraToken(
     expireTime,
     nonce: crypto.randomUUID(),
   };
-  const { createRemoteJWKSet, jwtVerify, SignJWT } = await import("jose");
+  const { SignJWT } = await import("jose");
   const secret = new TextEncoder().encode(appCertificate);
   const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
