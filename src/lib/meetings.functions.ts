@@ -12,6 +12,15 @@ const clientSchema = z.object({
   name: z.string().trim().max(200),
 });
 
+function canAccessMeeting(
+  meeting: { client_email: string; owner_email: string },
+  context: { email: string; roles?: readonly string[] },
+) {
+  if (context.roles?.includes("admin")) return true;
+  const email = context.email.toLowerCase();
+  return meeting.client_email.toLowerCase() === email || meeting.owner_email.toLowerCase() === email;
+}
+
 export const createMeeting = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) =>
@@ -76,6 +85,7 @@ export const adminListUpcomingMeetings = createServerFn({ method: "GET" })
 export const listMyUpcomingMeetings = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
+    if (context.roles?.includes("admin")) return meetingsRepo.listUpcomingForAdmin();
     const email = context.email;
     return meetingsRepo.listUpcomingByEmail(email);
   });
@@ -86,8 +96,7 @@ export const getMeetingDetails = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
-    const email = context.email;
-    if (meeting.client_email.toLowerCase() !== email.toLowerCase() && meeting.owner_email.toLowerCase() !== email.toLowerCase()) {
+    if (!canAccessMeeting(meeting, context)) {
       throw new Error("غير مصرح لهذا الاجتماع");
     }
     return meeting;
@@ -99,8 +108,7 @@ export const joinMeeting = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
-    const email = context.email;
-    if (meeting.client_email.toLowerCase() !== email.toLowerCase() && meeting.owner_email.toLowerCase() !== email.toLowerCase()) {
+    if (!canAccessMeeting(meeting, context)) {
       throw new Error("غير مصرح لهذا الاجتماع");
     }
     if (meeting.status === "closed" || meeting.status === "no_show") {
@@ -120,7 +128,7 @@ export const closeMeeting = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
-    if (meeting.client_email.toLowerCase() !== context.email.toLowerCase() && meeting.owner_email.toLowerCase() !== context.email.toLowerCase()) {
+    if (!canAccessMeeting(meeting, context)) {
       throw new Error("غير مصرح لهذا الاجتماع");
     }
     await meetingsRepo.markMeetingClosed(data.id);
