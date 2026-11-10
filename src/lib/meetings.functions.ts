@@ -7,6 +7,7 @@ import { sendResendEmailWithResult } from "./resend-send.server";
 import { MeetingInvitationEmail } from "./email-templates/meeting-invitation";
 import { MeetingNoShowEmail } from "./email-templates/meeting-no-show";
 import { buildAgoraRtcToken } from "./agora-token.server";
+import { readAgoraSettings } from "./site-settings.functions";
 
 const clientSchema = z.object({
   email: z.string().email().max(255),
@@ -122,9 +123,12 @@ export const joinMeeting = createServerFn({ method: "POST" })
     if (meeting.status === "closed" || meeting.status === "no_show") {
       throw new Error("الاجتماع منتهي");
     }
-    const appId = process.env.AGORA_APP_ID?.trim();
-    if (!appId) throw new Error("إعدادات غرفة الاجتماع غير مكتملة");
-    const appCertificate = process.env.AGORA_APP_CERTIFICATE?.trim() || null;
+    const agoraSettings = await readAgoraSettings();
+    const appId = agoraSettings.appId || null;
+    if (!appId) {
+      throw new Error("إعدادات غرفة الاجتماع غير مكتملة. الحقل الناقص: Agora App ID.");
+    }
+    const appCertificate = agoraSettings.appCertificate || null;
     const channelName = `meeting_${meeting.id}`;
     const token = buildAgoraRtcToken({
       appId,
