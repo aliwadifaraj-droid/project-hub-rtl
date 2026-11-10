@@ -1,14 +1,17 @@
 // Turso repository for `meetings` (admin-scheduled client meetings).
-import { db, rowsToObjects } from "./db";
+import { db } from "./db";
 
-export type MeetingRow = {
-  id: string;
+export type MeetingInput = {
   owner_email: string;
   owner_name: string;
   client_email: string;
   client_name: string;
   meeting_date: string;
   meeting_time: string;
+};
+
+export type MeetingRow = MeetingInput & {
+  id: string;
   created_at: string;
 };
 
@@ -33,33 +36,13 @@ function ensureMeetingsTable(): Promise<void> {
   return meetingsTableReady;
 }
 
-function decode(r: any): MeetingRow {
-  return {
-    id: String(r.id),
-    owner_email: String(r.owner_email ?? ""),
-    owner_name: String(r.owner_name ?? ""),
-    client_email: String(r.client_email ?? ""),
-    client_name: String(r.client_name ?? ""),
-    meeting_date: String(r.meeting_date ?? ""),
-    meeting_time: String(r.meeting_time ?? ""),
-    created_at: String(r.created_at ?? ""),
-  };
-}
-
-export async function insertMeeting(data: Omit<MeetingRow, "id" | "created_at">): Promise<MeetingRow> {
+export async function insertMeeting(data: MeetingInput): Promise<MeetingRow> {
   await ensureMeetingsTable();
-  const id = crypto.randomUUID();
-  const created_at = new Date().toISOString();
+  const row: MeetingRow = { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() };
   await db.execute(
     `INSERT INTO meetings (id, owner_email, owner_name, client_email, client_name, meeting_date, meeting_time, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.owner_email, data.owner_name, data.client_email, data.client_name, data.meeting_date, data.meeting_time, created_at],
+    [row.id, row.owner_email, row.owner_name, row.client_email, row.client_name, row.meeting_date, row.meeting_time, row.created_at],
   );
-  return { id, ...data, created_at };
-}
-
-export async function listMeetings(): Promise<MeetingRow[]> {
-  await ensureMeetingsTable();
-  const r = await db.execute(`SELECT * FROM meetings ORDER BY meeting_date DESC, meeting_time DESC`);
-  return rowsToObjects(r).map(decode);
+  return row;
 }
