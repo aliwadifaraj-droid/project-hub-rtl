@@ -23,6 +23,7 @@ import {
 import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { meetingStartTimestamp } from "@/lib/meeting-time";
+import type { IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
 
 type MeetingRow = {
   id: string;
@@ -204,6 +205,8 @@ function MeetingRoom({
   const agoraClientRef = useRef<unknown>(null);
   const localAudioTrackRef = useRef<unknown>(null);
   const joinedRef = useRef(false);
+  const remoteUsersRef = useRef<Map<IAgoraRTCRemoteUser["uid"], IAgoraRTCRemoteUser>>(new Map());
+  const speakerOnRef = useRef(true);
 
   const meetingStartTs = meeting
     ? meetingStartTimestamp(meeting.meeting_date, meeting.meeting_time)
@@ -242,6 +245,7 @@ function MeetingRoom({
     agoraClientRef.current = null;
     localAudioTrackRef.current = null;
     joinedRef.current = false;
+    remoteUsersRef.current.clear();
   }, []);
 
   const handleEndCall = useCallback(async () => {
@@ -278,12 +282,22 @@ function MeetingRoom({
         const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         agoraClientRef.current = client;
 
-        client.on("user-published", async () => {
-          setParticipants((prev) => prev + 1);
+        client.on("user-joined", (remoteUser) => {
+          remoteUsersRef.current.set(remoteUser.uid, remoteUser);
+          setParticipants(remoteUsersRef.current.size + 1);
         });
 
-        client.on("user-unpublished", () => {
-          setParticipants((prev) => Math.max(1, prev - 1));
+        client.on("user-left", (remoteUser) => {
+          remoteUsersRef.current.delete(remoteUser.uid);
+          setParticipants(remoteUsersRef.current.size + 1);
+        });
+
+        client.on("user-published", async (remoteUser, mediaType) => {
+          await client.subscribe(remoteUser, mediaType);
+          if (mediaType === "audio") {
+            remoteUser.audioTrack?.setVolume(speakerOnRef.current ? 100 : 0);
+            remoteUser.audioTrack?.play();
+          }
         });
 
         await client.join(conn.appId, conn.channelName, conn.token ?? null, 0);
@@ -395,7 +409,12 @@ function MeetingRoom({
   }, [muted]);
 
   const toggleSpeaker = useCallback(() => {
-    setSpeakerOn((prev) => !prev);
+    const next = !speakerOnRef.current;
+    speakerOnRef.current = next;
+    setSpeakerOn(next);
+    remoteUsersRef.current.forEach((remoteUser) => {
+      remoteUser.audioTrack?.setVolume(next ? 100 : 0);
+    });
   }, []);
 
   if (phase === "no_meeting") {
