@@ -15,6 +15,7 @@ import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
 import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, Ticket, BadgeCheck, UserCog, Hammer, Video } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { SupportWidget } from "@/components/support-widget";
+import { MeetingRoomButton } from "@/components/meeting-room";
 import { toast } from "sonner";
 
 const TEAM_CHAT_SEEN_KEY = "team_chat_last_seen";
@@ -180,6 +181,7 @@ function AdminLayout() {
             لوحة التحكم
           </Link>
           <div className="flex items-center gap-2">
+            <MeetingRoomButton userRole="owner" variant="header" />
             {/* Notifications bell with dropdown */}
             <div className="relative">
               <button
@@ -320,8 +322,8 @@ function AdminLayout() {
                 title="رسائل التواصل"
                 className={`relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
                   contactUnread > 0
-                    ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
-                    : "border-border bg-background hover:bg-secondary"
+                  ? "border-destructive bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive/90"
+                  : "border-border bg-background hover:bg-secondary"
                 }`}
               >
                 <MessageSquare className="h-4 w-4" />

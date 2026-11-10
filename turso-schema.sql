@@ -423,3 +423,4 @@ CREATE TABLE IF NOT EXISTS meetings (
 CREATE INDEX IF NOT EXISTS idx_meetings_client ON meetings(client_email);
 CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_email);
 CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);
+CREATE INDEX IF NOT EXISTS idx_meetings_date_status ON meetings(meeting_date, status);
