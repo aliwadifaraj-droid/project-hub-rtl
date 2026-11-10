@@ -2,7 +2,8 @@ import * as React from 'react'
 import { Body, Container, Head, Heading, Html, Preview, Text, Hr, Section } from '@react-email/components'
 import type { TemplateEntry } from './registry'
 
-interface Props {
+export interface MeetingInvitationProps {
+  variant?: 'client' | 'owner'
   clientName?: string
   ownerName?: string
   meetingDate?: string
@@ -35,13 +36,18 @@ function formatTimeAr(timeStr: string): string {
 }
 
 export function MeetingInvitationEmail({
+  variant = 'client',
   clientName = '',
   ownerName = '',
   meetingDate = '',
   meetingTime = '',
-}: Props) {
+}: MeetingInvitationProps) {
   const dateLabel = meetingDate ? formatDateAr(meetingDate) : ''
   const timeLabel = meetingTime ? formatTimeAr(meetingTime) : ''
+  const isOwner = variant === 'owner'
+  const greetingName = isOwner ? ownerName : clientName
+  const counterpartName = isOwner ? clientName : ownerName
+  const counterpartLabel = isOwner ? 'مع العميل' : 'مع'
 
   return (
     <Html lang="ar" dir="rtl">
@@ -50,14 +56,14 @@ export function MeetingInvitationEmail({
       <Body style={{ fontFamily: 'Cairo, Arial, sans-serif', background: '#f6f7f9', padding: '24px' }}>
         <Container style={{ background: '#fff', borderRadius: 8, padding: 24, maxWidth: 560 }}>
           <Heading style={{ fontSize: 20, margin: 0, color: '#111' }}>دعوة لحضور اجتماع</Heading>
-          {clientName ? (
-            <Text style={{ color: '#444', marginTop: 12 }}>مرحباً {clientName}،</Text>
+          {greetingName ? (
+            <Text style={{ color: '#444', marginTop: 12 }}>مرحباً {greetingName}،</Text>
           ) : (
             <Text style={{ color: '#444', marginTop: 12 }}>مرحباً،</Text>
           )}
           <Text style={{ color: '#222', fontSize: 16 }}>
-            تمت جدولة اجتماع لك
-            {ownerName ? <> مع <strong>{ownerName}</strong></> : null}.
+            {isOwner ? 'تمت جدولة اجتماع' : 'تمت جدولة اجتماع لك'}
+            {counterpartName ? <> {counterpartLabel} <strong>{counterpartName}</strong></> : null}.
           </Text>
           <Section style={{ background: '#f9fafb', borderRadius: 8, padding: 16, marginTop: 16 }}>
             <Text style={{ margin: 0, color: '#444', fontSize: 15 }}>
