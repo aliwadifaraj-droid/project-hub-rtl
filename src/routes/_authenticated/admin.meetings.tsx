@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListProjectOwners } from "@/lib/project-owner-admin.functions";
 import { adminListClients } from "@/lib/admin.functions";
-import { ArrowRight, Building2, Loader2, Mail, Search, UserCircle, Users } from "lucide-react";
+import { createMeeting } from "@/lib/meetings.functions";
+import { ArrowRight, Building2, CalendarDays, Clock, Loader2, Mail, Search, UserCircle, Users, X } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/meetings")({
   component: MeetingsPage,
@@ -104,6 +106,7 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
     queryFn: () => listClients(),
   });
   const clients: Client[] = (data ?? []) as Client[];
+  const [selected, setSelected] = useState<Client | null>(null);
 
   return (
     <section className="space-y-6">
@@ -127,7 +130,7 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
       </header>
 
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <Users className="h-4 w-4" /> العملاء المسجلون
+        <Users className="h-4 w-4" /> اختر عميلاً لجدولة اجتماع
       </div>
 
       {isLoading ? (
@@ -141,20 +144,150 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
           {clients.map((c) => (
-            <li key={c.email} className="flex items-center gap-3 px-4 py-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary">
-                <UserCircle className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <div className="truncate font-medium">{c.display_name || "بدون اسم"}</div>
-                <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                  <Mail className="h-3 w-3" /> {c.email}
+            <li key={c.email}>
+              <button
+                type="button"
+                onClick={() => setSelected(c)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-start transition hover:bg-secondary"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary">
+                  <UserCircle className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{c.display_name || "بدون اسم"}</div>
+                  <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                    <Mail className="h-3 w-3" /> {c.email}
+                  </div>
                 </div>
-              </div>
+              </button>
             </li>
           ))}
         </ul>
       )}
+
+      {selected && (
+        <ScheduleMeetingDialog
+          owner={owner}
+          client={selected}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </section>
+  );
+}
+
+function ScheduleMeetingDialog({
+  owner,
+  client,
+  onClose,
+}: {
+  owner: Owner;
+  client: Client;
+  onClose: () => void;
+}) {
+  const schedule = useServerFn(createMeeting);
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      schedule({
+        data: {
+          owner_email: owner.email,
+          owner_name: owner.company_name ?? "",
+          client_email: client.email,
+          client_name: client.display_name ?? "",
+          meeting_date: date,
+          meeting_time: time,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("تم حفظ الاجتماع");
+      onClose();
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "تعذّر حفظ الاجتماع. حاول مرة أخرى.");
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!date || !time) {
+      setFormError("اختر التاريخ والوقت");
+      return;
+    }
+    if (date < today) {
+      setFormError("لا يمكن اختيار تاريخ في الماضي");
+      return;
+    }
+    setFormError(null);
+    mutation.mutate();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+      <form
+        onSubmit={handleSubmit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md space-y-5 rounded-lg border border-border bg-card p-6 shadow-xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">جدولة اجتماع</h2>
+            <p className="text-sm text-muted-foreground">{client.display_name || client.email}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="إغلاق" className="rounded-md p-1 hover:bg-secondary">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <label className="block space-y-1.5">
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            <CalendarDays className="h-4 w-4" /> التاريخ
+          </span>
+          <input
+            type="date"
+            min={today}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            <Clock className="h-4 w-4" /> الوقت
+          </span>
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </label>
+
+        {formError && <p className="text-sm text-destructive">{formError}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-secondary"
+          >
+            إلغاء
+          </button>
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+          >
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            حفظ الاجتماع
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
