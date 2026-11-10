@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListProjectOwners } from "@/lib/project-owner-admin.functions";
 import { adminListClients } from "@/lib/admin.functions";
-import { createMeeting } from "@/lib/meetings.functions";
+import { adminListUpcomingMeetings, createMeeting } from "@/lib/meetings.functions";
 import { ArrowRight, Building2, CalendarDays, Check, Clock, Loader2, Mail, Search, UserCircle, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +22,17 @@ type Owner = {
 type Client = {
   email: string;
   display_name: string | null;
+};
+
+type UpcomingMeeting = {
+  id: string;
+  owner_email: string;
+  owner_name: string;
+  client_email: string;
+  client_name: string;
+  meeting_date: string;
+  meeting_time: string;
+  status: string;
 };
 
 function MeetingsPage() {
@@ -53,6 +64,8 @@ function OwnersList({ onSelect }: { onSelect: (owner: Owner) => void }) {
         <h1 className="text-2xl font-bold">الاجتماعات</h1>
         <p className="text-sm text-muted-foreground">اختر صاحب مشروع لعرض العملاء المسجلين</p>
       </header>
+
+      <UpcomingMeetingsList />
 
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -96,6 +109,46 @@ function OwnersList({ onSelect }: { onSelect: (owner: Owner) => void }) {
         </ul>
       )}
     </section>
+  );
+}
+
+function UpcomingMeetingsList() {
+  const listUpcoming = useServerFn(adminListUpcomingMeetings);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["admin-upcoming-meetings"],
+    queryFn: () => listUpcoming(),
+  });
+  const meetings = (data ?? []) as UpcomingMeeting[];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <CalendarDays className="h-4 w-4" /> الاجتماعات القادمة
+      </div>
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> جارٍ التحميل...
+        </div>
+      ) : isError ? (
+        <p className="text-sm text-destructive">تعذّر تحميل الاجتماعات. حاول مرة أخرى.</p>
+      ) : meetings.length === 0 ? (
+        <p className="text-sm text-muted-foreground">لا توجد اجتماعات قادمة</p>
+      ) : (
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+          {meetings.map((m) => (
+            <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{m.client_name || m.client_email}</div>
+                <div className="truncate text-xs text-muted-foreground">مع {m.owner_name || m.owner_email}</div>
+              </div>
+              <div className="text-xs text-muted-foreground" dir="ltr">
+                {m.meeting_date} — {m.meeting_time}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -250,6 +303,7 @@ function ScheduleMeetingDialog({
   onClose: () => void;
 }) {
   const schedule = useServerFn(createMeeting);
+  const queryClient = useQueryClient();
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -275,6 +329,11 @@ function ScheduleMeetingDialog({
       if (emailedCount > 0) {
         toast.success(`تم إرسال ${emailedCount} إيميل دعوة`);
       }
+      const failedCount = res.created - emailedCount;
+      if (failedCount > 0) {
+        toast.error(`تعذّر إرسال ${failedCount} إيميل دعوة`);
+      }
+      void queryClient.invalidateQueries({ queryKey: ["admin-upcoming-meetings"] });
       onClose();
     },
     onError: (e: Error) => {
