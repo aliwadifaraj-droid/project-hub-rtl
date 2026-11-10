@@ -162,14 +162,11 @@ export const joinMeeting = createServerFn({ method: "POST" })
   });
 
 export const closeMeeting = createServerFn({ method: "POST" })
-  .middleware([requireAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
-    if (!canAccessMeeting(meeting, context)) {
-      throw new Error("غير مصرح لهذا الاجتماع");
-    }
     await meetingsRepo.markMeetingClosed(data.id);
     return { ok: true };
   });
