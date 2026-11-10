@@ -288,6 +288,7 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
           owner={owner}
           clients={selectedClients}
           onClose={() => setShowSchedule(false)}
+          onScheduled={onBack}
         />
       )}
     </section>
@@ -298,10 +299,12 @@ function ScheduleMeetingDialog({
   owner,
   clients,
   onClose,
+  onScheduled,
 }: {
   owner: Owner;
   clients: Client[];
   onClose: () => void;
+  onScheduled: () => void;
 }) {
   const schedule = useServerFn(createMeeting);
   const queryClient = useQueryClient();
@@ -335,7 +338,7 @@ function ScheduleMeetingDialog({
         toast.error(`تعذّر إرسال ${failed.length} إيميل دعوة: ${failed[0].emailError ?? "سبب غير معروف"}`);
       }
       void queryClient.invalidateQueries({ queryKey: ["admin-upcoming-meetings"] });
-      onClose();
+      onScheduled();
     },
     onError: (e: Error) => {
       toast.error(e.message || "تعذّر حفظ الاجتماع. حاول مرة أخرى.");
