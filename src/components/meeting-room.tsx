@@ -46,6 +46,9 @@ type AgoraConnection = {
 
 const MEETING_DURATION_MS = 60 * 60 * 1000;
 const NO_SHOW_TIMEOUT_MS = 10 * 60 * 1000;
+const AGORA_APP_ID = import.meta.env.VITE_AGORA_APP_ID?.trim() ?? "";
+const MISSING_APP_ID_MESSAGE =
+  "إعدادات غرفة الاجتماع غير مكتملة. الحقل الناقص: VITE_AGORA_APP_ID.";
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "00:00:00";
@@ -325,11 +328,15 @@ function MeetingRoom({
 
   const handleJoin = useCallback(async () => {
     if (!meeting || joining) return;
+    if (!AGORA_APP_ID) {
+      setError(MISSING_APP_ID_MESSAGE);
+      return;
+    }
     setJoining(true);
     setError(null);
     try {
-      const conn = await joinFn({ data: { id: meeting.id } });
-      await joinAgoraCall(conn);
+      const conn = await joinFn({ data: { id: meeting.id, appId: AGORA_APP_ID } });
+      await joinAgoraCall({ appId: AGORA_APP_ID, token: conn.token, channelName: conn.channelName });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "تعذر الانضمام للاجتماع",
