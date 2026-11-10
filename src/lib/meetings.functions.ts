@@ -6,11 +6,14 @@ import * as meetingsRepo from "./meetings.repo";
 import { sendResendEmailWithResult } from "./resend-send.server";
 import { MeetingInvitationEmail } from "./email-templates/meeting-invitation";
 import { MeetingNoShowEmail } from "./email-templates/meeting-no-show";
+import { buildAgoraRtcToken } from "./agora-token.server";
 
 const clientSchema = z.object({
   email: z.string().email().max(255),
   name: z.string().trim().max(200),
 });
+
+const MEETING_TOKEN_TTL_SECONDS = 2 * 60 * 60;
 
 function canAccessMeeting(
   meeting: { client_email: string; owner_email: string },
@@ -119,12 +122,18 @@ export const joinMeeting = createServerFn({ method: "POST" })
     if (meeting.status === "closed" || meeting.status === "no_show") {
       throw new Error("الاجتماع منتهي");
     }
-    await meetingsRepo.markMeetingJoined(data.id);
-    const appId = process.env.AGORA_APP_ID || "";
-    const appCertificate = process.env.AGORA_APP_CERTIFICATE || "";
+    const appId = process.env.AGORA_APP_ID?.trim();
+    if (!appId) throw new Error("إعدادات غرفة الاجتماع غير مكتملة");
+    const appCertificate = process.env.AGORA_APP_CERTIFICATE?.trim() || null;
     const channelName = `meeting_${meeting.id}`;
-    const token = await generateAgoraToken(appId, appCertificate, channelName, context.userId);
-    return { appId, token, channelName, uid: context.userId };
+    const token = buildAgoraRtcToken({
+      appId,
+      appCertificate,
+      channelName,
+      ttlSeconds: MEETING_TOKEN_TTL_SECONDS,
+    });
+    await meetingsRepo.markMeetingJoined(data.id);
+    return { appId, token, channelName };
   });
 
 export const closeMeeting = createServerFn({ method: "POST" })
@@ -173,32 +182,3 @@ export const reportMeetingNoShow = createServerFn({ method: "POST" })
 
     return { ok: true, emailed };
   });
-
-async function generateAgoraToken(
-  appId: string,
-  appCertificate: string,
-  channelName: string,
-  account: string,
-): Promise<string> {
-  if (!appId || !appCertificate) {
-    return "";
-  }
-  const now = Math.floor(Date.now() / 1000);
-  const expireTime = now + 3600;
-  const payload = {
-    appid: appId,
-    channelName,
-    account,
-    privilege: 262145,
-    expireTime,
-    nonce: crypto.randomUUID(),
-  };
-  const { SignJWT } = await import("jose");
-  const secret = new TextEncoder().encode(appCertificate);
-  const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt(now)
-    .setExpirationTime(expireTime)
-    .sign(secret);
-  return token;
-}
