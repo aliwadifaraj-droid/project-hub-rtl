@@ -274,7 +274,7 @@ function MeetingRoom({
           setParticipants((prev) => Math.max(1, prev - 1));
         });
 
-        await client.join(conn.appId, conn.channelName, conn.token, 0);
+        await client.join(conn.appId, conn.channelName, conn.token ?? null, 0);
 
         const localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         localAudioTrackRef.current = localAudioTrack;
