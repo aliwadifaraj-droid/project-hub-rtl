@@ -3,12 +3,6 @@ import { z } from "zod";
 import { requireAdmin } from "./auth-middleware.server";
 import * as meetingsRepo from "./meetings.repo";
 
-export const listMeetings = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    return meetingsRepo.listMeetings();
-  });
-
 export const createMeeting = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) =>
