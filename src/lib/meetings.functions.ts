@@ -67,6 +67,12 @@ export const createMeeting = createServerFn({ method: "POST" })
     return { created: results.length, results };
   });
 
+export const adminListUpcomingMeetings = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    return meetingsRepo.listUpcomingForAdmin();
+  });
+
 export const listMyUpcomingMeetings = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {

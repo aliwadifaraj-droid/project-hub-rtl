@@ -71,6 +71,20 @@ export async function listUpcomingByEmail(email: string): Promise<MeetingRow[]> 
   return result.rows as unknown as MeetingRow[];
 }
 
+export async function listUpcomingForAdmin(): Promise<MeetingRow[]> {
+  await ensureMeetingsTable();
+  const today = new Date().toISOString().slice(0, 10);
+  const result = await db.execute(
+    `SELECT * FROM meetings
+     WHERE meeting_date >= ?
+       AND status IN ('scheduled', 'active')
+     ORDER BY meeting_date ASC, meeting_time ASC
+     LIMIT 100`,
+    [today],
+  );
+  return result.rows as unknown as MeetingRow[];
+}
+
 export async function getMeetingById(id: string): Promise<MeetingRow | null> {
   await ensureMeetingsTable();
   const result = await db.execute(`SELECT * FROM meetings WHERE id = ? LIMIT 1`, [id]);
