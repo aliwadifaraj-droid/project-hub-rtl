@@ -567,7 +567,28 @@ export function ClientPortalShell() {
 
   return (
     <div className="relative">
-      <ClientPortal />
+      <ClientPortal
+        supportAction={
+          <Link to="/client-support/tickets" className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg transition hover:bg-emerald-100">
+            <Ticket className="h-4 w-4" />
+            الدعم الفني
+            {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+          </Link>
+        }
+        vipAction={
+          vipStatus?.isPremium ? (
+            <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
+              <Crown className="h-4 w-4" />
+              عميل مميز
+            </div>
+          ) : (
+            <button type="button" onClick={() => setShowVipIntro(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg transition hover:bg-amber-100">
+              <Crown className="h-4 w-4" />
+              كن عميلاً مميزاً
+            </button>
+          )
+        }
+      />
       {showTameedApprovalNotice && tameedApprovalNotice && (
         <div className="fixed left-4 right-4 top-4 z-[150] mx-auto max-w-md rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-4 text-emerald-900 shadow-2xl" role="status">
           <div className="font-extrabold">تم اعتماد التعميد</div>
@@ -575,11 +596,6 @@ export function ClientPortalShell() {
         </div>
       )}
       <div className="pointer-events-none absolute left-2 top-[184px] z-50 flex flex-col gap-2 sm:left-4 sm:top-[200px]">
-        <Link to="/client-support/tickets" className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg transition hover:bg-emerald-100">
-          <Ticket className="h-4 w-4" />
-          الدعم الفني
-          {unreadCount > 0 && <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-700 px-1.5 py-0.5 text-xs font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
-        </Link>
         <button
           type="button"
           onClick={openTameed}
@@ -598,17 +614,6 @@ export function ClientPortalShell() {
             </span>
           )}
         </button>
-        {vipStatus?.isPremium ? (
-          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg">
-            <Crown className="h-4 w-4" />
-            عميل مميز
-          </div>
-        ) : (
-          <button type="button" onClick={() => setShowVipIntro(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 shadow-lg transition hover:bg-amber-100">
-            <Crown className="h-4 w-4" />
-            كن عميلاً مميزاً
-          </button>
-        )}
       </div>
 
       {showApprovalModal && approvedInfo && (
