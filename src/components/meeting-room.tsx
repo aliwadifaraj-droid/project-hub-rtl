@@ -71,6 +71,7 @@ export function MeetingRoomButton({
 }) {
   const [showRoom, setShowRoom] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+ 
   const listMeetings = useServerFn(listMyUpcomingMeetings);
 
   const { data: meetings = [] } = useQuery({
@@ -690,7 +691,7 @@ function MeetingRoomModal({
 }) {
   return (
     <div
-      className="pointer-events-auto fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
+      className="pointer-events-auto fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/60 px-4 pb-4 pt-16"
       role="dialog"
       aria-modal="true"
       aria-labelledby="meeting-room-title"
