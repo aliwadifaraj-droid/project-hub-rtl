@@ -3,6 +3,7 @@ import { z } from "zod";
 import { render } from "@react-email/components";
 import { requireAdmin, requireAuth } from "./auth-middleware.server";
 import * as meetingsRepo from "./meetings.repo";
+import type { MeetingParticipantRole } from "./meetings.repo";
 import { sendResendEmailWithResult, type ResendSendResult } from "./resend-send.server";
 import {
   MeetingInvitationEmail,
@@ -169,6 +170,46 @@ export const closeMeeting = createServerFn({ method: "POST" })
     if (!meeting) throw new Error("الاجتماع غير موجود");
     await meetingsRepo.markMeetingClosed(data.id);
     return { ok: true };
+  });
+
+export const setMeetingParticipantControl = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        participantRole: z.enum(["owner", "client"]),
+        action: z.enum(["mute", "unmute", "kick"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const meeting = await meetingsRepo.getMeetingById(data.id);
+    if (!meeting) throw new Error("الاجتماع غير موجود");
+    return meetingsRepo.setMeetingParticipantControl(
+      data.id,
+      data.participantRole as MeetingParticipantRole,
+      data.action,
+    );
+  });
+
+export const getMeetingParticipantControl = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        participantRole: z.enum(["owner", "client"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const meeting = await meetingsRepo.getMeetingById(data.id);
+    if (!meeting) throw new Error("الاجتماع غير موجود");
+    if (!canAccessMeeting(meeting, context)) {
+      throw new Error("غير مصرح لهذا الاجتماع");
+    }
+    return meetingsRepo.getMeetingParticipantControl(data.id, data.participantRole);
   });
 
 export const reportMeetingNoShow = createServerFn({ method: "POST" })

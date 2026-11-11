@@ -19,6 +19,16 @@ export type MeetingRow = MeetingInput & {
   closed_at: string | null;
 };
 
+export type MeetingParticipantRole = "owner" | "client";
+
+export type MeetingControl = {
+  meeting_id: string;
+  participant_role: MeetingParticipantRole;
+  muted: boolean;
+  kicked: boolean;
+  updated_at: string;
+};
+
 let meetingsTableReady: Promise<void> | null = null;
 
 function ensureMeetingsTable(): Promise<void> {
@@ -41,6 +51,14 @@ function ensureMeetingsTable(): Promise<void> {
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_email)`))
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status)`))
       .then(() => db.execute(`CREATE INDEX IF NOT EXISTS idx_meetings_date_status ON meetings(meeting_date, status)`))
+      .then(() => db.execute(`CREATE TABLE IF NOT EXISTS meeting_participant_controls (
+        meeting_id TEXT NOT NULL,
+        participant_role TEXT NOT NULL CHECK (participant_role IN ('owner', 'client')),
+        muted INTEGER NOT NULL DEFAULT 0,
+        kicked INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (meeting_id, participant_role)
+      )`))
       .then(() => undefined);
   }
   return meetingsTableReady;
@@ -115,4 +133,49 @@ export async function markMeetingNoShow(id: string): Promise<void> {
     `UPDATE meetings SET status = 'no_show', closed_at = ? WHERE id = ? AND status IN ('scheduled', 'active')`,
     [new Date().toISOString(), id],
   );
+}
+
+export async function setMeetingParticipantControl(
+  meetingId: string,
+  participantRole: MeetingParticipantRole,
+  action: "mute" | "unmute" | "kick",
+): Promise<MeetingControl> {
+  await ensureMeetingsTable();
+  const muted = action === "mute" ? 1 : action === "unmute" ? 0 : null;
+  const kicked = action === "kick" ? 1 : null;
+  await db.execute(
+    `INSERT INTO meeting_participant_controls (meeting_id, participant_role, muted, kicked, updated_at)
+     VALUES (?, ?, COALESCE(?, 0), COALESCE(?, 0), ?)
+     ON CONFLICT(meeting_id, participant_role) DO UPDATE SET
+       muted = COALESCE(?, meeting_participant_controls.muted),
+       kicked = COALESCE(?, meeting_participant_controls.kicked),
+       updated_at = excluded.updated_at`,
+    [meetingId, participantRole, muted, kicked, new Date().toISOString(), muted, kicked],
+  );
+  const control = await getMeetingParticipantControl(meetingId, participantRole);
+  if (!control) throw new Error("تعذر تحديث صلاحية المشارك");
+  return control;
+}
+
+export async function getMeetingParticipantControl(
+  meetingId: string,
+  participantRole: MeetingParticipantRole,
+): Promise<MeetingControl | null> {
+  await ensureMeetingsTable();
+  const result = await db.execute(
+    `SELECT meeting_id, participant_role, muted, kicked, updated_at
+     FROM meeting_participant_controls
+     WHERE meeting_id = ? AND participant_role = ?
+     LIMIT 1`,
+    [meetingId, participantRole],
+  );
+  const row = result.rows[0] as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return {
+    meeting_id: String(row.meeting_id),
+    participant_role: row.participant_role as MeetingParticipantRole,
+    muted: Boolean(row.muted),
+    kicked: Boolean(row.kicked),
+    updated_at: String(row.updated_at),
+  };
 }
