@@ -12,6 +12,7 @@ import {
   removeClientPushSubscription,
 } from "@/lib/client.functions";
 import { SiteHeader } from "@/components/site-header";
+import { MeetingRoomButton } from "@/components/meeting-room";
 import { SiteFooter } from "@/components/site-footer";
 import {
   Building2, User, FileText, Search, Upload, LogOut, Lock,
@@ -142,6 +143,9 @@ export function ClientPortal() {
   return (
     <div className="min-h-screen flex flex-col bg-[#fffbeb]">
       <SiteHeader />
+      <div className="w-full border-b border-blue-200 bg-blue-50 px-4 py-2 sm:px-6 lg:px-8">
+        <MeetingRoomButton userRole="client" variant="header" />
+      </div>
       <div className="flex-1 w-full px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 rounded-2xl border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
