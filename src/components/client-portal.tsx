@@ -160,7 +160,6 @@ export function ClientPortal({ supportAction, vipAction }: { supportAction: Reac
             </div>
             <div className="flex flex-col gap-2">
               <div className="flex gap-2 [&>*]:flex-1 [&>*]:justify-center">
-                {supportAction}
                 <button
                   onClick={handleToggleNotifications}
                   disabled={notifStatus === "subscribing"}
@@ -173,12 +172,13 @@ export function ClientPortal({ supportAction, vipAction }: { supportAction: Reac
                   {notifStatus === "subscribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                   {notifEnabled ? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
                 </button>
+                {supportAction}
               </div>
               <div className="flex gap-2 [&>*]:flex-1 [&>*]:justify-center">
-                {vipAction}
                 <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#fffbeb] px-4 py-2 text-sm font-semibold transition hover:bg-[#fef3c7]">
                   <LogOut className="h-4 w-4" /> تسجيل الخروج
                 </button>
+                {vipAction}
               </div>
             </div>
           </div>
