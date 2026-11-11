@@ -1,6 +1,6 @@
 @import "tailwindcss" source(none);
 @source "../src";
-@import "tw-animate-css";
+@import "tw-animate.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -204,5 +204,15 @@
   #root > div.relative > div.pointer-events-none.absolute > div {
     width: 100%;
     justify-content: center;
+  }
+
+  #root > div.relative > div.pointer-events-none.absolute > button:first-child {
+    position: absolute !important;
+    top: -3.5rem;
+    left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    transform: translateX(-50%);
+    white-space: nowrap;
   }
 }
