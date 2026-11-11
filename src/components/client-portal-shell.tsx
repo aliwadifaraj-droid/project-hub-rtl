@@ -15,7 +15,6 @@ import { uploadFile } from "@/lib/files.functions";
 import { validateReceiptOcr, scanReceiptFile } from "@/lib/receipt-ocr";
 import { listMyNotifications, markNotificationRead } from "@/lib/notifications.functions";
 import { toast } from "sonner";
-import { MeetingRoomButton } from "@/components/meeting-room";
 
 type ApprovedReceiptInfo = {
   receipt_id: string;
@@ -576,7 +575,6 @@ export function ClientPortalShell() {
         </div>
       )}
       <div className="pointer-events-none absolute left-2 top-[184px] z-50 flex flex-col gap-2 sm:left-4 sm:top-[200px]">
-        <MeetingRoomButton userRole="client" variant="floating" />
         <Link to="/client-support/tickets" className="pointer-events-auto inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-lg transition hover:bg-emerald-100">
           <Ticket className="h-4 w-4" />
           الدعم الفني
