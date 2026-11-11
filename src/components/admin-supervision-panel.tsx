@@ -499,7 +499,7 @@ function AdminSupervisionPanel({
               email={meeting?.owner_email || ""}
               state={participantStates.owner}
               muted={mutedRoles.owner}
-              disabled={controlMutation.isPending}
+              disabled={!canJoin || joining}
               onToggleMute={() =>
                 runParticipantAction("owner", mutedRoles.owner ? "unmute" : "mute")
               }
@@ -510,7 +510,7 @@ function AdminSupervisionPanel({
               email={meeting?.client_email || ""}
               state={participantStates.client}
               muted={mutedRoles.client}
-              disabled={controlMutation.isPending}
+              disabled={!canJoin || joining}
               onToggleMute={() =>
                 runParticipantAction("client", mutedRoles.client ? "unmute" : "mute")
               }
@@ -684,7 +684,7 @@ function ParticipantCard({
           type="button"
           onClick={onToggleMute}
           disabled={disabled}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground transition hover:bg-secondary disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground transition hover:bg-secondary disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-slate-100"
         >
           {muted ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
           {muted ? "فك الكتم" : "كتم"}
@@ -693,7 +693,7 @@ function ParticipantCard({
           type="button"
           onClick={onKick}
           disabled={disabled}
-          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/10 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-slate-100"
         >
           <Ban className="h-3.5 w-3.5" /> طرد
         </button>
