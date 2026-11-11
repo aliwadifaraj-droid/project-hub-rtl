@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -688,7 +689,7 @@ function MeetingRoomModal({
   onClose: () => void;
   fullscreen?: boolean;
 }) {
-  return (
+  return createPortal(
     <div
       className="pointer-events-auto fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/60 px-4 pb-4 pt-16"
       role="dialog"
@@ -715,6 +716,7 @@ function MeetingRoomModal({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
