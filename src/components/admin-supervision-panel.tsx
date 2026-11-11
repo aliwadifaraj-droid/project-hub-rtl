@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Mic,
   MicOff,
@@ -14,11 +14,14 @@ import {
   LogIn,
   LogOut,
   AlertTriangle,
+  Ban,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   listMyUpcomingMeetings,
   joinMeeting,
   closeMeeting,
+  setMeetingParticipantControl,
 } from "@/lib/meetings.functions";
 import { meetingStartTimestamp } from "@/lib/meeting-time";
 import type { IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
@@ -135,6 +138,7 @@ function AdminSupervisionPanel({
 }) {
   const joinFn = useServerFn(joinMeeting);
   const closeFn = useServerFn(closeMeeting);
+  const controlParticipant = useServerFn(setMeetingParticipantControl);
   const [phase, setPhase] = useState<
     "idle" | "listening" | "ended" | "no_meeting"
   >(meeting ? "idle" : "no_meeting");
@@ -150,6 +154,42 @@ function AdminSupervisionPanel({
     owner: { status: "waiting", micOn: false, joinedAt: null },
     client: { status: "waiting", micOn: false, joinedAt: null },
   });
+  const [mutedRoles, setMutedRoles] = useState<Record<"owner" | "client", boolean>>({
+    owner: false,
+    client: false,
+  });
+
+  const controlMutation = useMutation({
+    mutationFn: (input: {
+      id: string;
+      participantRole: "owner" | "client";
+      action: "mute" | "unmute" | "kick";
+    }) => controlParticipant({ data: input }),
+    onSuccess: (_, variables) => {
+      if (variables.action === "mute" || variables.action === "unmute") {
+        setMutedRoles((current) => ({
+          ...current,
+          [variables.participantRole]: variables.action === "mute",
+        }));
+      }
+      const actionLabel =
+        variables.action === "kick"
+          ? "تم طرد المشارك"
+          : variables.action === "mute"
+            ? "تم كتم المشارك"
+            : "تم فك كتم المشارك";
+      toast.success(actionLabel);
+    },
+    onError: () => toast.error("تعذر تنفيذ الإجراء الإداري"),
+  });
+
+  function runParticipantAction(
+    participantRole: "owner" | "client",
+    action: "mute" | "unmute" | "kick",
+  ) {
+    if (!meeting) return;
+    controlMutation.mutate({ id: meeting.id, participantRole, action });
+  }
 
   const agoraClientRef = useRef<unknown>(null);
   const localAudioTrackRef = useRef<unknown>(null);
@@ -458,11 +498,23 @@ function AdminSupervisionPanel({
               name={meeting?.owner_name || "صاحب المشروع"}
               email={meeting?.owner_email || ""}
               state={participantStates.owner}
+              muted={mutedRoles.owner}
+              disabled={controlMutation.isPending}
+              onToggleMute={() =>
+                runParticipantAction("owner", mutedRoles.owner ? "unmute" : "mute")
+              }
+              onKick={() => runParticipantAction("owner", "kick")}
             />
             <ParticipantCard
               name={meeting?.client_name || "العميل"}
               email={meeting?.client_email || ""}
               state={participantStates.client}
+              muted={mutedRoles.client}
+              disabled={controlMutation.isPending}
+              onToggleMute={() =>
+                runParticipantAction("client", mutedRoles.client ? "unmute" : "mute")
+              }
+              onKick={() => runParticipantAction("client", "kick")}
             />
           </div>
         </div>
@@ -557,10 +609,18 @@ function ParticipantCard({
   name,
   email,
   state,
+  muted,
+  disabled,
+  onToggleMute,
+  onKick,
 }: {
   name: string;
   email: string;
   state: ParticipantState;
+  muted: boolean;
+  disabled: boolean;
+  onToggleMute: () => void;
+  onKick: () => void;
 }) {
   const statusConfig: Record<
     ParticipantStatus,
@@ -617,6 +677,26 @@ function ParticipantCard({
             • دخل {new Date(state.joinedAt).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-t border-border pt-2.5">
+        <button
+          type="button"
+          onClick={onToggleMute}
+          disabled={disabled}
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground transition hover:bg-secondary disabled:opacity-50"
+        >
+          {muted ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
+          {muted ? "فك الكتم" : "كتم"}
+        </button>
+        <button
+          type="button"
+          onClick={onKick}
+          disabled={disabled}
+          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
+        >
+          <Ban className="h-3.5 w-3.5" /> طرد
+        </button>
       </div>
     </div>
   );
