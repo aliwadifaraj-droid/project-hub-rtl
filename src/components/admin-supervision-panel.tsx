@@ -383,6 +383,7 @@ function AdminSupervisionPanel({
   }, []);
 
   const canJoin = countdownMs <= 0 && phase === "idle";
+  const canControlParticipants = countdownMs <= 0 && phase === "listening";
 
   if (phase === "no_meeting") {
     return (
@@ -499,7 +500,7 @@ function AdminSupervisionPanel({
               email={meeting?.owner_email || ""}
               state={participantStates.owner}
               muted={mutedRoles.owner}
-              disabled={!canJoin || joining}
+              disabled={!canControlParticipants}
               onToggleMute={() =>
                 runParticipantAction("owner", mutedRoles.owner ? "unmute" : "mute")
               }
@@ -510,7 +511,7 @@ function AdminSupervisionPanel({
               email={meeting?.client_email || ""}
               state={participantStates.client}
               muted={mutedRoles.client}
-              disabled={!canJoin || joining}
+              disabled={!canControlParticipants}
               onToggleMute={() =>
                 runParticipantAction("client", mutedRoles.client ? "unmute" : "mute")
               }
