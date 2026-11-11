@@ -71,7 +71,6 @@ export function MeetingRoomButton({
 }) {
   const [showRoom, setShowRoom] = useState(false);
   const [now, setNow] = useState(() => Date.now());
- 
   const listMeetings = useServerFn(listMyUpcomingMeetings);
 
   const { data: meetings = [] } = useQuery({
