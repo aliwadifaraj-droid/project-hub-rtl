@@ -7,20 +7,16 @@ import { adminListClients } from "@/lib/admin.functions";
 import {
   adminListUpcomingMeetings,
   createMeeting,
-  setMeetingParticipantControl,
 } from "@/lib/meetings.functions";
 import { riyadhToday } from "@/lib/meeting-time";
 import {
   ArrowRight,
-  Ban,
   Building2,
   CalendarDays,
   Check,
   Clock,
   Loader2,
   Mail,
-  Mic,
-  MicOff,
   Search,
   UserCircle,
   Users,
@@ -134,30 +130,6 @@ function OwnersList({ onSelect }: { onSelect: (owner: Owner) => void }) {
 
 function UpcomingMeetingsList() {
   const listUpcoming = useServerFn(adminListUpcomingMeetings);
-  const controlParticipant = useServerFn(setMeetingParticipantControl);
-  const [mutedByMeeting, setMutedByMeeting] = useState<Record<string, { owner: boolean; client: boolean }>>({});
-  const controlMutation = useMutation({
-    mutationFn: (input: {
-      id: string;
-      participantRole: "owner" | "client";
-      action: "mute" | "unmute" | "kick";
-    }) => controlParticipant({ data: input }),
-    onSuccess: (_, variables) => {
-      if (variables.action === "mute" || variables.action === "unmute") {
-        setMutedByMeeting((current) => ({
-          ...current,
-          [variables.id]: {
-            owner: current[variables.id]?.owner ?? false,
-            client: current[variables.id]?.client ?? false,
-            [variables.participantRole]: variables.action === "mute",
-          },
-        }));
-      }
-      const actionLabel = variables.action === "kick" ? "تم طرد المشارك" : variables.action === "mute" ? "تم كتم المشارك" : "تم فك كتم المشارك";
-      toast.success(actionLabel);
-    },
-    onError: () => toast.error("تعذر تنفيذ الإجراء الإداري"),
-  });
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-upcoming-meetings"],
     queryFn: () => listUpcoming(),
@@ -180,7 +152,7 @@ function UpcomingMeetingsList() {
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
           {meetings.map((m) => (
-            <li key={m.id} className="space-y-3 px-4 py-3">
+            <li key={m.id} className="px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate font-medium">{m.client_name || m.client_email}</div>
@@ -190,64 +162,10 @@ function UpcomingMeetingsList() {
                   {m.meeting_date} — {m.meeting_time}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                <MeetingParticipantControls
-                  label={m.owner_name || "صاحب المشروع"}
-                  participantRole="owner"
-                  muted={mutedByMeeting[m.id]?.owner ?? false}
-                  disabled={controlMutation.isPending}
-                  onAction={(action) => controlMutation.mutate({ id: m.id, participantRole: "owner", action })}
-                />
-                <MeetingParticipantControls
-                  label={m.client_name || "العميل"}
-                  participantRole="client"
-                  muted={mutedByMeeting[m.id]?.client ?? false}
-                  disabled={controlMutation.isPending}
-                  onAction={(action) => controlMutation.mutate({ id: m.id, participantRole: "client", action })}
-                />
-              </div>
             </li>
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-function MeetingParticipantControls({
-  label,
-  participantRole,
-  muted,
-  disabled,
-  onAction,
-}: {
-  label: string;
-  participantRole: "owner" | "client";
-  muted: boolean;
-  disabled: boolean;
-  onAction: (action: "mute" | "unmute" | "kick") => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md bg-secondary/40 px-2 py-1.5">
-      <span className="text-xs font-semibold">{label}</span>
-      <button
-        type="button"
-        onClick={() => onAction(muted ? "unmute" : "mute")}
-        disabled={disabled}
-        className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold transition hover:bg-secondary disabled:opacity-50"
-      >
-        {muted ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
-        {muted ? "فك الكتم" : "كتم"}
-      </button>
-      <button
-        type="button"
-        onClick={() => onAction("kick")}
-        disabled={disabled}
-        className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
-      >
-        <Ban className="h-3.5 w-3.5" /> طرد
-      </button>
-      <span className="sr-only">{participantRole}</span>
     </div>
   );
 }
