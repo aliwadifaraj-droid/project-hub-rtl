@@ -15,7 +15,7 @@ import { getRoleLabel, hasAdminRole } from "@/lib/role-label";
 import { Building2, ClipboardList, Users, LogOut, FolderKanban, MessageSquare, UserCircle, MessagesSquare, Megaphone, Bell, ClipboardCheck, Check, Star, Mail, Settings2, Headphones, Bot, Lock, FileText, Eye, Send, Ticket, BadgeCheck, UserCog, Hammer, Video } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { SupportWidget } from "@/components/support-widget";
-import { MeetingRoomButton } from "@/components/meeting-room";
+import { AdminSupervisionButton } from "@/components/admin-supervision-panel";
 import { toast } from "sonner";
 
 const TEAM_CHAT_SEEN_KEY = "team_chat_last_seen";
@@ -181,7 +181,7 @@ function AdminLayout() {
             لوحة التحكم
           </Link>
           <div className="flex items-center gap-2">
-            <MeetingRoomButton userRole="owner" variant="header" canReportNoShow />
+            <AdminSupervisionButton />
             {/* Notifications bell with dropdown */}
             <div className="relative">
               <button
