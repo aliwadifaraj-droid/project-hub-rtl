@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Mic,
   MicOff,
@@ -11,7 +11,6 @@ import {
   X,
   Volume2,
   ShieldCheck,
-  Ban,
   LogIn,
   LogOut,
   AlertTriangle,
@@ -20,7 +19,6 @@ import {
   listMyUpcomingMeetings,
   joinMeeting,
   closeMeeting,
-  setMeetingParticipantControl,
 } from "@/lib/meetings.functions";
 import { meetingStartTimestamp } from "@/lib/meeting-time";
 import type { IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
@@ -137,8 +135,6 @@ function AdminSupervisionPanel({
 }) {
   const joinFn = useServerFn(joinMeeting);
   const closeFn = useServerFn(closeMeeting);
-  const controlFn = useServerFn(setMeetingParticipantControl);
-
   const [phase, setPhase] = useState<
     "idle" | "listening" | "ended" | "no_meeting"
   >(meeting ? "idle" : "no_meeting");
@@ -166,34 +162,6 @@ function AdminSupervisionPanel({
   const meetingStartTs = meeting
     ? meetingStartTimestamp(meeting.meeting_date, meeting.meeting_time)
     : 0;
-
-  const controlMutation = useMutation({
-    mutationFn: (input: {
-      id: string;
-      participantRole: "owner" | "client";
-      action: "mute" | "unmute" | "kick";
-    }) => controlFn({ data: input }),
-    onSuccess: (_, variables) => {
-      if (variables.action === "kick") {
-        setParticipantStates((prev) => ({
-          ...prev,
-          [variables.participantRole]: {
-            ...prev[variables.participantRole],
-            status: "left",
-          },
-        }));
-      } else if (variables.action === "mute" || variables.action === "unmute") {
-        setParticipantStates((prev) => ({
-          ...prev,
-          [variables.participantRole]: {
-            ...prev[variables.participantRole],
-            micOn: variables.action === "unmute",
-          },
-        }));
-      }
-    },
-    onError: () => setError("تعذر تنفيذ الإجراء الإداري"),
-  });
 
   const clearTimers = useCallback(() => {
     if (countdownRef.current) {
@@ -490,41 +458,11 @@ function AdminSupervisionPanel({
               name={meeting?.owner_name || "صاحب المشروع"}
               email={meeting?.owner_email || ""}
               state={participantStates.owner}
-              disabled={controlMutation.isPending || phase !== "listening"}
-              onMuteToggle={() =>
-                controlMutation.mutate({
-                  id: meeting!.id,
-                  participantRole: "owner",
-                  action: participantStates.owner.micOn ? "mute" : "unmute",
-                })
-              }
-              onKick={() =>
-                controlMutation.mutate({
-                  id: meeting!.id,
-                  participantRole: "owner",
-                  action: "kick",
-                })
-              }
             />
             <ParticipantCard
               name={meeting?.client_name || "العميل"}
               email={meeting?.client_email || ""}
               state={participantStates.client}
-              disabled={controlMutation.isPending || phase !== "listening"}
-              onMuteToggle={() =>
-                controlMutation.mutate({
-                  id: meeting!.id,
-                  participantRole: "client",
-                  action: participantStates.client.micOn ? "mute" : "unmute",
-                })
-              }
-              onKick={() =>
-                controlMutation.mutate({
-                  id: meeting!.id,
-                  participantRole: "client",
-                  action: "kick",
-                })
-              }
             />
           </div>
         </div>
@@ -619,16 +557,10 @@ function ParticipantCard({
   name,
   email,
   state,
-  disabled,
-  onMuteToggle,
-  onKick,
 }: {
   name: string;
   email: string;
   state: ParticipantState;
-  disabled: boolean;
-  onMuteToggle: () => void;
-  onKick: () => void;
 }) {
   const statusConfig: Record<
     ParticipantStatus,
@@ -685,26 +617,6 @@ function ParticipantCard({
             • دخل {new Date(state.joinedAt).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
-      </div>
-
-      <div className="flex gap-2 border-t border-border pt-2">
-        <button
-          type="button"
-          onClick={onMuteToggle}
-          disabled={disabled}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-semibold transition hover:bg-secondary disabled:opacity-50"
-        >
-          {state.micOn ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
-          {state.micOn ? "كتم" : "فك الكتم"}
-        </button>
-        <button
-          type="button"
-          onClick={onKick}
-          disabled={disabled}
-          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1 text-xs font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
-        >
-          <Ban className="h-3.5 w-3.5" /> طرد
-        </button>
       </div>
     </div>
   );
