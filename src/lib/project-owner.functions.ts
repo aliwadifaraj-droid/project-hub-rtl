@@ -7,6 +7,7 @@ import * as projectsRepo from "./projects.repo";
 import { invalidateProjectsAll } from "./cache";
 import { notifyVipSubscribersOfNewProject, detectCity } from "./vip-notify.server";
 import { listActiveByCity } from "./vip.repo";
+import { assertEmailAvailable } from "./email-dedup";
 
 type OwnerRow = { id: string; email: string; password_hash: string };
 
@@ -62,7 +63,7 @@ export const signUpProjectOwner = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ownerProfileSchema.parse(input))
   .handler(async ({ data }) => {
     await ensureOwnerTables();
-    if (await findOwnerByEmail(data.email)) throw new Error("هذا البريد مسجل بالفعل");
+    await assertEmailAvailable(data.email, "لوحة أصحاب المشاريع");
     const ownerId = crypto.randomUUID();
     const hashedPassword = await hashPassword(data.password);
     await db.batch([

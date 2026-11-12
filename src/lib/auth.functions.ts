@@ -22,6 +22,7 @@ import {
 } from "./users.repo";
 import { createPasswordResetToken, getValidPasswordResetToken, markPasswordResetTokenUsed } from "./password-reset.repo";
 import { sendResendEmail } from "./resend-send.server";
+import { assertEmailAvailable } from "./email-dedup";
 
 const FIRST_ADMIN_EMAIL = "aliwadifaraj@gmail.com";
 
@@ -34,8 +35,7 @@ const credsSchema = z.object({
 export const signUp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => credsSchema.parse(d))
   .handler(async ({ data }) => {
-    const existing = await findUserByEmail(data.email);
-    if (existing) throw new Error("هذا البريد مسجل بالفعل");
+    await assertEmailAvailable(data.email, "لوحة التحكم");
     const hash = await hashPassword(data.password);
     const userId = await createUser(data.email, hash);
     // أول حساب يصبح ادمن تلقائياً

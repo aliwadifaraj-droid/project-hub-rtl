@@ -7,6 +7,7 @@ import { SAUDI_CITIES } from "./saudi-cities";
 import { insertOne as insertNotification } from "./notifications.repo";
 import { resolveStoredFileUrl } from "./storage-url";
 import { deleteFromR2 } from "./r2";
+import { assertEmailAvailable } from "./email-dedup";
 
 const registerSchema = z.object({
   full_name: z.string().trim().min(2, "الاسم مطلوب").max(100),
@@ -22,9 +23,7 @@ export const registerTeacher = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => registerSchema.parse(d))
   .handler(async ({ data }) => {
     const profession = data.profession === "أخرى" ? data.profession_other || "أخرى" : data.profession;
-    if (await harajRepo.findTeacherByEmail(data.email) || await harajRepo.findLoginByEmail(data.email)) {
-      throw new Error("هذا البريد الإلكتروني مسجل مسبقاً");
-    }
+    await assertEmailAvailable(data.email, "حراج المعلمين");
     const passwordHash = await hashPassword(data.password);
     const id = await harajRepo.insertTeacher({ ...data, profession });
     await harajRepo.insertLogin(data.email, passwordHash);
