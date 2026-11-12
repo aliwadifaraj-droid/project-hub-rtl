@@ -34,6 +34,7 @@ import {
   resetRateLimit,
   formatRetryMs,
 } from "./rate-limiter";
+import { assertEmailAvailable } from "./email-dedup";
 
 // --- Rate limit constants ---
 const LOGIN_MAX_ATTEMPTS = 5;
@@ -75,8 +76,7 @@ export const signUpClient = createServerFn({ method: "POST" })
       throw new Error(formatRetryMs(sLimit.retryAfterMs));
     }
 
-    const existing = await findClientByEmail(data.email);
-    if (existing) throw new Error("هذا البريد مسجل بالفعل");
+    await assertEmailAvailable(data.email, "لوحة العملاء");
     const hash = await hashPassword(data.password);
     const clientId = await createClient(data.email, hash);
     await clientRepo.createClientProfile(clientId, data.email, {
