@@ -192,3 +192,23 @@ export const reportMeetingNoShow = createServerFn({ method: "POST" })
 
     return { ok: true, emailed };
   });
+
+export const setMeetingParticipantControl = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        participantRole: z.enum(["owner", "client"]),
+        action: z.enum(["mute", "unmute", "kick"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const meeting = await meetingsRepo.getMeetingById(data.id);
+    if (!meeting) throw new Error("الاجتماع غير موجود");
+    if (meeting.status === "closed" || meeting.status === "no_show") {
+      throw new Error("الاجتماع منتهي");
+    }
+    return { ok: true };
+  });
