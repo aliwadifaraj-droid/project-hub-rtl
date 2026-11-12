@@ -1,6 +1,5 @@
 @import "tailwindcss" source(none);
 @source "../src";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -182,5 +181,37 @@
     .print\:hidden {
       display: none;
     }
+  }
+}
+
+@media (max-width: 640px) {
+  #root > div.relative > div.pointer-events-none.absolute {
+    right: 0.5rem;
+    width: auto;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  #root > div.relative > div.pointer-events-none.absolute > button {
+    position: static !important;
+    inset: auto !important;
+    width: 100%;
+    justify-content: center;
+  }
+
+  #root > div.relative > div.pointer-events-none.absolute > a,
+  #root > div.relative > div.pointer-events-none.absolute > div {
+    width: 100%;
+    justify-content: center;
+  }
+
+  #root > div.relative > div.pointer-events-none.absolute > button:first-child {
+    position: absolute !important;
+    top: -3.5rem;
+    left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    transform: translateX(-50%);
+    white-space: nowrap;
   }
 }

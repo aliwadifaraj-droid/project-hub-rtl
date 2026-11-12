@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Settings2, Save, MessageCircleOff, Database, HardDrive, AlertTriangle, Star, Ban, Trash2, Loader2, Building2, RefreshCw } from "lucide-react";
 import { getMaintenance, setMaintenance } from "@/lib/maintenance.functions";
 import { getHideSupportChat, setHideSupportChat, getVipMaintenance, setVipMaintenance } from "@/lib/site-settings.functions";
+import { AgoraSettingsCard } from "@/components/AgoraSettingsCard";
 import { getMyRoles } from "@/lib/admin.functions";
 import { getDatabaseSize } from "@/lib/db-stats.functions";
 import { hasAdminRole } from "@/lib/role-label";
@@ -146,6 +147,10 @@ function AdminSettings() {
       <div className="mb-6 flex items-center gap-2">
         <Settings2 className="h-5 w-5" />
         <h1 className="text-xl font-bold">إعدادات الموقع</h1>
+      </div>
+
+      <div className="mb-6">
+        <AgoraSettingsCard />
       </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2">

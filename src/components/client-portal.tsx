@@ -12,6 +12,7 @@ import {
   removeClientPushSubscription,
 } from "@/lib/client.functions";
 import { SiteHeader } from "@/components/site-header";
+import { MeetingRoomButton } from "@/components/meeting-room";
 import { SiteFooter } from "@/components/site-footer";
 import {
   Building2, User, FileText, Search, Upload, LogOut, Lock,
@@ -51,7 +52,7 @@ function isIOSInAppBrowser() {
 
 type Tab = "projects" | "profile" | "offers" | "submit";
 
-export function ClientPortal() {
+export function ClientPortal({ supportAction, vipAction }: { supportAction: React.ReactNode; vipAction: React.ReactNode }) {
   const [tab, setTab] = useState<Tab>("projects");
   const [notifStatus, setNotifStatus] = useState<"idle" | "subscribing" | "error">("idle");
   const [notifEnabled, setNotifEnabled] = useState(false);
@@ -142,6 +143,9 @@ export function ClientPortal() {
   return (
     <div className="min-h-screen flex flex-col bg-[#fffbeb]">
       <SiteHeader />
+      <div className="w-full border-b border-blue-200 bg-blue-50 px-4 py-2 sm:px-6 lg:px-8">
+        <MeetingRoomButton userRole="client" variant="header" />
+      </div>
       <div className="flex-1 w-full px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 rounded-2xl border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -154,22 +158,28 @@ export function ClientPortal() {
                 <p className="text-sm text-muted-foreground">{session?.company_name || session?.email || ""}</p>
               </div>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                onClick={handleToggleNotifications}
-                disabled={notifStatus === "subscribing"}
-                className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
-                  notifEnabled
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                    : "border-border bg-[#fffbeb] hover:bg-[#fef3c7]"
-                }`}
-              >
-                {notifStatus === "subscribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
-                {notifEnabled ? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
-              </button>
-              <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#fffbeb] px-4 py-2 text-sm font-semibold transition hover:bg-[#fef3c7]">
-                <LogOut className="h-4 w-4" /> تسجيل الخروج
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2 [&>*]:flex-1 [&>*]:justify-center">
+                <button
+                  onClick={handleToggleNotifications}
+                  disabled={notifStatus === "subscribing"}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
+                    notifEnabled
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : "border-border bg-[#fffbeb] hover:bg-[#fef3c7]"
+                  }`}
+                >
+                  {notifStatus === "subscribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                  {notifEnabled ? "الإشعارات مفعّلة" : "تفعيل الإشعارات"}
+                </button>
+                {supportAction}
+              </div>
+              <div className="flex gap-2 [&>*]:flex-1 [&>*]:justify-center">
+                <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#fffbeb] px-4 py-2 text-sm font-semibold transition hover:bg-[#fef3c7]">
+                  <LogOut className="h-4 w-4" /> تسجيل الخروج
+                </button>
+                {vipAction}
+              </div>
             </div>
           </div>
         </div>
