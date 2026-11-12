@@ -53,6 +53,7 @@ export const createMeeting = createServerFn({ method: "POST" })
         duration_minutes: data.duration_minutes,
       });
 
+      const subject = `دعوة لحضور اجتماع — ${data.meeting_date} ${data.meeting_time}`;
       let emailed = false;
       let emailError: string | null = null;
       try {
@@ -66,7 +67,7 @@ export const createMeeting = createServerFn({ method: "POST" })
         );
         const sent = await sendResendEmailWithResult({
           to: client.email,
-          subject: `دعوة لحضور اجتماع — ${data.meeting_date} ${data.meeting_time}`,
+          subject,
           html,
         });
         emailed = sent.ok;
@@ -74,6 +75,28 @@ export const createMeeting = createServerFn({ method: "POST" })
       } catch (e) {
         console.error("Failed to send meeting email to", client.email, e);
         emailError = e instanceof Error ? e.message : "تعذّر تجهيز الإيميل";
+      }
+
+      try {
+        const ownerHtml = await render(
+          MeetingInvitationEmail({
+            variant: "owner",
+            clientName: client.name,
+            ownerName: data.owner_name,
+            meetingDate: data.meeting_date,
+            meetingTime: data.meeting_time,
+          }),
+        );
+        const ownerSent = await sendResendEmailWithResult({
+          to: data.owner_email,
+          subject,
+          html: ownerHtml,
+        });
+        if (!ownerSent.ok) {
+          console.error("Failed to send meeting email to owner", data.owner_email, ownerSent.error);
+        }
+      } catch (e) {
+        console.error("Failed to send meeting email to owner", data.owner_email, e);
       }
 
       results.push({
