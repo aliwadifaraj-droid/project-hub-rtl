@@ -235,6 +235,9 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
           {clients.map((c) => {
             const isSelected = selected.has(c.email);
+            const selectionClass = isSelected
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-background";
             return (
               <li key={c.email}>
                 <button
@@ -242,13 +245,7 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
                   onClick={() => toggleClient(c.email)}
                   className="flex w-full items-center gap-3 px-4 py-3 text-start transition hover:bg-secondary"
                 >
-                  <span
-                    className={`grid h-5 w-5 shrink-0 place-items-center rounded border transition ${
-                      isSelected
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background"
-                    }`
-                  >
+                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded border transition ${selectionClass}`}>
                     {isSelected && <Check className="h-3.5 w-3.5" />}
                   </span>
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-secondary">
