@@ -24,5 +24,9 @@ export function extractPlanAmountFromOcr(text: string, planAmounts: readonly num
     if (plan !== undefined) return String(plan);
   }
 
-  return "";
+  const shortAmount = values.find((value, index) => {
+    const digitsOnly = tokens[index].replace(/\D/g, "");
+    return value > 0 && digitsOnly.length <= 4 && !/^(19|20)\d{2}$/.test(digitsOnly);
+  });
+  return shortAmount !== undefined ? String(shortAmount) : "";
 }
