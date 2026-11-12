@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -24,7 +23,6 @@ import {
 import { getMyRoles } from "@/lib/admin.functions";
 import { hasAdminRole } from "@/lib/role-label";
 import { meetingStartTimestamp } from "@/lib/meeting-time";
-import type { IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
 
 type MeetingRow = {
   id: string;
@@ -34,6 +32,7 @@ type MeetingRow = {
   client_name: string;
   meeting_date: string;
   meeting_time: string;
+  duration_minutes: number | null;
   status: string;
   joined_at: string | null;
   closed_at: string | null;
@@ -46,8 +45,8 @@ type AgoraConnection = {
   channelName: string;
 };
 
-const MEETING_DURATION_MS = 60 * 60 * 1000;
 const NO_SHOW_TIMEOUT_MS = 10 * 60 * 1000;
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const AGORA_APP_ID = import.meta.env.VITE_AGORA_APP_ID?.trim() ?? "";
 const MISSING_APP_ID_MESSAGE =
   "إعدادات غرفة الاجتماع غير مكتملة. الحقل الناقص: VITE_AGORA_APP_ID.";
@@ -199,6 +198,7 @@ function MeetingRoom({
   const [participants, setParticipants] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const [showFiveMinWarning, setShowFiveMinWarning] = useState(false);
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -206,8 +206,7 @@ function MeetingRoom({
   const agoraClientRef = useRef<unknown>(null);
   const localAudioTrackRef = useRef<unknown>(null);
   const joinedRef = useRef(false);
-  const remoteUsersRef = useRef<Map<IAgoraRTCRemoteUser["uid"], IAgoraRTCRemoteUser>>(new Map());
-  const speakerOnRef = useRef(true);
+  const fiveMinWarningRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const meetingStartTs = meeting
     ? meetingStartTimestamp(meeting.meeting_date, meeting.meeting_time)
@@ -225,6 +224,10 @@ function MeetingRoom({
     if (noShowTimerRef.current) {
       clearTimeout(noShowTimerRef.current);
       noShowTimerRef.current = null;
+    }
+    if (fiveMinWarningRef.current) {
+      clearTimeout(fiveMinWarningRef.current);
+      fiveMinWarningRef.current = null;
     }
   }, []);
 
@@ -246,7 +249,6 @@ function MeetingRoom({
     agoraClientRef.current = null;
     localAudioTrackRef.current = null;
     joinedRef.current = false;
-    remoteUsersRef.current.clear();
   }, []);
 
   const handleEndCall = useCallback(async () => {
@@ -283,22 +285,12 @@ function MeetingRoom({
         const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         agoraClientRef.current = client;
 
-        client.on("user-joined", (remoteUser) => {
-          remoteUsersRef.current.set(remoteUser.uid, remoteUser);
-          setParticipants(remoteUsersRef.current.size + 1);
+        client.on("user-published", async () => {
+          setParticipants((prev) => prev + 1);
         });
 
-        client.on("user-left", (remoteUser) => {
-          remoteUsersRef.current.delete(remoteUser.uid);
-          setParticipants(remoteUsersRef.current.size + 1);
-        });
-
-        client.on("user-published", async (remoteUser, mediaType) => {
-          await client.subscribe(remoteUser, mediaType);
-          if (mediaType === "audio") {
-            remoteUser.audioTrack?.setVolume(speakerOnRef.current ? 100 : 0);
-            remoteUser.audioTrack?.play();
-          }
+        client.on("user-unpublished", () => {
+          setParticipants((prev) => Math.max(1, prev - 1));
         });
 
         await client.join(conn.appId, conn.channelName, conn.token ?? null, 0);
@@ -311,16 +303,27 @@ function MeetingRoom({
         setPhase("active");
         setCallDurationMs(0);
 
-        callTimerRef.current = setInterval(() => {
-          setCallDurationMs((prev) => {
-            const next = prev + 1000;
-            if (next >= MEETING_DURATION_MS) {
-              void handleEndCall();
-              return prev;
-            }
-            return next;
-          });
-        }, 1000);
+        const durationMs = meeting?.duration_minutes ? meeting.duration_minutes * 60 * 1000 : null;
+
+        if (durationMs) {
+          callTimerRef.current = setInterval(() => {
+            setCallDurationMs((prev) => {
+              const next = prev + 1000;
+              if (next >= durationMs) {
+                void handleEndCall();
+                return prev;
+              }
+              return next;
+            });
+          }, 1000);
+
+          const warnDelay = durationMs - FIVE_MINUTES_MS;
+          if (warnDelay > 0) {
+            fiveMinWarningRef.current = setTimeout(() => {
+              setShowFiveMinWarning(true);
+            }, warnDelay);
+          }
+        }
 
         noShowTimerRef.current = setTimeout(() => {
           setParticipants((cur) => {
@@ -349,6 +352,7 @@ function MeetingRoom({
     }
     setJoining(true);
     setError(null);
+    setShowFiveMinWarning(false);
     try {
       const conn = await joinFn({ data: { id: meeting.id, appId: AGORA_APP_ID } });
       await joinAgoraCall({ appId: AGORA_APP_ID, token: conn.token, channelName: conn.channelName });
@@ -410,12 +414,7 @@ function MeetingRoom({
   }, [muted]);
 
   const toggleSpeaker = useCallback(() => {
-    const next = !speakerOnRef.current;
-    speakerOnRef.current = next;
-    setSpeakerOn(next);
-    remoteUsersRef.current.forEach((remoteUser) => {
-      remoteUser.audioTrack?.setVolume(next ? 100 : 0);
-    });
+    setSpeakerOn((prev) => !prev);
   }, []);
 
   if (phase === "no_meeting") {
@@ -622,8 +621,22 @@ function MeetingRoom({
           dir="ltr"
         >
           <Clock className="h-5 w-5" />
-          {formatCountdown(MEETING_DURATION_MS - callDurationMs)}
+          {meeting?.duration_minutes
+            ? formatCountdown(meeting.duration_minutes * 60 * 1000 - callDurationMs)
+            : formatCountdown(callDurationMs)}
         </div>
+
+        {showFiveMinWarning && meeting?.duration_minutes && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+            باقي 5 دقائق على انتهاء الاجتماع
+          </div>
+        )}
+
+        {!meeting?.duration_minutes && (
+          <p className="text-xs text-muted-foreground">
+            هذه الجلسة بدون حد زمني
+          </p>
+        )}
 
         {error && isAdmin && (
           <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
@@ -689,9 +702,9 @@ function MeetingRoomModal({
   onClose: () => void;
   fullscreen?: boolean;
 }) {
-  return createPortal(
+  return (
     <div
-      className="pointer-events-auto fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/60 px-4 pb-4 pt-16"
+      className="pointer-events-auto fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="meeting-room-title"
@@ -716,7 +729,6 @@ function MeetingRoomModal({
         </div>
         {children}
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }

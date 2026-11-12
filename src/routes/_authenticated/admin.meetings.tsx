@@ -4,24 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminListProjectOwners } from "@/lib/project-owner-admin.functions";
 import { adminListClients } from "@/lib/admin.functions";
-import {
-  adminListUpcomingMeetings,
-  createMeeting,
-} from "@/lib/meetings.functions";
+import { adminListUpcomingMeetings, createMeeting } from "@/lib/meetings.functions";
 import { riyadhToday } from "@/lib/meeting-time";
-import {
-  ArrowRight,
-  Building2,
-  CalendarDays,
-  Check,
-  Clock,
-  Loader2,
-  Mail,
-  Search,
-  UserCircle,
-  Users,
-  X,
-} from "lucide-react";
+import { ArrowRight, Building2, CalendarDays, Check, Clock, Loader2, Mail, Search, UserCircle, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/meetings")({
@@ -152,15 +137,13 @@ function UpcomingMeetingsList() {
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
           {meetings.map((m) => (
-            <li key={m.id} className="px-4 py-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{m.client_name || m.client_email}</div>
-                  <div className="truncate text-xs text-muted-foreground">مع {m.owner_name || m.owner_email}</div>
-                </div>
-                <div className="text-xs text-muted-foreground" dir="ltr">
-                  {m.meeting_date} — {m.meeting_time}
-                </div>
+            <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{m.client_name || m.client_email}</div>
+                <div className="truncate text-xs text-muted-foreground">مع {m.owner_name || m.owner_email}</div>
+              </div>
+              <div className="text-xs text-muted-foreground" dir="ltr">
+                {m.meeting_date} — {m.meeting_time}
               </div>
             </li>
           ))}
@@ -264,7 +247,7 @@ function ClientsList({ owner, onBack }: { owner: Owner; onBack: () => void }) {
                       isSelected
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-background"
-                    }`}
+                    }`
                   >
                     {isSelected && <Check className="h-3.5 w-3.5" />}
                   </span>
@@ -328,7 +311,13 @@ function ScheduleMeetingDialog({
   const today = riyadhToday();
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const [duration, setDuration] = useState<string>("none");
   const [formError, setFormError] = useState<string | null>(null);
+
+  const durationMinutes =
+    duration === "30" ? 30 :
+    duration === "60" ? 60 :
+    duration === "120" ? 120 : null;
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -342,6 +331,7 @@ function ScheduleMeetingDialog({
           })),
           meeting_date: date,
           meeting_time: time,
+          duration_minutes: durationMinutes,
         },
       }),
     onSuccess: (res: { created: number; results: Array<{ emailed: boolean; emailError: string | null }> }) => {
@@ -420,6 +410,22 @@ function ScheduleMeetingDialog({
             onChange={(e) => setTime(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
           />
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            <Clock className="h-4 w-4" /> مدة الاجتماع
+          </span>
+          <select
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="none">بدون حد</option>
+            <option value="30">30 دقيقة</option>
+            <option value="60">60 دقيقة</option>
+            <option value="120">120 دقيقة</option>
+          </select>
         </label>
 
         {formError && <p className="text-sm text-destructive">{formError}</p>}

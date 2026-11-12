@@ -3,12 +3,8 @@ import { z } from "zod";
 import { render } from "@react-email/components";
 import { requireAdmin, requireAuth } from "./auth-middleware.server";
 import * as meetingsRepo from "./meetings.repo";
-import type { MeetingParticipantRole } from "./meetings.repo";
-import { sendResendEmailWithResult, type ResendSendResult } from "./resend-send.server";
-import {
-  MeetingInvitationEmail,
-  type MeetingInvitationProps,
-} from "./email-templates/meeting-invitation";
+import { sendResendEmailWithResult } from "./resend-send.server";
+import { MeetingInvitationEmail } from "./email-templates/meeting-invitation";
 import { MeetingNoShowEmail } from "./email-templates/meeting-no-show";
 import { buildAgoraRtcToken } from "./agora-token.server";
 import { readAgoraSettings } from "./site-settings.functions";
@@ -29,19 +25,6 @@ function canAccessMeeting(
   return meeting.client_email.toLowerCase() === email || meeting.owner_email.toLowerCase() === email;
 }
 
-async function sendMeetingInvitation(
-  opts: MeetingInvitationProps & { to: string; subject: string },
-): Promise<ResendSendResult> {
-  try {
-    const { to, subject, ...props } = opts;
-    const html = await render(MeetingInvitationEmail(props));
-    return await sendResendEmailWithResult({ to, subject, html });
-  } catch (e) {
-    console.error("Failed to prepare meeting invitation", e);
-    return { ok: false, error: e instanceof Error ? e.message : "تعذّر تجهيز الإيميل" };
-  }
-}
-
 export const createMeeting = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) =>
@@ -52,6 +35,7 @@ export const createMeeting = createServerFn({ method: "POST" })
         clients: z.array(clientSchema).min(1).max(50),
         meeting_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         meeting_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+        duration_minutes: z.union([z.literal(30), z.literal(60), z.literal(120), z.null()]).default(null),
       })
       .parse(d),
   )
@@ -66,37 +50,37 @@ export const createMeeting = createServerFn({ method: "POST" })
         client_name: client.name,
         meeting_date: data.meeting_date,
         meeting_time: data.meeting_time,
+        duration_minutes: data.duration_minutes,
       });
 
-      const invitation = {
-        clientName: client.name,
-        ownerName: data.owner_name,
-        meetingDate: data.meeting_date,
-        meetingTime: data.meeting_time,
-      };
-      const subject = `دعوة لحضور اجتماع — ${data.meeting_date} ${data.meeting_time}`;
-
-      const clientSent = await sendMeetingInvitation({
-        ...invitation,
-        variant: "client",
-        to: client.email,
-        subject,
-      });
-      const ownerSent = await sendMeetingInvitation({
-        ...invitation,
-        variant: "owner",
-        to: data.owner_email,
-        subject,
-      });
-      if (!ownerSent.ok) {
-        console.error("Failed to send meeting email to owner", data.owner_email, ownerSent.error);
+      let emailed = false;
+      let emailError: string | null = null;
+      try {
+        const html = await render(
+          MeetingInvitationEmail({
+            clientName: client.name,
+            ownerName: data.owner_name,
+            meetingDate: data.meeting_date,
+            meetingTime: data.meeting_time,
+          }),
+        );
+        const sent = await sendResendEmailWithResult({
+          to: client.email,
+          subject: `دعوة لحضور اجتماع — ${data.meeting_date} ${data.meeting_time}`,
+          html,
+        });
+        emailed = sent.ok;
+        if (!sent.ok) emailError = sent.error;
+      } catch (e) {
+        console.error("Failed to send meeting email to", client.email, e);
+        emailError = e instanceof Error ? e.message : "تعذّر تجهيز الإيميل";
       }
 
       results.push({
         client_email: row.client_email,
         client_name: row.client_name,
-        emailed: clientSent.ok,
-        emailError: clientSent.ok ? null : clientSent.error,
+        emailed,
+        emailError,
       });
     }
 
@@ -163,53 +147,16 @@ export const joinMeeting = createServerFn({ method: "POST" })
   });
 
 export const closeMeeting = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    const meeting = await meetingsRepo.getMeetingById(data.id);
-    if (!meeting) throw new Error("الاجتماع غير موجود");
-    await meetingsRepo.markMeetingClosed(data.id);
-    return { ok: true };
-  });
-
-export const setMeetingParticipantControl = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .inputValidator((d: unknown) =>
-    z
-      .object({
-        id: z.string().uuid(),
-        participantRole: z.enum(["owner", "client"]),
-        action: z.enum(["mute", "unmute", "kick"]),
-      })
-      .parse(d),
-  )
-  .handler(async ({ data }) => {
-    const meeting = await meetingsRepo.getMeetingById(data.id);
-    if (!meeting) throw new Error("الاجتماع غير موجود");
-    return meetingsRepo.setMeetingParticipantControl(
-      data.id,
-      data.participantRole as MeetingParticipantRole,
-      data.action,
-    );
-  });
-
-export const getMeetingParticipantControl = createServerFn({ method: "GET" })
   .middleware([requireAuth])
-  .inputValidator((d: unknown) =>
-    z
-      .object({
-        id: z.string().uuid(),
-        participantRole: z.enum(["owner", "client"]),
-      })
-      .parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const meeting = await meetingsRepo.getMeetingById(data.id);
     if (!meeting) throw new Error("الاجتماع غير موجود");
     if (!canAccessMeeting(meeting, context)) {
       throw new Error("غير مصرح لهذا الاجتماع");
     }
-    return meetingsRepo.getMeetingParticipantControl(data.id, data.participantRole);
+    await meetingsRepo.markMeetingClosed(data.id);
+    return { ok: true };
   });
 
 export const reportMeetingNoShow = createServerFn({ method: "POST" })
