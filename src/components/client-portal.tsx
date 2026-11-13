@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 9c854fda8fc7e1475c492db6320aadcc7e9e8c1b)
 import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +20,7 @@ import {
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
   TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
   FolderKanban, Calendar, Crown, Images, Bell, X, ExternalLink,
-  Smartphone, ScrollText,
+  Smartphone, ScrollText, Info,
 } from "lucide-react";
 
 function isIOS() {
@@ -50,7 +51,7 @@ function isIOSInAppBrowser() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) && !isIOSSafari();
 }
 
-type Tab = "projects" | "profile" | "offers" | "submit" | "policy";
+type Tab = "projects" | "profile" | "offers" | "submit" | "policy" | "overview";
 
 export function ClientPortal({ supportAction, vipAction }: { supportAction: React.ReactNode; vipAction: React.ReactNode }) {
   const [tab, setTab] = useState<Tab>("projects");
@@ -205,6 +206,7 @@ export function ClientPortal({ supportAction, vipAction }: { supportAction: Reac
           <TabButton active={tab === "policy"} onClick={() => setTab("policy")} icon={<ScrollText className="h-4 w-4" />}>سياسة المنصة</TabButton>
           <TabButton active={tab === "offers"} onClick={() => setTab("offers")} icon={<TrendingUp className="h-4 w-4" />}>تتبع عروضي</TabButton>
           <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<FileText className="h-4 w-4" />}>تقديم عرض سعر</TabButton>
+          <TabButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<Info className="h-4 w-4" />}>لمحة</TabButton>
         </div>
 
         {tab === "projects" && <ProjectsTab />}
@@ -212,6 +214,7 @@ export function ClientPortal({ supportAction, vipAction }: { supportAction: Reac
         {tab === "policy" && <PolicyTab />}
         {tab === "offers" && <OffersTab />}
         {tab === "submit" && <SubmitOfferTab />}
+        {tab === "overview" && <OverviewTab />}
       </div>
       <SiteFooter />
       {showIOSHelp && isIOS() && !isStandalonePWA() && (
@@ -588,6 +591,22 @@ function PolicyTab() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab() {
+  return (
+    <div className="max-w-3xl space-y-4">
+      <div className="rounded-2xl border border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
+        <div className="mb-5 flex items-center gap-2">
+          <Info className="h-5 w-5 text-accent" />
+          <h2 className="text-lg font-bold">لمحة</h2>
+        </div>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          منصة العمران، منصة إلكترونية سعودية تعرض المشاريع للمناقصات عبر العملاء الذين يمتلكون حسابات في المنصة. التسجيل مجاناً، وتقديم عرض السعر عبر حسابك بكل سهولة.
+        </p>
       </div>
     </div>
   );
