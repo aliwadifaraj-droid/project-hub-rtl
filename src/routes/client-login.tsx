@@ -150,7 +150,7 @@ function ClientLoginPage() {
                 {isBlockedError && (
                   <Link
                     to="/contact"
-                    className="mt-2 inline-flex font-semibold underline underline-offset-4 transition hover:opacity-80"
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-foreground bg-foreground px-4 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90"
                   >
                     التواصل مع الإدارة عبر صفحة «تواصل بنا»
                   </Link>
