@@ -21,6 +21,7 @@ import {
 import * as clientRepo from "./client.repo";
 import * as projectsRepo from "./projects.repo";
 import * as notificationsRepo from "./notifications.repo";
+import { ensureProjectTypeColumn } from "./project-requests.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { detectCity } from "./vip-notify.server";
@@ -321,15 +322,21 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     const companyName = profile.company_name;
     const email = profile.email;
 
-    // Daily offer rate limit: 2 offers per client per 24 hours
+    // Daily offer rate limit: 2 offers per client per 24 hours. Pending offers live in
+    // notifications; approved ones move to project_requests, so both are counted, keyed
+    // by project + pdf so one submission (one row per staff member) counts once.
     const { db, rowsToObjects } = await import("./db");
+    await ensureProjectTypeColumn();
     const since = new Date(Date.now() - OFFER_WINDOW_MS).toISOString();
-    // One submission writes one row per staff member, all sharing created_at
     const recentOffers = await db.execute(
-      `SELECT COUNT(DISTINCT created_at) AS cnt FROM notifications
-        WHERE email = ? AND source = 'client_portal'
-          AND created_at > ?`,
-      [email, since],
+      `SELECT COUNT(*) AS cnt FROM (
+         SELECT COALESCE(project_id, '') || '|' || COALESCE(pdf_key, '') AS k FROM notifications
+          WHERE email = ? AND source = 'client_portal' AND created_at > ?
+         UNION
+         SELECT COALESCE(project_id, '') || '|' || COALESCE(pdf_url, '') AS k FROM project_requests
+          WHERE email = ? AND project_type = 'client_portal' AND created_at > ?
+       )`,
+      [email, since, email, since],
     );
     const offerCount = Number(rowsToObjects<{ cnt: number }>(recentOffers)[0]?.cnt ?? 0);
     if (offerCount >= OFFER_DAILY_LIMIT) {
