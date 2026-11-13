@@ -21,6 +21,7 @@ import {
 import * as clientRepo from "./client.repo";
 import * as projectsRepo from "./projects.repo";
 import * as notificationsRepo from "./notifications.repo";
+import { ensureProjectTypeColumn } from "./project-requests.repo";
 import * as blockedRepo from "./blocked.repo";
 import { BLOCKED_MESSAGE } from "./blocked.functions";
 import { detectCity } from "./vip-notify.server";
@@ -44,6 +45,9 @@ const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 const SIGNUP_MAX_ATTEMPTS = 3;
 const SIGNUP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const SIGNUP_LOCKOUT_MS = 60 * 60 * 1000; // 1 hour
+
+const OFFER_DAILY_LIMIT = 2;
+const OFFER_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function loginRateKey(email: string): string {
   return `login:${getClientIp()}:${email}`;
@@ -107,6 +111,7 @@ export const signInClient = createServerFn({ method: "POST" })
       recordFailedAttempt(key, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, LOGIN_LOCKOUT_MS);
       throw new Error("بيانات الدخول غير صحيحة");
     }
+
     const ok = await verifyPassword(data.password, client.password_hash);
     if (!ok) {
       recordFailedAttempt(key, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, LOGIN_LOCKOUT_MS);
@@ -131,6 +136,7 @@ export const getClientSession = createServerFn({ method: "GET" }).handler(async 
     profile = await clientRepo.getClientProfileByEmail(claims.email);
   }
   if (!profile) return null;
+  if (profile.status === "blocked") return null;
   return {
     id: claims.sub,
     email: claims.email,
@@ -310,10 +316,32 @@ export const submitClientOffer = createServerFn({ method: "POST" })
       profile = await clientRepo.getClientProfileByEmail(claims.email);
     }
     if (!profile) throw new Error("الملف غير موجود، يرجى إكمال بياناتك أولاً");
+    if (profile.status === "blocked") throw new Error("حسابك موقوف. لا يمكنك تقديم طلبات حالياً");
 
     // Company name and email are forced from the registration data
     const companyName = profile.company_name;
     const email = profile.email;
+
+    // Daily offer rate limit: 2 offers per client per 24 hours. Pending offers live in
+    // notifications; approved ones move to project_requests, so both are counted, keyed
+    // by project + pdf so one submission (one row per staff member) counts once.
+    const { db, rowsToObjects } = await import("./db");
+    await ensureProjectTypeColumn();
+    const since = new Date(Date.now() - OFFER_WINDOW_MS).toISOString();
+    const recentOffers = await db.execute(
+      `SELECT COUNT(*) AS cnt FROM (
+         SELECT COALESCE(project_id, '') || '|' || COALESCE(pdf_key, '') AS k FROM notifications
+          WHERE email = ? AND source = 'client_portal' AND created_at > ?
+         UNION
+         SELECT COALESCE(project_id, '') || '|' || COALESCE(pdf_url, '') AS k FROM project_requests
+          WHERE email = ? AND project_type = 'client_portal' AND created_at > ?
+       )`,
+      [email, since, email, since],
+    );
+    const offerCount = Number(rowsToObjects<{ cnt: number }>(recentOffers)[0]?.cnt ?? 0);
+    if (offerCount >= OFFER_DAILY_LIMIT) {
+      return { ok: false as const, message: "لقد وصلت إلى الحد الأقصى من تقديم العروض اليومي (عرضان في اليوم). حاول غداً." };
+    }
 
     await projectsRepo.ensureOffersEnabledColumn();
     const project = await projectsRepo.getById(data.projectId);
@@ -375,7 +403,6 @@ export const submitClientOffer = createServerFn({ method: "POST" })
     // project + pdf_key in the last 30 seconds, reject the duplicate. This
     // catches double-click submissions that pass the checks above before the
     // first insert completes.
-    const { db } = await import("./db");
     const recentDup = await db.execute(
       `SELECT id FROM notifications
         WHERE user_id = ? AND project_id = ? AND pdf_key = ?

@@ -5,8 +5,17 @@ import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 
+type ClientStatusCache = {
+  sub: string;
+  status: string;
+  checkedAt: number;
+};
+
 const COOKIE_NAME = "session";
 const SESSION_DAYS = 30;
+const CLIENT_STATUS_TTL_MS = 30 * 1000;
+
+const clientStatusCache = new Map<string, ClientStatusCache>();
 
 function secret(): Uint8Array {
   const s = process.env.AUTH_JWT_SECRET || process.env.SESSION_SECRET || process.env.TURSO_AUTH_TOKEN;
@@ -62,11 +71,38 @@ export function readSessionCookie(): string | null {
   return null;
 }
 
+async function isClientBlocked(sub: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = clientStatusCache.get(sub);
+  if (cached && now - cached.checkedAt < CLIENT_STATUS_TTL_MS) {
+    return cached.status === "blocked";
+  }
+  try {
+    const { db, rowsToObjects } = await import("./db");
+    const result = await db.execute(
+      `SELECT status FROM client_profiles WHERE user_id = ? LIMIT 1`,
+      [sub],
+    );
+    const row = rowsToObjects<{ status: string }>(result)[0];
+    const status = row?.status ?? "active";
+    clientStatusCache.set(sub, { sub, status, checkedAt: now });
+    return status === "blocked";
+  } catch {
+    return false;
+  }
+}
+
 /** Read and validate the current session (or null). */
 export async function getSessionClaims(): Promise<SessionClaims | null> {
   const token = readSessionCookie();
   if (!token) return null;
-  return verifySessionToken(token);
+  const claims = await verifySessionToken(token);
+  if (!claims) return null;
+  if (claims.roles?.includes("client")) {
+    const blocked = await isClientBlocked(claims.sub);
+    if (blocked) return null;
+  }
+  return claims;
 }
 
 /** Set the session cookie on the outgoing response. */

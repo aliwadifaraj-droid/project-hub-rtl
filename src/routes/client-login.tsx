@@ -41,6 +41,10 @@ function ClientLoginPage() {
     try {
       if (mode === "login") {
         await doSignIn({ data: { email, password } });
+        const session = await fetchSession();
+        if (!session) {
+          throw new Error("حسابك موقوف حالياً. لا يمكنك الدخول إلى لوحة العملاء.");
+        }
       } else {
         if (!companyName.trim()) throw new Error("اسم الشركة مطلوب");
         if (!phone.trim()) throw new Error("رقم الجوال مطلوب");
@@ -58,6 +62,7 @@ function ClientLoginPage() {
   }
 
   const isLogin = mode === "login";
+  const isBlockedError = error?.includes("حسابك موقوف") ?? false;
 
   return (
     <div className="min-h-screen">
@@ -140,8 +145,16 @@ function ClientLoginPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                {error}
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+                <p>{error}</p>
+                {isBlockedError && (
+                  <Link
+                    to="/contact"
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-lg border border-foreground bg-foreground px-4 py-2.5 text-sm font-bold text-background transition hover:bg-foreground/90"
+                  >
+                    التواصل مع الإدارة عبر صفحة «تواصل بنا»
+                  </Link>
+                )}
               </div>
             )}
 

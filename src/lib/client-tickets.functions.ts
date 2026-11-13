@@ -4,12 +4,16 @@ import { getSessionClaims } from "./auth.server";
 import * as clientRepo from "./client.repo";
 import * as ticketsRepo from "./tickets.repo";
 import { appendClientTicketReply } from "./client-ticket-replies.repo";
+import { db, rowsToObjects } from "./db";
+
+const TICKET_DAILY_LIMIT = 3;
 
 async function getRequiredClientProfile(): Promise<clientRepo.ClientProfile> {
   const claims = await getSessionClaims();
   if (!claims) throw new Error("يجب تسجيل الدخول");
   const profile = await clientRepo.getClientProfile(claims.sub) ?? await clientRepo.getClientProfileByEmail(claims.email);
   if (!profile) throw new Error("جلسة العميل غير صالحة");
+  if (profile.status === "blocked") throw new Error("حسابك موقوف. لا يمكنك إنشاء تذاكر حالياً");
   return profile;
 }
 
@@ -32,6 +36,18 @@ export const createClientTicket = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createTicketSchema.parse(data))
   .handler(async ({ data }) => {
     const profile = await getRequiredClientProfile();
+
+    const recentTickets = await db.execute(
+      `SELECT COUNT(*) AS cnt FROM tickets
+        WHERE user_id = ? AND user_role = 'client'
+          AND created_at > unixepoch() - 86400`,
+      [profile.user_id],
+    );
+    const ticketCount = Number(rowsToObjects<{ cnt: number }>(recentTickets)[0]?.cnt ?? 0);
+    if (ticketCount >= TICKET_DAILY_LIMIT) {
+      throw new Error("لقد وصلت إلى الحد الأقصى من إنشاء التذاكر اليومي (3 تذاكر في اليوم). حاول غداً.");
+    }
+
     const id = await ticketsRepo.createTicket({
       user_id: profile.user_id,
       user_role: "client",
