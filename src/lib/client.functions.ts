@@ -323,11 +323,13 @@ export const submitClientOffer = createServerFn({ method: "POST" })
 
     // Daily offer rate limit: 2 offers per client per 24 hours
     const { db, rowsToObjects } = await import("./db");
+    const since = new Date(Date.now() - OFFER_WINDOW_MS).toISOString();
+    // One submission writes one row per staff member, all sharing created_at
     const recentOffers = await db.execute(
-      `SELECT COUNT(*) AS cnt FROM notifications
-        WHERE user_id = ? AND source = 'client_portal'
-          AND created_at > datetime('now', '-1 day')`,
-      [claims.sub],
+      `SELECT COUNT(DISTINCT created_at) AS cnt FROM notifications
+        WHERE email = ? AND source = 'client_portal'
+          AND created_at > ?`,
+      [email, since],
     );
     const offerCount = Number(rowsToObjects<{ cnt: number }>(recentOffers)[0]?.cnt ?? 0);
     if (offerCount >= OFFER_DAILY_LIMIT) {
