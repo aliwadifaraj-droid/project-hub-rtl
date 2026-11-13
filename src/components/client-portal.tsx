@@ -19,7 +19,7 @@ import {
   Loader2, CheckCircle2, Clock, XCircle, AlertCircle,
   TrendingUp, Briefcase, MapPin, Phone, MapPin as MapPinIcon, FileText as FileTextIcon,
   FolderKanban, Calendar, Crown, Images, Bell, X, ExternalLink,
-  Smartphone,
+  Smartphone, ScrollText, Info,
 } from "lucide-react";
 
 function isIOS() {
@@ -50,7 +50,7 @@ function isIOSInAppBrowser() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) && !isIOSSafari();
 }
 
-type Tab = "projects" | "profile" | "offers" | "submit";
+type Tab = "projects" | "profile" | "offers" | "submit" | "policy" | "overview";
 
 export function ClientPortal({ supportAction, vipAction }: { supportAction: React.ReactNode; vipAction: React.ReactNode }) {
   const [tab, setTab] = useState<Tab>("projects");
@@ -199,17 +199,21 @@ export function ClientPortal({ supportAction, vipAction }: { supportAction: Reac
           </div>
         )}
 
-        <div className="mb-6 flex-wrap gap-2">
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
           <TabButton active={tab === "projects"} onClick={() => setTab("projects")} icon={<FolderKanban className="h-4 w-4" />}>المشاريع</TabButton>
           <TabButton active={tab === "profile"} onClick={() => setTab("profile")} icon={<User className="h-4 w-4" />}>بياناتي</TabButton>
+          <TabButton active={tab === "policy"} onClick={() => setTab("policy")} icon={<ScrollText className="h-4 w-4" />}>سياسة المنصة</TabButton>
           <TabButton active={tab === "offers"} onClick={() => setTab("offers")} icon={<TrendingUp className="h-4 w-4" />}>تتبع عروضي</TabButton>
           <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<FileText className="h-4 w-4" />}>تقديم عرض سعر</TabButton>
+          <TabButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<Info className="h-4 w-4" />}>لمحة</TabButton>
         </div>
 
         {tab === "projects" && <ProjectsTab />}
         {tab === "profile" && <ProfileTab />}
+        {tab === "policy" && <PolicyTab />}
         {tab === "offers" && <OffersTab />}
         {tab === "submit" && <SubmitOfferTab />}
+        {tab === "overview" && <OverviewTab />}
       </div>
       <SiteFooter />
       {showIOSHelp && isIOS() && !isStandalonePWA() && (
@@ -340,7 +344,7 @@ function TabButton({ active, onClick, icon, children }: {
   active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <button onClick={onClick} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${active ? "bg-foreground text-background" : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"}`}>
+    <button onClick={onClick} className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition sm:w-auto sm:justify-start ${active ? "bg-foreground text-background" : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"}`}>
       {icon} {children}
     </button>
   );
@@ -523,6 +527,85 @@ function ProfileTab() {
             <p className="mt-1 text-sm text-blue-700">لا يمكن تعديل البيانات ذاتياً بعد التسجيل. لطلب أي تعديل يرجى التواصل مع الإدارة عبر صفحة "تواصل بنا".</p>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PolicyTab() {
+  const sections = [
+    {
+      num: "1",
+      title: "المنصة والمناقصات",
+      body: "منصة العمران تعرض مشاريع من شركات أو أفراد (نص + صورة معبرة). التسجيل في المنصة مجاني. يقدم العميل عرض سعر على أي مشروع، ويمر العرض بثلاث مراحل، ويتم إشعاره بكل مرحلة عبر إيميل المرتبط بالمنشأة المسجلة لدى المنصة.",
+    },
+    {
+      num: "2",
+      title: "القبول والتعميد - العميل العادي",
+      body: "عند قبول عرض العميل العادي، يبدأ عداد تنازلي 3 ساعات. إذا انتهى العداد بدون تعميد المشروع، يحق للإدارة سحب المشروع وإعطاؤه لعميل آخر.",
+    },
+    {
+      num: "3",
+      title: "القبول والتعميد - العميل المميز",
+      body: "إذا كان المشروع غير حصري أو خارج مدينة العميل: عداد 24 ساعة. إذا كان المشروع حصري وفي نفس مدينة العميل: عداد 60 ساعة. إذا انتهى العداد بدون تعميد، يحق للإدارة سحب المشروع وإعطاؤه لعميل آخر.",
+    },
+    {
+      num: "4",
+      title: "التلاعب والأسعار الوهمية",
+      body: "أكثر من 3 تقديمات وهمية = حظر الحساب 15 يوم. إذا تكرر السلوك، يحق للمنصة حذف حساب العميل العادي نهائياً بدون الرجوع إليه. إذا كان العميل مميزاً وتم الحذف في أول أيام الاشتراك، يتم إرجاع مبلغ الباقة له ثم حذف الحساب.",
+    },
+    {
+      num: "5",
+      title: "حق المنصة",
+      body: "يحق للمنصة سحب أي مشروع، وحظر أو حذف أي حساب مخالف، وتعديل هذه السياسة مع إشعار المستخدمين. استمرارك في استخدام المنصة يعني قبولك لهذه السياسة.",
+    },
+  ];
+
+  return (
+    <div className="max-w-3xl space-y-4">
+      <div className="rounded-2xl border border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
+        <div className="mb-5 flex items-center gap-2">
+          <ScrollText className="h-5 w-5 text-accent" />
+          <h2 className="text-lg font-bold">سياسة منصة العمران — سياسة العملاء</h2>
+        </div>
+        <div className="space-y-4">
+          {sections.map((s) => (
+            <div key={s.num} className="rounded-xl border border-border bg-[#fffbeb] p-5">
+              <div className="flex items-start gap-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foreground text-xs font-bold text-background">{s.num}</span>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold">{s.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-bold text-amber-900">إقرار الاستخدام</p>
+              <p className="mt-1 text-sm text-amber-700">استمرارك في استخدام منصة العمران يعني قبولك الكامل لهذه السياسة وملحقاتها المستقبلية.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab() {
+  return (
+    <div className="max-w-3xl space-y-4">
+      <div className="rounded-2xl border border-border bg-[#fef3c7] p-6 shadow-[var(--shadow-card)]">
+        <div className="mb-5 flex items-center gap-2">
+          <Info className="h-5 w-5 text-accent" />
+          <h2 className="text-lg font-bold">لمحة</h2>
+        </div>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          منصة العمران، منصة إلكترونية سعودية تعرض المشاريع للمناقصات عبر العملاء الذين يمتلكون حسابات في المنصة. التسجيل مجاناً، وتقديم عرض السعر عبر حسابك بكل سهولة.
+        </p>
       </div>
     </div>
   );
