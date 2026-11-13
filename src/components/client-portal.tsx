@@ -199,7 +199,7 @@ export function ClientPortal({ supportAction, vipAction }: { supportAction: Reac
           </div>
         )}
 
-        <div className="mb-6 flex-wrap gap-2">
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
           <TabButton active={tab === "projects"} onClick={() => setTab("projects")} icon={<FolderKanban className="h-4 w-4" />}>المشاريع</TabButton>
           <TabButton active={tab === "profile"} onClick={() => setTab("profile")} icon={<User className="h-4 w-4" />}>بياناتي</TabButton>
           <TabButton active={tab === "policy"} onClick={() => setTab("policy")} icon={<ScrollText className="h-4 w-4" />}>سياسة المنصة</TabButton>
@@ -342,7 +342,7 @@ function TabButton({ active, onClick, icon, children }: {
   active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <button onClick={onClick} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${active ? "bg-foreground text-background" : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"}`}>
+    <button onClick={onClick} className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition sm:w-auto sm:justify-start ${active ? "bg-foreground text-background" : "border border-border bg-[#fffbeb] text-muted-foreground hover:bg-[#fef3c7]"}`}>
       {icon} {children}
     </button>
   );
