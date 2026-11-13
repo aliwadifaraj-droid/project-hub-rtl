@@ -39,7 +39,7 @@ export const createClientTicket = createServerFn({ method: "POST" })
 
     const recentTickets = await db.execute(
       `SELECT COUNT(*) AS cnt FROM tickets
-        WHERE user_id = ? AND sender_type = 'client'
+        WHERE user_id = ? AND user_role = 'client'
           AND created_at > unixepoch() - 86400`,
       [profile.user_id],
     );
